@@ -16,3 +16,6 @@ __pycache__/
 # specs folder
 specs/
 specs/*
+
+# pdf files
+*.pdf
