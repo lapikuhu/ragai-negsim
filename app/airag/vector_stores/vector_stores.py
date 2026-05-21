@@ -16,7 +16,7 @@ embedding_model, model_dimensionality = choose_embedding_model("mini_l6_v2")
 
 
 ### -------- Chroma Vector Store Section -------- ###
-def instantiate_chroma_vector_store():
+def instantiate_chroma_vector_store() -> Chroma:
     """Instantiate a Chroma vector store"""
     chroma_vector_store = Chroma(
     collection_name="negotiation_corpus",
@@ -39,7 +39,7 @@ def store_docs_to_chroma_store(docs: list[Document], vector_store):
 ### ----------------------------------------------- ###
 
 ### -------- FAISS Vector Store Section -------- ###
-def instantiate_faiss_vector_store():
+def instantiate_faiss_vector_store() -> FAISS:
     """Instantiate an empty FAISS vector store"""
     faiss_vector_store = FAISS.from_texts(
         texts=[""],

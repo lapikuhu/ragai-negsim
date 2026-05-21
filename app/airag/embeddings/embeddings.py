@@ -6,7 +6,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # local imports
 from core.config import settings
 
-def hf_mini_l6_v2_embeddings():
+def hf_mini_l6_v2_embeddings() -> HuggingFaceEmbeddings:
     """Return HuggingFaceEmbeddings instance for MiniLM-L6-v2 model.
     Dimensionality: 384
     """
@@ -15,7 +15,7 @@ def hf_mini_l6_v2_embeddings():
         encode_kwargs={"normalize_embeddings": True},
     )
 
-def hf_bge_base_embeddings():
+def hf_bge_base_embeddings() -> HuggingFaceEmbeddings:
     """Return HuggingFaceEmbeddings instance for BGE-base model.
     Dimensionality: 768"""
     return HuggingFaceEmbeddings(
@@ -23,7 +23,7 @@ def hf_bge_base_embeddings():
         encode_kwargs={"normalize_embeddings": True},
     )
 
-def openai_text_embedding_3_small():
+def openai_text_embedding_3_small() -> OpenAIEmbeddings:
     """Return OpenAIEmbeddings instance for text-embedding-3-small model.
     Dimensionality: 1536
     """
@@ -31,7 +31,7 @@ def openai_text_embedding_3_small():
         model="text-embedding-3-small"
     )
 
-def choose_embedding_model(model_name: str):
+def choose_embedding_model(model_name: str) -> tuple[HuggingFaceEmbeddings, dict[str, int]] | tuple[OpenAIEmbeddings, dict[str, int]]:
     """Return an instance of the specified embedding model.
     Args:
         model_name (str): The name of the embedding model to return. 
