@@ -37,7 +37,7 @@ fast_document_converter = DocumentConverter(
 
 
 def ingest_pdfs_from_corpus(corpus_dir: Path, 
-                            document_converter: DocumentConverter) -> list[DocumentConverter.Document]:
+                            document_converter: DocumentConverter = fast_document_converter) -> list[DocumentConverter.Document]:
     """Ingest PDF documents from the specified corpus directory.
     Args:
         corpus_dir (Path): The path to the directory containing PDF documents.
@@ -57,7 +57,7 @@ def ingest_pdfs_from_corpus(corpus_dir: Path,
             print(f"Error ingesting {pdf_file}: {e}")
     return documents
 
-def ingest_single_pdf(pdf_path: Path, document_converter: DocumentConverter) -> DocumentConverter.Document:
+def ingest_single_pdf(pdf_path: Path, document_converter: DocumentConverter = fast_document_converter) -> DocumentConverter.Document:
     """Ingest a single PDF document from the specified path.
     Args:
         pdf_path (Path): The path to the PDF document to ingest.

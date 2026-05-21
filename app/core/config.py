@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     # Load environment variables from the .env file
     model_config = SettingsConfigDict(env_file=env_path, env_file_encoding="utf-8")
 
+    ASYNC_DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
