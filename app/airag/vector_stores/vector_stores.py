@@ -2,7 +2,12 @@ from langchain_chroma import Chroma
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from uuid import uuid4
+from langchain_postgres import PGEngine, PGVectorStore
+
+# local imports
 from embeddings.embeddings import choose_embedding_model
+from core.config import settings
+# add db import here for pgvectorstore
 
 # Choose the embedding model to use for the vector store
 embedding_model = choose_embedding_model("mini_l6_v2")
@@ -63,3 +68,8 @@ def load_faiss_vector_store(path: str = "./faiss_db"):
         embeddings=embedding_model,
         allow_dangerous_deserialization=True,
     )
+
+### ----------------------------------------------- ###
+
+### -------------pgvectorstore Section------------- ###
+
