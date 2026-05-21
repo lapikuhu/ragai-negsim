@@ -37,15 +37,16 @@ def choose_embedding_model(model_name: str):
         model_name (str): The name of the embedding model to return. 
             Supported values are "mini_l6_v2", "bge_base", and "text_embedding_3_small".
     Returns:
-        An instance of the specified embedding model.
+        A tuple containing an instance of the specified embedding model and a 
+        dictionary with its dimensionality.
     Raises:
         ValueError: If an unsupported model name is provided.
     """
     if model_name == "mini_l6_v2":
-        return hf_mini_l6_v2_embeddings()
+        return hf_mini_l6_v2_embeddings(), {"dimensionality": 384}
     elif model_name == "bge_base":
-        return hf_bge_base_embeddings()
+        return hf_bge_base_embeddings(), {"dimensionality": 768}
     elif model_name == "text_embedding_3_small":
-        return openai_text_embedding_3_small()
+        return openai_text_embedding_3_small(), {"dimensionality": 1536}
     else:
         raise ValueError(f"Unsupported model name: {model_name}. Supported values are 'mini_l6_v2', 'bge_base', and 'text_embedding_3_small'.")
