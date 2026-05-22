@@ -11,6 +11,9 @@ except ImportError:
     from typing_extensions import NotRequired
 from pydantic import BaseModel, Field
 
+# local importa
+from prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT
+
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 LLM_MODEL   = "gpt-4o-mini"
 EMBED_MODEL = "text-embedding-3-small"
@@ -47,7 +50,7 @@ def format_docs(documents: list[Document]) -> str:
         f"[{idx}] Source: {doc.metadata.get('source', 'unknown')}\n{doc.page_content}"
         for idx, doc in enumerate(documents, start=1)
     )
-#### ---- Grader LLM for grading retrieved documents ---- ####
+
 class DocumentGrade(BaseModel):
     """Evaluate whether retrieved documents are useful for answering the question."""
     relevance: Literal["relevant", "not_relevant"] = Field(
@@ -55,26 +58,12 @@ class DocumentGrade(BaseModel):
     )
     reasoning: str = Field(description="Brief explanation of the verdict")
 
-DOC_GRADE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system",
-     "You are a strict document relevance grader for a Datanous.ai RAG system. "
-     "Return 'relevant' only if the context contains information that can help answer the question. "
-     "If the context is empty or unrelated, return 'not_relevant'."),
-    ("human", "Question:\n{question}\n\nRetrieved context:\n{context}"),
-])
 document_grader = DOC_GRADE_PROMPT | llm.with_structured_output(DocumentGrade)
 
-#### ---- Rewriter LLM for reformulating questions ---- ####
-REWRITE_PROMPT = ChatPromptTemplate.from_template( 
-    "The original question did not return relevant results from the vector store. "
-    "Rephrase it using different terminology that may better match the available content. "
-    "Return only the rewritten question, no explanation.\n\n"
-    "Original question: {question}\n\n"
-    "Rewritten question:"
-)
-
-
 rewrite_chain = REWRITE_PROMPT | llm | StrOutputParser()
+
+generation_chain = GEN_PROMPT | llm | StrOutputParser()
+
 # Define the node functions for the RAG graph
 # RETRIEVE
 def node_retrieve(retriever,
