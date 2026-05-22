@@ -1,6 +1,8 @@
 from langchain_core.documents import Document
 from langchain_community.retrievers import BM25Retriever
 from langchain_classic.retrievers import EnsembleRetriever
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
+
 
 def make_dense_retriever(vector_store, k: int = 4):
     """Create a langchain retriever from the specified vector store.
