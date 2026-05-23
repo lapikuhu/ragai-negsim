@@ -11,14 +11,13 @@ except ImportError:
     from typing_extensions import NotRequired
 from pydantic import BaseModel, Field
 
-# local importa
+# local imports
 from prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT
 
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 LLM_MODEL   = "gpt-4o-mini"
 EMBED_MODEL = "text-embedding-3-small"
 llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
-
 
 # Define the RAGState TypedDict to represent the state of the RAG process
 class RAGState(TypedDict):

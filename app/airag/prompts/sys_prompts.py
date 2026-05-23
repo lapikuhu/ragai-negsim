@@ -23,3 +23,16 @@ GEN_PROMPT = ChatPromptTemplate.from_messages([
      "Keep the answer concise and factual."),
     ("human", "Question:\n{question}\n\nContext:\n{context}\n\nAnswer:"),
 ])
+
+FAITHFULNESS_PROMPT = ChatPromptTemplate.from_template(
+    "You are a strict evaluator. Given a context and an answer, score how well "
+    "ALL claims in the answer are supported by the context.\n"
+    "Return only a number from 0.0 (no support) to 1.0 (fully supported).\n\n"
+    "Context:\n{context}\n\nAnswer:\n{answer}\n\nScore (0-1):"
+)
+
+ANS_RELEVANCY_PROMPT = ChatPromptTemplate.from_template(
+    "How relevant is the answer to the question?\n"
+    "Return only a number from 0.0 (irrelevant) to 1.0 (fully relevant).\n\n"
+    "Question:\n{question}\n\nAnswer:\n{answer}\n\nScore (0-1):"
+)
