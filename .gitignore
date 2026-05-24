@@ -19,3 +19,6 @@ specs/*
 
 # pdf files
 *.pdf
+
+# chroma vector store data
+chroma_db/
