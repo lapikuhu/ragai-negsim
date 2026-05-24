@@ -97,6 +97,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 ## ------------------- Neo4j Graph Database Setup ------------------- ##
 
 from llama_index.graph_stores.neo4j import Neo4jPropertyGraphStore
+
 # Get Neo4j connection parameters from settings
 NEO4J_URI = settings.NEO4J_URI
 NEO4J_USERNAME = settings.NEO4J_USERNAME
