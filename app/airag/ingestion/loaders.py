@@ -4,7 +4,7 @@ from docling.document_converter import DocumentConverter
 from pypdf import PdfReader
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.document_converter import DocumentConverter, PdfFormatOption, ConversionResult
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
 # local imports
@@ -37,13 +37,13 @@ fast_document_converter = DocumentConverter(
 
 
 def ingest_pdfs_from_corpus(corpus_dir: Path, 
-                            document_converter: DocumentConverter = fast_document_converter) -> list[DocumentConverter.Document]:
+                            document_converter: DocumentConverter = fast_document_converter) -> list[ConversionResult]:
     """Ingest PDF documents from the specified corpus directory.
     Args:
         corpus_dir (Path): The path to the directory containing PDF documents.
         document_converter (DocumentConverter): The document converter instance to use for conversion.
     Returns:
-        list[DocumentConverter.Document]: A list of ingested documents in the 
+        list[ConversionResult]: A list of ingested documents in the 
         internal Docling format.   
     """
     documents = []
@@ -57,13 +57,13 @@ def ingest_pdfs_from_corpus(corpus_dir: Path,
             print(f"Error ingesting {pdf_file}: {e}")
     return documents
 
-def ingest_single_pdf(pdf_path: Path, document_converter: DocumentConverter = fast_document_converter) -> DocumentConverter.Document:
+def ingest_single_pdf(pdf_path: Path, document_converter: DocumentConverter = fast_document_converter) -> ConversionResult:
     """Ingest a single PDF document from the specified path.
     Args:
         pdf_path (Path): The path to the PDF document to ingest.
         document_converter (DocumentConverter): The document converter instance to use for conversion.
     Returns:
-        DocumentConverter.Document: The ingested document in the internal Docling format.   
+        ConversionResult: The ingested document in the internal Docling format.   
     """
     try:
         print(f"Ingesting {pdf_path}...")
@@ -74,12 +74,12 @@ def ingest_single_pdf(pdf_path: Path, document_converter: DocumentConverter = fa
         print(f"Error ingesting {pdf_path}: {e}")
         raise e
 
-def convert_to_markdown(document: DocumentConverter.Document) -> str:
+def convert_to_markdown(document: ConversionResult) -> str:
     """Convert docling ingested document to markdown format.
     Works only for docling ingested documents.
     Args:
-        document (DocumentConverter.Document): The docling ingested document to convert.
+        document (ConversionResult): The docling ingested document to convert.
     Returns:
         str: The converted document in markdown format.   
     """
-    return document.to_markdown()
+    return document.document.export_to_markdown()

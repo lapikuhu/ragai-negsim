@@ -7,10 +7,14 @@ import re
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
     
-def clean_markdown(md_content: str) -> str:
+def clean_markdown(md_content: str,
+                   convert_to_langDoc: bool = True,
+                   source: str ="") -> str:
     """Clean markdown content by removing unnecessary whitespace and normalizing line breaks.
     Args:
         md_content (str): The markdown content to clean.
+        convert_to_langDoc (bool, optional): Whether to convert the cleaned markdown to a LangChain Document. Defaults to True.
+        source (str, optional): The source of the document, used for metadata if converting to LangChain Document. Defaults to an empty string.
     Returns:
         str: The cleaned markdown content.        
     """
@@ -35,14 +39,19 @@ def clean_markdown(md_content: str) -> str:
     cleaned_md = cleaned_md.replace('\u201c', '"').replace('\u201d', '"')
     cleaned_md = cleaned_md.replace('\u2018', "'").replace('\u2019', "'")
     cleaned_md = cleaned_md.replace('\u2014', ' - ')
+    # Optionally convert to langDoc format (if needed for downstream processing)
+    if convert_to_langDoc:
+        cleaned_md = Document(page_content=cleaned_md, metadata={"source": source})
+    else:
+        cleaned_md = cleaned_md
     return cleaned_md
 
-def find_headers_stats(md_content: str, header_depth: int=6):
+def find_headers_stats(md_content: Document, header_depth: int=6):
     """Get basic statics about the headers in the markdown content, 
     such as minimum and maximum header lengths for each header level, as well as
     the average header length and the count of headers for each level.
     Args:
-        md_content (str): The markdown content to analyze.
+        md_content (Document): The markdown content to analyze.
         header_depth (int, optional): The depth of headers to analyze. For 
             example, a value of 2 will analyze headers up to "##". Defaults 
             to 6. Maximum supported header depth is 6 (i.e., up to "######").
@@ -54,12 +63,16 @@ def find_headers_stats(md_content: str, header_depth: int=6):
         {"header_1": {"min": 5, "max": 50, "count": 3, "avg_length": 20}, 
         "header_2": {"min": 3, "max": 30, "count": 2, "avg_length": 15}, ...}   
     """
+    # Extract md from docling Document if needed
+    if isinstance(md_content, Document):
+        md_content = md_content.page_content
+    
     if header_depth < 1 or header_depth > 6:
         raise ValueError("header_depth must be between 1 and 6")
     header_patterns = [(f"{'#' * i}", f"header_{i}") for i in range(1, header_depth + 1)]
     splitter = MarkdownHeaderTextSplitter(
         headers_to_split_on=header_patterns,
-        include_headers_in_splits=False,  # We only want the content for stats, not the headers themselves
+        strip_headers=True,  # We only want the content for stats, not the headers themselves
     )
     md_splits = splitter.split_text(md_content)
     header_lengths = {f"header_{i}": {"min": float("inf"), "max": 0, "count": 0, "total_length": 0, "avg_length": 0} for i in range(1, header_depth + 1)}
@@ -76,8 +89,8 @@ def find_headers_stats(md_content: str, header_depth: int=6):
             header_lengths[header_level]["avg_length"] = total_length / header_lengths[header_level]["count"]
     return header_lengths
 
-    
-def split_md_on_headers(md_content: str, 
+
+def split_md_on_headers(md_content: Document, 
                         header_depth: int=2,
                         dynamic_length: bool = False,
                         size_threshold: int = 12000,
@@ -92,7 +105,7 @@ def split_md_on_headers(md_content: str,
     to have enough context to work with, while still splitting on meaningful
     sections of the document.
     Args:
-        md_content (str): The markdown content to split.
+        md_content (Document): The markdown content to split.
         header_depth (int, optional): The depth of headers to split on. For 
             example, a value of 2 will split on headers up to "##". Defaults 
             to 2. Maximum supported header depth is 6 (i.e., up to "######").
@@ -107,14 +120,19 @@ def split_md_on_headers(md_content: str,
         list[Document]: A list of langchain Document sections split based on headers.   
     """
 
-    if header_depth < 1 or header_depth > 6 and not dynamic_length:
+    # Extract md from docling Document
+    if isinstance(md_content, Document):
+        metadata = md_content.metadata
+        md_content = md_content.page_content
+
+    if (header_depth < 1 or header_depth > 6) and not dynamic_length:
         raise ValueError("header_depth must be between 1 and 6")
     
      # Sanity check: Skip splitting if the content is too short, let the chunker
     # handle it instead
     if len(md_content) < size_threshold:
         print(f"Content is smaller than size threshold ({size_threshold} chars), skipping header splitting.")
-        return [md_content]
+        return [Document(page_content=md_content, metadata=metadata)]
        
     # Create header patterns based on the specified header depth
     header_patterns = [(f"{'#' * i}", f"header_{i}") for i in range(1, header_depth + 1)]
@@ -141,16 +159,16 @@ def split_md_on_headers(md_content: str,
 
     splitter = MarkdownHeaderTextSplitter(
         headers_to_split_on=header_patterns,
-        include_headers_in_splits=True,  # Include headers in the splits to preserve context
+        strip_headers=False,  # Include headers in the splits to preserve context
     )
 
     splits = []
 
-    md_splits = splitter.split_text(md_content.page_content)
+    md_splits = splitter.split_text(md_content)
 
     for split in md_splits:
         # Preserve original file-level metadata
-        split.metadata.update(md_content.metadata)
+        split.metadata.update(metadata)
         splits.append(split)
     
     return splits

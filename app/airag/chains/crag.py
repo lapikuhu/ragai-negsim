@@ -1,5 +1,4 @@
 from langchain_openai import ChatOpenAI
-from core.config import settings
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -12,6 +11,7 @@ except ImportError:
 from pydantic import BaseModel, Field
 
 # local imports
+from core.config import settings
 from prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT
 
 OPENAI_API_KEY = settings.OPENAI_API_KEY

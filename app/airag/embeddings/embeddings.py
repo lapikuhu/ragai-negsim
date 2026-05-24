@@ -5,6 +5,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 # local imports
 from core.config import settings
+OPENAI_API_KEY = settings.OPENAI_API_KEY
 
 def hf_mini_l6_v2_embeddings() -> HuggingFaceEmbeddings:
     """Return HuggingFaceEmbeddings instance for MiniLM-L6-v2 model.
@@ -28,7 +29,8 @@ def openai_text_embedding_3_small() -> OpenAIEmbeddings:
     Dimensionality: 1536
     """
     return OpenAIEmbeddings(
-        model="text-embedding-3-small"
+        model="text-embedding-3-small",
+        openai_api_key=OPENAI_API_KEY
     )
 
 def choose_embedding_model(model_name: str) -> tuple[HuggingFaceEmbeddings, dict[str, int]] | tuple[OpenAIEmbeddings, dict[str, int]]:
@@ -42,11 +44,11 @@ def choose_embedding_model(model_name: str) -> tuple[HuggingFaceEmbeddings, dict
     Raises:
         ValueError: If an unsupported model name is provided.
     """
-    if model_name == "mini_l6_v2":
+    if model_name == "mini-l6-v2":
         return hf_mini_l6_v2_embeddings(), {"dimensionality": 384}
-    elif model_name == "bge_base":
+    elif model_name == "bge-base":
         return hf_bge_base_embeddings(), {"dimensionality": 768}
-    elif model_name == "text_embedding_3_small":
+    elif model_name == "text-embedding-3-small":
         return openai_text_embedding_3_small(), {"dimensionality": 1536}
     else:
-        raise ValueError(f"Unsupported model name: {model_name}. Supported values are 'mini_l6_v2', 'bge_base', and 'text_embedding_3_small'.")
+        raise ValueError(f"Unsupported model name: {model_name}. Supported values are 'mini-l6-v2', 'bge-base', and 'text-embedding-3-small'.")

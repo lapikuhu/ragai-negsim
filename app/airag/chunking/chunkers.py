@@ -12,9 +12,9 @@ from pydantic import BaseModel, Field
 from typing import List
 
 ### ---- Embed these in the config file later ----
-matryoshka_dims = [1536, 512, 256, 128, 64]
-embedding_model = "gpt-4o-mini"
-embeddings = OpenAIEmbeddings(model=embedding_model)
+#matryoshka_dims = [1536, 512, 256, 128, 64]
+#embedding_model = "gpt-4o-mini"
+#embeddings = OpenAIEmbeddings(model=embedding_model)
 ### -----------------------------------------------
 
 def cos_sim(a: np.ndarray, b: np.ndarray) -> float:
