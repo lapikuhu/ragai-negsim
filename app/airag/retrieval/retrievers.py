@@ -64,3 +64,18 @@ def make_hybrid_retriever(vector_store,
         weights=[w_dense, w_bm25],
     )
     return hybrid_retriever
+
+def make_graph_retriever(graph_index, k: int = 3):
+    """Create a retriever from a llama-index graph index.
+    Args:
+        graph_index: The graph index instance to use for creating the retriever.
+        k (int, optional): The number of top documents to retrieve. Defaults to 3.
+    Returns:
+        A retriever instance that can be used to retrieve relevant documents based on queries using the graph
+        index.
+    """
+    retriever = graph_index.as_retriever(
+        include_text=True,
+        similarity_top_k=k,
+    )
+    return retriever
