@@ -9,6 +9,8 @@ from ingestion.loaders import ingest_pdfs_from_corpus, ingest_single_pdf, conver
 from ingestion.ingestion import clean_markdown, split_md_on_headers
 from chunking.chunkers import chunk_document_list_semantic, chunk_document_list_recursive
 from embeddings.embeddings import choose_embedding_model
+from vector_stores.vector_stores import instantiate_chroma_vector_store, store_docs_to_chroma_store
+
 
 ### ------ Development chains for manual testing and sanity checks -------- ###
 
@@ -44,3 +46,14 @@ final_chunks = chunk_document_list_recursive(semantic_chunks,
                                              chunk_size=1000,
                                              chunk_overlap=200,
                                              separators=["\n\n", "\n", " ", ""])
+
+# Instantiate a Chroma vector store and add the final chunks to it
+chroma_store = instantiate_chroma_vector_store(embedding_model=embeddings)
+store_docs_to_chroma_store(final_chunks, chroma_store)
+
+# Test retrieval from the vector store
+query = "What are the key negotiation strategies mentioned in the document?"
+retrieved_docs = chroma_store.similarity_search(query, k=5)
+print("Retrieved Documents:")
+for idx, doc in enumerate(retrieved_docs, start=1):
+    print(f"Document {idx}:\nSource: {doc.metadata.get('source', 'unknown')}\nContent: {doc.page_content[:500]}...\n")

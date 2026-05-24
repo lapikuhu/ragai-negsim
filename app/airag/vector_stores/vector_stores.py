@@ -8,20 +8,24 @@ from langchain_postgres import PGEngine, PGVectorStore
 # local imports
 from embeddings.embeddings import choose_embedding_model
 from core.config import settings
-from app.db.db import engine
+from db.db import engine
 # add db import here for pgvectorstore
 
 # Choose the embedding model to use for the vector store
-embedding_model, model_dimensionality = choose_embedding_model("mini_l6_v2")
+#embedding_model, model_dimensionality = choose_embedding_model("mini_l6_v2")
 
 
 ### -------- Chroma Vector Store Section -------- ###
-def instantiate_chroma_vector_store() -> Chroma:
+def instantiate_chroma_vector_store(
+        embedding_model,
+        collection_name: str = "negotiation_corpus",
+        persist_directory: str = "./chroma_db",
+) -> Chroma:
     """Instantiate a Chroma vector store"""
     chroma_vector_store = Chroma(
-    collection_name="negotiation_corpus",
+    collection_name=collection_name,
     embedding_function=embedding_model,
-    persist_directory="./chroma_db",
+    persist_directory=persist_directory,
     )
     return chroma_vector_store
 
@@ -39,8 +43,14 @@ def store_docs_to_chroma_store(docs: list[Document], vector_store):
 ### ----------------------------------------------- ###
 
 ### -------- FAISS Vector Store Section -------- ###
-def instantiate_faiss_vector_store() -> FAISS:
-    """Instantiate an empty FAISS vector store"""
+def instantiate_faiss_vector_store(embedding_model) -> FAISS:
+    """
+    Instantiate an empty FAISS vector store.
+    Args:
+        embedding_model: The embedding model instance to use for the vector store.
+    Returns:
+        An instance of a FAISS vector store initialized with the specified
+        embedding model."""
     faiss_vector_store = FAISS.from_texts(
         texts=[""],
         embedding=embedding_model,
@@ -63,11 +73,12 @@ def save_faiss_vector_store(vector_store, path: str = "./faiss_db"):
     """Persist the FAISS index to disk"""
     vector_store.save_local(path)
 
-def load_faiss_vector_store(path: str = "./faiss_db"):
+def load_faiss_vector_store(embeddings, 
+                            path: str = "./faiss_db") -> FAISS:
     """Load a persisted FAISS index from disk"""
     return FAISS.load_local(
         path,
-        embeddings=embedding_model,
+        embeddings=embeddings,
         allow_dangerous_deserialization=True,
     )
 
@@ -87,35 +98,78 @@ async def enable_pgvector() -> None:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
 # Create LangChain PGEngine from your existing async engine
-lang_pg_engine = PGEngine.from_engine(engine)
-VECTOR_TABLE = "rag_chunks"
-VECTOR_SIZE = model_dimensionality["dimensionality"]
+def create_pg_engine(engine) -> PGEngine:
+    """Create a LangChain PGEngine instance from the existing async SQLAlchemy engine.
+    Args:
+        engine: The existing async SQLAlchemy engine to use for the PGEngine.
+    Returns:
+        A PGEngine instance that can be used with LangChain's PGVectorStore."""
+    return PGEngine.from_engine(engine)
+
+def get_vector_size(embedding_model_name: str) -> int | None:
+    """
+    Get the vector dimensionality for the specified embedding model.
+    Args:
+        embedding_model_name (str): The name of the embedding model.
+    Returns:
+        int | None: The dimensionality of the embedding model's vectors, or 
+        None if an error occurs.
+    """
+    try:
+        _, model_dimensionality = choose_embedding_model(embedding_model_name)
+        return model_dimensionality["dimensionality"]
+    except ValueError as e:
+        print(f"Error choosing embedding model: {e}")
+    return None
+
+#lang_pg_engine = PGEngine.from_engine(engine)
+##VECTOR_TABLE = "rag_chunks"
+#VECTOR_SIZE = model_dimensionality["dimensionality"]
 
 # Create/init the vector table
-async def init_vector_table() -> None:
-    """Check if the vector table exists, and create it if it doesn't."""
+async def init_vector_table(lang_pg_engine, 
+                            vector_table_name: str,
+                            embedding_model_name: str) -> None:
+    """Check if the vector table exists, and create it if it doesn't.
+    Args:
+        lang_pg_engine: The LangChain PGEngine instance to use for database 
+            operations.
+        vector_table_name (str): The name of the vector table to check/create.
+        embedding_model_name (str): The name of the embedding model to use for 
+            determining vector size.
+    Returns:
+        None
+    """
+    # Get the vector size for the embedding model
+    vector_size = get_vector_size(embedding_model_name)
     # Check if the vector table already exists
     async with engine.connect() as conn:
         exists = await conn.run_sync(
-            lambda sync_conn: inspect(sync_conn).has_table(VECTOR_TABLE)
+            lambda sync_conn: inspect(sync_conn).has_table(vector_table_name)
         )
     if not exists:
         await lang_pg_engine.ainit_vectorstore_table(
-            table_name=VECTOR_TABLE,
-            vector_size=VECTOR_SIZE,
+            table_name=vector_table_name,
+            vector_size=vector_size,
         )
 # Create a PGVectorStore instance
-async def get_vector_store() -> PGVectorStore:
-    """Instantiate and return a PGVectorStore instance connected to the 
+async def get_vector_store(lang_pg_engine, 
+                           vector_table_name: str, 
+                           embedding_model) -> PGVectorStore:
+    """
+    Instantiate and return a PGVectorStore instance connected to the 
     specified table.
     Args:
-        None
+        lang_pg_engine: The LangChain PGEngine instance to use for database 
+            operations.
+        vector_table_name (str): The name of the vector table to connect to.
+        embedding_model: The embedding model to use for the PGVectorStore.
     Returns:
         A PGVectorStore instance connected to the specified table.
     """
     store = await PGVectorStore.create(
         engine=lang_pg_engine,
-        table_name=VECTOR_TABLE,
+        table_name=vector_table_name,
         embedding_service=embedding_model,
     )
     return store
