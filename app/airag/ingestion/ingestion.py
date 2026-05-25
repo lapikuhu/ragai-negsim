@@ -6,6 +6,88 @@ import re
 
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
+HEADER_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+FENCE_RE = re.compile(r"^\s*(```|~~~)")
+
+
+def _is_header(line: str) -> tuple[bool, int | None]:
+    """Check if a line is a Markdown header and return its level.
+    Args:
+        line (str): The line of text to check.
+    Returns:
+        tuple[bool, int | None]: A tuple where the first element is True if the 
+        line is a header, and the second element is the header level if it is 
+        a header, otherwise None.
+    """
+    match = HEADER_RE.match(line.strip())
+
+    if not match:
+        return False, None
+
+    level = len(match.group(1))
+    return True, level
+
+
+def remove_dummy_markdown_headers(markdown: str) -> str:
+    """
+    Remove Markdown headers that have no body and no child subheader.
+
+    A header is removed if the next meaningful line is:
+    - a header of the same level,
+    - a header of a higher parent level,
+    - or the end of the document.
+
+    A header is kept if the next meaningful line is:
+    - normal content,
+    - a lower-level subheader.
+    """
+    lines = markdown.splitlines()
+    keep = [True] * len(lines)
+
+    in_fence = False
+
+    for i, line in enumerate(lines):
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+
+        if in_fence:
+            continue
+
+        is_header, current_level = _is_header(line)
+
+        if not is_header:
+            continue
+
+        # Find next meaningful non-empty line
+        j = i + 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+
+        # Header at the end of the document
+        if j >= len(lines):
+            keep[i] = False
+            continue
+
+        next_is_header, next_level = _is_header(lines[j])
+
+        if not next_is_header:
+            # Followed by real content
+            keep[i] = True
+            continue
+
+        if next_level > current_level:
+            # Followed by a child/subheader
+            keep[i] = True
+            continue
+
+        # Followed by same-level or higher-level header
+        # Therefore this header has no content and no children.
+        keep[i] = False
+
+    return "\n".join(
+        line for line, should_keep in zip(lines, keep) if should_keep
+    )
+
     
 def clean_markdown(md_content: str,
                    convert_to_langDoc: bool = True,
@@ -39,12 +121,16 @@ def clean_markdown(md_content: str,
     cleaned_md = cleaned_md.replace('\u201c', '"').replace('\u201d', '"')
     cleaned_md = cleaned_md.replace('\u2018', "'").replace('\u2019', "'")
     cleaned_md = cleaned_md.replace('\u2014', ' - ')
+
+    # Remove dummy headers that have no content and no child subheaders
+    cleaned_md = remove_dummy_markdown_headers(cleaned_md)
     # Optionally convert to langDoc format (if needed for downstream processing)
     if convert_to_langDoc:
         cleaned_md = Document(page_content=cleaned_md, metadata={"source": source})
     else:
         cleaned_md = cleaned_md
     return cleaned_md
+
 
 def find_headers_stats(md_content: Document, header_depth: int=6):
     """Get basic statics about the headers in the markdown content, 
