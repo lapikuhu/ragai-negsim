@@ -37,6 +37,13 @@ ANS_RELEVANCY_PROMPT = ChatPromptTemplate.from_template(
     "Question:\n{question}\n\nAnswer:\n{answer}\n\nScore (0-1):"
 )
 
+ANS_GRADER_PROMPT = ChatPromptTemplate.from_messages([
+    ("system",
+     "Evaluate whether the answer actually addresses the user question. "
+     "Return 'yes' if it does, 'no' otherwise. Do not return an explanation, just 'yes' or 'no'. "),
+    ("human", "Question: {question}\n\nAnswer: {answer}"),
+])
+
 HALL_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
      "Check whether ALL claims in the answer are supported by the context. "

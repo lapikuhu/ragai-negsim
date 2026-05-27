@@ -67,28 +67,3 @@ retrieved_docs = chroma_store.similarity_search(query, k=5)
 print("RETRIEVED DOCUMENTS:")
 for idx, doc in enumerate(retrieved_docs, start=1):
     print(f"Document {idx}:\nSource: {doc.metadata.get('source', 'unknown')}\nContent: {doc.page_content[:500]}...\n")
-
-
-
-### Ignore the following lines:
-crag_flow = StateGraph(CRAGState)
-# Add nodes
-crag_flow.add_node("retrieve",  node_retrieve)
-crag_flow.add_node("grade",     node_grade)
-crag_flow.add_node("rewrite",   node_rewrite)
-crag_flow.add_node("generate",  node_generate)
-crag_flow.add_node("fallback",  node_fallback)
-
-# Edges
-crag_flow.add_edge(START, "retrieve")
-crag_flow.add_edge("retrieve", "grade")
-crag_flow.add_conditional_edges(
-    "grade",
-    decide_after_grade,
-    {"generate": "generate", "rewrite": "rewrite", "fallback": "fallback"},
-)
-crag_flow.add_edge("rewrite", "retrieve")   # retry loop
-crag_flow.add_edge("generate", END)
-crag_flow.add_edge("fallback", END)
-
-crag = crag_flow.compile()

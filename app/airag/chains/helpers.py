@@ -6,7 +6,7 @@ import re
 
 # local imports
 from prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT
-from prompts.sys_prompts import HALL_PROMPT
+from prompts.sys_prompts import HALL_PROMPT, ANS_GRADER_PROMPT
 from core.config import settings
 from embeddings.embeddings import choose_embedding_model
 from llm_models.llm_models import get_openai_llm
@@ -43,10 +43,25 @@ def format_docs(documents: list[Document]) -> str:
 ### ---------------------------------------------------------------- ###
 
 ### ---------------------------------------------------------------- ###
+### ------------------------ ANSWER GRADER ------------------------- ###
+### ---------------------------------------------------------------- ###
+
+class AnswerGrade(BaseModel):
+    """Evaluate whether the answer actually addresses the user question."""
+    addresses: Literal["yes", "no"] = Field(
+        description="Does the answer address what the question asked?"
+    )
+answer_grader = ANS_GRADER_PROMPT | llm.with_structured_output(AnswerGrade)
+
+### ---------------------------------------------------------------- ###
+
+### ---------------------------------------------------------------- ###
 ### ----------------------- Document Grader ------------------------ ###
 ### ---------------------------------------------------------------- ###
 class DocumentGrade(BaseModel):
-    """Evaluate whether retrieved documents are useful for answering the question."""
+    """
+    Evaluate whether retrieved documents are useful for answering the question.
+    """
     relevance: Literal["relevant", "not_relevant"] = Field(
         description="Whether the retrieved documents contain information useful for answering the question."
     )

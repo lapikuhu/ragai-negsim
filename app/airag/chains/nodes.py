@@ -3,22 +3,7 @@
 from helpers import format_docs
 from helpers import document_grader, rewrite_chain, generation_chain
 from helpers import detect_injection
-
-
-def node_grade(state) -> dict:
-    """
-    Define the grade node which evaluates the relevance of the retrieved 
-    documents to the question.
-    """
-    docs = state.get("documents", [])
-    if not docs:
-        print("[grade] no documents retrieved → not_relevant")
-        return {"grade": "not_relevant"}
-    question = state.get("rewritten") or state["question"]
-    context = format_docs(docs)
-    verdict = document_grader.invoke({"question": question, "context": context})
-    print(f"[grade] {verdict.relevance} | {verdict.reasoning}")
-    return {"grade": verdict.relevance}
+from helpers import hallucination_grader, answer_grader
 
 def make_crag_retrieve_node(retriever):
     """
@@ -51,6 +36,7 @@ def make_crag_retrieve_node(retriever):
             return {"documents": docs}
     return node_retrieve
 
+### --------------------- DOCUMENT GRADER NODE---------------------- ###
 def node_grade(state) -> dict:
     """
     Define the grade node which evaluates the relevance of the retrieved 
@@ -66,7 +52,7 @@ def node_grade(state) -> dict:
     print(f"[grade] {verdict.relevance} | {verdict.reasoning}")
     return {"grade": verdict.relevance}
 
-# REWRITE
+### --------------------------- REWRITE ---------------------------- ###
 def node_rewrite(state) -> dict:
     """
     Define the rewrite node which attempts to reformulate the question if 
@@ -83,7 +69,40 @@ def node_rewrite(state) -> dict:
     print(f"[rewrite] attempt={attempts} | rewritten={rewritten!r}")
     return {"rewritten": rewritten, "attempts": attempts}
 
-# GENERATE
+### -------------------------- QUALITY NODE ------------------------ ###
+# Combines hallucination check and answer grading to determine overall quality#
+def node_quality_check(state) -> dict:
+    """Define the quality check node which evaluates the generated answer for
+    hallucinations and relevance to the question.
+    Args:
+        state: The current CRAG state containing the question, generated answer,
+            and the context used for generation.
+    Returns:
+        A dictionary containing the hallucination grade, answer relevance grade,
+            and reasoning for the quality assessment.
+    """
+    context = state.get("context") or format_docs(state.get("documents", []))
+    answer = state.get("answer", "")
+
+    if not context or not answer:
+        return {
+            "hallucination_grade": "no",
+            "answer_grade": "no",
+            "quality_reasoning": "Missing context or answer.",
+        }
+
+    hall = hallucination_grader.invoke({"context": context, "answer": answer})
+    ans = answer_grader.invoke({"question": state["question"], "answer": answer})
+    reasoning = f"grounded={hall.grounded}; addresses={ans.addresses}; hallucination_reasoning={hall.reasoning}"
+    print(f"[quality_check] {reasoning}")
+
+    return {
+        "hallucination_grade": hall.grounded,
+        "answer_grade": ans.addresses,
+        "quality_reasoning": reasoning,
+    }
+
+### --------------------------- GENERATE --------------------------- ###
 def node_generate(state) -> dict:
     """
     Define the generate node which produces an answer based on the 
@@ -103,7 +122,7 @@ def node_generate(state) -> dict:
     }).strip()
     return {"answer": answer, "context": context}
 
-# FALLBACK
+### --------------------------- FALLBACK --------------------------- ###
 def node_fallback(state) -> dict:
     """
     Define the fallback node which is invoked when the retrieved documents 

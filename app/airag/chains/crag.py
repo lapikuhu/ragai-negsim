@@ -9,8 +9,9 @@ except ImportError:
 
 # local imports
 from core.config import settings
-from nodes import node_grade, make_crag_retrieve_node, node_rewrite, node_generate, node_fallback, make_decide_after_grade
-from routers import make_decide_after_grade
+from nodes import node_grade, make_crag_retrieve_node, node_rewrite
+from nodes import node_generate, node_fallback, node_quality_check
+from routers import make_decide_after_grade, make_decide_after_quality
 
 # Define the CRAGState TypedDict to represent the state of the CRAG process
 class CRAGState(TypedDict):
@@ -33,6 +34,7 @@ def make_crag(ragstate: CRAGState,
               grader: callable = node_grade,
               rewriter: callable = node_rewrite,
               generator: callable = node_generate,
+              quality_check: callable = node_quality_check,
               fallback: callable = node_fallback,
               make_decider_after_grade: callable = make_decide_after_grade,
               max_rewrite_attempts: int = 2) -> StateGraph:
@@ -56,12 +58,16 @@ def make_crag(ragstate: CRAGState,
     retriever_node = make_retriever_node(retriever_obj)
     # Create the decider function for routing after grading with the max attempts bound
     decider_after_grade = make_decider_after_grade(max_rewrite_attempts)
+    # Create the after_quality decider function
+    decide_after_quality = make_decide_after_quality(max_rewrite_attempts)
+    # Initialize the StateGraph with the initial RAG state
     crag_flow = StateGraph(ragstate)
     # Add nodes
     crag_flow.add_node("retrieve",  retriever_node(ragstate))
     crag_flow.add_node("grade",     grader(ragstate))
     crag_flow.add_node("rewrite",   rewriter(ragstate))
     crag_flow.add_node("generate",  generator(ragstate))
+    crag_flow.add_node("quality_check", quality_check(ragstate))
     crag_flow.add_node("fallback",  fallback(ragstate))
     # Add edges
     crag_flow.add_edge(START, "retrieve")
@@ -72,10 +78,19 @@ def make_crag(ragstate: CRAGState,
     {"generate": "generate", "rewrite": "rewrite", "fallback": "fallback"},
 )
     crag_flow.add_edge("rewrite", "retrieve")   # retry loop
-    crag_flow.add_edge("generate", END)
+    crag_flow.add_edge("generate", "quality_check")
     crag_flow.add_edge("fallback", END)
-
-    crag = crag_flow.compile()
+    crag_flow.add_conditional_edges(
+        "quality_check",
+        decide_after_quality(ragstate),
+        {"end": END, "rewrite": "rewrite", "fallback": "fallback"},
+    )
+    crag_flow.add_edge("fallback", END)
+    try:
+        crag = crag_flow.compile()
+    except Exception as e:
+        print(f"Error compiling CRAG graph: {e}")
+        raise
     return crag
 
 def make_crag_node(crag):
