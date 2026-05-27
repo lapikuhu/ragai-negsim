@@ -1,26 +1,19 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from typing import TypedDict, Literal
+from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 try:
     from typing import NotRequired
 except ImportError:
     from typing_extensions import NotRequired
-from pydantic import BaseModel, Field
 
 # local imports
 from core.config import settings
-from prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT
+from nodes import node_grade, make_crag_retrieve_node, node_rewrite, node_generate, node_fallback, make_decide_after_grade
+from routers import make_decide_after_grade
 
-OPENAI_API_KEY = settings.OPENAI_API_KEY
-LLM_MODEL   = "gpt-4o-mini"
-EMBED_MODEL = "text-embedding-3-small"
-llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
-
-# Define the RAGState TypedDict to represent the state of the RAG process
-class RAGState(TypedDict):
+# Define the CRAGState TypedDict to represent the state of the CRAG process
+class CRAGState(TypedDict):
     question: str
     attempts: int
     rewritten: NotRequired[str]
@@ -32,146 +25,91 @@ class RAGState(TypedDict):
     answer_grade: NotRequired[str]
     quality_reasoning: NotRequired[str]
 
-### --------- Helper functions for the nodes --------- ###
-# Docs formatter for grading
-def format_docs(documents: list[Document]) -> str:
-    """Format a list of langchain Documents into a string representation 
-    for grading.
+
+### --------- Build the CRAG graph --------- ###
+def make_crag(ragstate: CRAGState,
+              retriever_obj,
+              make_retriever_node: callable = make_crag_retrieve_node,
+              grader: callable = node_grade,
+              rewriter: callable = node_rewrite,
+              generator: callable = node_generate,
+              fallback: callable = node_fallback,
+              make_decider_after_grade: callable = make_decide_after_grade,
+              max_rewrite_attempts: int = 2) -> StateGraph:
+    """
+    Construct the Corrective RAG graph using provided node functions and
+    routing logic.
     Args:
-        documents (list[Document]): A list of langchain Document objects 
-            to format.
+        ragstate: The TypedDict representing the state of the RAG process.
+        retriever_obj: The retriever instance to use for the retrieve node.
+        make_retriever_node: The function to use for creating the retrieve node.
+        grader: The function to use for the grade node.
+        rewriter: The function to use for the rewrite node.
+        generator: The function to use for the generate node.
+        fallback: The function to use for the fallback node.
+        make_decider_after_grade: The function to use for creating the decider after grade node.
+        max_rewrite_attempts: The maximum number of rewrite attempts before falling back.
     Returns:
-        str: A formatted string representation of the documents.
+        A compiled StateGraph representing the CRAG flow.
     """
-    if not documents:
-        return ""
-    return "\n\n".join(
-        f"[{idx}] Source: {doc.metadata.get('source', 'unknown')}\n{doc.page_content}"
-        for idx, doc in enumerate(documents, start=1)
-    )
-
-class DocumentGrade(BaseModel):
-    """Evaluate whether retrieved documents are useful for answering the question."""
-    relevance: Literal["relevant", "not_relevant"] = Field(
-        description="Whether the retrieved documents contain information useful for answering the question."
-    )
-    reasoning: str = Field(description="Brief explanation of the verdict")
-
-document_grader = DOC_GRADE_PROMPT | llm.with_structured_output(DocumentGrade)
-
-rewrite_chain = REWRITE_PROMPT | llm | StrOutputParser()
-
-generation_chain = GEN_PROMPT | llm | StrOutputParser()
-
-# Define the node functions for the RAG graph
-# RETRIEVE
-def node_retrieve(retriever,
-                  state: RAGState) -> dict:
-    """Define the retrieve node which takes the current question (original or 
-        rewritten) and retrieves relevant documents from the vector store 
-        retriever.
-    Args:
-        retriever: The retriever instance to use for retrieving relevant 
-            documents based on the query.
-        state: The current RAG state containing the question and any 
-            rewritten versions.
-    Returns:
-        A dictionary containing the retrieved documents.
-    """
-    query = state.get("rewritten") or state["question"]
-    docs = retriever.invoke(query)
-    print(f"[retrieve] query={query!r} | docs={len(docs)}")
-    return {"documents": docs}
-
-# GRADE
-def node_grade(state: RAGState) -> dict:
-    """
-    Define the grade node which evaluates the relevance of the retrieved 
-    documents to the question.
-    """
-    docs = state.get("documents", [])
-    if not docs:
-        print("[grade] no documents retrieved → not_relevant")
-        return {"grade": "not_relevant"}
-    question = state.get("rewritten") or state["question"]
-    context = format_docs(docs)
-    verdict = document_grader.invoke({"question": question, "context": context})
-    print(f"[grade] {verdict.relevance} | {verdict.reasoning}")
-    return {"grade": verdict.relevance}
-
-# REWRITE
-def node_rewrite(state: RAGState) -> dict:
-    """
-    Define the rewrite node which attempts to reformulate the question if 
-    the retrieved documents were not relevant.
-    Args:
-        state: The current RAG state containing the original question and any 
-            previous rewritten versions.
-    Returns:
-        A dictionary containing the rewritten question and the number of
-            rewrite attempts.
-    """
-    rewritten = rewrite_chain.invoke({"question": state["question"]}).strip()
-    attempts = state.get("attempts", 0) + 1
-    print(f"[rewrite] attempt={attempts} | rewritten={rewritten!r}")
-    return {"rewritten": rewritten, "attempts": attempts}
-
-# GENERATE
-def node_generate(state: RAGState) -> dict:
-    """
-    Define the generate node which produces an answer based on the 
-    retrieved documents.
-    Args:
-        state: The current RAG state containing the question and retrieved
-            documents.
-    Returns:
-        A dictionary containing the generated answer and the context used for 
-            generation.
-    """
-    docs = state.get("documents", [])
-    context = format_docs(docs)
-    answer = generation_chain.invoke({
-        "question": state["question"],
-        "context": context,
-    }).strip()
-    print("[generate] answer generated")
-    return {"answer": answer, "context": context}
-
-# FALLBACK
-def node_fallback(state: RAGState) -> dict:
-    """
-    Define the fallback node which is invoked when the retrieved documents 
-    are not relevant and we've exhausted rewrite attempts.
-    """
-    pass
-
-### --------- Define graph routing logic --------- ###
-def decide_after_grade(state: RAGState) -> str:
-    if state.get("grade") == "relevant":
-        return "generate"
-    if state.get("attempts", 0) < MAX_ATTEMPTS:
-        return "rewrite"
-    return "fallback"
-
-### --------- Build the RAG graph --------- ###
-crag_flow = StateGraph(RAGState)
-# Add nodes
-crag_flow.add_node("retrieve",  node_retrieve)
-crag_flow.add_node("grade",     node_grade)
-crag_flow.add_node("rewrite",   node_rewrite)
-crag_flow.add_node("generate",  node_generate)
-crag_flow.add_node("fallback",  node_fallback)
-
-# Edges
-crag_flow.add_edge(START, "retrieve")
-crag_flow.add_edge("retrieve", "grade")
-crag_flow.add_conditional_edges(
+    # Create the retrieve node with access to the retriever instance
+    retriever_node = make_retriever_node(retriever_obj)
+    # Create the decider function for routing after grading with the max attempts bound
+    decider_after_grade = make_decider_after_grade(max_rewrite_attempts)
+    crag_flow = StateGraph(ragstate)
+    # Add nodes
+    crag_flow.add_node("retrieve",  retriever_node(ragstate))
+    crag_flow.add_node("grade",     grader(ragstate))
+    crag_flow.add_node("rewrite",   rewriter(ragstate))
+    crag_flow.add_node("generate",  generator(ragstate))
+    crag_flow.add_node("fallback",  fallback(ragstate))
+    # Add edges
+    crag_flow.add_edge(START, "retrieve")
+    crag_flow.add_edge("retrieve", "grade")
+    crag_flow.add_conditional_edges(
     "grade",
-    decide_after_grade,
+    decider_after_grade(ragstate),
     {"generate": "generate", "rewrite": "rewrite", "fallback": "fallback"},
 )
-crag_flow.add_edge("rewrite", "retrieve")   # retry loop
-crag_flow.add_edge("generate", END)
-crag_flow.add_edge("fallback", END)
+    crag_flow.add_edge("rewrite", "retrieve")   # retry loop
+    crag_flow.add_edge("generate", END)
+    crag_flow.add_edge("fallback", END)
 
-crag = crag_flow.compile()
+    crag = crag_flow.compile()
+    return crag
+
+def make_crag_node(crag):
+    """Define a function to execute the CRAG graph given an initial state.
+    Args:
+        crag: The compiled CRAG StateGraph to execute.
+    Returns:
+        A function that takes a CRAGState and returns the final answer and
+            documents after executing the graph.
+    
+    """
+    def crag_node(state: CRAGState) -> dict:
+        """Execute the CRAG graph with the given initial state and return 
+        the final answer and documents.
+        Args:
+            state: The initial CRAGState containing the user's question and any 
+                other relevant information.
+        Returns:
+            A dictionary containing the final answer and the documents used for
+                generation.        
+        """
+        crag_result = crag.invoke({
+            "question": state["user_question"]
+        })
+
+        return {
+            "answer": crag_result["answer"],
+            "documents": crag_result.get("documents", []),
+        }
+
+    return crag_node
+
+
+
+
+
+

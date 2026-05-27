@@ -23,5 +23,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
     FIXED_ROLES: list[str] = ["admin", "student", "teacher"]
     RAW_DOCS_DIR: str = "app/airag/raw_docs"
+    HF_TOKEN: str
 
 settings = Settings()

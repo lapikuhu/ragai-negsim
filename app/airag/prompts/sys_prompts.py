@@ -2,7 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 DOC_GRADE_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
-     "You are a strict document relevance grader for a Datanous.ai RAG system. "
+     "You are a strict document relevance grader for a RAG system. "
      "Return 'relevant' only if the context contains information that can help answer the question. "
      "If the context is empty or unrelated, return 'not_relevant'."),
     ("human", "Question:\n{question}\n\nRetrieved context:\n{context}"),
@@ -36,3 +36,10 @@ ANS_RELEVANCY_PROMPT = ChatPromptTemplate.from_template(
     "Return only a number from 0.0 (irrelevant) to 1.0 (fully relevant).\n\n"
     "Question:\n{question}\n\nAnswer:\n{answer}\n\nScore (0-1):"
 )
+
+HALL_PROMPT = ChatPromptTemplate.from_messages([
+    ("system",
+     "Check whether ALL claims in the answer are supported by the context. "
+     "If the answer contains any claim not found in the context, return 'no'."),
+    ("human", "Context:\n{context}\n\nAnswer:\n{answer}"),
+])
