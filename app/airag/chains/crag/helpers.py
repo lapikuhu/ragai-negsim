@@ -5,12 +5,11 @@ from langchain_core.output_parsers import StrOutputParser
 import re
 
 # local imports
-from prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT
-from prompts.sys_prompts import HALL_PROMPT, ANS_GRADER_PROMPT
+from app.airag.prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT
+from app.airag.prompts.sys_prompts import HALL_PROMPT, ANS_GRADER_PROMPT
 from core.config import settings
-from embeddings.embeddings import choose_embedding_model
-from llm_models.llm_models import get_openai_llm
-
+from app.airag.embeddings.embeddings import choose_embedding_model
+from app.airag.llm_models.llm_models import get_openai_llm
 
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 llm_model_name   = "gpt-4o-mini"

@@ -1,9 +1,9 @@
 
 # local imports
-from helpers import format_docs
-from helpers import document_grader, rewrite_chain, generation_chain
-from helpers import detect_injection
-from helpers import hallucination_grader, answer_grader
+from app.airag.chains.crag.helpers import format_docs
+from app.airag.chains.crag.helpers import document_grader, rewrite_chain, generation_chain
+from app.airag.chains.crag.helpers import detect_injection
+from app.airag.chains.crag.helpers import hallucination_grader, answer_grader
 
 def make_crag_retrieve_node(retriever):
     """

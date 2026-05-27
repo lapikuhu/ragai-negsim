@@ -1,4 +1,3 @@
-from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
@@ -8,10 +7,10 @@ except ImportError:
     from typing_extensions import NotRequired
 
 # local imports
-from core.config import settings
-from nodes import node_grade, make_crag_retrieve_node, node_rewrite
-from nodes import node_generate, node_fallback, node_quality_check
-from routers import make_decide_after_grade, make_decide_after_quality
+from app.core.config import settings
+from app.airag.chains.crag.crag_nodes import node_grade, make_crag_retrieve_node, node_rewrite
+from app.airag.chains.crag.crag_nodes import node_generate, node_fallback, node_quality_check
+from app.airag.chains.crag.crag_routers import make_decide_after_grade, make_decide_after_quality
 
 # Define the CRAGState TypedDict to represent the state of the CRAG process
 class CRAGState(TypedDict):
@@ -37,6 +36,7 @@ def make_crag(ragstate: CRAGState,
               quality_check: callable = node_quality_check,
               fallback: callable = node_fallback,
               make_decider_after_grade: callable = make_decide_after_grade,
+              make_decider_after_quality: callable = make_decide_after_quality,
               max_rewrite_attempts: int = 2) -> StateGraph:
     """
     Construct the Corrective RAG graph using provided node functions and
