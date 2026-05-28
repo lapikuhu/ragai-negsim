@@ -59,7 +59,7 @@ def make_crag(ragstate: CRAGState,
     # Create the decider function for routing after grading with the max attempts bound
     decider_after_grade = make_decider_after_grade(max_rewrite_attempts)
     # Create the after_quality decider function
-    decide_after_quality = make_decide_after_quality(max_rewrite_attempts)
+    decider_after_quality = make_decider_after_quality(max_rewrite_attempts)
     # Initialize the StateGraph with the initial RAG state
     crag_flow = StateGraph(ragstate)
     # Add nodes
@@ -82,7 +82,7 @@ def make_crag(ragstate: CRAGState,
     crag_flow.add_edge("fallback", END)
     crag_flow.add_conditional_edges(
         "quality_check",
-        decide_after_quality(ragstate),
+        decider_after_quality(ragstate),
         {"end": END, "rewrite": "rewrite", "fallback": "fallback"},
     )
     crag_flow.add_edge("fallback", END)
