@@ -11,6 +11,12 @@ from langgraph.graph.message import add_messages
 # Sides of the negotiation
 Side = Literal["side_a", "side_b"]
 
+# How to evaluate offers - whether higher values are better (e.g. price for a seller)
+ValuePreference = Literal["higher_is_better", "lower_is_better"]
+
+# Confidence levels used by structured agent outputs.
+Confidence = Literal["low", "medium", "high"]
+
 # Phases of the negotiation, which can be used to track overall progress.
 NegotiationPhase = Literal[
     "setup",
@@ -41,6 +47,7 @@ class SideProfile(TypedDict, total=False):
     batna: str
     reservation_value: float # Worst acceptable outcome
     target_value: float # Ideal outcome
+    value_preference: ValuePreference
 
 
 class Offer(TypedDict, total=False):
@@ -51,13 +58,25 @@ class Offer(TypedDict, total=False):
     raw_text: str
 
 
+class PositionAssessment(TypedDict, total=False):
+    """User-side position assessment produced by the coach."""
+    target_value: str
+    reservation_value: str
+    current_offer_assessment: str
+    zopa_comment: str
+
+
 class CoachAdvice(TypedDict, total=False):
     """Advice for the side controlled by the user."""
     target_side: Side
     summary: str
-    suggested_response: str
+    position_assessment: PositionAssessment
     risks: list[str]
-    tactics: list[str]
+    recommended_next_move: str
+    suggested_response: str
+    reasoning: str
+    confidence: Confidence
+    missing_information: list[str]
 
 
 class Evaluation(TypedDict, total=False):

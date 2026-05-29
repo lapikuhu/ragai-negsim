@@ -34,9 +34,12 @@ def crag_tool(question: str) -> str:
     })
 
     return result["answer"]
+
+
+
 ### -------------------------------  ------------------------------- ###
 
- 
+# Coach Agent 
 agent = create_agent(
     model=agent_model,
     tools=[crag_tool],
@@ -46,3 +49,21 @@ agent = create_agent(
 )
  
 config = {'configurable': {'thread_id': 'agent-9-1'}}
+
+# Counterpart Agent
+counterpart_agent = create_agent(
+    model=agent_model,
+    tools=[],
+    system_prompt=COUNTERPART_PROMPT,
+    checkpointer=MemorySaver(), #state persistence
+    name="Counterpart Agent"
+)
+
+# Evaluator Agent
+evaluator_agent = create_agent(
+    model=agent_model,
+    tools=[crag_tool],
+    system_prompt=EVALUATOR_PROMPT,
+    checkpointer=MemorySaver(), #state persistence
+    name="Evaluator Agent"
+)
