@@ -1736,6 +1736,19 @@ wheels = [
 ]
 
 [[package]]
+name = "langchain-docling"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docling" },
+    { name = "langchain-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/e0/601080445d096cb0e6ede7e1c30229803a75da66a38d5346a0836a8defea/langchain_docling-2.0.0.tar.gz", hash = "sha256:7bc7c93a6272114b6dd307c6033e2a62e843906afdd691a0d87246f1a1a154dd", size = 7538, upload-time = "2025-11-17T08:32:13.85Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/71/89e74b89e2abcc0f345e13c3e637dc9d5f56f24dab27659063282147b0cd/langchain_docling-2.0.0-py3-none-any.whl", hash = "sha256:cb08ddf66dfc40310c8cbffef23e52e325e4d43317e23426202640aae395faf1", size = 7416, upload-time = "2025-11-17T08:32:12.445Z" },
+]
+
+[[package]]
 name = "langchain-experimental"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -4163,6 +4176,7 @@ dependencies = [
     { name = "langchain-classic" },
     { name = "langchain-community" },
     { name = "langchain-core" },
+    { name = "langchain-docling" },
     { name = "langchain-experimental" },
     { name = "langchain-huggingface" },
     { name = "langchain-ollama" },
@@ -4368,6 +4382,7 @@ requires-dist = [
     { name = "langchain-classic", specifier = "==1.0.7" },
     { name = "langchain-community", specifier = "==0.4.1" },
     { name = "langchain-core", specifier = "==1.4.0" },
+    { name = "langchain-docling", specifier = ">=2.0.0" },
     { name = "langchain-experimental", specifier = "==0.4.1" },
     { name = "langchain-huggingface", specifier = ">=1.2.2" },
     { name = "langchain-ollama", specifier = "==1.1.0" },

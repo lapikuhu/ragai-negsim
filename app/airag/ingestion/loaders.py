@@ -82,4 +82,7 @@ def convert_to_markdown(document: ConversionResult) -> str:
     Returns:
         str: The converted document in markdown format.   
     """
-    return document.document.export_to_markdown()
+    conversion_result = document.document.export_to_markdown(
+        image_placeholder="",  # No placeholder for images since we are not generating them in the pipeline options
+    )
+    return conversion_result

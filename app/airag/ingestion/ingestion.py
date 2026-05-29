@@ -101,8 +101,24 @@ def clean_markdown(md_content: str,
         str: The cleaned markdown content.        
     """
 
+    # Remove Docling image placeholders
+    cleaned_md = re.sub(
+        r'^\s*<!--\s*image\s*-->\s*$',
+        '',
+        md_content,
+        flags=re.MULTILINE,
+    )
+
+        # Remove Markdown image links: ![alt](path-or-url)
+    cleaned_md = re.sub(
+        r'^\s*!\[[^\]]*\]\([^)]+\)\s*$',
+        '',
+        cleaned_md,
+        flags=re.MULTILINE,
+    )
+
     # Remove leading and trailing whitespace from each line and normalize line breaks
-    cleaned_lines = [line.strip() for line in md_content.splitlines()]
+    cleaned_lines = [line.strip() for line in cleaned_md.splitlines()]
     cleaned_md = "\n".join(cleaned_lines)
 
     # Collapse 3+ consecutive blank lines into 2
