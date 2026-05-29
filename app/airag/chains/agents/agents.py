@@ -18,18 +18,23 @@ retriever = make_hybrid_retriever(vector_store=None,
                                   documents=[], 
                                   k=4) 
 # Create the CRAG instance
-crag = make_crag(ragstate=CRAGState,
-                retriever_obj=retriever)
+crag = make_crag(retriever_obj=retriever,
+                 state_schema=CRAGState)
 
 ### ---------------------------- TOOLS ----------------------------- ###
 
 @tool
-def crag_tool():
+def crag_tool(question: str) -> str:
     """
-    A tool that runs the CRAG graph on a given question, using the provided 
-    retriever and other necessary components. 
+    Answer a question using the CRAG graph.
     """
-    pass
+    result = crag.invoke({
+        "question": question,
+        "attempts": 0,
+    })
+
+    return result["answer"]
+### -------------------------------  ------------------------------- ###
 
  
 agent = create_agent(

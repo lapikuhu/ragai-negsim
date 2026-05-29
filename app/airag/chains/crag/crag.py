@@ -7,7 +7,6 @@ except ImportError:
     from typing_extensions import NotRequired
 
 # local imports
-from app.core.config import settings
 from app.airag.chains.crag.crag_nodes import node_grade, make_crag_retrieve_node, node_rewrite
 from app.airag.chains.crag.crag_nodes import node_generate, node_fallback, node_quality_check
 from app.airag.chains.crag.crag_routers import make_decide_after_grade, make_decide_after_quality
@@ -15,7 +14,7 @@ from app.airag.chains.crag.crag_routers import make_decide_after_grade, make_dec
 # Define the CRAGState TypedDict to represent the state of the CRAG process
 class CRAGState(TypedDict):
     question: str
-    attempts: int
+    attempts: NotRequired[int]
     rewritten: NotRequired[str]
     documents: NotRequired[list[Document]]
     answer: NotRequired[str]
@@ -27,8 +26,8 @@ class CRAGState(TypedDict):
 
 
 ### --------- Build the CRAG graph --------- ###
-def make_crag(ragstate: CRAGState,
-              retriever_obj,
+def make_crag(retriever_obj,
+              state_schema: type[CRAGState] = CRAGState,
               make_retriever_node: callable = make_crag_retrieve_node,
               grader: callable = node_grade,
               rewriter: callable = node_rewrite,
@@ -42,15 +41,19 @@ def make_crag(ragstate: CRAGState,
     Construct the Corrective RAG graph using provided node functions and
     routing logic.
     Args:
-        ragstate: The TypedDict representing the state of the RAG process.
+        state_schema: The TypedDict representing the state of the RAG process.
         retriever_obj: The retriever instance to use for the retrieve node.
         make_retriever_node: The function to use for creating the retrieve node.
         grader: The function to use for the grade node.
         rewriter: The function to use for the rewrite node.
         generator: The function to use for the generate node.
         fallback: The function to use for the fallback node.
-        make_decider_after_grade: The function to use for creating the decider after grade node.
-        max_rewrite_attempts: The maximum number of rewrite attempts before falling back.
+        make_decider_after_grade: The function to use for creating the decider 
+            after grade node.
+        make_decider_after_quality: The function to use for creating the decider 
+            after quality node.
+        max_rewrite_attempts: The maximum number of rewrite attempts before 
+            falling back. Default is 2.
     Returns:
         A compiled StateGraph representing the CRAG flow.
     """
@@ -61,28 +64,27 @@ def make_crag(ragstate: CRAGState,
     # Create the after_quality decider function
     decider_after_quality = make_decider_after_quality(max_rewrite_attempts)
     # Initialize the StateGraph with the initial RAG state
-    crag_flow = StateGraph(ragstate)
+    crag_flow = StateGraph(state_schema)
     # Add nodes
-    crag_flow.add_node("retrieve",  retriever_node(ragstate))
-    crag_flow.add_node("grade",     grader(ragstate))
-    crag_flow.add_node("rewrite",   rewriter(ragstate))
-    crag_flow.add_node("generate",  generator(ragstate))
-    crag_flow.add_node("quality_check", quality_check(ragstate))
-    crag_flow.add_node("fallback",  fallback(ragstate))
+    crag_flow.add_node("retrieve",  retriever_node)
+    crag_flow.add_node("grade",     grader)
+    crag_flow.add_node("rewrite",   rewriter)
+    crag_flow.add_node("generate",  generator)
+    crag_flow.add_node("quality_check", quality_check)
+    crag_flow.add_node("fallback",  fallback)
     # Add edges
     crag_flow.add_edge(START, "retrieve")
     crag_flow.add_edge("retrieve", "grade")
     crag_flow.add_conditional_edges(
     "grade",
-    decider_after_grade(ragstate),
+    decider_after_grade,
     {"generate": "generate", "rewrite": "rewrite", "fallback": "fallback"},
 )
     crag_flow.add_edge("rewrite", "retrieve")   # retry loop
     crag_flow.add_edge("generate", "quality_check")
-    crag_flow.add_edge("fallback", END)
     crag_flow.add_conditional_edges(
         "quality_check",
-        decider_after_quality(ragstate),
+        decider_after_quality,
         {"end": END, "rewrite": "rewrite", "fallback": "fallback"},
     )
     crag_flow.add_edge("fallback", END)
@@ -113,7 +115,8 @@ def make_crag_node(crag):
                 generation.        
         """
         crag_result = crag.invoke({
-            "question": state["user_question"]
+            "question": state["question"],
+            "attempts": state.get("attempts", 0),
         })
 
         return {

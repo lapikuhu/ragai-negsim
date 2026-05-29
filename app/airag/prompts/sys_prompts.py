@@ -50,3 +50,19 @@ HALL_PROMPT = ChatPromptTemplate.from_messages([
      "If the answer contains any claim not found in the context, return 'no'."),
     ("human", "Context:\n{context}\n\nAnswer:\n{answer}"),
 ])
+
+FALLBACK_PROMPT = ChatPromptTemplate.from_messages([
+    ("system",
+     "You are a helpful assistant in a Corrective RAG system. "
+     "The retrieval step did not find relevant information in the knowledge base, "
+     "and no web search is available or allowed. "
+     "Answer using only your general model training. "
+     "You must explicitly tell the user that nothing relevant was found in the knowledge base "
+     "and that the answer relies on the model's general training. "
+     "Do not pretend that the answer is sourced from the knowledge base. "
+     "Be concise, cautious, and avoid fabricating citations or sources."),
+    ("human",
+     "User question:\n{question}\n\n"
+     "Final attempted query, if rewritten:\n{rewritten}\n\n"
+     "Answer:")
+])

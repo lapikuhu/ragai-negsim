@@ -6,7 +6,7 @@ import re
 
 # local imports
 from app.airag.prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT
-from app.airag.prompts.sys_prompts import HALL_PROMPT, ANS_GRADER_PROMPT
+from app.airag.prompts.sys_prompts import HALL_PROMPT, ANS_GRADER_PROMPT, FALLBACK_PROMPT
 from core.config import settings
 from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.llm_models.llm_models import get_openai_llm
@@ -81,13 +81,14 @@ hallucination_grader = HALL_PROMPT | llm.with_structured_output(HallucinationGra
 ### ---------------------------------------------------------------- ###
 
 
-### --------------------------- Rewriter --------------------------- ###
+### --------------------------- REWRITER --------------------------- ###
 rewrite_chain = REWRITE_PROMPT | llm | StrOutputParser()
 
-### --------------------------- Generator -------------------------- ###
+### --------------------------- GENERATOR -------------------------- ###
 generation_chain = GEN_PROMPT | llm | StrOutputParser()
 
-
+### --------------------------- FALLBACK -------------------------- ###
+fallback_chain = FALLBACK_PROMPT | llm | StrOutputParser()
 ### ---------------------------------------------------------------- ###
 ### ------------------ Prompt Injection Detection ------------------ ###
 ### ---------------------------------------------------------------- ###

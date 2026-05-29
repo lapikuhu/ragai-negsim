@@ -2,7 +2,7 @@
 # local imports
 from app.airag.chains.crag.helpers import format_docs
 from app.airag.chains.crag.helpers import document_grader, rewrite_chain, generation_chain
-from app.airag.chains.crag.helpers import detect_injection
+from app.airag.chains.crag.helpers import detect_injection, fallback_chain
 from app.airag.chains.crag.helpers import hallucination_grader, answer_grader
 
 def make_crag_retrieve_node(retriever):
@@ -125,7 +125,19 @@ def node_generate(state) -> dict:
 ### --------------------------- FALLBACK --------------------------- ###
 def node_fallback(state) -> dict:
     """
-    Define the fallback node which is invoked when the retrieved documents 
-    are not relevant and we've exhausted rewrite attempts.
+    Generate a fallback answer when the knowledge base retrieval and rewrite
+    attempts did not produce relevant usable context.
     """
-    pass
+    question = state["question"]
+    rewritten = state.get("rewritten", "")
+
+    answer = fallback_chain.invoke({
+        "question": question,
+        "rewritten": rewritten,
+    }).strip()
+
+    return {
+        "answer": answer,
+        "context": "",
+        "documents": state.get("documents", []),
+    }
