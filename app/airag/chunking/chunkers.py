@@ -1,14 +1,12 @@
-import os, re, uuid, time
-import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity as sk_cosine
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.embeddings import Embeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
-from pydantic import BaseModel, Field
 from typing import List
 
 ### ---- Embed these in the config file later ----
@@ -16,11 +14,6 @@ from typing import List
 #embedding_model = "gpt-4o-mini"
 #embeddings = OpenAIEmbeddings(model=embedding_model)
 ### -----------------------------------------------
-
-def cos_sim(a: np.ndarray, b: np.ndarray) -> float:
-    """Calculate the cosine similarity between two vectors."""
-    a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-10))
 
 def chunk_document_recursive(document: Document, 
                              chunk_size: int = 1000, 
@@ -66,19 +59,31 @@ def chunk_document_list_recursive(documents: list[Document],
     Returns:
         List[Document]: A list of chunked LangChain documents.
     """
+    if separators is None:
+        separators = ["\n\n", "\n", " ", ""]
+
     all_chunks = []
-    for doc in documents:
-        chunks = chunk_document_recursive(
-            document=doc,
+
+    text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            separators=separators
+            separators=separators,
         )
+    
+    for doc_index, doc in enumerate(documents):
+        chunks = text_splitter.split_documents([doc])
+        # Add metadata to each chunk to keep track of the original document 
+        # and chunk index.
+        for chunk_index, chunk in enumerate(chunks):
+            chunk.metadata["parent_doc_index"] = doc_index
+            chunk.metadata["chunk_index"] = chunk_index
+
         all_chunks.extend(chunks)
+
     return all_chunks
 
 def chunk_document_semantic(document: Document,
-                            embeddings: HuggingFaceEmbeddings = embeddings, 
+                            embeddings: Embeddings = embeddings, 
                             breakpoint_threshold_type: str = "percentile",
                             breakpoint_threshold_amount: int = 90,
                             buffer_size: int = 1) -> List[Document]:
@@ -86,7 +91,7 @@ def chunk_document_semantic(document: Document,
     Simple wrapper around SemanticChunker.
     Args:
         document (Document): The input LangChain document to chunk.
-        embeddings (HuggingFaceEmbeddings, optional): The embeddings model to 
+        embeddings (Embeddings, optional): The embeddings model to 
             use for semantic chunking. Defaults to HuggingFaceEmbeddings with 
             "sentence-transformers/all-MiniLM-L6-v2".
         breakpoint_threshold_type (str, optional): The type of threshold to use 
@@ -110,28 +115,33 @@ def chunk_document_semantic(document: Document,
     return chunks
 
 def chunk_document_list_semantic(documents: list[Document],
-                                 embeddings: HuggingFaceEmbeddings = embeddings,
+                                 embeddings: Embeddings = embeddings,
                                  breakpoint_threshold_type: str = "percentile",
                                  breakpoint_threshold_amount: int = 90,
                                  buffer_size: int = 1) -> list[Document]:
     """Chunk a list of documents into smaller pieces using semantic chunking.
     Args:
         documents (list[Document]): The input list of LangChain documents to chunk.
-        embeddings (HuggingFaceEmbeddings, optional): The embeddings model to use for semantic chunking. Defaults to HuggingFaceEmbeddings with "sentence-transformers/all-MiniLM-L6-v2".
-        breakpoint_threshold_type (str, optional): The type of threshold to use for determining breakpoints. Defaults to "percentile".
-        breakpoint_threshold_amount (int, optional): The amount for the breakpoint threshold. Defaults to 90.
+        embeddings (Embeddings, optional): The embeddings model to use for 
+            semantic chunking. Defaults to HuggingFaceEmbeddings with 
+            "sentence-transformers/all-MiniLM-L6-v2".
+        breakpoint_threshold_type (str, optional): The type of threshold to 
+            use for determining breakpoints. Defaults to "percentile".
+        breakpoint_threshold_amount (int, optional): The amount for the 
+            breakpoint threshold. Defaults to 90.
         buffer_size (int, optional): The buffer size to use. Defaults to 1.
     Returns:
         list[Document]: A list of chunked LangChain documents with metadata preserved from the input documents.
     """
     all_chunks = []
+    
     for doc in documents:
-        chunks = chunk_document_semantic(
-            document=doc,
-            embeddings=embeddings,
+        splitter = SemanticChunker(
+            embeddings,
             breakpoint_threshold_type=breakpoint_threshold_type,
             breakpoint_threshold_amount=breakpoint_threshold_amount,
             buffer_size=buffer_size,
         )
+        chunks = splitter.split_documents([doc])
         all_chunks.extend(chunks)
     return all_chunks
