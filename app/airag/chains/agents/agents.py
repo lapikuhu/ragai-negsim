@@ -4,13 +4,13 @@ from langchain.agents import create_agent
 
 # local imports
 from app.core.config import settings
-from app.airag.llm_models.llm_models import choose_llm_model
+from app.airag.llm_models.llm_models import get_openai_llm
 from app.airag.chains.crag.crag import make_crag, CRAGState
 from app.airag.retrieval.retrievers import make_hybrid_retriever
 from app.airag.prompts.neg_prompts.md_loader import COACH_PROMPT, COUNTERPART_PROMPT, EVALUATOR_PROMPT
 
 # Choose an llm model for the agent
-agent_model = choose_llm_model("gpt-4o", temperature=0.)
+agent_model = get_openai_llm("gpt-4o", temperature=0.)
 
 # Get the retriever object that will be used in the CRAG graph
 
