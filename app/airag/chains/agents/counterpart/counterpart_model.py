@@ -1,0 +1,84 @@
+from typing import Annotated, Any, Literal
+import operator
+from pydantic import BaseModel, Field
+from typing_extensions import NotRequired, TypedDict
+
+from app.airag.chains.negotiation.negotiation_model import (
+	CoachAdvice,
+	Evaluation,
+	Offer,
+	ParentNegotiationState,
+	RetrievalResult,
+	Side,
+	SideProfile,
+)
+
+CounterpartAction = Literal[
+	"accept",
+	"reject",
+	"counter",
+	"clarify",
+	"stall",
+	"reframe",
+	"propose_package",
+]
+
+RiskLevel = Literal["low", "medium", "high"]
+
+
+class CounterpartOfferModel(BaseModel):
+	"""Validated offer emitted by the counterpart."""
+
+	side: Side
+	price: float | None = None
+	terms: dict[str, Any] = Field(default_factory=dict)
+	raw_text: str
+
+
+class CounterpartPrivateNotesModel(BaseModel):
+	"""Private strategy notes for logging/debugging, not user display."""
+
+	strategy_used: str
+	reservation_value_check: str
+	target_value_check: str
+	risk: RiskLevel
+
+
+class CounterpartResponseModel(BaseModel):
+	"""Validated response matching counterpart_prompt.md."""
+
+	side: Side
+	message: str
+	action: CounterpartAction
+	offer: CounterpartOfferModel
+	private_notes: CounterpartPrivateNotesModel
+
+
+class CounterpartGraphState(TypedDict, total=False):
+	"""State consumed and produced by the counterpart graph."""
+
+	session_id: str
+	user_id: str
+	user_side: Side
+	side_a: SideProfile
+	side_b: SideProfile
+	messages: list[Any]
+	phase: str
+	active_side: Side
+	current_offer: Offer
+	offer_history: Annotated[list[Offer], operator.add]
+	coach_advice: CoachAdvice
+	side_a_response: str
+	side_b_response: str
+	evaluation: Evaluation
+	retrieval_result: RetrievalResult
+	next_action: str
+	turn_count: int
+	event_log: NotRequired[Annotated[list[str], operator.add]]
+
+	counterpart_side: Side
+	counterpart_response: dict[str, Any]
+	counterpart_prompt: str
+	counterpart_validation_error: str
+	counterpart_retry_count: int
+	missing_information: list[str]
