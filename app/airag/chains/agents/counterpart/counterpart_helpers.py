@@ -2,19 +2,11 @@ from typing import Any
 #local imports
 from app.airag.chains.agents.helpers import json_dumps, format_messages
 from app.airag.chains.negotiation.negotiation_model import (
-    CoachAdvice,
-    Evaluation,
-    Offer,
-    ParentNegotiationState,
-    RetrievalResult,
     Side,
     SideProfile
 )
 from app.airag.chains.agents.counterpart.counterpart_model import (
-    CounterpartAction,
     RiskLevel,
-    CounterpartOfferModel,
-    CounterpartPrivateNotesModel,
     CounterpartResponseModel,
     CounterpartGraphState,
 )

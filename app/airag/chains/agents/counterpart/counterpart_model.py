@@ -7,7 +7,6 @@ from app.airag.chains.negotiation.negotiation_model import (
 	CoachAdvice,
 	Evaluation,
 	Offer,
-	ParentNegotiationState,
 	RetrievalResult,
 	Side,
 	SideProfile,

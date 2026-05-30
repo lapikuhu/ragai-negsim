@@ -9,7 +9,6 @@ from app.airag.chains.negotiation.negotiation_model import (
 	Confidence,
 	Evaluation,
 	Offer,
-	ParentNegotiationState,
 	RetrievalResult,
 	Side,
 	SideProfile,

@@ -1,5 +1,5 @@
 from typing import Annotated, Literal
-from typing_extensions import TypedDict, NotRequired
+from typing_extensions import TypedDict
 import operator
 from langchain_core.messages import AnyMessage
 from langchain_core.documents import Document

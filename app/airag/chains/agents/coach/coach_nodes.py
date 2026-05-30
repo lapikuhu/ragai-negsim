@@ -5,8 +5,6 @@ from typing import Any
 from app.airag.chains.agents.coach.coach_helpers import (
     build_crag_query,
     fallback_advice,
-    get_default_coach_model,
-    get_user_profile,
     render_coach_prompt,
 	collect_missing_information,
 	get_existing_retrieval_context,
