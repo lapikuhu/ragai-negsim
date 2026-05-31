@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 class Corpus(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True)
+    name: str = Field(index=True, unique=True, min_length=3, title="Corpus name")
     description: str | None = None
     created_by_user_id: int = Field(foreign_key="user.id")
     created_by_user: "User" = Relationship(

@@ -15,9 +15,9 @@ class CorpusRawDocumentLink(SQLModel, table=True):
 
 class RawDocument(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True)         # e.g. "employee_handbook"
+    name: str = Field(index=True, unique=True, min_length=3, title="Raw document name")         # e.g. "employee_handbook"
     description: str | None = None
-    path: str = Field(index=True, unique=True)         # e.g. "s3://bucket/employee_handbook.pdf"
+    path: str = Field(index=True, unique=True, min_length=1, title="Raw document path")         # e.g. "s3://bucket/employee_handbook.pdf"
     uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     uploaded_by_user_id: int = Field(foreign_key="user.id")
     uploaded_by: "User" = Relationship(back_populates="raw_documents_uploaded")

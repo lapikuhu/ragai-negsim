@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 
 class ChunkingProfile(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True)
-    strategy: str
+    name: str = Field(index=True, unique=True, min_length=3, title="Chunking profile name")
+    strategy: str = Field(min_length=1, title="Chunking strategy")
     config: dict = Field(default_factory=dict, sa_column=Column(JSON))
     document_chunks: list["DocumentChunk"] = Relationship(back_populates="chunking_profile")
     corpus_indices: list["CorpusIndex"] = Relationship(back_populates="chunking_profile")

@@ -33,9 +33,9 @@ def default_messages() -> list[SimulationMessage]:
 
 class Simulation(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True)         # e.g. "simulation_1"
+    name: str = Field(index=True, unique=True, min_length=3, title="Simulation name")
     description: str | None = None
-    status: str = Field(default="created", index=True)
+    status: str = Field(default="created", index=True, min_length=1, title="Simulation status")
     session_id: int | None = Field(default=None, foreign_key="session.id")
     session: Optional["Session"] = Relationship(back_populates="simulations")
     user_id_owner: int = Field(foreign_key="user.id")
@@ -54,7 +54,7 @@ class Simulation(SQLModel, table=True):
     corpus: "Corpus" = Relationship(back_populates="simulations")
     counter_part_side_persona_id: int | None = Field(default=None, foreign_key="counterpartpersonas.id")
     counter_part_side_persona: Optional["CounterPartPersonas"] = Relationship()
-    user_side: str | None = None  # "side_a" or "side_b", assigned at session start
+    user_side: str | None = Field(default=None, min_length=1, title="User side")  # "side_a" or "side_b", assigned at session start
     negotiation_state: NegotiationState = Field(default_factory=default_negotiation_state, sa_column=Column(JSON))
     messages: list[SimulationMessage] = Field(default_factory=default_messages, sa_column=Column(JSON))
     teacher_reviewed: bool = Field(default=False)  # whether a teacher has reviewed this session
@@ -63,7 +63,7 @@ class Simulation(SQLModel, table=True):
         back_populates="simulations_reviewed",
         sa_relationship_kwargs={"foreign_keys": "[Simulation.teacher_id]"},
     )
-    teacher_feedback: str | None = None  # optional feedback from the teacher after review
+    teacher_feedback: str | None = Field(default=None, min_length=1, title="Teacher feedback")  # optional feedback from the teacher after review
     reviewed_at: datetime | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
