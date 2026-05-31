@@ -6,6 +6,9 @@ from sqlmodel import Field, Relationship, SQLModel
 from typing import TYPE_CHECKING
 if TYPE_CHECKING: # Avoid circular imports by only importing Role for type checking
     from .user_roles import Role
+    from .simulations import Simulation
+    from .sessions import Session
+    from .prompts import Prompt
 
 class User(SQLModel, table=True):
     id : int | None = Field(default=None, primary_key=True)
@@ -13,3 +16,20 @@ class User(SQLModel, table=True):
     hashed_password: str = Field(index=True, title="Hashed Password")
     is_admin: bool = Field(index=True, title="Is the user an admin?", default=False)
     roles: list["Role"] = Relationship(back_populates="user")
+    prompts: list["Prompt"] = Relationship(back_populates="owner")
+    simulations_participated: list["Simulation"] = Relationship(
+        back_populates="participant",
+        sa_relationship_kwargs={"foreign_keys": "[Simulation.user_id_participant]"},
+) # the simulations the user has participated in (as participant)
+    simulations_owned: list["Simulation"] = Relationship(
+        back_populates="owner",
+        sa_relationship_kwargs={"foreign_keys": "[Simulation.user_id_owner]"},
+) # The simulations the user owns (created)
+    simulations_reviewed: list["Simulation"] = Relationship(
+        back_populates="teacher",
+        sa_relationship_kwargs={"foreign_keys": "[Simulation.teacher_id]"},
+) # The simulations the teacher has reviewed
+    sessions: list["Session"] = Relationship(
+        back_populates ="user",
+        sa_relationship_kwargs={"foreign_keys": "[Session.user_id]"},
+) # The sessions the user has participated in (logged in)
