@@ -26,6 +26,12 @@ class ChunkingProfileUpdate(SQLModel):
 	config: dict[str, Any] | None = None
 
 
+class ChunkingProfileCopy(SQLModel):
+	name: str = Field(min_length=3, title="Chunking profile name")
+	strategy: str | None = Field(default=None, min_length=1, title="Chunking strategy")
+	config: dict[str, Any] | None = None
+
+
 class ChunkingProfileReadWithIds(ChunkingProfileRead):
 	document_chunk_ids: list[int] = Field(default_factory=list)
 	corpus_index_ids: list[int] = Field(default_factory=list)

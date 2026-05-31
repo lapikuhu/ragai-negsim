@@ -12,6 +12,7 @@ class UserBase(SQLModel):
 
 class UserCreate(UserBase):
 	password: str = Field(min_length=8, title="Password")
+	role_ids: list[int] = Field(default_factory=list)
 
 
 class UserLogin(SQLModel):

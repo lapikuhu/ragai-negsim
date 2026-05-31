@@ -15,7 +15,7 @@ class CorpusIndex(SQLModel, table=True):
     corpus_id: int = Field(foreign_key="corpus.id")
     vector_store_id: int = Field(foreign_key="vectorstore.id")
     chunking_profile_id: int = Field(foreign_key="chunkingprofile.id")
-    name: str = Field(min_length=3, title="Corpus index name")
+    name: str = Field(index=True, unique=True, min_length=3, title="Corpus index name")
     status: str = Field(default="created", index=True, min_length=1, title="Corpus index status")
     embedding_model: str = Field(min_length=1, title="Embedding model")
     embedding_dimensions: int | None = Field(default=None, ge=1)

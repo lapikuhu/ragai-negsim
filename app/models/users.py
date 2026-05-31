@@ -13,6 +13,8 @@ if TYPE_CHECKING: # Avoid circular imports by only importing Role for type check
     from .prompts import Prompt
     from .raw_documents import RawDocument
     from .corpus import Corpus
+    from .scenarios import Scenario
+    from .counterpart_personas import CounterPartPersonas
 
 class User(SQLModel, table=True):
     id : int | None = Field(default=None, primary_key=True)
@@ -44,4 +46,20 @@ class User(SQLModel, table=True):
     corpora_last_edited: list["Corpus"] = Relationship(
         back_populates="last_edit_by_user",
         sa_relationship_kwargs={"foreign_keys": "[Corpus.last_edit_by_user_id]"},
+    )
+    scenarios_created: list["Scenario"] = Relationship(
+        back_populates="created_by_user",
+        sa_relationship_kwargs={"foreign_keys": "[Scenario.created_by_user_id]"},
+    )
+    scenarios_last_edited: list["Scenario"] = Relationship(
+        back_populates="last_edit_by_user",
+        sa_relationship_kwargs={"foreign_keys": "[Scenario.last_edit_by_user_id]"},
+    )
+    counterpart_personas_created: list["CounterPartPersonas"] = Relationship(
+        back_populates="created_by_user",
+        sa_relationship_kwargs={"foreign_keys": "[CounterPartPersonas.created_by_user_id]"},
+    )
+    counterpart_personas_last_edited: list["CounterPartPersonas"] = Relationship(
+        back_populates="last_edit_by_user",
+        sa_relationship_kwargs={"foreign_keys": "[CounterPartPersonas.last_edit_by_user_id]"},
     )

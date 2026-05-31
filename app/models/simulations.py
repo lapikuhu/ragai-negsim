@@ -51,7 +51,7 @@ class Simulation(SQLModel, table=True):
     corpus_id: int = Field(foreign_key="corpus.id")
     corpus: "Corpus" = Relationship(back_populates="simulations")
     counter_part_side_persona_id: int | None = Field(default=None, foreign_key="counterpartpersonas.id")
-    counter_part_side_persona: Optional["CounterPartPersonas"] = Relationship()
+    counter_part_side_persona: Optional["CounterPartPersonas"] = Relationship(back_populates="simulations")
     user_side: str | None = Field(default=None, min_length=1, title="User side")  # "side_a" or "side_b", assigned at session start
     negotiation_state: NegotiationState = Field(default_factory=default_negotiation_state, sa_column=Column(JSON))
     messages: list[SimulationMessage] = Field(default_factory=default_messages, sa_column=Column(JSON))

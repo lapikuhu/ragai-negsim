@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
 from jose import JWTError
-from db import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from models.users import User
 from repositories import users_repo

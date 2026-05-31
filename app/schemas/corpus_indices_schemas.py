@@ -48,6 +48,16 @@ class CorpusIndexBuildComplete(SQLModel):
     vector_namespace: str | None = None
 
 
+class CorpusIndexCopy(SQLModel):
+    name: str = Field(min_length=3, title="Corpus index name")
+    corpus_id: int | None = None
+    vector_store_id: int | None = None
+    chunking_profile_id: int | None = None
+    embedding_model: str | None = Field(default=None, min_length=1, title="Embedding model")
+    embedding_dimensions: int | None = Field(default=None, ge=1)
+    vector_namespace: str | None = None
+
+
 class CorpusIndexReadWithIds(CorpusIndexRead):
     indexed_document_chunk_ids: list[int] = Field(default_factory=list)
 
