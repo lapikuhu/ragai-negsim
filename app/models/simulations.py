@@ -10,7 +10,6 @@ if TYPE_CHECKING:
     from .counterpart_personas import CounterPartPersonas
     from .corpus import Corpus
 
-
 class NegotiationState(TypedDict, total=False):
     current_phase: str
     user_side: str
@@ -26,7 +25,6 @@ class SimulationMessage(TypedDict, total=False):
 
 def default_negotiation_state() -> NegotiationState:
     return {}
-
 
 def default_messages() -> list[SimulationMessage]:
     return []
