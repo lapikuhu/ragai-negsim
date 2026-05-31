@@ -11,6 +11,8 @@ if TYPE_CHECKING: # Avoid circular imports by only importing Role for type check
     from .simulations import Simulation
     from .sessions import Session
     from .prompts import Prompt
+    from .raw_documents import RawDocument
+    from .corpus import Corpus
 
 class User(SQLModel, table=True):
     id : int | None = Field(default=None, primary_key=True)
@@ -34,3 +36,12 @@ class User(SQLModel, table=True):
         back_populates ="user",
         sa_relationship_kwargs={"foreign_keys": "[Session.user_id]"},
 ) # The sessions the user has participated in (logged in)
+    raw_documents_uploaded: list["RawDocument"] = Relationship(back_populates="uploaded_by")
+    corpora_created: list["Corpus"] = Relationship(
+        back_populates="created_by_user",
+        sa_relationship_kwargs={"foreign_keys": "[Corpus.created_by_user_id]"},
+    )
+    corpora_last_edited: list["Corpus"] = Relationship(
+        back_populates="last_edit_by_user",
+        sa_relationship_kwargs={"foreign_keys": "[Corpus.last_edit_by_user_id]"},
+    )

@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from .users import User
     from .sessions import Session
     from .counterpart_personas import CounterPartPersonas
+    from .corpus import Corpus
 
 
 class NegotiationState(TypedDict, total=False):
@@ -49,6 +50,8 @@ class Simulation(SQLModel, table=True):
 )
     scenario_id: int | None = Field(default=None, foreign_key="scenario.id")  # the scenario being negotiated in this session
     scenario: Optional["Scenario"] = Relationship(back_populates="simulations")
+    corpus_id: int = Field(foreign_key="corpus.id")
+    corpus: "Corpus" = Relationship(back_populates="simulations")
     counter_part_side_persona_id: int | None = Field(default=None, foreign_key="counterpartpersonas.id")
     counter_part_side_persona: Optional["CounterPartPersonas"] = Relationship()
     user_side: str | None = None  # "side_a" or "side_b", assigned at session start
