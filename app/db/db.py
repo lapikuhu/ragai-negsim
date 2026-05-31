@@ -5,7 +5,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # Local imports
-from models.user_roles import Role
+from models.user_roles import Role, UserRoleLink
 from models.users import User
 from core.security import get_password_hash
 from core.config import settings
@@ -48,25 +48,39 @@ async def seed_roles_if_not_exist():
     
 async def create_admin_if_not_exists():
     """
-    Creates an admin user if it doesn't exist. 
-    Uses the boolean field is_admin to identify admin users.
+    Creates an admin user if no user has the fixed admin role.
     Args:
         None
     Returns:
         None 
     """
     async with AsyncSessionLocal() as session:
-        #uses the boolean field instead of user_roles -> design decision must be made
-        result = await session.exec(select(User).where(User.is_admin == True)) 
-        admin_user = result.first()
+        role_result = await session.exec(select(Role).where(Role.name == "admin"))
+        admin_role = role_result.first()
+        if not admin_role:
+            admin_role = Role(name="admin")
+            session.add(admin_role)
+            await session.commit()
+            await session.refresh(admin_role)
+
+        admin_result = await session.exec(
+            select(User)
+            .join(UserRoleLink, User.id == UserRoleLink.user_id)
+            .where(UserRoleLink.role_id == admin_role.id)
+        )
+        admin_user = admin_result.first()
         if not admin_user:
-            admin_user = User(
-                username=settings.ADMIN_USERNAME,
-                hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
-                is_admin=True,
-                roles=[Role(name="admin")]
-            )
-            session.add(admin_user)
+            username_result = await session.exec(select(User).where(User.username == settings.ADMIN_USERNAME))
+            admin_user = username_result.first()
+            if admin_user:
+                session.add(UserRoleLink(user_id=admin_user.id, role_id=admin_role.id))
+            else:
+                admin_user = User(
+                    username=settings.ADMIN_USERNAME,
+                    hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
+                    roles=[admin_role]
+                )
+                session.add(admin_user)
             await session.commit()
 
 async def create_db_and_tables():
