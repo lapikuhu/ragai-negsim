@@ -13,7 +13,6 @@ from app.airag.prompts.neg_prompts.md_loader import COACH_PROMPT, COUNTERPART_PR
 agent_model = get_openai_llm("gpt-4o", temperature=0.)
 
 # Get the retriever object that will be used in the CRAG graph
-
 retriever = make_hybrid_retriever(vector_store=None, 
                                   documents=[], 
                                   k=4) 
@@ -26,7 +25,7 @@ crag = make_crag(retriever_obj=retriever,
 @tool
 def crag_tool(question: str) -> str:
     """
-    Answer a question using the CRAG graph.
+    Answer a question using the CorrectiveRAG graph.
     """
     result = crag.invoke({
         "question": question,
@@ -34,8 +33,6 @@ def crag_tool(question: str) -> str:
     })
 
     return result["answer"]
-
-
 
 ### -------------------------------  ------------------------------- ###
 

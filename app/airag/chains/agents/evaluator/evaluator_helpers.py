@@ -1,4 +1,4 @@
-
+from typing import Any
 # local imports
 from app.airag.chains.agents.evaluator.evaluator_model import (
     EvaluatorResponseModel,
@@ -10,6 +10,7 @@ from app.airag.chains.agents.helpers import json_dumps, format_messages
 from app.airag.chains.negotiation.negotiation_model import (
 	Side, 
 	SideProfile,
+	NextAction
 )
 
 def get_counterpart_side(state: EvaluatorGraphState) -> Side:

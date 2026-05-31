@@ -13,8 +13,8 @@ from app.airag.chains.agents.coach.coach_nodes import (
 	make_repair_coach_advice_node,
 	node_fallback_coach_advice,
 	node_finalize_coach,
-	get_default_coach_model,
 )
+from app.airag.chains.agents.coach.coach_helpers import get_default_coach_model
 
 
 ### -------------- END OF NODE AND ROUTER FUNCTIONS ---------------- ###
