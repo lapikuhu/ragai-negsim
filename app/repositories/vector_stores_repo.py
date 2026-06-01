@@ -1,3 +1,7 @@
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+# local imports
 from models.corpus_indices import CorpusIndex
 from models.vector_stores import VectorStore
 from repositories.helpers import commit_and_refresh, commit_delete, utc_now
@@ -7,12 +11,8 @@ from schemas.vector_stores_schemas import (
     VectorStoreReadWithIds,
     VectorStoreUpdate,
 )
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 
 ALLOWED_VECTOR_STORE_BACKENDS = {"chroma", "faiss", "pgvector"}
-
 
 def validate_vector_store_backend_config(
     backend: str,
@@ -21,6 +21,19 @@ def validate_vector_store_backend_config(
     table_name: str | None = None,
     path: str | None = None,
 ) -> None:
+    """
+    Validate that the vector store backend configuration is complete and consistent.
+        Args:
+            backend: The vector store backend type.
+            connection_uri: The connection URI for the vector store (if applicable).
+            collection_name: The collection name for the vector store (if applicable).
+            table_name: The table name for the vector store (if applicable).
+            path: The file system path for the vector store (if applicable).
+        Raises:
+            ValueError: If the configuration is invalid or incomplete for 
+            the specified backend.
+    """
+    # TODO: Awkard validation. Does not validate connection_uri
     if backend not in ALLOWED_VECTOR_STORE_BACKENDS:
         raise ValueError(f"Unsupported vector store backend: {backend}")
 
@@ -48,6 +61,14 @@ def _merged_backend_config(
 
 
 async def has_corpus_indices(vector_store_id: int, session: AsyncSession) -> bool:
+    """
+    Check if a vector store has any associated corpus indices.
+        Args:
+            vector_store_id: The ID of the vector store.
+            session: The database session.
+        Returns:
+            True if the vector store has associated corpus indices, False otherwise.
+    """
     result = await session.exec(
         select(CorpusIndex.id).where(CorpusIndex.vector_store_id == vector_store_id).limit(1)
     )
@@ -58,6 +79,14 @@ async def ensure_vector_store_unreferenced(
     vector_store: VectorStore,
     session: AsyncSession,
 ) -> None:
+    """
+    Ensure that a vector store is not referenced by any corpus indices.
+        Args:
+            vector_store: The vector store to check.
+            session: The database session.
+        Raises:
+            ValueError: If the vector store is referenced by any corpus indices.
+    """
     if vector_store.id is None:
         raise ValueError("Vector store must be persisted before it can be modified")
 
@@ -69,6 +98,14 @@ async def get_vector_store_by_id(
     vector_store_id: int,
     session: AsyncSession,
 ) -> VectorStore | None:
+    """
+    Get a vector store by its ID.
+        Args:
+            vector_store_id: The ID of the vector store.
+            session: The database session.
+        Returns:
+            The vector store if found, None otherwise.
+    """
     return await session.get(VectorStore, vector_store_id)
 
 
@@ -76,6 +113,14 @@ async def get_vector_store_by_name(
     name: str,
     session: AsyncSession,
 ) -> VectorStore | None:
+    """
+    Get a vector store by its name.
+        Args:
+            name: The name of the vector store.
+            session: The database session.
+        Returns:
+            The vector store if found, None otherwise.
+    """
     result = await session.exec(select(VectorStore).where(VectorStore.name == name))
     return result.first()
 
@@ -87,6 +132,18 @@ async def list_vector_stores(
     backend: str | None = None,
     has_indexes: bool | None = None,
 ) -> list[VectorStore]:
+    """
+    List vector stores with optional filtering by backend and whether they 
+    have associated corpus indices.
+        Args:
+            session: The database session.
+            skip: The number of records to skip.
+            limit: The maximum number of records to return.
+            backend: Optional backend filter.
+            has_indexes: Optional filter to include only vector stores with or without corpus indices.
+        Returns:
+            A list of vector stores matching the criteria.
+    """
     statement = select(VectorStore)
 
     if backend is not None:
@@ -107,6 +164,14 @@ async def get_vector_store_corpus_index_ids(
     vector_store_id: int,
     session: AsyncSession,
 ) -> list[int]:
+    """
+    Get the IDs of corpus indices associated with a vector store.
+        Args:
+            vector_store_id: The ID of the vector store.
+            session: The database session.
+        Returns:
+            A list of corpus index IDs.
+    """
     result = await session.exec(
         select(CorpusIndex.id).where(CorpusIndex.vector_store_id == vector_store_id)
     )
@@ -117,6 +182,14 @@ async def to_vector_store_read_with_ids(
     vector_store: VectorStore,
     session: AsyncSession,
 ) -> VectorStoreReadWithIds:
+    """
+    Convert a VectorStore to a VectorStoreReadWithIds, including associated corpus index IDs.
+        Args:
+            vector_store: The vector store to convert.
+            session: The database session.
+        Returns:
+            A VectorStoreReadWithIds instance.
+    """
     return VectorStoreReadWithIds(
         **vector_store.model_dump(),
         corpus_index_ids=await get_vector_store_corpus_index_ids(vector_store.id, session),
@@ -128,6 +201,16 @@ async def ensure_vector_store_name_available(
     session: AsyncSession,
     exclude_vector_store_id: int | None = None,
 ) -> None:
+    """
+    Ensure that a vector store name is available for use.
+        Args:
+            name: The vector store name to check.
+            session: The database session.
+            exclude_vector_store_id: Optional vector store ID to exclude from
+                the check (useful for updates).
+        Raises:
+            ValueError: If the vector store name is already taken.
+    """
     existing_vector_store = await get_vector_store_by_name(name, session)
     if existing_vector_store is None:
         return
@@ -142,6 +225,14 @@ async def create_vector_store(
     vector_store_in: VectorStoreCreate,
     session: AsyncSession,
 ) -> VectorStore:
+    """
+    Create a new vector store.
+        Args:
+            vector_store_in: The vector store data to create.
+            session: The database session.
+        Returns:
+            The created VectorStore instance.
+    """
     await ensure_vector_store_name_available(vector_store_in.name, session)
     validate_vector_store_backend_config(
         backend=vector_store_in.backend,
@@ -160,6 +251,15 @@ async def update_vector_store(
     vector_store_in: VectorStoreUpdate,
     session: AsyncSession,
 ) -> VectorStore:
+    """
+    Update an existing vector store.
+        Args:
+            vector_store: The vector store to update.
+            vector_store_in: The vector store data to update.
+            session: The database session.
+        Returns:
+            The updated VectorStore instance.
+    """
     await ensure_vector_store_unreferenced(vector_store, session)
     update_data = vector_store_in.model_dump(exclude_unset=True)
 
@@ -180,6 +280,15 @@ async def update_vector_store_connection(
     connection_in: VectorStoreConnectionUpdate,
     session: AsyncSession,
 ) -> VectorStore:
+    """
+    Update the connection details of an existing vector store.
+        Args:
+            vector_store: The vector store to update.
+            connection_in: The connection data to update.
+            session: The database session.
+        Returns:
+            The updated VectorStore instance.
+    """
     await ensure_vector_store_unreferenced(vector_store, session)
     update_data = connection_in.model_dump(exclude_unset=True)
     validate_vector_store_backend_config(**_merged_backend_config(vector_store, update_data))
@@ -195,5 +304,13 @@ async def delete_vector_store(
     vector_store: VectorStore,
     session: AsyncSession,
 ) -> None:
+    """
+    Delete a vector store.
+    Args:
+        vector_store: The vector store to delete.
+        session: The database session.
+    Raises:
+        ValueError: If the vector store is referenced by any corpus indices.
+    """
     await ensure_vector_store_unreferenced(vector_store, session)
     await commit_delete(session, vector_store)

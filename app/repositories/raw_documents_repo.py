@@ -15,6 +15,14 @@ async def get_raw_document_by_id(
     raw_document_id: int,
     session: AsyncSession,
 ) -> RawDocument | None:
+    """
+    Get a raw document by its ID.
+        Args:
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+        Returns:
+            The RawDocument instance if found, else None.
+    """
     return await session.get(RawDocument, raw_document_id)
 
 
@@ -22,6 +30,14 @@ async def get_raw_document_by_path(
     path: str,
     session: AsyncSession,
 ) -> RawDocument | None:
+    """
+    Get a raw document by its path.
+        Args:
+            path: The path of the raw document.
+            session: The database session.
+        Returns:
+            The RawDocument instance if found, else None.
+    """
     result = await session.exec(select(RawDocument).where(RawDocument.path == path))
     return result.first()
 
@@ -30,6 +46,14 @@ async def get_raw_document_by_name(
     name: str,
     session: AsyncSession,
 ) -> RawDocument | None:
+    """
+    Get a raw document by its name.
+        Args:
+            name: The name of the raw document.
+            session: The database session.
+        Returns:
+            The RawDocument instance if found, else None.
+    """
     result = await session.exec(select(RawDocument).where(RawDocument.name == name))
     return result.first()
 
@@ -42,6 +66,19 @@ async def list_raw_documents(
     corpus_id: int | None = None,
     name_contains: str | None = None,
 ) -> list[RawDocument]:
+    """
+    List raw documents with optional filters.
+        Args:
+            session: The database session.
+            skip: The number of records to skip.
+            limit: The maximum number of records to return.
+            uploaded_by_user_id: Filter by the ID of the user who uploaded 
+                the document.
+            corpus_id: Filter by the ID of the corpus.
+            name_contains: Filter by a substring in the document name.
+        Returns:
+            A list of RawDocument instances.
+    """
     statement = select(RawDocument)
 
     if corpus_id is not None:
@@ -63,6 +100,14 @@ async def get_raw_document_corpus_ids(
     raw_document_id: int,
     session: AsyncSession,
 ) -> list[int]:
+    """
+    Get the IDs of corpora associated with a raw document.
+        Args:
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+        Returns:
+            A list of corpus IDs.
+    """
     result = await session.exec(
         select(CorpusRawDocumentLink.corpus_id).where(
             CorpusRawDocumentLink.raw_document_id == raw_document_id
@@ -75,6 +120,14 @@ async def get_raw_document_document_chunk_ids(
     raw_document_id: int,
     session: AsyncSession,
 ) -> list[int]:
+    """
+    Get the IDs of document chunks associated with a raw document.
+        Args:
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+        Returns:
+            A list of document chunk IDs.
+    """
     result = await session.exec(
         select(DocumentChunk.id).where(DocumentChunk.raw_document_id == raw_document_id)
     )
@@ -85,6 +138,17 @@ async def create_raw_document(
     raw_document_in: RawDocumentCreate,
     session: AsyncSession,
 ) -> RawDocument:
+    """
+    Create a new raw document.
+        Args:
+            raw_document_in: The RawDocumentCreate instance containing raw 
+                document data.
+            session: The database session.
+        Returns:
+            The created RawDocument instance.
+        Raises:
+            Exception: If an error occurs during creation.
+    """
     raw_document_data = raw_document_in.model_dump(exclude={"corpus_ids"})
     raw_document = RawDocument(**raw_document_data)
 
@@ -113,6 +177,17 @@ async def update_raw_document(
     raw_document_in: RawDocumentUpdate,
     session: AsyncSession,
 ) -> RawDocument:
+    """
+    Update an existing raw document.
+        Args:
+            raw_document: The RawDocument instance to update.
+            raw_document_in: The RawDocumentUpdate instance containing updated data.
+            session: The database session.
+        Returns:
+            The updated RawDocument instance.
+        Raises:
+            Exception: If an error occurs during the update.
+    """
     update_data = raw_document_in.model_dump(exclude_unset=True)
 
     for field_name, value in update_data.items():
@@ -126,6 +201,15 @@ async def get_corpus_raw_document_link(
     raw_document_id: int,
     session: AsyncSession,
 ) -> CorpusRawDocumentLink | None:
+    """
+    Get the link between a corpus and a raw document.
+        Args:
+            corpus_id: The ID of the corpus.
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+        Returns:
+            The CorpusRawDocumentLink instance if it exists, otherwise None.
+    """
     result = await session.exec(
         select(CorpusRawDocumentLink).where(
             CorpusRawDocumentLink.corpus_id == corpus_id,
@@ -139,6 +223,16 @@ async def link_raw_document_to_corpus(
     link_in: CorpusRawDocumentLinkCreate,
     session: AsyncSession,
 ) -> CorpusRawDocumentLink:
+    """
+    Link a raw document to a corpus.
+        Args:
+            link_in: The CorpusRawDocumentLinkCreate instance containing link data.
+            session: The database session.
+        Returns:
+            The CorpusRawDocumentLink instance.
+        Raises:
+            Exception: If an error occurs during the linking process.
+    """
     existing_link = await get_corpus_raw_document_link(
         link_in.corpus_id,
         link_in.raw_document_id,
@@ -166,6 +260,15 @@ async def unlink_raw_document_from_corpus(
     link_in: CorpusRawDocumentLinkDelete,
     session: AsyncSession,
 ) -> None:
+    """
+    Unlink a raw document from a corpus.
+        Args:
+            link_in: The CorpusRawDocumentLinkDelete instance containing link 
+                data.
+            session: The database session.
+        Raises:
+            Exception: If an error occurs during the unlinking process.
+    """
     link = await get_corpus_raw_document_link(
         link_in.corpus_id,
         link_in.raw_document_id,
@@ -187,6 +290,17 @@ async def replace_raw_document_corpus_links(
     corpus_ids: list[int],
     session: AsyncSession,
 ) -> RawDocument:
+    """
+    Replace the links between a raw document and corpora.
+        Args:
+            raw_document: The RawDocument instance.
+            corpus_ids: A list of corpus IDs to link to the raw document.
+            session: The database session.
+        Returns:
+            The updated RawDocument instance.
+        Raises:
+            Exception: If an error occurs during the replacement process.
+    """
     try:
         existing_links_result = await session.exec(
             select(CorpusRawDocumentLink).where(
@@ -216,6 +330,14 @@ async def raw_document_has_chunks(
     raw_document_id: int,
     session: AsyncSession,
 ) -> bool:
+    """
+    Check if a raw document has any associated chunks.
+        Args:
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+        Returns:
+            True if the raw document has chunks, False otherwise.
+    """
     result = await session.exec(
         select(DocumentChunk.id).where(DocumentChunk.raw_document_id == raw_document_id).limit(1)
     )
@@ -226,6 +348,15 @@ async def delete_raw_document(
     raw_document: RawDocument,
     session: AsyncSession,
 ) -> None:
+    """
+    Delete a raw document from the database.
+        Args:
+            raw_document: The RawDocument instance to be deleted.
+            session: The database session.
+        Raises:
+            ValueError: If the raw document is not persisted or has existing chunks.
+            Exception: If an error occurs during the deletion process.
+    """
     if raw_document.id is None:
         raise ValueError("Raw document must be persisted before it can be deleted")
 

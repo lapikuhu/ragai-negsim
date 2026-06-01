@@ -1,5 +1,7 @@
-from datetime import datetime, timezone
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+# local imports
 from models.simulations import Simulation
 from schemas.simulations_schemas import (
     SimulationCreate,
@@ -12,9 +14,6 @@ from schemas.simulations_schemas import (
     SimulationUpdate,
 )
 from repositories.helpers import commit_and_refresh, commit_delete, utc_now
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 
 ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
     "created": {"active", "cancelled"},
@@ -26,10 +25,27 @@ ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
 }
 
 def _set_last_updated(simulation: Simulation) -> None:
+    """
+    Update the last_updated field of a simulation to the current UTC time.
+        Args:
+            simulation: The simulation to update.
+        Returns:
+            None
+    """
     simulation.last_updated = utc_now()
 
 
 def _validate_status_transition(current_status: str, next_status: SimulationStatus) -> None:
+    """
+    Validate the transition from the current status to the next status.
+        Args:
+            current_status: The current status of the simulation.
+            next_status: The desired next status of the simulation.
+        Returns:
+            None
+        Raises:
+            ValueError: If the transition is not allowed.
+    """
     if next_status == current_status:
         return
 
@@ -44,6 +60,14 @@ async def get_simulation_by_id(
     simulation_id: int,
     session: AsyncSession,
 ) -> Simulation | None:
+    """
+    Get a simulation by its ID.
+        Args:
+            simulation_id: The ID of the simulation to retrieve.
+            session: The database session.
+        Returns:
+            The Simulation instance if found, else None.
+    """
     return await session.get(Simulation, simulation_id)
 
 
@@ -59,6 +83,22 @@ async def list_simulations(
     session_id: int | None = None,
     scenario_id: int | None = None,
 ) -> list[Simulation]:
+    """
+    List simulations with optional filters.
+        Args:
+            session: The database session.
+            skip: Number of records to skip.
+            limit: Maximum number of records to return.
+            status: Optional status filter.
+            owner_id: Optional owner ID filter.
+            participant_id: Optional participant ID filter.
+            teacher_id: Optional teacher ID filter.
+            corpus_id: Optional corpus ID filter.
+            session_id: Optional session ID filter.
+            scenario_id: Optional scenario ID filter.
+        Returns:
+            A list of Simulation instances.
+    """
     statement = select(Simulation)
 
     if status is not None:
@@ -85,6 +125,14 @@ async def create_simulation(
     simulation_in: SimulationCreate,
     session: AsyncSession,
 ) -> Simulation:
+    """
+    Create a new simulation.
+        Args:
+            simulation_in: The simulation data to create.
+            session: The database session.
+        Returns:
+            The created Simulation instance.
+    """
     simulation = Simulation(**simulation_in.model_dump())
     return await commit_and_refresh(session, simulation)
 
@@ -94,6 +142,17 @@ async def update_simulation(
     simulation_in: SimulationUpdate,
     session: AsyncSession,
 ) -> Simulation:
+    # TODO: Probably abandon; there is no logic in updating a simulation
+    # outside itself.
+    """
+    Update an existing simulation.
+    Args:
+        simulation: The simulation to update.
+        simulation_in: The simulation data to update.
+        session: The database session.
+    Returns:
+        The updated Simulation instance.
+    """
     update_data = simulation_in.model_dump(exclude_unset=True)
 
     if "negotiation_state" in update_data and update_data["negotiation_state"] is not None:
@@ -117,6 +176,15 @@ async def update_simulation_status(
     status_in: SimulationStatusUpdate,
     session: AsyncSession,
 ) -> Simulation:
+    """
+    Update the status of an existing simulation.
+    Args:
+        simulation: The simulation to update.
+        status_in: The new status data.
+        session: The database session.
+    Returns:
+        The updated Simulation instance.
+    """
     _validate_status_transition(simulation.status, status_in.status)
     simulation.status = status_in.status
     _set_last_updated(simulation)
@@ -128,6 +196,15 @@ async def append_simulation_message(
     message_in: SimulationMessageAppend,
     session: AsyncSession,
 ) -> Simulation:
+    """
+    Append a message to an existing simulation.
+    Args:
+        simulation: The simulation to update.
+        message_in: The message data to append.
+        session: The database session.
+    Returns:
+        The updated Simulation instance.
+    """
     simulation.messages = [*simulation.messages, message_in.message.model_dump()]
     _set_last_updated(simulation)
     return await commit_and_refresh(session, simulation)
@@ -138,6 +215,15 @@ async def replace_simulation_messages(
     messages_in: SimulationMessagesReplace,
     session: AsyncSession,
 ) -> Simulation:
+    """
+    Replace the messages of an existing simulation.
+    Args:
+        simulation: The simulation to update.
+        messages_in: The new messages data.
+        session: The database session.
+    Returns:
+        The updated Simulation instance.
+    """
     simulation.messages = [message.model_dump() for message in messages_in.messages]
     _set_last_updated(simulation)
     return await commit_and_refresh(session, simulation)
@@ -148,6 +234,15 @@ async def update_negotiation_state(
     state_in: SimulationNegotiationStateUpdate,
     session: AsyncSession,
 ) -> Simulation:
+    """
+    Update the negotiation state of an existing simulation.
+    Args:
+        simulation: The simulation to update.
+        state_in: The new negotiation state data.
+        session: The database session.
+    Returns:
+        The updated Simulation instance.
+    """
     simulation.negotiation_state = state_in.negotiation_state.model_dump()
     _set_last_updated(simulation)
     return await commit_and_refresh(session, simulation)
@@ -158,6 +253,15 @@ async def review_simulation(
     review_in: SimulationTeacherReview,
     session: AsyncSession,
 ) -> Simulation:
+    """
+    Review an existing simulation.
+    Args:
+        simulation: The simulation to review.
+        review_in: The review data.
+        session: The database session.
+    Returns:
+        The updated Simulation instance.
+    """
     if not review_in.teacher_feedback or not review_in.teacher_feedback.strip():
         raise ValueError("Teacher feedback is required")
 
@@ -172,4 +276,11 @@ async def delete_simulation(
     simulation: Simulation,
     session: AsyncSession,
 ) -> None:
+    """
+    Delete an existing simulation.
+    Args:
+        simulation: The simulation to delete.
+        session: The database session.
+    Returns:
+        None"""
     await commit_delete(session, simulation)

@@ -1,3 +1,7 @@
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+# local imports
 from models.counterpart_personas import CounterPartPersonas
 from models.simulations import Simulation
 from repositories.helpers import commit_and_refresh, commit_delete, utc_now
@@ -7,9 +11,6 @@ from schemas.counterpart_personas_schemas import (
     CounterpartPersonaReadWithIds,
     CounterpartPersonaUpdate,
 )
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 
 async def counterpart_persona_has_simulations(
     persona_id: int,

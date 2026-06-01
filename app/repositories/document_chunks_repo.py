@@ -1,5 +1,8 @@
 from collections.abc import Sequence
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+# local imports
 from models.chunking_profiles import ChunkingProfile
 from models.document_chunks import DocumentChunk
 from models.indexed_chunks import IndexedChunk
@@ -12,14 +15,19 @@ from schemas.document_chunks_schemas import (
     DocumentChunkReadWithIndexedChunks,
     DocumentChunkUpdate,
 )
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 
 async def get_document_chunk_by_id(
     chunk_id: int,
     session: AsyncSession,
 ) -> DocumentChunk | None:
+    """
+    Get a document chunk by its ID.
+        Args:
+            chunk_id: The ID of the document chunk.
+            session: The database session.
+        Returns:
+            The DocumentChunk instance if found, otherwise None.
+    """
     return await session.get(DocumentChunk, chunk_id)
 
 
@@ -29,6 +37,16 @@ async def get_document_chunks_by_raw_document_id(
     skip: int = 0,
     limit: int = 20,
 ) -> list[DocumentChunk]:
+    """
+    Get document chunks by raw document ID.
+        Args:
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+            skip: The number of records to skip.
+            limit: The maximum number of records to return.
+        Returns:
+            A list of DocumentChunk instances.
+    """
     result = await session.exec(
         select(DocumentChunk)
         .where(DocumentChunk.raw_document_id == raw_document_id)
@@ -45,6 +63,16 @@ async def get_document_chunks_by_chunking_profile_id(
     skip: int = 0,
     limit: int = 20,
 ) -> list[DocumentChunk]:
+    """
+    Get document chunks by chunking profile ID.
+        Args:
+            chunking_profile_id: The ID of the chunking profile.
+            session: The database session.
+            skip: The number of records to skip.
+            limit: The maximum number of records to return.
+        Returns:
+            A list of DocumentChunk instances.
+    """
     result = await session.exec(
         select(DocumentChunk)
         .where(DocumentChunk.chunking_profile_id == chunking_profile_id)
@@ -59,6 +87,14 @@ async def ensure_raw_document_exists(
     raw_document_id: int,
     session: AsyncSession,
 ) -> None:
+    """
+    Ensure that a raw document exists.
+        Args:
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+        Raises:
+            ValueError: If the raw document does not exist.
+    """
     if await session.get(RawDocument, raw_document_id) is None:
         raise ValueError("Raw document not found")
 
@@ -67,6 +103,14 @@ async def ensure_chunking_profile_exists(
     chunking_profile_id: int,
     session: AsyncSession,
 ) -> None:
+    """
+    Ensure that a chunking profile exists.
+        Args:
+            chunking_profile_id: The ID of the chunking profile.
+            session: The database session.
+        Raises:
+            ValueError: If the chunking profile does not exist.
+    """
     if await session.get(ChunkingProfile, chunking_profile_id) is None:
         raise ValueError("Chunking profile not found")
 
@@ -77,6 +121,16 @@ async def get_document_chunk_by_position(
     chunk_index: int,
     session: AsyncSession,
 ) -> DocumentChunk | None:
+    """
+    Get a document chunk by its position.
+        Args:
+            raw_document_id: The ID of the raw document.
+            chunking_profile_id: The ID of the chunking profile.
+            chunk_index: The index of the chunk.
+            session: The database session.
+        Returns:
+            The DocumentChunk instance if found, otherwise None.
+    """
     result = await session.exec(
         select(DocumentChunk).where(
             DocumentChunk.raw_document_id == raw_document_id,
@@ -94,6 +148,17 @@ async def ensure_document_chunk_position_available(
     session: AsyncSession,
     exclude_chunk_id: int | None = None,
 ) -> None:
+    """
+    Ensure that a document chunk position is available.
+        Args:
+            raw_document_id: The ID of the raw document.
+            chunking_profile_id: The ID of the chunking profile.
+            chunk_index: The index of the chunk.
+            session: The database session.
+            exclude_chunk_id: The ID of the chunk to exclude from the check.
+        Raises:
+            ValueError: If the document chunk position is already taken.
+    """
     existing_chunk = await get_document_chunk_by_position(
         raw_document_id,
         chunking_profile_id,
@@ -113,6 +178,14 @@ async def document_chunk_has_indexed_chunks(
     chunk_id: int,
     session: AsyncSession,
 ) -> bool:
+    """
+    Check if a document chunk has any associated indexed chunks.
+        Args:
+            chunk_id: The ID of the document chunk.
+            session: The database session.
+        Returns:
+            True if the document chunk has indexed chunks, False otherwise.
+    """
     result = await session.exec(
         select(IndexedChunk.document_chunk_id)
         .where(IndexedChunk.document_chunk_id == chunk_id)
@@ -125,6 +198,14 @@ async def get_document_chunk_corpus_index_ids(
     chunk_id: int,
     session: AsyncSession,
 ) -> list[int]:
+    """
+    Get the corpus index IDs associated with a document chunk.
+        Args:
+            chunk_id: The ID of the document chunk.
+            session: The database session.
+        Returns:
+            A list of corpus index IDs.
+    """
     result = await session.exec(
         select(IndexedChunk.corpus_index_id).where(IndexedChunk.document_chunk_id == chunk_id)
     )
@@ -135,6 +216,14 @@ async def get_document_chunk_indexed_chunks(
     chunk_id: int,
     session: AsyncSession,
 ) -> list[DocumentChunkIndexedChunkRead]:
+    """
+    Get the indexed chunks associated with a document chunk.
+        Args:
+            chunk_id: The ID of the document chunk.
+            session: The database session.
+        Returns:
+            A list of DocumentChunkIndexedChunkRead instances.
+    """
     result = await session.exec(
         select(IndexedChunk).where(IndexedChunk.document_chunk_id == chunk_id)
     )
@@ -156,6 +245,18 @@ async def list_document_chunks(
     chunking_profile_id: int | None = None,
     has_indexed_chunks: bool | None = None,
 ) -> list[DocumentChunk]:
+    """
+    List document chunks with optional filters.
+        Args:
+            session: The database session.
+            skip: The number of records to skip.
+            limit: The maximum number of records to return.
+            raw_document_id: The ID of the raw document to filter by.
+            chunking_profile_id: The ID of the chunking profile to filter by.
+            has_indexed_chunks: Whether to filter by chunks that have indexed chunks.
+        Returns:
+            A list of DocumentChunk instances.
+    """
     statement = select(DocumentChunk)
 
     if raw_document_id is not None:
@@ -187,6 +288,14 @@ async def to_document_chunk_read_with_ids(
     chunk: DocumentChunk,
     session: AsyncSession,
 ) -> DocumentChunkReadWithIds:
+    """
+    Convert a DocumentChunk instance to a DocumentChunkReadWithIds instance.
+        Args:
+            chunk: The DocumentChunk instance.
+            session: The database session.
+        Returns:
+            A DocumentChunkReadWithIds instance.
+    """
     if chunk.id is None:
         raise ValueError("Document chunk must be persisted before relationship ids can be loaded")
 
@@ -200,6 +309,15 @@ async def to_document_chunk_read_with_indexed_chunks(
     chunk: DocumentChunk,
     session: AsyncSession,
 ) -> DocumentChunkReadWithIndexedChunks:
+    """
+    Convert a DocumentChunk instance to a DocumentChunkReadWithIndexedChunks 
+    instance.
+        Args:
+            chunk: The DocumentChunk instance.
+            session: The database session.
+        Returns:
+            A DocumentChunkReadWithIndexedChunks instance.
+    """
     if chunk.id is None:
         raise ValueError("Document chunk must be persisted before indexed chunks can be loaded")
 
@@ -213,6 +331,14 @@ async def create_document_chunk(
     chunk_in: DocumentChunkCreate,
     session: AsyncSession,
 ) -> DocumentChunk:
+    """
+    Create a new DocumentChunk instance.
+        Args:
+            chunk_in: The DocumentChunkCreate instance.
+            session: The database session.
+        Returns:
+            The created DocumentChunk instance.
+    """
     await ensure_raw_document_exists(chunk_in.raw_document_id, session)
     await ensure_chunking_profile_exists(chunk_in.chunking_profile_id, session)
     await ensure_document_chunk_position_available(
@@ -230,6 +356,16 @@ async def update_document_chunk(
     chunk_in: DocumentChunkUpdate,
     session: AsyncSession,
 ) -> DocumentChunk:
+    """
+    Update an existing DocumentChunk instance.
+        Args:
+            chunk: The DocumentChunk instance to update.
+            chunk_in: The DocumentChunkUpdate instance containing the 
+                update data.
+            session: The database session.
+        Returns:
+            The updated DocumentChunk instance.
+    """
     if chunk.id is None:
         raise ValueError("Document chunk must be persisted before it can be updated")
 
@@ -259,6 +395,16 @@ async def ensure_document_chunk_deletable(
     chunk: DocumentChunk,
     session: AsyncSession,
 ) -> None:
+    """
+    Ensure that a document chunk can be deleted.
+        Args:
+            chunk: The DocumentChunk instance to check.
+            session: The database session.
+        Returns:
+            None
+        Raises:
+            ValueError: If the document chunk cannot be deleted.
+    """
     if chunk.id is None:
         raise ValueError("Document chunk must be persisted before it can be deleted")
 
@@ -270,11 +416,29 @@ async def delete_document_chunk(
     chunk: DocumentChunk,
     session: AsyncSession,
 ) -> None:
+    """
+    Delete a document chunk.
+        Args:
+            chunk: The DocumentChunk instance to delete.
+            session: The database session.
+        Returns:
+            None
+        Raises:
+            ValueError: If the document chunk cannot be deleted.
+    """
     await ensure_document_chunk_deletable(chunk, session)
     await commit_delete(session, chunk)
 
 
 def _chunk_position_key(chunk_in: DocumentChunkCreate) -> tuple[int, int, int]:
+    # TODO: Check functionality.
+    """
+    Generate a unique key for a document chunk based on its position.
+        Args:
+            chunk_in: The DocumentChunkCreate instance.
+        Returns:
+            A tuple representing the unique position key.
+    """
     return (
         chunk_in.raw_document_id,
         chunk_in.chunking_profile_id,
@@ -286,6 +450,16 @@ async def _ensure_parent_records_exist(
     chunks_in: Sequence[DocumentChunkCreate],
     session: AsyncSession,
 ) -> None:
+    """
+    Ensure that the parent records for the given document chunks exist.
+        Args:
+            chunks_in: A sequence of DocumentChunkCreate instances.
+            session: The database session.
+        Returns:
+            None
+        Raises:
+            ValueError: If any parent record does not exist.
+    """
     raw_document_ids = {chunk_in.raw_document_id for chunk_in in chunks_in}
     chunking_profile_ids = {chunk_in.chunking_profile_id for chunk_in in chunks_in}
 
@@ -296,6 +470,15 @@ async def _ensure_parent_records_exist(
 
 
 def ensure_no_duplicate_positions_in_payload(chunks_in: Sequence[DocumentChunkCreate]) -> None:
+    """
+    Ensure that there are no duplicate positions in the given payload.
+        Args:
+            chunks_in: A sequence of DocumentChunkCreate instances.
+        Returns:
+            None
+        Raises:
+            ValueError: If any duplicate position is found in the payload.
+    """
     seen_positions: set[tuple[int, int, int]] = set()
     for chunk_in in chunks_in:
         position_key = _chunk_position_key(chunk_in)
@@ -308,6 +491,17 @@ async def ensure_no_duplicate_positions_in_db(
     chunks_in: Sequence[DocumentChunkCreate],
     session: AsyncSession,
 ) -> None:
+    """
+    Ensure that there are no duplicate positions in the database for the given 
+    document chunks.
+        Args:
+            chunks_in: A sequence of DocumentChunkCreate instances.
+            session: The database session.
+        Returns:
+            None
+        Raises:
+            ValueError: If any duplicate position is found in the database.
+    """
     for chunk_in in chunks_in:
         await ensure_document_chunk_position_available(
             chunk_in.raw_document_id,
@@ -321,6 +515,16 @@ async def bulk_create_document_chunks(
     chunks_in: list[DocumentChunkCreate],
     session: AsyncSession,
 ) -> list[DocumentChunk]:
+    """
+    Bulk create document chunks.
+        Args:
+            chunks_in: A list of DocumentChunkCreate instances.
+            session: The database session.
+        Returns:
+            A list of created DocumentChunk instances.
+        Raises:
+            ValueError: If any validation fails.
+    """
     if not chunks_in:
         return []
 
@@ -347,6 +551,16 @@ async def delete_document_chunks_by_raw_document_id(
     raw_document_id: int,
     session: AsyncSession,
 ) -> int:
+    """
+    Delete document chunks by raw document ID.
+        Args:
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+        Returns:
+            The number of deleted document chunks.
+        Raises:
+            ValueError: If the raw document does not exist.
+    """
     await ensure_raw_document_exists(raw_document_id, session)
 
     result = await session.exec(

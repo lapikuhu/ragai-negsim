@@ -1,3 +1,7 @@
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+# local imports
 from models.scenarios import Scenario
 from models.simulations import Simulation
 from repositories.helpers import commit_and_refresh, commit_delete, utc_now
@@ -7,14 +11,20 @@ from schemas.scenarios_schemas import (
     ScenarioReadWithIds,
     ScenarioUpdate,
 )
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 
 async def scenario_has_simulations(
     scenario_id: int,
     session: AsyncSession,
 ) -> bool:
+    """
+    Check if a scenario has been used in any simulations.
+        Args:
+            scenario_id: The ID of the scenario to check.
+            session: The database session.
+        Returns:
+            True if the scenario has been used in at least one simulation, 
+            False otherwise.
+    """
     result = await session.exec(
         select(Simulation.id).where(Simulation.scenario_id == scenario_id).limit(1)
     )
@@ -25,6 +35,16 @@ async def ensure_scenario_unused(
     scenario: Scenario,
     session: AsyncSession,
 ) -> None:
+    """
+    Ensure that a scenario has not been used in any simulations.
+        Args:
+            scenario: The scenario to check.
+            session: The database session.
+        Returns:
+            None
+        Raises:
+            ValueError: If the scenario has been used in any simulations.
+    """
     if scenario.id is None:
         raise ValueError("Scenario must be persisted before this operation")
 
@@ -36,6 +56,14 @@ async def get_scenario_by_id(
     scenario_id: int,
     session: AsyncSession,
 ) -> Scenario | None:
+    """
+    Get a scenario by its ID.
+        Args:
+            scenario_id: The ID of the scenario to retrieve.
+            session: The database session.
+        Returns:
+            The Scenario instance if found, else None.
+    """
     return await session.get(Scenario, scenario_id)
 
 
@@ -43,6 +71,14 @@ async def get_scenario_by_name(
     name: str,
     session: AsyncSession,
 ) -> Scenario | None:
+    """
+    Get a scenario by its name.
+        Args:
+            name: The name of the scenario to retrieve.
+            session: The database session.
+        Returns:
+            The Scenario instance if found, else None.
+    """
     result = await session.exec(select(Scenario).where(Scenario.name == name))
     return result.first()
 
@@ -52,6 +88,17 @@ async def ensure_scenario_name_available(
     session: AsyncSession,
     exclude_scenario_id: int | None = None,
 ) -> None:
+    """
+    Ensure that a scenario name is available.
+        Args:
+            name: The name of the scenario to check.
+            session: The database session.
+            exclude_scenario_id: Optional scenario ID to exclude from the check.
+        Returns:
+            None
+        Raises:
+            ValueError: If the scenario name already exists.
+    """
     existing_scenario = await get_scenario_by_name(name, session)
     if existing_scenario is None:
         return
@@ -70,6 +117,18 @@ async def list_scenarios(
     name_contains: str | None = None,
     used: bool | None = None,
 ) -> list[Scenario]:
+    """
+    List scenarios with optional filters.
+        Args:
+            session: The database session.
+            skip: Number of records to skip.
+            limit: Maximum number of records to return.
+            created_by_user_id: Optional user ID filter.
+            name_contains: Optional name filter.
+            used: Optional filter for scenarios used in simulations.
+        Returns:
+            A list of Scenario instances.
+    """
     statement = select(Scenario)
 
     if created_by_user_id is not None:
@@ -92,6 +151,14 @@ async def get_scenario_simulation_ids(
     scenario_id: int,
     session: AsyncSession,
 ) -> list[int]:
+    """
+    Get the IDs of simulations associated with a scenario.
+        Args:
+            scenario_id: The ID of the scenario.
+            session: The database session.
+        Returns:
+            A list of simulation IDs.
+    """
     result = await session.exec(select(Simulation.id).where(Simulation.scenario_id == scenario_id))
     return [simulation_id for simulation_id in result.all() if simulation_id is not None]
 
@@ -100,6 +167,17 @@ async def to_scenario_read_with_ids(
     scenario: Scenario,
     session: AsyncSession,
 ) -> ScenarioReadWithIds:
+    """
+    Convert a Scenario instance to a ScenarioReadWithIds instance, including 
+    related simulation IDs.
+        Args:
+            scenario: The Scenario instance to convert.
+            session: The database session.
+        Returns:
+            A ScenarioReadWithIds instance.
+        Raises:
+            ValueError: If the scenario has not been persisted.
+    """
     if scenario.id is None:
         raise ValueError("Scenario must be persisted before relationship ids can be loaded")
 
@@ -113,6 +191,16 @@ async def create_scenario(
     scenario_in: ScenarioCreate,
     session: AsyncSession,
 ) -> Scenario:
+    """
+    Create a new scenario.
+        Args:
+            scenario_in: The ScenarioCreate instance containing scenario data.
+            session: The database session.
+        Returns:
+            The created Scenario instance.
+        Raises:
+            ValueError: If the scenario name is already in use.
+    """
     await ensure_scenario_name_available(scenario_in.name, session)
     scenario = Scenario(**scenario_in.model_dump())
     return await commit_and_refresh(session, scenario)
@@ -123,6 +211,18 @@ async def update_scenario(
     scenario_in: ScenarioUpdate,
     session: AsyncSession,
 ) -> Scenario:
+    """
+    Update an existing scenario.
+        Args:
+            scenario: The Scenario instance to update.
+            scenario_in: The ScenarioUpdate instance containing updated data.
+            session: The database session.
+        Returns:
+            The updated Scenario instance.
+        Raises:
+            ValueError: If the scenario is already in use or the new name is 
+            not available.
+    """
     await ensure_scenario_unused(scenario, session)
     update_data = scenario_in.model_dump(exclude_unset=True)
 
@@ -141,6 +241,17 @@ async def copy_scenario(
     copy_in: ScenarioCopy,
     session: AsyncSession,
 ) -> Scenario:
+    """
+    Copy an existing scenario.
+        Args:
+            source_scenario: The Scenario instance to copy.
+            copy_in: The ScenarioCopy instance containing copy data.
+            session: The database session.
+        Returns:
+            The copied Scenario instance.
+        Raises:
+            ValueError: If the scenario name is already in use.
+    """
     await ensure_scenario_name_available(copy_in.name, session)
     scenario = Scenario(
         name=copy_in.name,
@@ -158,5 +269,13 @@ async def delete_scenario(
     scenario: Scenario,
     session: AsyncSession,
 ) -> None:
+    """
+    Delete an existing scenario.
+        Args:
+            scenario: The Scenario instance to delete.
+            session: The database session.
+        Raises:
+            ValueError: If the scenario is in use.
+    """
     await ensure_scenario_unused(scenario, session)
     await commit_delete(session, scenario)
