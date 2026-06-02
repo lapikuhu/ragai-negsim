@@ -6,7 +6,7 @@ from sqlalchemy import inspect, text
 from langchain_postgres import PGEngine, PGVectorStore
 
 # local imports
-from embeddings.embeddings import choose_embedding_model
+from airag.embeddings.embeddings import choose_embedding_model
 from core.config import settings
 from db.db import engine
 # add db import here for pgvectorstore

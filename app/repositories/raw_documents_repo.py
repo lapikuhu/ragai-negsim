@@ -4,7 +4,7 @@ from repositories.helpers import commit_and_refresh
 from schemas.raw_documents_schemas import (
     CorpusRawDocumentLinkCreate,
     CorpusRawDocumentLinkDelete,
-    RawDocumentCreate,
+    RawDocumentCreateDb,
     RawDocumentUpdate,
 )
 from sqlmodel import select
@@ -61,7 +61,7 @@ async def get_raw_document_by_name(
 async def list_raw_documents(
     session: AsyncSession,
     skip: int = 0,
-    limit: int = 20,
+    limit: int = 10,
     uploaded_by_user_id: int | None = None,
     corpus_id: int | None = None,
     name_contains: str | None = None,
@@ -135,7 +135,7 @@ async def get_raw_document_document_chunk_ids(
 
 
 async def create_raw_document(
-    raw_document_in: RawDocumentCreate,
+    raw_document_in: RawDocumentCreateDb,
     session: AsyncSession,
 ) -> RawDocument:
     """

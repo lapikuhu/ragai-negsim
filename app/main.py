@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db.db import create_db_and_tables
+from web.routes.corpus_route import router as corpus_router
+from web.routes.raw_documents_route import router as raw_documents_router
 
 @asynccontextmanager
 # async context manager for lifespan allows us to run async code during startup and shutdown
@@ -19,3 +21,5 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Negotiation Simulator", lifespan=lifespan, tags=["app"])
 
 # Register the routers
+app.include_router(corpus_router)
+app.include_router(raw_documents_router)

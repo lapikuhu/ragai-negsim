@@ -1,13 +1,11 @@
-from sklearn.metrics.pairwise import cosine_similarity as sk_cosine
-from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from __future__ import annotations
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.embeddings import Embeddings
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_experimental.text_splitter import SemanticChunker
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
-from typing import List
+from typing import TYPE_CHECKING, List
+
+if TYPE_CHECKING:
+    from langchain_core.embeddings import Embeddings
 
 ### ---- Embed these in the config file later ----
 #matryoshka_dims = [1536, 512, 256, 128, 64]
@@ -40,11 +38,19 @@ def chunk_document_recursive(document: Document,
     return chunks
 
     
-### --- Move these to config later ---
-embeddings = HuggingFaceEmbeddings(
-model_name="sentence-transformers/all-MiniLM-L6-v2",
-encode_kwargs={"normalize_embeddings": True},
-)
+_default_embeddings: Embeddings | None = None
+
+
+def get_default_embeddings() -> Embeddings:
+    from langchain_huggingface import HuggingFaceEmbeddings
+
+    global _default_embeddings
+    if _default_embeddings is None:
+        _default_embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            encode_kwargs={"normalize_embeddings": True},
+        )
+    return _default_embeddings
 
 def chunk_document_list_recursive(documents: list[Document],
                                 chunk_size: int = 1000,
@@ -83,7 +89,7 @@ def chunk_document_list_recursive(documents: list[Document],
     return all_chunks
 
 def chunk_document_semantic(document: Document,
-                            embeddings: Embeddings = embeddings, 
+                            embeddings: Embeddings | None = None, 
                             breakpoint_threshold_type: str = "percentile",
                             breakpoint_threshold_amount: int = 90,
                             buffer_size: int = 1) -> List[Document]:
@@ -103,6 +109,11 @@ def chunk_document_semantic(document: Document,
         List[Document]: A list of chunked LangChain documents with metadata
         preserved from the input document.
     """
+    if embeddings is None:
+        embeddings = get_default_embeddings()
+
+    from langchain_experimental.text_splitter import SemanticChunker
+
     # Use the experimental langchain SemanticChunker:
     splitter = SemanticChunker(
     embeddings,
@@ -115,7 +126,7 @@ def chunk_document_semantic(document: Document,
     return chunks
 
 def chunk_document_list_semantic(documents: list[Document],
-                                 embeddings: Embeddings = embeddings,
+                                 embeddings: Embeddings | None = None,
                                  breakpoint_threshold_type: str = "percentile",
                                  breakpoint_threshold_amount: int = 90,
                                  buffer_size: int = 1) -> list[Document]:
@@ -133,6 +144,11 @@ def chunk_document_list_semantic(documents: list[Document],
     Returns:
         list[Document]: A list of chunked LangChain documents with metadata preserved from the input documents.
     """
+    if embeddings is None:
+        embeddings = get_default_embeddings()
+
+    from langchain_experimental.text_splitter import SemanticChunker
+
     all_chunks = []
     
     for doc in documents:

@@ -10,8 +10,11 @@ class RawDocumentBase(SQLModel):
 
 
 class RawDocumentCreate(RawDocumentBase):
-	uploaded_by_user_id: int
 	corpus_ids: list[int] = Field(default_factory=list)
+
+
+class RawDocumentCreateDb(RawDocumentCreate):
+	uploaded_by_user_id: int
 
 
 class RawDocumentRead(RawDocumentBase):

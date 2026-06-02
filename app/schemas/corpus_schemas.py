@@ -9,7 +9,7 @@ class CorpusBase(SQLModel):
 
 
 class CorpusCreate(CorpusBase):
-	created_by_user_id: int
+    raw_document_ids: list[int] = Field(default_factory=list)
 
 
 class CorpusRead(CorpusBase):
