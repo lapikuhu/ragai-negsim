@@ -20,12 +20,37 @@ class IngestionOptionsLike(Protocol):
 
 
 def _persisted_id(value: int | None, label: str) -> int:
+    """
+    Utility function to ensure that a given value is not None, indicating that
+    it has been persisted. If the value is None, a ValueError is raised with a
+    message indicating which label is missing.
+    Args:
+    value (int | None): The value to check for persistence.
+    label (str): A descriptive label for the value being checked, used in the
+    error message if the value is not persisted.
+    Returns:
+        int: The original value if it is not None, indicating it has been 
+            persisted.
+    Raises:
+        ValueError: If the value is None, indicating it has not been persisted.
+    """
     if value is None:
         raise ValueError(f"{label} must be persisted before ingestion")
     return value
 
 
 def _parse_raw_document(path: str, options: IngestionOptionsLike):
+    """
+    Processes the raw document at the given path using the specified options. 
+    Currently supports only PDF documents and recursive chunking.
+    Args:
+        path (str): The file path to the raw document to be ingested.
+        options (IngestionOptionsLike): An object containing ingestion 
+            options such as header depth, chunk size, and chunker type.
+    Returns:
+        List[DocumentChunkCreate]: A list of DocumentChunkCreate objects 
+        representing the parsed chunks of the document.
+    """
     from airag.chunking.chunkers import chunk_document_list_recursive
     from airag.ingestion.ingestion import clean_markdown, split_md_on_headers
     from airag.ingestion.loaders import convert_to_markdown, ingest_single_pdf
@@ -58,6 +83,20 @@ async def ingest_raw_document_srvc(
     session: AsyncSession,
     options: IngestionOptionsLike,
 ) -> RawDocumentIngestResult:
+    """
+    Ingests a raw document using the specified chunking profile and ingestion 
+    options.
+    Args:
+        raw_document (RawDocument): The raw document to be ingested.
+        chunking_profile (ChunkingProfile): The chunking profile to use for 
+            ingestion.
+        session (AsyncSession): The database session to use for persistence.
+        options (IngestionOptionsLike): An object containing ingestion 
+            options such as header depth, chunk size, and chunker type.
+    Returns:
+        RawDocumentIngestResult: The result of the ingestion, including the 
+        IDs of the created chunks.
+    """
     raw_document_id = _persisted_id(raw_document.id, "Raw document")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
 
@@ -98,6 +137,20 @@ async def ingest_corpus_srvc(
     session: AsyncSession,
     options: IngestionOptionsLike,
 ) -> CorpusIngestResult:
+    """
+    Ingests a corpus by processing all its associated raw documents using the
+    specified chunking profile and ingestion options.
+    Args:
+        corpus (Corpus): The corpus to be ingested.
+        chunking_profile (ChunkingProfile): The chunking profile to use 
+            for ingestion.
+        session (AsyncSession): The database session to use for persistence.
+        options (IngestionOptionsLike): An object containing ingestion 
+            options such as header depth, chunk size, and chunker type.
+    Returns:
+        CorpusIngestResult: The result of the ingestion, including the 
+        IDs of the created chunks.
+    """
     corpus_id = _persisted_id(corpus.id, "Corpus")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
     raw_document_ids = await corpus_repo.get_corpus_raw_document_ids(corpus_id, session)
