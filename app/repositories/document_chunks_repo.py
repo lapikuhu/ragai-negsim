@@ -582,3 +582,4 @@ async def delete_document_chunks_by_raw_document_id(
     except Exception:
         await session.rollback()
         raise
+

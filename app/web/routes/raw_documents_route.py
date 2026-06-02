@@ -2,12 +2,15 @@ from services.raw_documents_service import(create_raw_document_srvc,
                                            list_raw_documents_srvc,
                                            get_raw_document_by_id_srvc,)
 from services.ingestion_service import ingest_raw_document_srvc
+from services.chunking_service import chunk_raw_document_srvc
+from schemas.chunking_schemas import RawDocumentChunkResult
 from schemas.ingestion_schemas import RawDocumentIngestResult
 from schemas.raw_documents_schemas import RawDocumentCreate
 from models.raw_documents import RawDocument
 from fastapi import APIRouter, HTTPException
 from core.dependencies import (
     ChunkingProfileDep,
+    ChunkingOptionsDep,
     IngestionOptionsDep,
     SessionDep,
     RawDocumentCreatorDep,
@@ -100,6 +103,38 @@ async def ingest_raw_document(
     """
     try:
         return await ingest_raw_document_srvc(
+            raw_document=raw_document,
+            chunking_profile=chunking_profile,
+            session=session,
+            options=options,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+### ------------------ CHUNK A RAW DOCUMENT ------------------- ###
+@router.post(
+    "/{raw_document_id}/chunking-profiles/{profile_id}/chunk",
+    response_model=RawDocumentChunkResult,
+)
+async def chunk_raw_document(
+    raw_document: WritableRawDocumentDep,
+    chunking_profile: ChunkingProfileDep,
+    session: SessionDep,
+    options: ChunkingOptionsDep,
+) -> RawDocumentChunkResult:
+    """
+    Endpoint to chunk an already parsed raw document into document chunks.
+    Args:
+        raw_document: The writable raw document to chunk.
+        chunking_profile: The chunking profile to associate with created chunks.
+        session: The database session to use for persistence.
+        options: Query options controlling chunking behavior.
+    Returns:
+        A summary of the created or previewed document chunks.
+    """
+    try:
+        return await chunk_raw_document_srvc(
             raw_document=raw_document,
             chunking_profile=chunking_profile,
             session=session,

@@ -39,7 +39,7 @@ def _persisted_id(value: int | None, label: str) -> int:
     return value
 
 
-def _parse_raw_document(path: str, options: IngestionOptionsLike):
+def _parse_raw_document(path: str, options: IngestionOptionsLike) -> tuple[str, list]:
     """
     Processes the raw document at the given path using the specified options. 
     Currently supports only PDF documents and recursive chunking.
@@ -64,16 +64,28 @@ def _parse_raw_document(path: str, options: IngestionOptionsLike):
 
     docling_document = ingest_single_pdf(raw_document_path)
     markdown = convert_to_markdown(docling_document)
-    cleaned_document = clean_markdown(markdown, source=str(raw_document_path))
+    cleaned_markdown = clean_markdown(
+        markdown,
+        convert_to_langDoc=False,
+        source=str(raw_document_path),
+    )
+    cleaned_document = clean_markdown(
+        markdown,
+        convert_to_langDoc=True,
+        source=str(raw_document_path),
+    )
     sections = split_md_on_headers(
         cleaned_document,
         header_depth=options.header_depth,
         dynamic_length=options.dynamic_header_depth,
     )
-    return chunk_document_list_recursive(
-        sections,
-        chunk_size=options.chunk_size,
-        chunk_overlap=options.chunk_overlap,
+    return (
+        cleaned_markdown,
+        chunk_document_list_recursive(
+            sections,
+            chunk_size=options.chunk_size,
+            chunk_overlap=options.chunk_overlap,
+        ),
     )
 
 
@@ -100,7 +112,12 @@ async def ingest_raw_document_srvc(
     raw_document_id = _persisted_id(raw_document.id, "Raw document")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
 
-    parsed_chunks = _parse_raw_document(raw_document.path, options)
+    parsed_content, parsed_chunks = _parse_raw_document(raw_document.path, options)
+    await raw_documents_repo.update_raw_document_parsed_content(
+        raw_document=raw_document,
+        parsed_content=parsed_content,
+        session=session,
+    )
     chunks_in = []
     for chunk_index, chunk in enumerate(parsed_chunks):
         chunk_metadata = dict(chunk.metadata)

@@ -1054,3 +1054,41 @@ def get_ingestion_options(
 
 
 IngestionOptionsDep = Annotated[IngestionOptions, Depends(get_ingestion_options)]
+
+# Chunking Options
+from schemas.chunking_schemas import ChunkingOptions
+
+
+def get_chunking_options(
+    chunker: str = Query(default="recursive"),
+    chunk_size: int = Query(default=1000, ge=100, le=8000),
+    chunk_overlap: int = Query(default=200, ge=0, le=2000),
+    preview: bool = Query(default=False),
+    breakpoint_threshold_type: str = Query(default="percentile"),
+    breakpoint_threshold_amount: int = Query(default=90, ge=1),
+    buffer_size: int = Query(default=1, ge=0),
+) -> ChunkingOptions:
+    if chunk_overlap >= chunk_size:
+        raise HTTPException(
+            status_code=422,
+            detail="chunk_overlap must be smaller than chunk_size",
+        )
+
+    if chunker not in {"recursive", "semantic"}:
+        raise HTTPException(
+            status_code=422,
+            detail="chunker must be one of: recursive, semantic",
+        )
+
+    return ChunkingOptions(
+        chunker=chunker,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        preview=preview,
+        breakpoint_threshold_type=breakpoint_threshold_type,
+        breakpoint_threshold_amount=breakpoint_threshold_amount,
+        buffer_size=buffer_size,
+    )
+
+
+ChunkingOptionsDep = Annotated[ChunkingOptions, Depends(get_chunking_options)]

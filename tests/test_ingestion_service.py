@@ -11,6 +11,7 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
         id=7,
         name="sample",
         path="sample.pdf",
+        parsed_content=None,
         uploaded_by_user_id=1,
     )
     chunking_profile = SimpleNamespace(
@@ -31,11 +32,17 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
         SimpleNamespace(page_content="second chunk", metadata={"section": "terms"}),
     ]
     captured_chunks = []
+    captured_parsed_content = []
 
     def fake_parse(path, received_options):
         assert path == "sample.pdf"
         assert received_options is options
-        return parsed_chunks
+        return "stored markdown", parsed_chunks
+
+    async def fake_update_parsed_content(raw_document, parsed_content, session):
+        captured_parsed_content.append(parsed_content)
+        raw_document.parsed_content = parsed_content
+        return raw_document
 
     async def fake_bulk_create(chunks_in, session):
         captured_chunks.extend(chunks_in)
@@ -45,6 +52,11 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
         ]
 
     monkeypatch.setattr(ingestion_service, "_parse_raw_document", fake_parse)
+    monkeypatch.setattr(
+        ingestion_service.raw_documents_repo,
+        "update_raw_document_parsed_content",
+        fake_update_parsed_content,
+    )
     monkeypatch.setattr(ingestion_service, "bulk_create_document_chunks", fake_bulk_create)
 
     result = await ingestion_service.ingest_raw_document_srvc(
@@ -58,6 +70,7 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
     assert result.chunking_profile_id == 3
     assert result.chunks_created == 2
     assert result.chunk_ids == [101, 102]
+    assert captured_parsed_content == ["stored markdown"]
     assert [chunk.content for chunk in captured_chunks] == ["first chunk", "second chunk"]
     assert [chunk.chunk_index for chunk in captured_chunks] == [0, 1]
     assert captured_chunks[0].raw_document_id == 7
@@ -87,8 +100,8 @@ async def test_ingest_corpus_ingests_linked_raw_documents(monkeypatch):
         chunker="recursive",
     )
     raw_documents = {
-        7: SimpleNamespace(id=7, name="first", path="first.pdf", uploaded_by_user_id=1),
-        8: SimpleNamespace(id=8, name="second", path="second.pdf", uploaded_by_user_id=1),
+        7: SimpleNamespace(id=7, name="first", path="first.pdf", parsed_content=None, uploaded_by_user_id=1),
+        8: SimpleNamespace(id=8, name="second", path="second.pdf", parsed_content=None, uploaded_by_user_id=1),
     }
 
     async def fake_get_raw_document_ids(corpus_id, session):

@@ -1,14 +1,17 @@
 from core.dependencies import (
     ChunkingProfileDep,
+    ChunkingOptionsDep,
     CorpusCreatorDep,
     IngestionOptionsDep,
     SessionDep,
     WritableCorpusDep,
 )
 from schemas.corpus_schemas import CorpusCreate, CorpusRead
+from schemas.chunking_schemas import CorpusChunkResult
 from schemas.ingestion_schemas import CorpusIngestResult
 from services.corpus_service import (create_corpus_srvc, 
                                      list_corpora_srvc)
+from services.chunking_service import chunk_corpus_srvc
 from services.ingestion_service import ingest_corpus_srvc
 from fastapi import APIRouter, HTTPException
 
@@ -95,6 +98,39 @@ async def ingest_corpus(
     """
     try:
         return await ingest_corpus_srvc(
+            corpus=corpus,
+            chunking_profile=chunking_profile,
+            session=session,
+            options=options,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+### ------------------------ CHUNK CORPUS -------------------------- ###
+@router.post(
+    "/{corpus_id}/chunking-profiles/{profile_id}/chunk",
+    response_model=CorpusChunkResult,
+    status_code=201,
+)
+async def chunk_corpus(
+    corpus: WritableCorpusDep,
+    chunking_profile: ChunkingProfileDep,
+    session: SessionDep,
+    options: ChunkingOptionsDep,
+) -> CorpusChunkResult:
+    """
+    Endpoint to chunk already parsed raw documents linked to a corpus.
+    Args:
+        corpus: The writable corpus to chunk.
+        chunking_profile: The chunking profile to associate with created chunks.
+        session: The database session to use for persistence.
+        options: Query options controlling chunking behavior.
+    Returns:
+        A summary of created or previewed chunks per raw document.
+    """
+    try:
+        return await chunk_corpus_srvc(
             corpus=corpus,
             chunking_profile=chunking_profile,
             session=session,

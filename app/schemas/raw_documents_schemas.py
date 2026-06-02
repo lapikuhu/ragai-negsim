@@ -21,6 +21,7 @@ class RawDocumentRead(RawDocumentBase):
 	id: int
 	uploaded_at: datetime
 	uploaded_by_user_id: int
+	parsed_at: datetime | None = None
 
 
 class RawDocumentUpdate(SQLModel):
@@ -32,6 +33,10 @@ class RawDocumentUpdate(SQLModel):
 class RawDocumentReadWithIds(RawDocumentRead):
 	corpus_ids: list[int] = Field(default_factory=list)
 	document_chunk_ids: list[int] = Field(default_factory=list)
+
+
+class RawDocumentReadWithParsedContent(RawDocumentRead):
+	parsed_content: str | None = None
 
 
 class CorpusRawDocumentLinkCreate(SQLModel):

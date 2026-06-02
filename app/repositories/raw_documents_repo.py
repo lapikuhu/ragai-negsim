@@ -1,6 +1,7 @@
 from models.document_chunks import DocumentChunk
 from models.raw_documents import CorpusRawDocumentLink, RawDocument
 from repositories.helpers import commit_and_refresh
+from datetime import datetime, timezone
 from schemas.raw_documents_schemas import (
     CorpusRawDocumentLinkCreate,
     CorpusRawDocumentLinkDelete,
@@ -193,6 +194,25 @@ async def update_raw_document(
     for field_name, value in update_data.items():
         setattr(raw_document, field_name, value)
 
+    return await commit_and_refresh(session, raw_document)
+
+
+async def update_raw_document_parsed_content(
+    raw_document: RawDocument,
+    parsed_content: str,
+    session: AsyncSession,
+) -> RawDocument:
+    """
+    Store parsed markdown/text content for a raw document.
+        Args:
+            raw_document: The RawDocument instance to update.
+            parsed_content: Parsed markdown/text extracted from the source document.
+            session: The database session.
+        Returns:
+            The updated RawDocument instance.
+    """
+    raw_document.parsed_content = parsed_content
+    raw_document.parsed_at = datetime.now(timezone.utc)
     return await commit_and_refresh(session, raw_document)
 
 
