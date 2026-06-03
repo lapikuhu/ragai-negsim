@@ -8,6 +8,10 @@ class CounterpartPersonaBase(SQLModel):
     description: str | None = None
 
 
+class CounterpartPersonaCreateRequest(CounterpartPersonaBase):
+    pass
+
+
 class CounterpartPersonaCreate(CounterpartPersonaBase):
     created_by_user_id: int
 
@@ -24,6 +28,16 @@ class CounterpartPersonaUpdate(SQLModel):
     name: str | None = Field(default=None, min_length=3, title="Counterpart persona name")
     description: str | None = None
     last_edit_by_user_id: int | None = None
+
+
+class CounterpartPersonaUpdateRequest(SQLModel):
+    name: str | None = Field(default=None, min_length=3, title="Counterpart persona name")
+    description: str | None = None
+
+
+class CounterpartPersonaCopyRequest(SQLModel):
+    name: str = Field(min_length=3, title="Counterpart persona name")
+    description: str | None = None
 
 
 class CounterpartPersonaCopy(SQLModel):

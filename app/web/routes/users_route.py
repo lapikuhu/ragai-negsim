@@ -57,7 +57,7 @@ def _raise_user_service_error(exc: ValueError | PermissionError) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
 
-
+###--------------------------- CREATE USER ------------------------- ###
 @router.post(
     "/register",
     response_model=UserCreatedResponse,
@@ -83,6 +83,7 @@ async def create_user(
     except (ValueError, PermissionError) as exc:
         _raise_user_service_error(exc)
 
+###--------------------------- LOGIN USER ------------------------- ###
 
 @router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
 async def login(
@@ -120,7 +121,7 @@ async def get_me_user(current_user: CurrentUserDep) -> UserRead:
     """
     return to_user_read(current_user)
 
-
+###----------------------- CHANGE OWN PASSWORD --------------------- ###
 @router.patch("/me/password", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def change_own_password(
     password_data: UserPasswordChange,
@@ -175,7 +176,7 @@ async def get_all_users(
     except (ValueError, PermissionError) as exc:
         _raise_user_service_error(exc)
 
-
+### ---------------------- GET USER BY USERNAME -------------------- ###
 @router.get("/{username}", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def get_user_by_username(
     username: str,
@@ -199,7 +200,7 @@ async def get_user_by_username(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return to_user_read(user)
 
-
+### -------------------- UPDATE USER (ADMIN ONLY) ------------------ ###
 @router.patch("/{user_id}", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def update_user(
     user_id: int,
@@ -230,7 +231,7 @@ async def update_user(
     except (ValueError, PermissionError) as exc:
         _raise_user_service_error(exc)
 
-
+### -------------------- DELETE USER (ADMIN ONLY) ------------------ ###
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
