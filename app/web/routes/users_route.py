@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from core.dependencies import AdminDep, CurrentUserDep, SessionDep
+from core.dependencies import AdminDep, CurrentUserDep, Page, SessionDep
 from schemas.users_schemas import (
     RoleRead,
     Token,
@@ -19,12 +19,18 @@ from schemas.users_schemas import (
 )
 from services import users_service
 
-
+# Create the router for the users domain endpoints.
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 def to_user_read(user) -> UserRead:
-    """Convert a user model to a UserRead schema."""
+    """
+    Convert a user model to a UserRead schema.
+    Args:
+        user: The user model to convert.
+    Returns:
+        UserRead: The converted UserRead schema.
+    """
     return UserRead(
         id=user.id,
         username=user.username,
@@ -37,6 +43,13 @@ def to_user_read(user) -> UserRead:
 
 
 def _raise_user_service_error(exc: ValueError | PermissionError) -> None:
+    """
+    Raise an HTTPException based on the type of error.
+    Args:
+        exc (ValueError | PermissionError): The exception to handle.
+    Raises:
+        HTTPException: The corresponding HTTP exception.
+    """
     message = str(exc)
     if isinstance(exc, PermissionError):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=message)
@@ -55,7 +68,15 @@ async def create_user(
     session: SessionDep,
     admin_user: AdminDep,
 ) -> UserCreatedResponse:
-    """Create a new user. Admins only."""
+    """
+    Create a new user. Admins only.
+    Args:
+        user_data (UserCreate): The data for the new user.
+        session (SessionDep): The database session for any necessary queries.
+        admin_user (AdminDep): The current admin user performing the operation.
+    Returns:
+        UserCreatedResponse: The response containing the created user.
+    """
     try:
         user = await users_service.create_user_service(user_data, session, admin_user)
         return UserCreatedResponse(ok=True, user=to_user_read(user))
@@ -68,7 +89,15 @@ async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
 ) -> Token:
-    """Authenticate user and return an access token."""
+    """Authenticate user and return an access token.
+    Args:
+        form_data (OAuth2PasswordRequestForm): The form data containing the username and password.
+        session (SessionDep): The database session for any necessary queries.
+    Returns:
+        Token: The access token and token type.
+    Raises:
+        HTTPException: If the username or password is invalid.
+    """
     try:
         access_token, token_type = await users_service.user_login_service(
             form_data.username,
@@ -82,7 +111,13 @@ async def login(
 
 @router.get("/me", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def get_me_user(current_user: CurrentUserDep) -> UserRead:
-    """Get the current authenticated user's information."""
+    """
+    Get the current authenticated user's information.
+    Args:
+        current_user (CurrentUserDep): The current authenticated user.
+    Returns:
+        UserRead: The current user's information.
+    """
     return to_user_read(current_user)
 
 
@@ -92,7 +127,15 @@ async def change_own_password(
     session: SessionDep,
     current_user: CurrentUserDep,
 ) -> UserRead:
-    """Change the current user's password after verifying the old password."""
+    """
+    Change the current user's password after verifying the old password.
+    Args:
+        password_data (UserPasswordChange): The data for the password change.
+        session (SessionDep): The database session for any necessary queries.
+        current_user (CurrentUserDep): The current authenticated user.
+    Returns:
+        UserRead: The updated user information.
+    """
     try:
         user = await users_service.change_own_password_service(
             password_data,
@@ -108,16 +151,25 @@ async def change_own_password(
 async def get_all_users(
     session: SessionDep,
     admin_user: AdminDep,
-    skip: int = 0,
-    limit: int = 100,
+    page: Page, # Pagination parameters containing skip and limit.
 ) -> list[UserRead]:
-    """Get a list of all users. Admins only."""
+    """
+    Get a list of all users. Admins only.
+    Args:
+        session (SessionDep): The database session for any necessary queries.
+        admin_user (AdminDep): The current admin user performing the operation.
+        page (Page): Pagination parameters containing skip and limit.
+    Returns:
+        list[UserRead]: A list of user information.
+    Raises:
+        PermissionError: If the current user is not an admin.
+        ValueError: If there is an error retrieving the users."""
     try:
         users = await users_service.get_all_users_service(
             session,
             admin_user,
-            skip=skip,
-            limit=limit,
+            skip=page["skip"],
+            limit=page["limit"],
         )
         return [to_user_read(user) for user in users]
     except (ValueError, PermissionError) as exc:
@@ -130,7 +182,18 @@ async def get_user_by_username(
     session: SessionDep,
     _admin_user: AdminDep,
 ) -> UserRead:
-    """Get user information by username. Admins only."""
+    """
+    Get user information by username. Admins only.
+    Args:
+        username (str): The username of the user to retrieve.
+        session (SessionDep): The database session for any necessary queries.
+        _admin_user (AdminDep): The current admin user performing the 
+            operation (not used but required for admin check).
+    Returns:
+        UserRead: The user information.
+    Raises:
+        HTTPException: If the user is not found or if there is an error retrieving the user
+    """
     user = await users_service.get_user_by_username_service(username, session)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -144,7 +207,18 @@ async def update_user(
     session: SessionDep,
     admin_user: AdminDep,
 ) -> UserRead:
-    """Update user information. Admins only."""
+    """
+    Update user information. Admins only.
+    Args:
+        user_id (int): The ID of the user to update.
+        user_data (UserUpdate): The data to update the user with.
+        session (SessionDep): The database session for any necessary queries.
+        admin_user (AdminDep): The current admin user performing the operation.
+    Returns:
+        UserRead: The updated user information.
+    Raises:
+        HTTPException: If the user is not found or if there is an error updating the user.
+    """
     try:
         user_update = await users_service.update_user_service(
             user_id,
@@ -163,7 +237,15 @@ async def delete_user(
     session: SessionDep,
     admin_user: AdminDep,
 ) -> None:
-    """Delete a user. Admins only."""
+    """
+    Delete a user. Admins only.
+    Args:
+        user_id (int): The ID of the user to delete.
+        session (SessionDep): The database session for any necessary queries.
+        admin_user (AdminDep): The current admin user performing the operation.
+    Raises:
+        HTTPException: If the user is not found or if there is an error deleting the user.
+    """
     try:
         await users_service.delete_user_service(user_id, session, admin_user)
     except (ValueError, PermissionError) as exc:

@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from models.chunking_profiles import ChunkingProfile
 from models.document_chunks import DocumentChunk
 from models.indexed_chunks import IndexedChunk
+from models.raw_documents import CorpusRawDocumentLink
 from models.raw_documents import RawDocument
 from repositories.helpers import commit_and_refresh, commit_delete, utc_now
 from schemas.document_chunks_schemas import (
@@ -281,6 +282,29 @@ async def list_document_chunks(
         .limit(limit)
     )
     result = await session.exec(statement)
+    return list(result.all())
+
+
+async def list_corpus_document_chunks_for_profile(
+    corpus_id: int,
+    chunking_profile_id: int,
+    session: AsyncSession,
+) -> list[DocumentChunk]:
+    """
+    List chunks linked to a corpus for a specific chunking profile.
+    """
+    result = await session.exec(
+        select(DocumentChunk)
+        .join(
+            CorpusRawDocumentLink,
+            DocumentChunk.raw_document_id == CorpusRawDocumentLink.raw_document_id,
+        )
+        .where(
+            CorpusRawDocumentLink.corpus_id == corpus_id,
+            DocumentChunk.chunking_profile_id == chunking_profile_id,
+        )
+        .order_by(DocumentChunk.raw_document_id, DocumentChunk.chunk_index)
+    )
     return list(result.all())
 
 
@@ -582,4 +606,3 @@ async def delete_document_chunks_by_raw_document_id(
     except Exception:
         await session.rollback()
         raise
-

@@ -1,17 +1,21 @@
 from core.dependencies import (
+    AdminDep,
     ChunkingProfileDep,
     ChunkingOptionsDep,
     CorpusCreatorDep,
     IngestionOptionsDep,
     SessionDep,
+    VectorStoreRecordDep,
     WritableCorpusDep,
 )
 from schemas.corpus_schemas import CorpusCreate, CorpusRead
 from schemas.chunking_schemas import CorpusChunkResult
+from schemas.embeddings_schemas import CorpusEmbeddingBuildRequest, CorpusEmbeddingBuildResult
 from schemas.ingestion_schemas import CorpusIngestResult
 from services.corpus_service import (create_corpus_srvc, 
                                      list_corpora_srvc)
 from services.chunking_service import chunk_corpus_srvc
+from services.embeddings_service import build_corpus_embeddings_srvc
 from services.ingestion_service import ingest_corpus_srvc
 from fastapi import APIRouter, HTTPException
 
@@ -135,6 +139,46 @@ async def chunk_corpus(
             chunking_profile=chunking_profile,
             session=session,
             options=options,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+### ------------------------ EMBED CORPUS -------------------------- ###
+@router.post(
+    "/{corpus_id}/chunking-profiles/{profile_id}/vector-stores/{vector_store_id}/embed",
+    response_model=CorpusEmbeddingBuildResult,
+    status_code=201,
+)
+async def embed_corpus(
+    corpus: WritableCorpusDep,
+    chunking_profile: ChunkingProfileDep,
+    vector_store: VectorStoreRecordDep,
+    build_in: CorpusEmbeddingBuildRequest,
+    session: SessionDep,
+    _admin: AdminDep,
+) -> CorpusEmbeddingBuildResult:
+    """
+    Build a vector index for corpus chunks using a selected embedding model 
+    and vector store.
+    Args:
+        corpus: The writable corpus to embed.
+        chunking_profile: The chunking profile associated with the chunks to embed.
+        vector_store: The vector store record specifying where to store embeddings.
+        build_in: The parameters for building the corpus embeddings.
+        session: The database session to use for any necessary queries or updates.
+        _admin: The current admin user performing the operation (for authorization).
+    Returns:
+        A summary of the embedding build process, including counts of processed 
+        chunks and any errors.
+    """
+    try:
+        return await build_corpus_embeddings_srvc(
+            corpus=corpus,
+            chunking_profile=chunking_profile,
+            vector_store=vector_store,
+            build_in=build_in,
+            session=session,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
