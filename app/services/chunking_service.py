@@ -17,7 +17,7 @@ from schemas.chunking_schemas import (
 from schemas.document_chunks_schemas import DocumentChunkCreate
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-
+# Protocol based on chunking options used in chunk_raw_document_srvc and chunk_corpus_srvc
 class ChunkingOptionsLike(Protocol):
     chunker: str
     chunk_size: int
@@ -28,7 +28,7 @@ class ChunkingOptionsLike(Protocol):
     buffer_size: int
     preview: bool
 
-
+# TODO: Crete a services helper file for shared utils and move there
 def _persisted_id(value: int | None, label: str) -> int:
     if value is None:
         raise ValueError(f"{label} must be persisted before chunking")
@@ -36,6 +36,18 @@ def _persisted_id(value: int | None, label: str) -> int:
 
 
 def _load_parsed_document(raw_document: RawDocument) -> Document:
+    """
+    Load the parsed content of a raw document and return a Document object.
+    Args:
+        raw_document (RawDocument): The raw document whose parsed content 
+            is to be loaded.
+    Returns:
+        Document: A Document object containing the parsed content and 
+            associated metadata.
+    Raises:
+        ValueError: If the raw document has no parsed content or if the 
+            parsed content is empty
+    """
     content = raw_document.parsed_content
     if content is None:
         raise ValueError("Raw document has no parsed content. Ingest and parse it before chunking.")
@@ -53,6 +65,16 @@ def _load_parsed_document(raw_document: RawDocument) -> Document:
 
 
 def _chunk_documents(documents: list[Document], options: ChunkingOptionsLike) -> list[Document]:
+    """
+    Chunk a list of documents based on the provided chunking options.
+    Args:
+        documents (list[Document]): The list of documents to be chunked.
+        options (ChunkingOptionsLike): The chunking options to use.
+    Returns:
+        list[Document]: The list of chunked documents.
+    Raises:
+        ValueError: If the chunker type is unsupported.
+    """
     if options.chunker == "recursive":
         from airag.chunking.chunkers import chunk_document_list_recursive
 
@@ -82,6 +104,16 @@ def _to_chunk_inputs(
     chunking_profile_id: int,
     source: str,
 ) -> list[DocumentChunkCreate]:
+    """
+    Convert a list of chunked documents into a list of DocumentChunkCreate objects.
+    Args:
+        chunks (list[Document]): The list of chunked documents.
+        raw_document_id (int): The ID of the raw document.
+        chunking_profile_id (int): The ID of the chunking profile.
+        source (str): The source of the raw document.
+    Returns:
+        list[DocumentChunkCreate]: The list of DocumentChunkCreate objects.
+    """
     chunks_in = []
     for chunk_index, chunk in enumerate(chunks):
         chunk_metadata = dict(chunk.metadata)
@@ -105,6 +137,15 @@ def _to_chunk_inputs(
 
 
 def _to_previews(chunks_in: list[DocumentChunkCreate]) -> list[ChunkPreview]:
+    """
+    Convert a list of DocumentChunkCreate objects into a list of 
+    ChunkPreview objects.
+    Args:
+        chunks_in (list[DocumentChunkCreate]): The list of 
+            DocumentChunkCreate objects.
+    Returns:
+        list[ChunkPreview]: The list of ChunkPreview objects.
+    """
     return [
         ChunkPreview(
             chunk_index=chunk.chunk_index,
@@ -121,6 +162,18 @@ async def chunk_raw_document_srvc(
     session: AsyncSession,
     options: ChunkingOptionsLike,
 ) -> RawDocumentChunkResult:
+    """
+    Chunk a raw document based on the provided chunking options.
+    Args:
+        raw_document (RawDocument): The raw document to be chunked.
+        chunking_profile (ChunkingProfile): The chunking profile to use.
+        session (AsyncSession): The database session.
+        options (ChunkingOptionsLike): The chunking options to use.
+    Returns:
+        RawDocumentChunkResult: The result of the chunking operation.
+    Raises:
+        ValueError: If the raw document or chunking profile is not found.
+    """
     raw_document_id = _persisted_id(raw_document.id, "Raw document")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
 
@@ -172,6 +225,18 @@ async def chunk_corpus_srvc(
     session: AsyncSession,
     options: ChunkingOptionsLike,
 ) -> CorpusChunkResult:
+    """
+    Chunk a corpus based on the provided chunking options.
+    Args:
+        corpus (Corpus): The corpus to be chunked.
+        chunking_profile (ChunkingProfile): The chunking profile to use.
+        session (AsyncSession): The database session.
+        options (ChunkingOptionsLike): The chunking options to use.
+    Returns:
+        CorpusChunkResult: The result of the chunking operation.
+    Raises:
+        ValueError: If the corpus or chunking profile is not found.
+    """
     corpus_id = _persisted_id(corpus.id, "Corpus")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
     raw_document_ids = await corpus_repo.get_corpus_raw_document_ids(corpus_id, session)
