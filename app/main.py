@@ -8,6 +8,7 @@ from web.routes.corpus_route import router as corpus_router
 from web.routes.embeddings_route import router as embeddings_router
 from web.routes.raw_documents_route import router as raw_documents_router
 from web.routes.scenarios_route import router as scenarios_router
+from web.routes.simulations_route import router as simulations_router
 from web.routes.users_route import router as users_router
 
 @asynccontextmanager
@@ -31,3 +32,4 @@ app.include_router(embeddings_router)
 app.include_router(raw_documents_router)
 app.include_router(scenarios_router)
 app.include_router(counterpart_personas_router)
+app.include_router(simulations_router)

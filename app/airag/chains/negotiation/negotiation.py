@@ -177,10 +177,17 @@ def get_latest_message_side(state: NegotiationGraphState) -> Side | None:
 
 
 def has_latest_user_side_message(state: NegotiationGraphState) -> bool:
+	"""
+	Helper function to check if the latest message is from the 
+	user-controlled side, which can inform routing decisions.
+	"""
 	return get_latest_message_side(state) == state.get("user_side")
 
-
+# CHECK
 def normalize_phase(state: NegotiationGraphState) -> NegotiationPhase:
+	"""
+	Helper function to normalize the negotiation phase.
+	"""
 	if state.get("phase"):
 		return state["phase"]
 	if state.get("side_a") and state.get("side_b"):
@@ -189,6 +196,10 @@ def normalize_phase(state: NegotiationGraphState) -> NegotiationPhase:
 
 
 def max_turn_reached(state: NegotiationGraphState) -> bool:
+	"""
+	Helper function to determine if the maximum turn count has been reached, 
+	which can trigger negotiation finalization to prevent infinite loops.
+	"""
 	max_turn_count = state.get("max_turn_count", 12)
 	return state.get("turn_count", 0) >= max_turn_count or state.get(
 		"orchestrator_step_count", 0
@@ -196,6 +207,9 @@ def max_turn_reached(state: NegotiationGraphState) -> bool:
 
 
 def validate_parent_state(state: NegotiationGraphState) -> str:
+	"""
+	Helper function to validate the parent negotiation state.
+	"""
 	try:
 		ParentNegotiationRuntimeModel.model_validate(dict(state))
 	except ValidationError as exc:
@@ -204,6 +218,9 @@ def validate_parent_state(state: NegotiationGraphState) -> str:
 
 
 def validate_route_decision(decision: dict[str, Any]) -> tuple[dict[str, Any], str]:
+	"""
+	Helper function to validate the route decision.
+	"""
 	try:
 		validated = RouteDecisionModel.model_validate(decision)
 	except ValidationError as exc:
@@ -217,8 +234,12 @@ def validate_route_decision(decision: dict[str, Any]) -> tuple[dict[str, Any], s
 		}, str(exc)
 	return validated.model_dump(), ""
 
-
+# CHECK: logic, very complex
 def make_route_decision(state: NegotiationGraphState) -> tuple[dict[str, Any], str]:
+	"""
+	Helper function to make a route decision based on the current 
+	negotiation state.
+	"""
 	phase = normalize_phase(state)
 	next_action = state.get("next_action", "ask_user")
 	active_side = state.get("active_side")
@@ -235,7 +256,7 @@ def make_route_decision(state: NegotiationGraphState) -> tuple[dict[str, Any], s
 		route = "finalize"
 		reason = "evaluator requested end"
 	elif next_action == "ask_user":
-		should_pause = True
+		should_pause = True # Pause for user input
 		route = "pause"
 		reason = "user input requested"
 	elif state.get("has_fresh_user_message") and next_action in {
@@ -257,7 +278,7 @@ def make_route_decision(state: NegotiationGraphState) -> tuple[dict[str, Any], s
 			route = "counterpart"
 			reason = f"evaluator requested {target_side}"
 		else:
-			should_pause = True
+			should_pause = True # Pause for user input
 			route = "pause"
 			reason = "evaluator requested the user-controlled side"
 	elif next_action == "call_coach":
@@ -280,6 +301,10 @@ def make_route_decision(state: NegotiationGraphState) -> tuple[dict[str, Any], s
 
 
 def node_prepare_orchestrator_context(state: NegotiationGraphState) -> dict:
+	"""
+	Helper function to prepare the orchestrator context based on the current
+	negotiation state.
+	"""
 	phase = normalize_phase(state)
 	latest_message_side = get_latest_message_side(state)
 	validation_error = validate_parent_state({**state, "phase": phase})
@@ -307,6 +332,10 @@ def node_prepare_orchestrator_context(state: NegotiationGraphState) -> dict:
 
 
 def node_validate_observation_outputs(state: NegotiationGraphState) -> dict:
+	"""
+	Helper function to validate the observation outputs based on the current
+	negotiation state.
+	"""
 	validation_error = validate_parent_state(state)
 	decision, decision_error = make_route_decision(state)
 	if validation_error or decision_error:
@@ -330,10 +359,19 @@ def node_validate_observation_outputs(state: NegotiationGraphState) -> dict:
 
 
 def route_after_validation(state: NegotiationGraphState) -> str:
+	"""
+	Get the route target after validation from the state. This is used by the
+	orchestrator to determine the next node to execute based on the route 
+	decision.
+	"""
 	return state.get("route_decision", {}).get("route", "pause")
 
 
 def node_set_user_active_after_counterpart(state: NegotiationGraphState) -> dict:
+	"""
+	Helper function to set the user as the active side after the counterpart's 
+	turn.
+	"""
 	return {
 		"active_side": state.get("user_side"),
 		"turn_count": state.get("turn_count", 0) + 1,
@@ -343,13 +381,22 @@ def node_set_user_active_after_counterpart(state: NegotiationGraphState) -> dict
 
 
 def node_prepare_post_counterpart_evaluation(state: NegotiationGraphState) -> dict:
+	"""
+	Helper function to prepare the state for post-counterpart evaluation.
+	"""
 	return {
 		"post_counterpart_evaluated": True,
 		"event_log": ["orchestrator:post_counterpart_evaluation"],
 	}
 
-
+# VERY IMPORTANT
 def node_pause_for_user(state: NegotiationGraphState) -> dict:
+	"""
+	Pauses the negotiation for user input, setting the appropriate pause 
+	reason based on the current state. This node is used when the 
+	orchestrator determines that it needs to wait for the user to take 
+	an action before proceeding.
+	"""
 	if state.get("next_action") == "call_coach":
 		reason = "coach_advice_ready"
 	elif state.get("post_counterpart_evaluated"):
@@ -367,6 +414,11 @@ def node_pause_for_user(state: NegotiationGraphState) -> dict:
 
 
 def node_finalize_negotiation(state: NegotiationGraphState) -> dict:
+	"""
+	Finalizes the negotiation, performing any necessary validation and setting
+	the final phase of the negotiation. This node is used when the orchestrator 
+	determines that the negotiation should end.
+	"""
 	phase = "ended" if state.get("next_action") == "end" else normalize_phase(state)
 	validation_error = ""
 	try:
@@ -383,6 +435,10 @@ def node_finalize_negotiation(state: NegotiationGraphState) -> dict:
 
 
 def route_after_post_counterpart_evaluation(state: NegotiationGraphState) -> str:
+	"""
+	Route the next node after post-counterpart evaluation based on the 
+	current state.
+	"""
 	if state.get("next_action") == "end" or max_turn_reached(state):
 		return "finalize"
 	if state.get("next_action") == "call_coach":
@@ -391,11 +447,15 @@ def route_after_post_counterpart_evaluation(state: NegotiationGraphState) -> str
 
 
 def route_after_single_evaluator(state: NegotiationGraphState) -> str:
+	"""
+	Route the next node after a single evaluator call based on the current 
+	state.
+	"""
 	if state.get("next_action") == "end" or max_turn_reached(state):
 		return "finalize"
 	return "pause"
 
-
+# Assembly function to build the negotiation graph
 def make_negotiation_graph(
 	coach_graph: Any = None,
 	counterpart_graph: Any = None,

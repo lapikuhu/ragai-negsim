@@ -7,12 +7,6 @@ from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from langchain_core.embeddings import Embeddings
 
-### ---- Embed these in the config file later ----
-#matryoshka_dims = [1536, 512, 256, 128, 64]
-#embedding_model = "gpt-4o-mini"
-#embeddings = OpenAIEmbeddings(model=embedding_model)
-### -----------------------------------------------
-
 def chunk_document_recursive(document: Document, 
                              chunk_size: int = 1000, 
                              chunk_overlap: int = 200,

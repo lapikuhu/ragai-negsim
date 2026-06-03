@@ -26,6 +26,15 @@ class SimulationBase(SQLModel):
     description: str | None = None
 
 
+class SimulationCreateRequest(SimulationBase):
+    corpus_id: int
+    session_id: int | None = None
+    user_id_participant: int | None = None
+    scenario_id: int | None = None
+    counter_part_side_persona_id: int | None = None
+    user_side: SimulationSide | None = None
+
+
 class SimulationCreate(SimulationBase):
     user_id_owner: int
     corpus_id: int
@@ -72,6 +81,17 @@ class SimulationUpdate(SQLModel):
     messages: list[SimulationMessageSchema] | None = None
 
 
+class SimulationUpdateRequest(SQLModel):
+    name: str | None = Field(default=None, min_length=3, title="Simulation name")
+    description: str | None = None
+    status: SimulationStatus | None = None
+    session_id: int | None = None
+    user_id_participant: int | None = None
+    scenario_id: int | None = None
+    counter_part_side_persona_id: int | None = None
+    user_side: SimulationSide | None = None
+
+
 class SimulationStatusUpdate(SQLModel):
     status: SimulationStatus
 
@@ -86,6 +106,30 @@ class SimulationMessagesReplace(SQLModel):
 
 class SimulationNegotiationStateUpdate(SQLModel):
     negotiation_state: NegotiationStateSchema
+
+
+class SimulationStartRequest(SQLModel):
+    side_a: dict[str, Any] = Field(default_factory=dict)
+    side_b: dict[str, Any] = Field(default_factory=dict)
+    opening_message: str | None = Field(default=None, min_length=1)
+    max_turn_count: int = Field(default=12, ge=1, le=100)
+
+
+class SimulationTurnRequest(SQLModel):
+    message: str = Field(min_length=1)
+    current_offer: dict[str, Any] | None = None
+
+
+class SimulationTurnResponse(SQLModel):
+    simulation_id: int
+    status: SimulationStatus
+    phase: str | None = None
+    should_pause: bool = False
+    pause_reason: str | None = None
+    messages: list[SimulationMessageSchema] = Field(default_factory=list)
+    coach_advice: dict[str, Any] = Field(default_factory=dict)
+    counterpart_response: str | None = None
+    event_log: list[str] = Field(default_factory=list)
 
 
 class SimulationTeacherReview(SQLModel):
