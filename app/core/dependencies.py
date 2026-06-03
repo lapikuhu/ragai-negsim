@@ -143,11 +143,8 @@ UserDep: TypeAlias = Annotated[User, Depends(get_user_or_404)]
 UserAdminDep: TypeAlias = AdminDep
 
 
-def get_admin_user(
-    user: UserDep,
-    _admin: AdminDep,
-) -> User:
-    return user
+def get_admin_user(admin: AdminDep) -> User:
+    return admin
 
 
 AdminUserDep: TypeAlias = Annotated[User, Depends(get_admin_user)]

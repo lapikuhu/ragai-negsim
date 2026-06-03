@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -28,7 +29,12 @@ async def get_user_by_id(
     Returns:
         The user if found, otherwise None.
     """
-    return await session.get(User, user_id)
+    result = await session.exec(
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.id == user_id)
+    )
+    return result.first()
 
 
 async def get_user_by_username(
@@ -43,7 +49,11 @@ async def get_user_by_username(
     Returns:
         The user if found, otherwise None.
     """
-    result = await session.exec(select(User).where(User.username == username))
+    result = await session.exec(
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.username == username)
+    )
     return result.first()
 
 
@@ -184,7 +194,7 @@ async def list_users(
         A list of users matching the specified criteria.
 
     """
-    statement = select(User)
+    statement = select(User).options(selectinload(User.roles))
 
     if role_name is not None:
         statement = (
@@ -256,6 +266,9 @@ async def ensure_roles_exist(
     Raises:
         ValueError: If any role does not exist.
     """
+    if not role_ids:
+        raise ValueError("At least one role is required")
+
     for role_id in dict.fromkeys(role_ids):
         if await get_role_by_id(role_id, session) is None:
             raise ValueError(f"Role not found: {role_id}")
@@ -291,8 +304,10 @@ async def create_user(
             session.add(UserRoleLink(user_id=user.id, role_id=role_id))
 
         await session.commit()
-        await session.refresh(user)
-        return user
+        created_user = await get_user_by_id(user.id, session)
+        if created_user is None:
+            raise ValueError("Created user not found")
+        return created_user
     except Exception:
         await session.rollback()
         raise
@@ -312,7 +327,7 @@ async def update_user(
     Returns:
         The updated user.
     """
-    update_data = user_in.model_dump(exclude_unset=True)
+    update_data = user_in.model_dump(exclude_unset=True, exclude={"role_ids"})
 
     if "username" in update_data and update_data["username"] is not None:
         await ensure_username_available(update_data["username"], session, user.id)
@@ -444,8 +459,10 @@ async def replace_user_roles(
             session.add(UserRoleLink(user_id=user.id, role_id=role_id))
 
         await session.commit()
-        await session.refresh(user)
-        return user
+        updated_user = await get_user_by_id(user.id, session)
+        if updated_user is None:
+            raise ValueError("Updated user not found")
+        return updated_user
     except Exception:
         await session.rollback()
         raise
