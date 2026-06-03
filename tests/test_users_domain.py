@@ -166,3 +166,6 @@ def test_users_router_is_mounted_and_static_routes_precede_username_route():
     assert "/users/register" in paths
     assert "/users/me/password" in paths
     assert paths.index("/users/me") < paths.index("/users/{username}")
+    assert "/scenarios/" in paths
+    assert "/scenarios/{scenario_id}" in paths
+    assert "/scenarios/{scenario_id}/copy" in paths

@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from services.helpers import _persisted_id
 from langchain_core.documents import Document
 from models.chunking_profiles import ChunkingProfile
 from models.corpus import Corpus
@@ -27,13 +28,6 @@ class ChunkingOptionsLike(Protocol):
     breakpoint_threshold_amount: int
     buffer_size: int
     preview: bool
-
-# TODO: Crete a services helper file for shared utils and move there
-def _persisted_id(value: int | None, label: str) -> int:
-    if value is None:
-        raise ValueError(f"{label} must be persisted before chunking")
-    return value
-
 
 def _load_parsed_document(raw_document: RawDocument) -> Document:
     """

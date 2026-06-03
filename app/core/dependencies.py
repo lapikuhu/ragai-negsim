@@ -548,7 +548,7 @@ CopyableCounterpartPersonaDep: TypeAlias = Annotated[
 
 # ------------------ SCENARIO-RELATED DEPENDENCIES ------------------ #
 from models.scenarios import Scenario
-from app.repositories import scenarios_repo as scenarios_repo
+from repositories import scenarios_repo
 
 
 async def get_scenario_or_404(

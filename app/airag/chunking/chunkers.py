@@ -42,6 +42,12 @@ _default_embeddings: Embeddings | None = None
 
 
 def get_default_embeddings() -> Embeddings:
+    """
+    Get the default embeddings model instance, initializing it if it 
+    hasn't been already.
+    Returns:
+        Embeddings: The default embeddings model instance.
+    """
     from langchain_huggingface import HuggingFaceEmbeddings
 
     global _default_embeddings

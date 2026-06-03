@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from services.helpers import _persisted_id
 from langchain_core.documents import Document
 from models.chunking_profiles import ChunkingProfile
 from models.corpus import Corpus
@@ -20,13 +21,6 @@ from schemas.embeddings_schemas import (
 )
 from schemas.indexed_chunks_schemas import IndexedChunkCreate
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-# Move this to a utils file since it can be used across multiple services
-def _persisted_id(value: int | None, label: str) -> int:
-    if value is None:
-        raise ValueError(f"{label} must be persisted before embedding")
-    return value
-
 
 def _vector_namespace(index_id: int, requested_namespace: str | None) -> str:
     """
