@@ -786,6 +786,16 @@ PromptCreatorDep: TypeAlias = TeacherOrAdminDep
 PromptAdminDep: TypeAlias = AdminDep
 
 
+def get_admin_prompt(
+    prompt: PromptDep,
+    _admin: AdminDep,
+) -> Prompt:
+    return prompt
+
+
+AdminPromptDep: TypeAlias = Annotated[Prompt, Depends(get_admin_prompt)]
+
+
 async def get_readable_prompt(
     prompt: PromptDep,
     current_user: CurrentUserDep,

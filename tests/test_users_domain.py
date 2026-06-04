@@ -210,3 +210,6 @@ def test_users_router_is_mounted_and_static_routes_precede_username_route():
     assert "/sessions/{session_id}" in paths
     assert "/sessions/{session_id}/heartbeat" in paths
     assert "/sessions/{session_id}/end" in paths
+    assert "/prompts/" in paths
+    assert "/prompts/{prompt_id}" in paths
+    assert "/prompts/{prompt_id}/copy" in paths
