@@ -37,6 +37,13 @@ class CorpusIndexUpdate(SQLModel):
     built_at: datetime | None = None
 
 
+class CorpusIndexMetadataUpdate(SQLModel):
+    name: str | None = Field(default=None, min_length=3, title="Corpus index name")
+    embedding_model: str | None = Field(default=None, min_length=1, title="Embedding model")
+    embedding_dimensions: int | None = Field(default=None, ge=1)
+    vector_namespace: str | None = None
+
+
 class CorpusIndexStatusUpdate(SQLModel):
     status: str = Field(min_length=1, title="Corpus index status")
 

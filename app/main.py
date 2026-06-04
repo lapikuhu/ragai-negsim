@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from db.db import create_db_and_tables
 from web.routes.chunking_profiles_route import router as chunking_profiles_router
 from web.routes.counterpart_personas_route import router as counterpart_personas_router
+from web.routes.corpus_indices_route import router as corpus_indices_router
 from web.routes.corpus_route import router as corpus_router
 from web.routes.embeddings_route import router as embeddings_router
 from web.routes.prompts_route import router as prompts_router
@@ -32,6 +33,7 @@ app = FastAPI(title="Negotiation Simulator", lifespan=lifespan, tags=["app"])
 # Register the routers
 app.include_router(users_router)
 app.include_router(chunking_profiles_router)
+app.include_router(corpus_indices_router)
 app.include_router(corpus_router)
 app.include_router(embeddings_router)
 app.include_router(prompts_router)

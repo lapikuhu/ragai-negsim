@@ -1009,24 +1009,6 @@ async def get_runtime_vector_store(
 
 RuntimeVectorStoreDep = Annotated[object, Depends(get_runtime_vector_store)]
 
-# Corpus Index
-from models.corpus_indices import CorpusIndex
-
-
-async def get_corpus_index_or_404(
-    corpus_index_id: int,
-    session: SessionDep,
-) -> CorpusIndex:
-    corpus_index = await session.get(CorpusIndex, corpus_index_id)
-
-    if corpus_index is None:
-        raise HTTPException(status_code=404, detail="Corpus index not found")
-
-    return corpus_index
-
-
-CorpusIndexDep = Annotated[CorpusIndex, Depends(get_corpus_index_or_404)]
-
 # Reranker
 from sentence_transformers import CrossEncoder
 
