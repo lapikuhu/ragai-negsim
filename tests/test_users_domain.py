@@ -216,3 +216,6 @@ def test_users_router_is_mounted_and_static_routes_precede_username_route():
     assert "/vector-stores/" in paths
     assert "/vector-stores/{vector_store_id}" in paths
     assert "/vector-stores/{vector_store_id}/connection" in paths
+    assert "/chunking-profiles/" in paths
+    assert "/chunking-profiles/{profile_id}" in paths
+    assert "/chunking-profiles/{profile_id}/copy" in paths
