@@ -213,3 +213,6 @@ def test_users_router_is_mounted_and_static_routes_precede_username_route():
     assert "/prompts/" in paths
     assert "/prompts/{prompt_id}" in paths
     assert "/prompts/{prompt_id}/copy" in paths
+    assert "/vector-stores/" in paths
+    assert "/vector-stores/{vector_store_id}" in paths
+    assert "/vector-stores/{vector_store_id}/connection" in paths

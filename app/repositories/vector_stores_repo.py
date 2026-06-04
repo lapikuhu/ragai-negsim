@@ -25,8 +25,10 @@ def validate_vector_store_backend_config(
     Validate that the vector store backend configuration is complete and consistent.
         Args:
             backend: The vector store backend type.
-            connection_uri: The connection URI for the vector store (if applicable).
-            collection_name: The collection name for the vector store (if applicable).
+            connection_uri: The connection URI for the vector store 
+                (if applicable).
+            collection_name: The collection name for the vector store 
+                (if applicable).
             table_name: The table name for the vector store (if applicable).
             path: The file system path for the vector store (if applicable).
         Raises:
@@ -67,7 +69,8 @@ async def has_corpus_indices(vector_store_id: int, session: AsyncSession) -> boo
             vector_store_id: The ID of the vector store.
             session: The database session.
         Returns:
-            True if the vector store has associated corpus indices, False otherwise.
+            True if the vector store has associated corpus indices, 
+            False otherwise.
     """
     result = await session.exec(
         select(CorpusIndex.id).where(CorpusIndex.vector_store_id == vector_store_id).limit(1)
@@ -85,7 +88,8 @@ async def ensure_vector_store_unreferenced(
             vector_store: The vector store to check.
             session: The database session.
         Raises:
-            ValueError: If the vector store is referenced by any corpus indices.
+            ValueError: If the vector store is referenced by any corpus 
+            indices.
     """
     if vector_store.id is None:
         raise ValueError("Vector store must be persisted before it can be modified")
@@ -140,7 +144,8 @@ async def list_vector_stores(
             skip: The number of records to skip.
             limit: The maximum number of records to return.
             backend: Optional backend filter.
-            has_indexes: Optional filter to include only vector stores with or without corpus indices.
+            has_indexes: Optional filter to include only vector stores with 
+            or without corpus indices.
         Returns:
             A list of vector stores matching the criteria.
     """
@@ -183,7 +188,8 @@ async def to_vector_store_read_with_ids(
     session: AsyncSession,
 ) -> VectorStoreReadWithIds:
     """
-    Convert a VectorStore to a VectorStoreReadWithIds, including associated corpus index IDs.
+    Convert a VectorStore to a VectorStoreReadWithIds, including associated 
+    corpus index IDs.
         Args:
             vector_store: The vector store to convert.
             session: The database session.

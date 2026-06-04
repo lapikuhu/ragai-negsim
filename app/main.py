@@ -12,6 +12,7 @@ from web.routes.scenarios_route import router as scenarios_router
 from web.routes.sessions_route import router as sessions_router
 from web.routes.simulations_route import router as simulations_router
 from web.routes.users_route import router as users_router
+from web.routes.vector_stores_route import router as vector_stores_router
 
 @asynccontextmanager
 # async context manager for lifespan allows us to run async code during startup and shutdown
@@ -37,3 +38,4 @@ app.include_router(scenarios_router)
 app.include_router(counterpart_personas_router)
 app.include_router(simulations_router)
 app.include_router(sessions_router)
+app.include_router(vector_stores_router)
