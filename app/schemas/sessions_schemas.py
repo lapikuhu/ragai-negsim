@@ -9,6 +9,11 @@ class SessionBase(SQLModel):
 
 class SessionCreate(SessionBase):
     session_token: str = Field(min_length=1)
+    last_seen_at: datetime | None = None
+
+
+class SessionCreateRequest(SessionBase):
+    pass
 
 
 class SessionRead(SQLModel):
@@ -28,6 +33,10 @@ class SessionUpdate(SQLModel):
     expires_at: datetime | None = None
     last_seen_at: datetime | None = None
     ended_at: datetime | None = None
+
+
+class SessionUpdateRequest(SessionUpdate):
+    pass
 
 
 class SessionEnd(SQLModel):

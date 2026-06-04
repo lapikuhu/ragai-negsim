@@ -4,12 +4,15 @@
 # Defense in depth: Services also perform permission checks so route wiring is
 # not the only authorization boundary.
 
+from datetime import datetime
+
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from core.security import create_access_token, verify_password
 from models.users import User
 from repositories import users_repo
 from schemas.users_schemas import UserCreate, UserPasswordChange, UserUpdate
+from services import sessions_service
 
 
 def _role_names_from_loaded_user(user: User) -> set[str]:
@@ -212,7 +215,7 @@ async def user_login_service(
     username: str,
     password: str,
     session: AsyncSession,
-) -> tuple[str, str]:
+) -> tuple[str, str, int | None, datetime | None]:
     """
     Authenticate user and return access token if valid.
     Args:
@@ -226,8 +229,9 @@ async def user_login_service(
     """
     user = await users_repo.get_user_by_username(username, session)
     if user and verify_password(password, user.hashed_password):
-        access_token = create_access_token(username)
+        user_session = await sessions_service.create_login_session_srvc(user, session)
+        access_token = create_access_token(username, session_id=user_session.id)
         token_type = "bearer"
-        return access_token, token_type
+        return access_token, token_type, user_session.id, user_session.expires_at
 
     raise ValueError("Invalid username or password")

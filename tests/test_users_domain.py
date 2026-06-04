@@ -157,6 +157,40 @@ async def test_delete_propagates_repo_deletion_guards(monkeypatch):
         await users_service.delete_user_service(1, object(), _admin(user_id=1))
 
 
+@pytest.mark.asyncio
+async def test_login_creates_session_and_returns_token_metadata(monkeypatch):
+    expires_at = object()
+    created_session = SimpleNamespace(id=42, expires_at=expires_at)
+
+    async def fake_get_user_by_username(username, session):
+        assert username == "alice"
+        return _user(user_id=7, hashed_password="hashed")
+
+    async def fake_create_login_session(user, session):
+        assert user.id == 7
+        return created_session
+
+    monkeypatch.setattr(users_service.users_repo, "get_user_by_username", fake_get_user_by_username)
+    monkeypatch.setattr(users_service, "verify_password", lambda raw, hashed: raw == "secret")
+    monkeypatch.setattr(users_service.sessions_service, "create_login_session_srvc", fake_create_login_session)
+    monkeypatch.setattr(
+        users_service,
+        "create_access_token",
+        lambda username, session_id=None: f"token-{username}-{session_id}",
+    )
+
+    access_token, token_type, session_id, token_expires_at = await users_service.user_login_service(
+        "alice",
+        "secret",
+        object(),
+    )
+
+    assert access_token == "token-alice-42"
+    assert token_type == "bearer"
+    assert session_id == 42
+    assert token_expires_at is expires_at
+
+
 def test_users_router_is_mounted_and_static_routes_precede_username_route():
     from main import app
 
@@ -172,3 +206,7 @@ def test_users_router_is_mounted_and_static_routes_precede_username_route():
     assert "/simulations/" in paths
     assert "/simulations/{simulation_id}" in paths
     assert "/simulations/{simulation_id}/turn" in paths
+    assert "/sessions/" in paths
+    assert "/sessions/{session_id}" in paths
+    assert "/sessions/{session_id}/heartbeat" in paths
+    assert "/sessions/{session_id}/end" in paths

@@ -28,14 +28,17 @@ def verify_password(raw: str, hashed: str) -> bool:
         bool: True if the password matches, False otherwise."""
     return pwd_context.verify(raw, hashed)
  
-def create_access_token(sub: str) -> str:
+def create_access_token(sub: str, session_id: int | None = None) -> str:
     """Create a JWT access token for a given subject.
     Args:
         sub (str): The subject (usually user ID) for the token.
     Returns:
         str: The encoded JWT token."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return jwt.encode({"sub": sub, "exp": expire}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    payload = {"sub": sub, "exp": expire}
+    if session_id is not None:
+        payload["sid"] = session_id
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def decode_access_token(token: str) -> dict:
     """Decode a JWT access token.

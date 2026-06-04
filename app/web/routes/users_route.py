@@ -100,12 +100,17 @@ async def login(
         HTTPException: If the username or password is invalid.
     """
     try:
-        access_token, token_type = await users_service.user_login_service(
+        access_token, token_type, session_id, expires_at = await users_service.user_login_service(
             form_data.username,
             form_data.password,
             session=session,
         )
-        return Token(access_token=access_token, token_type=token_type)
+        return Token(
+            access_token=access_token,
+            token_type=token_type,
+            session_id=session_id,
+            expires_at=expires_at,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 

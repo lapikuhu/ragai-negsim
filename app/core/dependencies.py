@@ -546,6 +546,35 @@ CopyableCounterpartPersonaDep: TypeAlias = Annotated[
 
 # -------------------------------------------------------------------- #
 
+# ------------------- SESSION-RELATED DEPENDENCIES ------------------- #
+from models.sessions import Session as UserSession
+from repositories import sessions_repo
+
+
+async def get_session_or_404(
+    session_id: int,
+    session: SessionDep,
+) -> UserSession:
+    user_session = await sessions_repo.get_session_by_id(session_id, session)
+    if user_session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return user_session
+
+
+UserSessionDep: TypeAlias = Annotated[UserSession, Depends(get_session_or_404)]
+
+
+def get_admin_session(
+    user_session: UserSessionDep,
+    _admin: AdminDep,
+) -> UserSession:
+    return user_session
+
+
+AdminSessionDep: TypeAlias = Annotated[UserSession, Depends(get_admin_session)]
+
+# -------------------------------------------------------------------- #
+
 # ------------------ SCENARIO-RELATED DEPENDENCIES ------------------ #
 from models.scenarios import Scenario
 from repositories import scenarios_repo

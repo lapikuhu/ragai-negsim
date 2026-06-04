@@ -1,4 +1,5 @@
 from pydantic import field_validator
+from datetime import datetime
 from sqlmodel import Field, SQLModel
 
 
@@ -54,3 +55,5 @@ class UserCreatedResponse(SQLModel):
 class Token(SQLModel):
     access_token: str
     token_type: str = "bearer"
+    session_id: int | None = None
+    expires_at: datetime | None = None
