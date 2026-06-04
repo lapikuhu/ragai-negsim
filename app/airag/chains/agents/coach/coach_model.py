@@ -54,6 +54,8 @@ class CoachAdviceModel(BaseModel):
 # state.
 class CoachGraphState(TypedDict, total=False):
 	"""State consumed and produced by the coach graph."""
+	simulation_id: str
+	app_session_id: int
 	session_id: str
 	user_id: str
 	user_side: Side

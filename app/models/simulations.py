@@ -4,6 +4,7 @@ from sqlalchemy import Column, JSON
 from datetime import datetime, timezone
 
 if TYPE_CHECKING:
+    from .corpus_indices import CorpusIndex
     from .scenarios import Scenario
     from .users import User
     from .sessions import Session
@@ -50,6 +51,11 @@ class Simulation(SQLModel, table=True):
     scenario: Optional["Scenario"] = Relationship(back_populates="simulations")
     corpus_id: int = Field(foreign_key="corpus.id")
     corpus: "Corpus" = Relationship(back_populates="simulations")
+    corpus_index_id: int = Field(foreign_key="corpusindex.id")
+    corpus_index: "CorpusIndex" = Relationship(back_populates="simulations")
+    coach_prompt_id: int | None = Field(default=None, foreign_key="prompt.id")
+    counterpart_prompt_id: int | None = Field(default=None, foreign_key="prompt.id")
+    evaluator_prompt_id: int | None = Field(default=None, foreign_key="prompt.id")
     counter_part_side_persona_id: int | None = Field(default=None, foreign_key="counterpartpersonas.id")
     counter_part_side_persona: Optional["CounterPartPersonas"] = Relationship(back_populates="simulations")
     user_side: str | None = Field(default=None, min_length=1, title="User side")  # "side_a" or "side_b", assigned at session start

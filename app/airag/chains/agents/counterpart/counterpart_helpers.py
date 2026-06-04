@@ -50,8 +50,18 @@ def collect_missing_information(state: CounterpartGraphState) -> list[str]:
 	return missing
 
 
-def render_counterpart_prompt(state: CounterpartGraphState) -> str:
-	"""Render counterpart_prompt.md with the current graph state."""
+def render_counterpart_prompt(
+	state: CounterpartGraphState,
+	prompt_template: str | None = None,
+) -> str:
+	"""Render counterpart_prompt.md with the current graph state.
+	Args:
+		state: The current graph state containing negotiation context.
+		prompt_template: Optional custom prompt template to use instead 
+			of the default.
+	Returns:
+		A string with the prompt ready to be sent to the LLM.
+	"""
 	replacements = {
 		"{user_side}": state.get("user_side", ""),
 		"{counterpart_side}": state.get("counterpart_side", get_counterpart_side(state)),
@@ -66,18 +76,33 @@ def render_counterpart_prompt(state: CounterpartGraphState) -> str:
 		"{evaluation}": json_dumps(state.get("evaluation", {})),
 	}
 
-	prompt = COUNTERPART_PROMPT
+	prompt = prompt_template or COUNTERPART_PROMPT
 	for placeholder, value in replacements.items():
 		prompt = prompt.replace(placeholder, str(value))
 	return prompt
 
 
 def get_retrieval_context(state: CounterpartGraphState) -> str:
+	"""
+	Retrieve the summary of the retrieval result from the graph state.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A string with the retrieval context summary.
+	"""
 	retrieval_result = state.get("retrieval_result", {})
 	return retrieval_result.get("summary", "") if isinstance(retrieval_result, dict) else ""
 
 
 def coerce_counterpart_response(result: Any) -> dict[str, Any]:
+	"""
+	Coerce a counterpart response into a standardized dictionary format.
+	Args:
+		result: The counterpart response, which can be a CounterpartResponseModel,
+			dictionary, or JSON string.
+	Returns:
+		A dictionary representation of the counterpart response.
+	"""
 	if isinstance(result, CounterpartResponseModel):
 		return result.model_dump()
 	if isinstance(result, dict):
@@ -89,6 +114,15 @@ def fallback_counterpart_response(
 	state: CounterpartGraphState,
 	reason: str,
 ) -> dict[str, Any]:
+	"""
+	Generate a fallback counterpart response when the state is incomplete 
+	or unclear.
+	Args:
+		state: The current graph state containing negotiation context.
+		reason: The reason for triggering the fallback response.
+	Returns:
+		A dictionary representation of the fallback counterpart response.
+	"""
 	counterpart_side = state.get("counterpart_side", get_counterpart_side(state))
 	message = (
 		"Before I can respond constructively, I need a bit more clarity on the "
@@ -117,7 +151,14 @@ def fallback_counterpart_response(
 
 
 def get_default_counterpart_model() -> Any | None:
-	"""Lazily construct a default model so imports remain cheap and testable."""
+	"""
+	Lazily construct a default model so imports remain cheap and testable.
+	Args:
+		None
+	Returns:
+		An instance of the default LLM model for counterpart response 
+		generation, or None if no suitable model is available.
+	"""
 	try:
 		from app.airag.llm_models.llm_models import get_openai_llm
 

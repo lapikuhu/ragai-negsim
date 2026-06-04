@@ -35,7 +35,10 @@ def node_prepare_counterpart_context(state: CounterpartGraphState) -> dict:
 	}
 
 
-def make_generate_counterpart_response_node(model: Any):
+def make_generate_counterpart_response_node(
+	model: Any,
+	prompt_template: str | None = None,
+):
 	def node_generate_counterpart_response(state: CounterpartGraphState) -> dict:
 		if model is None:
 			return {
@@ -43,7 +46,7 @@ def make_generate_counterpart_response_node(model: Any):
 				"event_log": ["counterpart:generation_failed"],
 			}
 
-		prompt = render_counterpart_prompt(state)
+		prompt = render_counterpart_prompt(state, prompt_template)
 		try:
 			structured_model = model.with_structured_output(CounterpartResponseModel)
 			response = coerce_counterpart_response(structured_model.invoke(prompt))
@@ -64,7 +67,10 @@ def make_generate_counterpart_response_node(model: Any):
 	return node_generate_counterpart_response
 
 
-def make_repair_counterpart_response_node(model: Any):
+def make_repair_counterpart_response_node(
+	model: Any,
+	prompt_template: str | None = None,
+):
 	def node_repair_counterpart_response(state: CounterpartGraphState) -> dict:
 		retry_count = state.get("counterpart_retry_count", 0) + 1
 		if model is None:
@@ -79,7 +85,7 @@ def make_repair_counterpart_response_node(model: Any):
 				"Repair the counterpart response so it satisfies the required schema.",
 				"Return only the structured output. Do not add markdown or commentary.",
 				f"Validation or generation error:\n{state.get('counterpart_validation_error', '')}",
-				f"Original counterpart prompt:\n{state.get('counterpart_prompt') or render_counterpart_prompt(state)}",
+				f"Original counterpart prompt:\n{state.get('counterpart_prompt') or render_counterpart_prompt(state, prompt_template)}",
 			]
 		)
 

@@ -27,6 +27,7 @@ from app.airag.chains.agents.counterpart.counterpart_nodes import (
 
 def make_counterpart_graph(
 	model: Any = None,
+	prompt_template: str | None = None,
 	state_schema: type[CounterpartGraphState] = CounterpartGraphState,
 ):
 	"""Build and compile the counterpart graph."""
@@ -36,11 +37,11 @@ def make_counterpart_graph(
 	counterpart_flow.add_node("prepare_context", node_prepare_counterpart_context)
 	counterpart_flow.add_node(
 		"generate_counterpart_response",
-		make_generate_counterpart_response_node(counterpart_model),
+		make_generate_counterpart_response_node(counterpart_model, prompt_template),
 	)
 	counterpart_flow.add_node(
 		"repair_counterpart_response",
-		make_repair_counterpart_response_node(counterpart_model),
+		make_repair_counterpart_response_node(counterpart_model, prompt_template),
 	)
 	counterpart_flow.add_node("fallback_counterpart_response", node_fallback_counterpart_response)
 	counterpart_flow.add_node("finalize_counterpart", node_finalize_counterpart)

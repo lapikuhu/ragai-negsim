@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from .chunking_profiles import ChunkingProfile
     from .corpus import Corpus
     from .indexed_chunks import IndexedChunk
+    from .simulations import Simulation
     from .vector_stores import VectorStore
 
 
@@ -25,5 +26,6 @@ class CorpusIndex(SQLModel, table=True):
     vector_store: "VectorStore" = Relationship(back_populates="corpus_indices")
     chunking_profile: "ChunkingProfile" = Relationship(back_populates="corpus_indices")
     indexed_chunks: list["IndexedChunk"] = Relationship(back_populates="corpus_index")
+    simulations: list["Simulation"] = Relationship(back_populates="corpus_index")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

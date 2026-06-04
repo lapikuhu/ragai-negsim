@@ -92,8 +92,18 @@ def build_evaluator_crag_query(state: EvaluatorGraphState) -> str:
 	return "\n".join(query_parts)
 
 
-def render_evaluator_prompt(state: EvaluatorGraphState) -> str:
-	"""Render evaluator_prompt.md with the current graph state."""
+def render_evaluator_prompt(
+	state: EvaluatorGraphState,
+	prompt_template: str | None = None,
+) -> str:
+	"""Render evaluator_prompt.md with the current graph state.
+	Args:
+		state: The current graph state containing negotiation context.
+		prompt_template: Optional custom prompt template to use instead 
+			of the default.
+	Returns:
+		A string with the prompt ready to be sent to the LLM.
+	"""
 	replacements = {
 		"{user_side}": state.get("user_side", ""),
 		"{side_a_profile}": json_dumps(state.get("side_a", {})),
@@ -108,13 +118,21 @@ def render_evaluator_prompt(state: EvaluatorGraphState) -> str:
 		"{counterpart_response}": get_latest_counterpart_response(state),
 	}
 
-	prompt = EVALUATOR_PROMPT
+	prompt = prompt_template or EVALUATOR_PROMPT
 	for placeholder, value in replacements.items():
 		prompt = prompt.replace(placeholder, str(value))
 	return prompt
 
 
 def coerce_evaluator_response(result: Any) -> dict[str, Any]:
+	"""
+	Coerce an evaluator response into a standardized dictionary format.
+	Args:
+		result: The evaluator response, which can be an EvaluatorResponseModel,
+			dictionary, or JSON string.
+	Returns:
+		A dictionary representation of the evaluator response.
+	"""
 	if isinstance(result, EvaluatorResponseModel):
 		return result.model_dump()
 	if isinstance(result, dict):
@@ -126,7 +144,14 @@ def map_evaluator_next_action(
 	state: EvaluatorGraphState,
 	next_best_action: str,
 ) -> NextAction:
-	"""Map evaluator prompt action values to existing ParentNegotiationState values."""
+	"""
+	Map evaluator prompt action values to existing ParentNegotiationState values.
+	Args:
+		state: The current graph state containing negotiation context.
+		next_best_action: The next best action suggested by the evaluator.
+	Returns:
+		The mapped next action compatible with ParentNegotiationState.
+	"""
 	if next_best_action == "call_counterpart":
 		return "call_side_a" if get_counterpart_side(state) == "side_a" else "call_side_b"
 	if next_best_action in {"call_coach", "call_retriever", "ask_user", "end"}:
@@ -138,7 +163,15 @@ def compact_evaluation_from_response(
 	state: EvaluatorGraphState,
 	response: dict[str, Any],
 ) -> Evaluation:
-	"""Convert full evaluator response to the compact parent Evaluation shape."""
+	"""
+	Convert full evaluator response to the compact parent Evaluation shape.
+	Args:
+		state: The current graph state containing negotiation context.
+		response: The full evaluator response as a dictionary.
+	Returns:
+		A compact representation of the evaluator response compatible with 
+		the parent Evaluation shape.
+	"""
 	return {
 		"evaluated_side": state.get("user_side", "side_a"),
 		"score": response.get("score", 0.5),
@@ -155,7 +188,14 @@ def fallback_evaluator_response(
 	state: EvaluatorGraphState,
 	reason: str,
 ) -> dict[str, Any]:
-	"""Build a valid low-confidence evaluator response for failure paths."""
+	"""
+	Build a valid low-confidence evaluator response for failure paths.
+	Args:
+		state: The current graph state containing negotiation context.
+		reason: The reason for triggering the fallback response.
+	Returns:
+		A dictionary representation of the fallback evaluator response.
+	"""
 	missing_information = [*state.get("missing_information", [])]
 	if reason:
 		missing_information.append(f"evaluator_generation_error: {reason}")
@@ -201,7 +241,14 @@ def fallback_evaluator_response(
 
 
 def get_default_evaluator_model() -> Any | None:
-	"""Lazily construct a default model so imports remain cheap and testable."""
+	"""
+	Lazily construct a default model so imports remain cheap and testable.
+	Args:
+		None
+	Returns:
+		An instance of the default LLM model for evaluator response generation,
+		or None if no suitable model is available.
+	"""
 	try:
 		from app.airag.llm_models.llm_models import get_openai_llm
 

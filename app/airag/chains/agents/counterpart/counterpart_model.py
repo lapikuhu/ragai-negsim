@@ -56,6 +56,8 @@ class CounterpartResponseModel(BaseModel):
 class CounterpartGraphState(TypedDict, total=False):
 	"""State consumed and produced by the counterpart graph."""
 
+	simulation_id: str
+	app_session_id: int
 	session_id: str
 	user_id: str
 	user_side: Side

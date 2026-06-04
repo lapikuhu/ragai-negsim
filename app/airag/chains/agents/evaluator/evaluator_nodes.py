@@ -76,7 +76,21 @@ def make_call_crag_node(crag_graph: Any = None):
 	return node_call_crag
 
 
-def make_generate_evaluator_response_node(model: Any):
+def make_generate_evaluator_response_node(
+	model: Any,
+	prompt_template: str | None = None,
+):
+	"""
+	Create a node for generating evaluator responses using the specified 
+	model and prompt template.
+	Args:
+		model: The LLM model to use for generating evaluator responses.
+		prompt_template: The template to use for rendering the evaluator 
+			prompt.
+	Returns:
+		A function that can be used as a node in the evaluator graph for
+		generating evaluator responses.
+	"""
 	def node_generate_evaluator_response(state: EvaluatorGraphState) -> dict:
 		if model is None:
 			return {
@@ -84,7 +98,7 @@ def make_generate_evaluator_response_node(model: Any):
 				"event_log": ["evaluator:generation_failed"],
 			}
 
-		prompt = render_evaluator_prompt(state)
+		prompt = render_evaluator_prompt(state, prompt_template)
 		try:
 			structured_model = model.with_structured_output(EvaluatorResponseModel)
 			response = coerce_evaluator_response(structured_model.invoke(prompt))
@@ -105,7 +119,10 @@ def make_generate_evaluator_response_node(model: Any):
 	return node_generate_evaluator_response
 
 
-def make_repair_evaluator_response_node(model: Any):
+def make_repair_evaluator_response_node(
+	model: Any,
+	prompt_template: str | None = None,
+):
 	def node_repair_evaluator_response(state: EvaluatorGraphState) -> dict:
 		retry_count = state.get("evaluator_retry_count", 0) + 1
 		if model is None:
@@ -120,7 +137,7 @@ def make_repair_evaluator_response_node(model: Any):
 				"Repair the evaluator response so it satisfies the required schema.",
 				"Return only the structured output. Do not add markdown or commentary.",
 				f"Validation or generation error:\n{state.get('evaluator_validation_error', '')}",
-				f"Original evaluator prompt:\n{state.get('evaluator_prompt') or render_evaluator_prompt(state)}",
+				f"Original evaluator prompt:\n{state.get('evaluator_prompt') or render_evaluator_prompt(state, prompt_template)}",
 			]
 		)
 
@@ -145,6 +162,13 @@ def make_repair_evaluator_response_node(model: Any):
 
 
 def node_fallback_evaluator_response(state: EvaluatorGraphState) -> dict:
+	"""
+	Build a fallback evaluator response node for failure paths.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A dictionary representation of the fallback evaluator response node.
+	"""
 	return {
 		"evaluator_response": fallback_evaluator_response(
 			state,
@@ -155,6 +179,13 @@ def node_fallback_evaluator_response(state: EvaluatorGraphState) -> dict:
 
 
 def node_finalize_evaluator(state: EvaluatorGraphState) -> dict:
+	"""
+	Finalize the evaluator response node.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A dictionary representation of the finalized evaluator response node.
+	"""
 	response = state.get("evaluator_response") or fallback_evaluator_response(
 		state,
 		"missing evaluator_response at finalize",
@@ -174,6 +205,14 @@ def node_finalize_evaluator(state: EvaluatorGraphState) -> dict:
 
 
 def decide_after_generate(state: EvaluatorGraphState) -> str:
+	"""
+	Decide the next action after generating an evaluator response.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A string indicating the next node to transition to based on the
+		presence and validity of the evaluator response.
+	"""
 	if state.get("evaluator_response"):
 		return "finalize"
 	if state.get("evaluator_retry_count", 0) < 1:
@@ -182,6 +221,14 @@ def decide_after_generate(state: EvaluatorGraphState) -> str:
 
 
 def decide_after_repair(state: EvaluatorGraphState) -> str:
+	"""
+	Decide the next action after attempting to repair an evaluator response.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A string indicating the next node to transition to based on the
+		presence and validity of the evaluator response.
+	"""
 	if state.get("evaluator_response"):
 		return "finalize"
 	return "fallback"

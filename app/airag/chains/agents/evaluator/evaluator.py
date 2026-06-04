@@ -29,6 +29,7 @@ from app.airag.chains.agents.evaluator.evaluator_model import (
 def make_evaluator_graph(
 	crag_graph: Any = None,
 	model: Any = None,
+	prompt_template: str | None = None,
 	state_schema: type[EvaluatorGraphState] = EvaluatorGraphState,
 ):
 	"""Build and compile the evaluator graph."""
@@ -40,11 +41,11 @@ def make_evaluator_graph(
 	evaluator_flow.add_node("call_crag", make_call_crag_node(crag_graph))
 	evaluator_flow.add_node(
 		"generate_evaluator_response",
-		make_generate_evaluator_response_node(evaluator_model),
+		make_generate_evaluator_response_node(evaluator_model, prompt_template),
 	)
 	evaluator_flow.add_node(
 		"repair_evaluator_response",
-		make_repair_evaluator_response_node(evaluator_model),
+		make_repair_evaluator_response_node(evaluator_model, prompt_template),
 	)
 	evaluator_flow.add_node("fallback_evaluator_response", node_fallback_evaluator_response)
 	evaluator_flow.add_node("finalize_evaluator", node_finalize_evaluator)

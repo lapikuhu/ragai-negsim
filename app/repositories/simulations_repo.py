@@ -80,6 +80,10 @@ async def list_simulations(
     participant_id: int | None = None,
     teacher_id: int | None = None,
     corpus_id: int | None = None,
+    corpus_index_id: int | None = None,
+    coach_prompt_id: int | None = None,
+    counterpart_prompt_id: int | None = None,
+    evaluator_prompt_id: int | None = None,
     session_id: int | None = None,
     scenario_id: int | None = None,
 ) -> list[Simulation]:
@@ -94,6 +98,10 @@ async def list_simulations(
             participant_id: Optional participant ID filter.
             teacher_id: Optional teacher ID filter.
             corpus_id: Optional corpus ID filter.
+            corpus_index_id: Optional corpus index ID filter.
+            coach_prompt_id: Optional coach prompt ID filter.
+            counterpart_prompt_id: Optional counterpart prompt ID filter.
+            evaluator_prompt_id: Optional evaluator prompt ID filter.
             session_id: Optional session ID filter.
             scenario_id: Optional scenario ID filter.
         Returns:
@@ -111,6 +119,14 @@ async def list_simulations(
         statement = statement.where(Simulation.teacher_id == teacher_id)
     if corpus_id is not None:
         statement = statement.where(Simulation.corpus_id == corpus_id)
+    if corpus_index_id is not None:
+        statement = statement.where(Simulation.corpus_index_id == corpus_index_id)
+    if coach_prompt_id is not None:
+        statement = statement.where(Simulation.coach_prompt_id == coach_prompt_id)
+    if counterpart_prompt_id is not None:
+        statement = statement.where(Simulation.counterpart_prompt_id == counterpart_prompt_id)
+    if evaluator_prompt_id is not None:
+        statement = statement.where(Simulation.evaluator_prompt_id == evaluator_prompt_id)
     if session_id is not None:
         statement = statement.where(Simulation.session_id == session_id)
     if scenario_id is not None:

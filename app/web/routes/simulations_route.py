@@ -5,6 +5,7 @@ from core.dependencies import (
     CurrentUserDep,
     Page,
     SessionDep,
+    TeacherReviewSimulationDep,
 )
 from schemas.simulations_schemas import (
     SimulationCreateRequest,
@@ -12,6 +13,7 @@ from schemas.simulations_schemas import (
     SimulationReadWithState,
     SimulationStartRequest,
     SimulationStatus,
+    SimulationTeacherReviewRequest,
     SimulationTurnRequest,
     SimulationTurnResponse,
     SimulationUpdateRequest,
@@ -21,15 +23,29 @@ from services import simulations_service
 # Declare the API router for simulations
 router = APIRouter(prefix="/simulations", tags=["simulations"])
 
-
+# CHECK
 def _raise_simulation_service_error(exc: ValueError) -> None:
     """
     Raise an HTTPException with a 409 Conflict status code for 
     simulation service errors.
     """
+    detail = str(exc)
+    if detail in {
+        "Corpus not found",
+        "Corpus index not found",
+        "Vector store not found",
+        "Scenario not found",
+        "Counterpart persona not found",
+        "Session not found",
+        "Coach prompt not found",
+        "Counterpart prompt not found",
+        "Evaluator prompt not found",
+    }:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
+
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail=str(exc),
+        detail=detail,
     ) from exc
 
 ### ----------------------- SIMULATION CREATE ---------------------- ###
@@ -78,6 +94,10 @@ async def list_simulations(
     participant_id: int | None = None,
     teacher_id: int | None = None,
     corpus_id: int | None = None,
+    corpus_index_id: int | None = None,
+    coach_prompt_id: int | None = None,
+    counterpart_prompt_id: int | None = None,
+    evaluator_prompt_id: int | None = None,
     session_id: int | None = None,
     scenario_id: int | None = None,
 ) -> list[SimulationRead]:
@@ -90,6 +110,10 @@ async def list_simulations(
         participant_id=participant_id,
         teacher_id=teacher_id,
         corpus_id=corpus_id,
+        corpus_index_id=corpus_index_id,
+        coach_prompt_id=coach_prompt_id,
+        counterpart_prompt_id=counterpart_prompt_id,
+        evaluator_prompt_id=evaluator_prompt_id,
         session_id=session_id,
         scenario_id=scenario_id,
         current_user=current_user,
@@ -276,5 +300,41 @@ async def cancel_simulation(
     """
     try:
         return await simulations_service.cancel_simulation_srvc(simulation, session)
+    except ValueError as exc:
+        _raise_simulation_service_error(exc)
+
+
+### -------------------- TEACHER REVIEW SIMULATION ----------------- ###
+@router.post(
+    "/{simulation_id}/review",
+    response_model=SimulationRead,
+    status_code=status.HTTP_200_OK,
+)
+async def review_simulation(
+    review_data: SimulationTeacherReviewRequest,
+    simulation: TeacherReviewSimulationDep,
+    session: SessionDep,
+    current_teacher: CurrentUserDep,
+) -> SimulationRead:
+    """
+    Review a simulation as a teacher.
+    Args:
+        review_data: The data for the teacher review, including feedback.
+        simulation: The simulation instance to review.
+        session: The database session.
+        current_teacher: The teacher submitting the review.
+    Returns:
+        A SimulationRead containing the updated simulation with the review.
+    Raises:
+        ValueError: If the current user is not a teacher or if the review 
+        cannot be submitted due to the simulation's current status.
+    """
+    try:
+        return await simulations_service.review_simulation_srvc(
+            simulation,
+            review_data,
+            session,
+            current_teacher,
+        )
     except ValueError as exc:
         _raise_simulation_service_error(exc)

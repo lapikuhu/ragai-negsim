@@ -4,7 +4,11 @@ from langchain_classic.retrievers import EnsembleRetriever
 from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 
 
-def make_dense_retriever(vector_store, k: int = 4):
+def make_dense_retriever(
+    vector_store,
+    k: int = 4,
+    metadata_filter: dict | None = None,
+):
     """Create a langchain retriever from the specified vector store.
     Args:
         vector_store: The vector store instance to use for creating the retriever.
@@ -14,9 +18,11 @@ def make_dense_retriever(vector_store, k: int = 4):
         documents based on queries.
     """
 
-    retriever = vector_store.as_retriever(
-        search_kwargs={"k": k}
-    )
+    search_kwargs = {"k": k}
+    if metadata_filter:
+        search_kwargs["filter"] = metadata_filter
+
+    retriever = vector_store.as_retriever(search_kwargs=search_kwargs)
     return retriever
 
 def make_bm25_retriever(documents: list[Document], k: int = 4):

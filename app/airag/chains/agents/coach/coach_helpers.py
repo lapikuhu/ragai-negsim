@@ -10,7 +10,10 @@ from app.airag.chains.negotiation.negotiation_model import (
 )
 ### -------------------- COACH SPECIFIC HELPERS -------------------- ###
 
-def render_coach_prompt(state: CoachGraphState) -> str:
+def render_coach_prompt(
+	state: CoachGraphState,
+	prompt_template: str | None = None,
+) -> str:
 	"""Render the coach prompt by replacing placeholders with current state values.
 	Args:
         state: The current state of the coach graph, containing all relevant information about the negotiation.
@@ -30,7 +33,7 @@ def render_coach_prompt(state: CoachGraphState) -> str:
 		"{evaluation}": json_dumps(state.get("evaluation", {})),
 	}
 
-	prompt = COACH_PROMPT
+	prompt = prompt_template or COACH_PROMPT
 	for placeholder, value in replacements.items():
 		prompt = prompt.replace(placeholder, str(value))
 	return prompt

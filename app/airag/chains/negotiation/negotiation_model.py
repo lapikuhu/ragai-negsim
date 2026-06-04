@@ -99,7 +99,10 @@ class RetrievalResult(TypedDict, total=False):
 
 class ParentNegotiationState(TypedDict, total=False):
     # Stable identifiers
+    simulation_id: str
+    # Legacy alias for simulation_id; app login/session linkage uses app_session_id.
     session_id: str
+    app_session_id: int
     user_id: str
 
     # Which negotiation side the real user controls

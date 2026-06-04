@@ -23,6 +23,7 @@ from app.airag.chains.agents.coach.coach_helpers import get_default_coach_model
 def make_coach_graph(
 	crag_graph: Any = None,
 	model: Any = None,
+	prompt_template: str | None = None,
 	state_schema: type[CoachGraphState] = CoachGraphState,
 ):
 	"""Build and compile the coach graph."""
@@ -32,8 +33,14 @@ def make_coach_graph(
 	coach_flow.add_node("prepare_context", node_prepare_coach_context)
 	coach_flow.add_node("route_crag_queries", node_route_crag_queries)
 	coach_flow.add_node("call_crag", make_call_crag_node(crag_graph))
-	coach_flow.add_node("generate_coach_advice", make_generate_coach_advice_node(coach_model))
-	coach_flow.add_node("repair_coach_advice", make_repair_coach_advice_node(coach_model))
+	coach_flow.add_node(
+		"generate_coach_advice",
+		make_generate_coach_advice_node(coach_model, prompt_template),
+	)
+	coach_flow.add_node(
+		"repair_coach_advice",
+		make_repair_coach_advice_node(coach_model, prompt_template),
+	)
 	coach_flow.add_node("fallback_coach_advice", node_fallback_coach_advice)
 	coach_flow.add_node("finalize_coach", node_finalize_coach)
 

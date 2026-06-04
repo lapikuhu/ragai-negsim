@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from functools import lru_cache
+from dataclasses import dataclass
 from typing import Any
 
 from langchain_core.messages import BaseMessage
@@ -7,9 +7,25 @@ from langchain_core.documents import Document
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from airag.chains.negotiation.negotiation import make_negotiation_graph
+from airag.embeddings.embeddings import choose_embedding_model
+from airag.retrieval.retrievers import make_dense_retriever
+from airag.vector_stores.vector_stores import (
+    instantiate_chroma_vector_store,
+    instantiate_pgvector_store,
+    load_faiss_vector_store,
+)
 from models.simulations import Simulation
 from models.users import User
-from repositories import simulations_repo
+from repositories import (
+    counterpart_personas_repo,
+    corpus_indices_repo,
+    corpus_repo,
+    prompts_repo,
+    scenarios_repo,
+    sessions_repo,
+    simulations_repo,
+    vector_stores_repo,
+)
 from schemas.simulations_schemas import (
     NegotiationStateSchema,
     SimulationCreate,
@@ -19,6 +35,8 @@ from schemas.simulations_schemas import (
     SimulationReadWithState,
     SimulationStatus,
     SimulationStatusUpdate,
+    SimulationTeacherReview,
+    SimulationTeacherReviewRequest,
     SimulationTurnRequest,
     SimulationTurnResponse,
     SimulationUpdate,
@@ -29,12 +47,19 @@ from schemas.simulations_schemas import (
 
 TERMINAL_STATUSES = {"completed", "cancelled", "failed"}
 RUNNABLE_STATUSES = {"active", "paused"}
+NEGOTIATION_GRAPH_CACHE: dict[tuple[Any, ...], Any] = {}
 
-# CHECK the lru_cache usage here, sus
-@lru_cache
-def get_compiled_negotiation_graph():
-    """Compile the negotiation graph once per process."""
-    return make_negotiation_graph()
+
+@dataclass(frozen=True)
+class SimulationRuntimeContext:
+    corpus: Any | None = None
+    corpus_index: Any | None = None
+    coach_prompt: Any | None = None
+    counterpart_prompt: Any | None = None
+    evaluator_prompt: Any | None = None
+    scenario: Any | None = None
+    counterpart_persona: Any | None = None
+    app_session: Any | None = None
 
 # Candidate for helpers module
 def _utc_timestamp() -> str:
@@ -125,6 +150,10 @@ def _read_simulation(simulation: Simulation) -> SimulationRead:
         user_id_participant=simulation.user_id_participant,
         scenario_id=simulation.scenario_id,
         corpus_id=simulation.corpus_id,
+        corpus_index_id=simulation.corpus_index_id,
+        coach_prompt_id=simulation.coach_prompt_id,
+        counterpart_prompt_id=simulation.counterpart_prompt_id,
+        evaluator_prompt_id=simulation.evaluator_prompt_id,
         counter_part_side_persona_id=simulation.counter_part_side_persona_id,
         user_side=simulation.user_side,
         teacher_reviewed=simulation.teacher_reviewed,
@@ -185,10 +214,429 @@ def _is_simulation_accessible_to_user(simulation: Simulation, user: User) -> boo
     }
 
 
+def _record_context(record: Any) -> dict[str, Any]:
+    """
+    Extract context information from a record.
+    Args:
+        record: The record from which to extract context.
+    Returns:
+        A dictionary containing the context information.
+    """
+    context = {"id": getattr(record, "id", None)}
+    for field_name in ("name", "description"):
+        value = getattr(record, field_name, None)
+        if value is not None:
+            context[field_name] = value
+    return _json_safe(context)
+
+
+async def _get_valid_built_corpus_index(
+    corpus_id: int,
+    corpus_index_id: int,
+    session: AsyncSession,
+) -> Any:
+    """
+    Validate and retrieve a built corpus index.
+    Args:
+        corpus_id: The ID of the corpus.
+        corpus_index_id: The ID of the corpus index.
+        session: The database session.
+    Returns:
+        The valid built corpus index.
+    Raises:
+        ValueError: If the corpus index is not found, does not belong to 
+            the corpus,or is not built.
+    """
+    corpus_index = await corpus_indices_repo.get_corpus_index_by_id(corpus_index_id, session)
+    if corpus_index is None:
+        raise ValueError("Corpus index not found")
+    if corpus_index.corpus_id != corpus_id:
+        raise ValueError("Corpus index does not belong to simulation corpus")
+    if corpus_index.status != "built":
+        raise ValueError("Corpus index must be built before simulation use")
+    return corpus_index
+
+
+def _prompt_template(prompt: Any, prompt_role: str) -> str:
+    """
+    Extract the prompt template from a prompt object.
+    Args:
+        prompt: The prompt object containing messages.
+        prompt_role: The role of the prompt (e.g., "coach", 
+            "counterpart", "evaluator").
+    Returns:
+        The extracted prompt template as a string.
+    Raises:
+        ValueError: If the prompt template is empty or not found.
+    """
+    messages = getattr(prompt, "messages", None)
+    if isinstance(messages, dict):
+        for key in ("template", "prompt", "content", "system", prompt_role):
+            value = messages.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+        if len(messages) == 1:
+            value = next(iter(messages.values()))
+            if isinstance(value, str) and value.strip():
+                return value
+
+    raise ValueError(f"{prompt_role.capitalize()} prompt template is empty")
+
+
+async def _get_prompt_template(
+    prompt_id: int | None,
+    prompt_role: str,
+    session: AsyncSession,
+) -> tuple[Any | None, str | None]:
+    """
+    Get a prompt and its template by ID.
+    Args:
+        prompt_id: The ID of the prompt to retrieve.
+        prompt_role: The role of the prompt (e.g., "coach", "counterpart",
+            "evaluator").
+        session: The database session.
+    Returns:
+        A tuple containing the prompt object and its template.
+    """
+    if prompt_id is None:
+        return None, None
+
+    prompt = await prompts_repo.get_prompt_by_id(prompt_id, session)
+    if prompt is None:
+        raise ValueError(f"{prompt_role.capitalize()} prompt not found")
+
+    return prompt, _prompt_template(prompt, prompt_role)
+
+
+async def _get_simulation_prompt_templates(
+    simulation: Simulation,
+    session: AsyncSession,
+) -> tuple[dict[str, Any | None], dict[str, str | None]]:
+    """
+    Get the prompt objects and their templates for a simulation.
+    Args:
+        simulation: The simulation object.
+        session: The database session.
+    Returns:
+        A tuple containing two dictionaries:
+        - The first dictionary maps prompt roles to their prompt objects.
+        - The second dictionary maps prompt roles to their prompt templates.
+    """
+    coach_prompt, coach_template = await _get_prompt_template(
+        simulation.coach_prompt_id,
+        "coach",
+        session,
+    )
+    counterpart_prompt, counterpart_template = await _get_prompt_template(
+        simulation.counterpart_prompt_id,
+        "counterpart",
+        session,
+    )
+    evaluator_prompt, evaluator_template = await _get_prompt_template(
+        simulation.evaluator_prompt_id,
+        "evaluator",
+        session,
+    )
+    return (
+        {
+            "coach_prompt": coach_prompt,
+            "counterpart_prompt": counterpart_prompt,
+            "evaluator_prompt": evaluator_prompt,
+        },
+        {
+            "coach": coach_template,
+            "counterpart": counterpart_template,
+            "evaluator": evaluator_template,
+        },
+    )
+
+
+def _graph_cache_key(
+    corpus_index: Any,
+    vector_store: Any,
+    prompt_templates: dict[str, str | None],
+) -> tuple[Any, ...]:
+    """
+    Generate a cache key for the negotiation graph based on the corpus index,
+    vector store, and prompt templates.
+    Args:
+        corpus_index: The corpus index object.
+        vector_store: The vector store object.
+        prompt_templates: A dictionary mapping prompt roles to their templates.
+    Returns:
+        A tuple representing the cache key.
+    """
+    return (
+        getattr(corpus_index, "id", None),
+        getattr(corpus_index, "embedding_model", None),
+        getattr(corpus_index, "embedding_dimensions", None),
+        getattr(corpus_index, "vector_namespace", None),
+        getattr(vector_store, "id", None),
+        getattr(vector_store, "backend", None),
+        getattr(vector_store, "collection_name", None),
+        getattr(vector_store, "path", None),
+        getattr(vector_store, "table_name", None),
+        prompt_templates.get("coach"),
+        prompt_templates.get("counterpart"),
+        prompt_templates.get("evaluator"),
+    )
+
+
+async def _instantiate_vector_store_for_index(corpus_index: Any, vector_store: Any) -> Any:
+    """
+    Instantiate a vector store for a given corpus index and vector store 
+    configuration.
+    Args:
+        corpus_index: The corpus index object.
+        vector_store: The vector store object.
+    Returns:
+        The instantiated vector store.
+    """
+    embedding_model, _metadata = choose_embedding_model(corpus_index.embedding_model)
+
+    if vector_store.backend == "chroma":
+        return instantiate_chroma_vector_store(
+            embedding_model=embedding_model,
+            collection_name=vector_store.collection_name or "negotiation_corpus",
+            persist_directory=vector_store.path or "./chroma_db",
+        )
+
+    if vector_store.backend == "faiss":
+        return load_faiss_vector_store(
+            embeddings=embedding_model,
+            path=vector_store.path or "./faiss_db",
+        )
+
+    if vector_store.backend == "pgvector":
+        if not vector_store.table_name:
+            raise ValueError("PGVector stores require table_name")
+        return await instantiate_pgvector_store(
+            vector_table_name=vector_store.table_name,
+            embedding_model=embedding_model,
+            embedding_model_name=corpus_index.embedding_model,
+        )
+
+    raise ValueError(f"Unsupported vector store backend: {vector_store.backend}")
+
+
+def _make_crag_graph(retriever: Any) -> Any:
+    """
+    Create a CRAG graph using the provided retriever.
+    Args:
+        retriever: The retriever object.
+    Returns:
+        The CRAG graph.
+    """
+    from airag.chains.crag.crag import CRAGState, make_crag
+
+    return make_crag(retriever_obj=retriever, state_schema=CRAGState)
+
+
+async def _get_negotiation_graph_for_simulation(
+    simulation: Simulation,
+    session: AsyncSession,
+) -> Any:
+    """
+    Get the negotiation graph for a simulation.
+    Args:
+        simulation: The simulation object.
+        session: The database session.
+    Returns:
+        The negotiation graph.
+    """
+    corpus_index = await _get_valid_built_corpus_index(
+        simulation.corpus_id,
+        simulation.corpus_index_id,
+        session,
+    )
+    vector_store = await vector_stores_repo.get_vector_store_by_id(
+        corpus_index.vector_store_id,
+        session,
+    )
+    if vector_store is None:
+        raise ValueError("Vector store not found")
+
+    _prompt_records, prompt_templates = await _get_simulation_prompt_templates(
+        simulation,
+        session,
+    )
+    cache_key = _graph_cache_key(corpus_index, vector_store, prompt_templates)
+    cached_graph = NEGOTIATION_GRAPH_CACHE.get(cache_key)
+    if cached_graph is not None:
+        return cached_graph
+
+    vector_store_runtime = await _instantiate_vector_store_for_index(
+        corpus_index,
+        vector_store,
+    )
+    retriever = make_dense_retriever(
+        vector_store_runtime,
+        metadata_filter={"corpus_index_id": corpus_index.id},
+    )
+    crag_graph = _make_crag_graph(retriever)
+    graph = make_negotiation_graph(
+        crag_graph=crag_graph,
+        coach_prompt_template=prompt_templates["coach"],
+        counterpart_prompt_template=prompt_templates["counterpart"],
+        evaluator_prompt_template=prompt_templates["evaluator"],
+    )
+    NEGOTIATION_GRAPH_CACHE[cache_key] = graph
+    return graph
+
+
+def _runtime_context_snapshot(runtime_context: SimulationRuntimeContext) -> dict[str, Any]:
+    """
+    Create a snapshot of the runtime context.
+    Args:
+        runtime_context: The runtime context to snapshot.
+    Returns:
+        A dictionary containing the snapshot of the runtime context.
+    """
+    snapshot: dict[str, Any] = {}
+    if runtime_context.corpus is not None:
+        snapshot["corpus_context"] = _record_context(runtime_context.corpus)
+    if runtime_context.corpus_index is not None:
+        snapshot["corpus_index_context"] = _record_context(runtime_context.corpus_index)
+    if runtime_context.coach_prompt is not None:
+        snapshot["coach_prompt_context"] = _record_context(runtime_context.coach_prompt)
+    if runtime_context.counterpart_prompt is not None:
+        snapshot["counterpart_prompt_context"] = _record_context(
+            runtime_context.counterpart_prompt
+        )
+    if runtime_context.evaluator_prompt is not None:
+        snapshot["evaluator_prompt_context"] = _record_context(runtime_context.evaluator_prompt)
+    if runtime_context.scenario is not None:
+        snapshot["scenario_context"] = _record_context(runtime_context.scenario)
+    if runtime_context.counterpart_persona is not None:
+        snapshot["counterpart_persona_context"] = _record_context(
+            runtime_context.counterpart_persona
+        )
+    if runtime_context.app_session is not None:
+        snapshot["app_session_id"] = getattr(runtime_context.app_session, "id", None)
+    return _json_safe(snapshot)
+
+
+def _counterpart_side(user_side: str | None) -> str:
+    """
+    Determine the counterpart side based on the user's side.
+    Args:
+        user_side: The side of the user ("side_a" or "side_b").
+    Returns:
+        The counterpart side ("side_a" or "side_b").
+    """
+    return "side_a" if user_side == "side_b" else "side_b"
+
+
+def _counterpart_persona_side_profile(persona: Any) -> dict[str, Any]:
+    """
+    Create a profile for the counterpart persona's side.
+    Args:
+        persona: The counterpart persona.
+    Returns:
+        A dictionary containing the profile information.
+    """
+    profile = {
+        "persona_id": getattr(persona, "id", None),
+        "name": getattr(persona, "name", None),
+    }
+    description = getattr(persona, "description", None)
+    if description is not None:
+        profile["description"] = description
+    return _json_safe({key: value for key, value in profile.items() if value is not None})
+
+
+def _side_profiles_with_context_defaults(
+    simulation: Simulation,
+    start_data: SimulationStartRequest,
+    runtime_context: SimulationRuntimeContext,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+    Determine the side profiles with context defaults.
+    Args:
+        simulation: The simulation object.
+        start_data: The data provided to start the simulation.
+        runtime_context: The runtime context of the simulation.
+    Returns:
+        A tuple containing the side A and side B profiles.
+    """
+    side_a = dict(_json_safe(start_data.side_a) or {})
+    side_b = dict(_json_safe(start_data.side_b) or {})
+    if runtime_context.counterpart_persona is None:
+        return side_a, side_b
+
+    counterpart_side = _counterpart_side(simulation.user_side or "side_a")
+    if counterpart_side == "side_a" and not side_a:
+        side_a = _counterpart_persona_side_profile(runtime_context.counterpart_persona)
+    if counterpart_side == "side_b" and not side_b:
+        side_b = _counterpart_persona_side_profile(runtime_context.counterpart_persona)
+    return side_a, side_b
+
+
+async def _load_simulation_runtime_context(
+    simulation: Simulation,
+    session: AsyncSession,
+) -> SimulationRuntimeContext:
+    """
+    Load the runtime context for a simulation.
+    Args:
+        simulation: The simulation object.
+        session: The database session.
+    Returns:
+        The runtime context of the simulation.
+    """
+    corpus = await corpus_repo.get_corpus_by_id(simulation.corpus_id, session)
+    if corpus is None:
+        raise ValueError("Corpus not found")
+
+    corpus_index = await _get_valid_built_corpus_index(
+        simulation.corpus_id,
+        simulation.corpus_index_id,
+        session,
+    )
+
+    scenario = None
+    if simulation.scenario_id is not None:
+        scenario = await scenarios_repo.get_scenario_by_id(simulation.scenario_id, session)
+        if scenario is None:
+            raise ValueError("Scenario not found")
+
+    counterpart_persona = None
+    if simulation.counter_part_side_persona_id is not None:
+        counterpart_persona = await counterpart_personas_repo.get_counterpart_persona_by_id(
+            simulation.counter_part_side_persona_id,
+            session,
+        )
+        if counterpart_persona is None:
+            raise ValueError("Counterpart persona not found")
+
+    app_session = None
+    if simulation.session_id is not None:
+        app_session = await sessions_repo.get_session_by_id(simulation.session_id, session)
+        if app_session is None:
+            raise ValueError("Session not found")
+
+    prompt_records, _prompt_templates = await _get_simulation_prompt_templates(
+        simulation,
+        session,
+    )
+
+    return SimulationRuntimeContext(
+        corpus=corpus,
+        corpus_index=corpus_index,
+        coach_prompt=prompt_records["coach_prompt"],
+        counterpart_prompt=prompt_records["counterpart_prompt"],
+        evaluator_prompt=prompt_records["evaluator_prompt"],
+        scenario=scenario,
+        counterpart_persona=counterpart_persona,
+        app_session=app_session,
+    )
+
+
 def _initial_graph_state(
     simulation: Simulation,
     start_data: SimulationStartRequest,
     current_user: User,
+    runtime_context: SimulationRuntimeContext | None = None,
 ) -> dict[str, Any]:
     """
     Initialize the graph state for a simulation.
@@ -196,16 +644,27 @@ def _initial_graph_state(
         simulation: The simulation for which to initialize the state.
         start_data: The data provided to start the simulation.
         current_user: The user who is starting the simulation.
+        runtime_context: The runtime context of the simulation, 
+        which may include corpus, scenario, counterpart persona, and app 
+        session information. If not provided, a default context will be used.
     Returns:
         A dictionary representing the initial graph state.
     """
-    phase = "opening" if start_data.side_a and start_data.side_b else "setup"
+    runtime_context = runtime_context or SimulationRuntimeContext()
+    side_a, side_b = _side_profiles_with_context_defaults(
+        simulation,
+        start_data,
+        runtime_context,
+    )
+    phase = "opening" if side_a and side_b else "setup"
+    simulation_id = str(simulation.id)
     state: dict[str, Any] = {
-        "session_id": str(simulation.id),
+        "simulation_id": simulation_id,
+        "session_id": simulation_id,
         "user_id": str(current_user.id),
         "user_side": simulation.user_side or "side_a",
-        "side_a": _json_safe(start_data.side_a),
-        "side_b": _json_safe(start_data.side_b),
+        "side_a": side_a,
+        "side_b": side_b,
         "messages": [],
         "phase": phase,
         "active_side": simulation.user_side or "side_a",
@@ -214,6 +673,7 @@ def _initial_graph_state(
         "event_log": ["api:simulation_started"],
         "max_turn_count": start_data.max_turn_count,
     }
+    state.update(_runtime_context_snapshot(runtime_context))
 
     if start_data.opening_message:
         state["messages"].append(
@@ -265,7 +725,11 @@ def _graph_state_from_simulation(simulation: Simulation) -> dict[str, Any]:
     raw_state = simulation.negotiation_state or {}
     data = raw_state.get("data", {}) if isinstance(raw_state, dict) else {}
     state = dict(data)
-    state.setdefault("session_id", str(simulation.id))
+    simulation_id = str(simulation.id)
+    state.setdefault("simulation_id", state.get("session_id", simulation_id))
+    state.setdefault("session_id", state["simulation_id"])
+    if simulation.session_id is not None:
+        state.setdefault("app_session_id", simulation.session_id)
     state.setdefault("user_id", str(simulation.user_id_owner))
     state.setdefault("user_side", simulation.user_side or raw_state.get("user_side") or "side_a")
     state.setdefault("messages", [])
@@ -338,6 +802,18 @@ async def create_simulation_srvc(
     Returns:
         The created simulation.
     """
+    await _get_valid_built_corpus_index(
+        simulation_data.corpus_id,
+        simulation_data.corpus_index_id,
+        session,
+    )
+    await _get_prompt_template(simulation_data.coach_prompt_id, "coach", session)
+    await _get_prompt_template(
+        simulation_data.counterpart_prompt_id,
+        "counterpart",
+        session,
+    )
+    await _get_prompt_template(simulation_data.evaluator_prompt_id, "evaluator", session)
     simulation_in = SimulationCreate(
         **simulation_data.model_dump(),
         user_id_owner=current_user.id,
@@ -355,6 +831,10 @@ async def list_simulations_srvc(
     participant_id: int | None = None,
     teacher_id: int | None = None,
     corpus_id: int | None = None,
+    corpus_index_id: int | None = None,
+    coach_prompt_id: int | None = None,
+    counterpart_prompt_id: int | None = None,
+    evaluator_prompt_id: int | None = None,
     session_id: int | None = None,
     scenario_id: int | None = None,
     current_user: User | None = None,
@@ -370,6 +850,10 @@ async def list_simulations_srvc(
         participant_id: The ID of the participant to filter by.
         teacher_id: The ID of the teacher to filter by.
         corpus_id: The ID of the corpus to filter by.
+        corpus_index_id: The ID of the corpus index to filter by.
+        coach_prompt_id: The ID of the coach prompt to filter by.
+        counterpart_prompt_id: The ID of the counterpart prompt to filter by.
+        evaluator_prompt_id: The ID of the evaluator prompt to filter by.
         session_id: The ID of the session to filter by.
         scenario_id: The ID of the scenario to filter by.
         current_user: The current user making the request.
@@ -385,6 +869,10 @@ async def list_simulations_srvc(
         participant_id=participant_id,
         teacher_id=teacher_id,
         corpus_id=corpus_id,
+        corpus_index_id=corpus_index_id,
+        coach_prompt_id=coach_prompt_id,
+        counterpart_prompt_id=counterpart_prompt_id,
+        evaluator_prompt_id=evaluator_prompt_id,
         session_id=session_id,
         scenario_id=scenario_id,
     )
@@ -423,6 +911,26 @@ async def update_simulation_srvc(
     Returns:
         The updated simulation.
     """
+    if simulation_data.corpus_index_id is not None:
+        await _get_valid_built_corpus_index(
+            simulation.corpus_id,
+            simulation_data.corpus_index_id,
+            session,
+        )
+    if simulation_data.coach_prompt_id is not None:
+        await _get_prompt_template(simulation_data.coach_prompt_id, "coach", session)
+    if simulation_data.counterpart_prompt_id is not None:
+        await _get_prompt_template(
+            simulation_data.counterpart_prompt_id,
+            "counterpart",
+            session,
+        )
+    if simulation_data.evaluator_prompt_id is not None:
+        await _get_prompt_template(
+            simulation_data.evaluator_prompt_id,
+            "evaluator",
+            session,
+        )
     simulation_in = SimulationUpdate(**simulation_data.model_dump(exclude_unset=True))
     updated_simulation = await simulations_repo.update_simulation(
         simulation,
@@ -480,7 +988,8 @@ async def start_simulation_srvc(
     if simulation.status != "created":
         raise ValueError("Only created simulations can be started")
 
-    state = _initial_graph_state(simulation, start_data, current_user)
+    runtime_context = await _load_simulation_runtime_context(simulation, session)
+    state = _initial_graph_state(simulation, start_data, current_user, runtime_context)
     update_in = SimulationUpdate(
         status="active",
         negotiation_state=_state_schema_from_graph_state(state),
@@ -531,7 +1040,7 @@ async def submit_simulation_turn_srvc(
     if turn_data.current_offer:
         state["current_offer"] = _json_safe(turn_data.current_offer)
 
-    graph = negotiation_graph or get_compiled_negotiation_graph()
+    graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
     graph_state = _json_safe(graph.invoke(state))
     next_status = _status_after_graph(graph_state)
     update_in = SimulationUpdate(
@@ -591,6 +1100,37 @@ async def cancel_simulation_srvc(
     updated_simulation = await simulations_repo.update_simulation_status(
         simulation,
         SimulationStatusUpdate(status="cancelled"),
+        session,
+    )
+    return _read_simulation(updated_simulation)
+
+
+async def review_simulation_srvc(
+    simulation: Simulation,
+    review_data: SimulationTeacherReviewRequest,
+    session: AsyncSession,
+    current_teacher: User,
+) -> SimulationRead:
+    """
+    Store a teacher review for a simulation.
+    Args:
+        simulation: The simulation instance to review.
+        review_data: The data for the teacher review, including feedback.
+        session: The database session.
+        current_teacher: The teacher submitting the review.
+    Returns:
+        A SimulationRead containing the updated simulation with the review.
+     Raises:
+        ValueError: If the current user is not a teacher or if the review 
+        cannot be submitted due to the simulation's current status.
+    """
+    review_in = SimulationTeacherReview(
+        teacher_id=current_teacher.id,
+        teacher_feedback=review_data.teacher_feedback,
+    )
+    updated_simulation = await simulations_repo.review_simulation(
+        simulation,
+        review_in,
         session,
     )
     return _read_simulation(updated_simulation)

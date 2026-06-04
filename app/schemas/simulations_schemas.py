@@ -28,6 +28,10 @@ class SimulationBase(SQLModel):
 
 class SimulationCreateRequest(SimulationBase):
     corpus_id: int
+    corpus_index_id: int
+    coach_prompt_id: int | None = None
+    counterpart_prompt_id: int | None = None
+    evaluator_prompt_id: int | None = None
     session_id: int | None = None
     user_id_participant: int | None = None
     scenario_id: int | None = None
@@ -38,6 +42,10 @@ class SimulationCreateRequest(SimulationBase):
 class SimulationCreate(SimulationBase):
     user_id_owner: int
     corpus_id: int
+    corpus_index_id: int
+    coach_prompt_id: int | None = None
+    counterpart_prompt_id: int | None = None
+    evaluator_prompt_id: int | None = None
     session_id: int | None = None
     user_id_participant: int | None = None
     scenario_id: int | None = None
@@ -53,6 +61,10 @@ class SimulationRead(SimulationBase):
     user_id_participant: int | None = None
     scenario_id: int | None = None
     corpus_id: int
+    corpus_index_id: int
+    coach_prompt_id: int | None = None
+    counterpart_prompt_id: int | None = None
+    evaluator_prompt_id: int | None = None
     counter_part_side_persona_id: int | None = None
     user_side: str | None = None
     teacher_reviewed: bool
@@ -75,6 +87,10 @@ class SimulationUpdate(SQLModel):
     session_id: int | None = None
     user_id_participant: int | None = None
     scenario_id: int | None = None
+    corpus_index_id: int | None = None
+    coach_prompt_id: int | None = None
+    counterpart_prompt_id: int | None = None
+    evaluator_prompt_id: int | None = None
     counter_part_side_persona_id: int | None = None
     user_side: SimulationSide | None = None
     negotiation_state: NegotiationStateSchema | None = None
@@ -88,6 +104,10 @@ class SimulationUpdateRequest(SQLModel):
     session_id: int | None = None
     user_id_participant: int | None = None
     scenario_id: int | None = None
+    corpus_index_id: int | None = None
+    coach_prompt_id: int | None = None
+    counterpart_prompt_id: int | None = None
+    evaluator_prompt_id: int | None = None
     counter_part_side_persona_id: int | None = None
     user_side: SimulationSide | None = None
 
@@ -137,6 +157,10 @@ class SimulationTeacherReview(SQLModel):
     teacher_feedback: str | None = None
     teacher_reviewed: bool = True
     reviewed_at: datetime | None = None
+
+
+class SimulationTeacherReviewRequest(SQLModel):
+    teacher_feedback: str = Field(min_length=1)
 
 
 class SimulationReadWithIds(SimulationRead):

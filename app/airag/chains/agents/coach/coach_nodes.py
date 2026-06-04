@@ -107,7 +107,10 @@ def make_call_crag_node(crag_graph: Any):
 	return node_call_crag
 
 
-def make_generate_coach_advice_node(model: Any):
+def make_generate_coach_advice_node(
+	model: Any,
+	prompt_template: str | None = None,
+):
 	"""
 	Factory function to create a node function that generates coach advice 
 	using the specified LLM model, with structured output validation and 
@@ -149,7 +152,7 @@ def make_generate_coach_advice_node(model: Any):
 				"event_log": ["coach:generation_failed"],
 			}
 
-		prompt = render_coach_prompt(state)
+		prompt = render_coach_prompt(state, prompt_template)
 		try:
 			structured_model = model.with_structured_output(CoachAdviceModel)
 			advice = structured_model.invoke(prompt)
@@ -169,7 +172,10 @@ def make_generate_coach_advice_node(model: Any):
 	return node_generate_coach_advice
 
 
-def make_repair_coach_advice_node(model: Any):
+def make_repair_coach_advice_node(
+	model: Any,
+	prompt_template: str | None = None,
+):
 	"""
 	Factory function to create a node function that attempts to repair coach 
 	advice generation failures by re-invoking the model with a focused prompt 
@@ -206,7 +212,7 @@ def make_repair_coach_advice_node(model: Any):
 				"Repair the coach advice output so it satisfies the required schema.",
 				"Return only the structured output. Do not add commentary.",
 				f"Validation or generation error:\n{state.get('coach_validation_error', '')}",
-				f"Original coach prompt:\n{state.get('coach_prompt') or render_coach_prompt(state)}",
+				f"Original coach prompt:\n{state.get('coach_prompt') or render_coach_prompt(state, prompt_template)}",
 			]
 		)
 

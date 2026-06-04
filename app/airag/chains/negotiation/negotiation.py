@@ -65,6 +65,8 @@ class ParentNegotiationRuntimeModel(BaseModel):
 
 	model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
+	simulation_id: str | None = None
+	app_session_id: int | None = None
 	session_id: str | None = None
 	user_id: str | None = None
 	user_side: Side | None = None
@@ -112,6 +114,8 @@ class NegotiationGraphOutputModel(BaseModel):
 class NegotiationGraphState(TypedDict, total=False):
 	"""State consumed and produced by the parent negotiation graph."""
 
+	simulation_id: str
+	app_session_id: int
 	session_id: str
 	user_id: str
 	user_side: Side
@@ -464,17 +468,25 @@ def make_negotiation_graph(
 	coach_model: Any = None,
 	counterpart_model: Any = None,
 	evaluator_model: Any = None,
+	coach_prompt_template: str | None = None,
+	counterpart_prompt_template: str | None = None,
+	evaluator_prompt_template: str | None = None,
 	state_schema: type[NegotiationGraphState] = NegotiationGraphState,
 ):
 	"""Build and compile the parent negotiation orchestrator graph."""
 	coach_graph = coach_graph or make_coach_graph(
 		crag_graph=crag_graph,
 		model=coach_model,
+		prompt_template=coach_prompt_template,
 	)
-	counterpart_graph = counterpart_graph or make_counterpart_graph(model=counterpart_model)
+	counterpart_graph = counterpart_graph or make_counterpart_graph(
+		model=counterpart_model,
+		prompt_template=counterpart_prompt_template,
+	)
 	evaluator_graph = evaluator_graph or make_evaluator_graph(
 		crag_graph=crag_graph,
 		model=evaluator_model,
+		prompt_template=evaluator_prompt_template,
 	)
 
 	negotiation_flow = StateGraph(state_schema)
