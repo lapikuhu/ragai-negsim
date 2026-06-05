@@ -27,5 +27,12 @@ chroma_db/**
 *.bin
 .vscode/settings.json
 
-# .md files
-*.md
+# plans
+plans/
+plans/*
+plans/**
+
+# superpowers
+superpowers/
+superpowers/*
+superpowers/**
