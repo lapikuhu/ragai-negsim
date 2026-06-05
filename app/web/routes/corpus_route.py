@@ -10,16 +10,24 @@ from core.dependencies import (
 )
 from schemas.corpus_schemas import CorpusCreate, CorpusRead
 from schemas.chunking_schemas import CorpusChunkResult
-from schemas.embeddings_schemas import CorpusEmbeddingBuildRequest, CorpusEmbeddingBuildResult
+from schemas.embeddings_schemas import (
+    CorpusEmbeddingBuildQueued,
+    CorpusEmbeddingBuildRequest,
+    CorpusEmbeddingBuildResult,
+)
 from schemas.ingestion_schemas import CorpusIngestResult
 from services.corpus_service import (create_corpus_srvc, 
                                      list_corpora_srvc)
 from services.chunking_service import chunk_corpus_srvc
-from services.embeddings_service import build_corpus_embeddings_srvc
+from services.embeddings_service import (
+    build_corpus_embeddings_srvc,
+    queue_corpus_embedding_build_srvc,
+    run_queued_corpus_embedding_build_srvc,
+)
 from services.ingestion_service import ingest_corpus_srvc
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
-
+# Instantiate the API router for corpus-related endpoints
 router = APIRouter(prefix="/corpora", tags=["corpora"])
 
 ### ------------------------ CREATE CORPUS ------------------------- ###
@@ -94,7 +102,8 @@ async def ingest_corpus(
     Endpoint to ingest and parse all raw documents linked to a corpus.
     Args:
         corpus: The writable corpus to ingest.
-        chunking_profile: The chunking profile to associate with created chunks.
+        chunking_profile: The chunking profile to associate with created 
+            chunks.
         session: The database session to use for persistence.
         options: Query options controlling parsing and chunking.
     Returns:
@@ -127,7 +136,8 @@ async def chunk_corpus(
     Endpoint to chunk already parsed raw documents linked to a corpus.
     Args:
         corpus: The writable corpus to chunk.
-        chunking_profile: The chunking profile to associate with created chunks.
+        chunking_profile: The chunking profile to associate with created 
+            chunks.
         session: The database session to use for persistence.
         options: Query options controlling chunking behavior.
     Returns:
@@ -163,11 +173,15 @@ async def embed_corpus(
     and vector store.
     Args:
         corpus: The writable corpus to embed.
-        chunking_profile: The chunking profile associated with the chunks to embed.
-        vector_store: The vector store record specifying where to store embeddings.
+        chunking_profile: The chunking profile associated with the chunks 
+            to embed.
+        vector_store: The vector store record specifying where to store 
+            embeddings.
         build_in: The parameters for building the corpus embeddings.
-        session: The database session to use for any necessary queries or updates.
-        _admin: The current admin user performing the operation (for authorization).
+        session: The database session to use for any necessary queries or 
+            updates.
+        _admin: The current admin user performing the operation 
+            (for authorization).
     Returns:
         A summary of the embedding build process, including counts of processed 
         chunks and any errors.
@@ -182,3 +196,57 @@ async def embed_corpus(
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+### ---------------------- QUEUE EMBED CORPUS JOB ------------------------- ###
+@router.post(
+    "/{corpus_id}/chunking-profiles/{profile_id}/vector-stores/{vector_store_id}/embed-jobs",
+    response_model=CorpusEmbeddingBuildQueued,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def queue_embed_corpus_job(
+    corpus: WritableCorpusDep,
+    chunking_profile: ChunkingProfileDep,
+    vector_store: VectorStoreRecordDep,
+    build_in: CorpusEmbeddingBuildRequest,
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    _admin: AdminDep,
+) -> CorpusEmbeddingBuildQueued:
+    """
+    Queue a background vector index build for corpus chunks using a selected
+    embedding model and vector store.
+    Args:
+        corpus: The writable corpus to embed.
+        chunking_profile: The chunking profile associated with the chunks 
+            to embed.
+        vector_store: The vector store record specifying where to store 
+            embeddings.
+        build_in: The parameters for building the corpus embeddings.
+        session: The database session to use for any necessary queries or 
+            updates.
+        background_tasks: The background tasks manager to schedule the 
+            embedding build.
+        _admin: The current admin user performing the operation 
+            (for authorization).
+    Returns:
+        The queued embedding build job details.
+    Raises:
+        HTTPException: If the embedding build request is invalid or cannot 
+        be queued.
+    """
+    try:
+        queued = await queue_corpus_embedding_build_srvc(
+            corpus=corpus,
+            chunking_profile=chunking_profile,
+            vector_store=vector_store,
+            build_in=build_in,
+            session=session,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    background_tasks.add_task(
+        run_queued_corpus_embedding_build_srvc,
+        queued.corpus_index_id,
+    )
+    return queued

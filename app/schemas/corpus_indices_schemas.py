@@ -24,6 +24,7 @@ class CorpusIndexRead(CorpusIndexBase):
     chunking_profile_id: int
     status: str
     built_at: datetime | None = None
+    build_error: str | None = None
     created_at: datetime
     last_updated: datetime
 
@@ -35,6 +36,7 @@ class CorpusIndexUpdate(SQLModel):
     embedding_dimensions: int | None = Field(default=None, ge=1)
     vector_namespace: str | None = None
     built_at: datetime | None = None
+    build_error: str | None = None
 
 
 class CorpusIndexMetadataUpdate(SQLModel):

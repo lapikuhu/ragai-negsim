@@ -22,6 +22,7 @@ class CorpusIndex(SQLModel, table=True):
     embedding_dimensions: int | None = Field(default=None, ge=1)
     vector_namespace: str | None = None
     built_at: datetime | None = None
+    build_error: str | None = None
     corpus: "Corpus" = Relationship(back_populates="corpus_indices")
     vector_store: "VectorStore" = Relationship(back_populates="corpus_indices")
     chunking_profile: "ChunkingProfile" = Relationship(back_populates="corpus_indices")

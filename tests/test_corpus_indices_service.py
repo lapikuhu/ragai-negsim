@@ -39,6 +39,7 @@ def _index(
         embedding_dimensions=embedding_dimensions,
         vector_namespace=vector_namespace,
         built_at=built_at,
+        build_error=None,
         created_at=now,
         last_updated=now,
     )
@@ -264,8 +265,35 @@ async def test_update_corpus_index_status_delegates(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_update_corpus_index_status_exposes_build_error(monkeypatch):
+    target = _index(index_id=15, status="building")
+    target.build_error = None
+
+    async def fake_update_corpus_index_status(index, status_in, session):
+        index.status = status_in.status
+        index.build_error = "vector store unavailable"
+        return index
+
+    async def fake_to_corpus_index_read_with_ids(index, session):
+        return _read_with_ids(index)
+
+    monkeypatch.setattr(corpus_indices_service.corpus_indices_repo, "update_corpus_index_status", fake_update_corpus_index_status)
+    monkeypatch.setattr(corpus_indices_service.corpus_indices_repo, "to_corpus_index_read_with_ids", fake_to_corpus_index_read_with_ids)
+
+    result = await corpus_indices_service.update_corpus_index_status_srvc(
+        target,
+        CorpusIndexStatusUpdate(status="failed"),
+        object(),
+    )
+
+    assert result.status == "failed"
+    assert result.build_error == "vector store unavailable"
+
+
+@pytest.mark.asyncio
 async def test_mark_corpus_index_built_delegates(monkeypatch):
     target = _index(index_id=11, status="building")
+    target.build_error = "previous failure"
     built_at = datetime.now(timezone.utc)
     captured = []
 
@@ -273,6 +301,9 @@ async def test_mark_corpus_index_built_delegates(monkeypatch):
         captured.append(build_in)
         index.status = build_in.status
         index.built_at = build_in.built_at
+        index.embedding_dimensions = build_in.embedding_dimensions
+        index.vector_namespace = build_in.vector_namespace
+        index.build_error = None
         return index
 
     async def fake_to_corpus_index_read_with_ids(index, session):
@@ -289,6 +320,7 @@ async def test_mark_corpus_index_built_delegates(monkeypatch):
 
     assert result.status == "built"
     assert result.built_at == built_at
+    assert result.build_error is None
     assert captured == [
         CorpusIndexBuildComplete(
             status="built",

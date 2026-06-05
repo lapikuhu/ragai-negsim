@@ -18,6 +18,25 @@ class CorpusEmbeddingBuildRequest(SQLModel):
     vector_namespace: str | None = None
 
 
+class CorpusEmbeddingBuildQueued(SQLModel):
+    corpus_id: int
+    corpus_index_id: int
+    vector_store_id: int
+    chunking_profile_id: int
+    embedding_model: str
+    embedding_dimensions: int
+    vector_namespace: str
+    status: str = "building"
+    poll_url: str | None = None
+    indexed_chunks_url: str | None = None
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.poll_url is None:
+            self.poll_url = f"/corpus-indices/{self.corpus_index_id}"
+        if self.indexed_chunks_url is None:
+            self.indexed_chunks_url = f"/corpus-indices/{self.corpus_index_id}/indexed-chunks"
+
+
 class IndexedChunkBuildRef(SQLModel):
     document_chunk_id: int
     external_vector_id: str

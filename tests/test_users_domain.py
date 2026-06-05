@@ -220,6 +220,7 @@ def test_users_router_is_mounted_and_static_routes_precede_username_route():
     assert "/chunking-profiles/" in paths
     assert "/chunking-profiles/{profile_id}" in paths
     assert "/chunking-profiles/{profile_id}/copy" in paths
+    assert "/corpora/{corpus_id}/chunking-profiles/{profile_id}/vector-stores/{vector_store_id}/embed-jobs" in paths
     assert "/corpus-indices/" in paths
     assert "/corpus-indices/{index_id}" in paths
     assert "/corpus-indices/{index_id}/indexed-chunks" in paths
