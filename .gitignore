@@ -36,3 +36,11 @@ plans/**
 superpowers/
 superpowers/*
 superpowers/**
+
+# frontend build files
+frontend/node_modules/*
+frontend/node_modules/**
+frontend/dist/*
+frontend/dist/**
+frontend/scripts/*
+frontend/scripts/**

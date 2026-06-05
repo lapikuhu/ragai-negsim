@@ -1,6 +1,6 @@
-# Negotiation Simulator Backend
+# Negotiation Simulator
 
-This project is a FastAPI backend for an educational negotiation simulator. The goal is to let learners practice negotiations against AI-driven counterparts, receive coaching and evaluation, and use curated corpora as grounding material for scenario-specific simulations.
+This project is a FastAPI app for an educational negotiation simulator. The goal is to let learners practice negotiations against AI-driven counterparts, receive coaching and evaluation, and use curated corpora as grounding material for scenario-specific simulations.
 
 The current codebase focuses on the backend foundation for:
 
@@ -246,3 +246,32 @@ The repository currently includes service-level coverage as well as an API-level
 - corpus index queueing
 - simulation start
 - simulation turn submission
+
+## Frontend
+
+A React + Vite frontend now lives in [frontend/README.md](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/README.md:1).
+
+Typical local setup:
+
+1. Start FastAPI from the repository root:
+
+```powershell
+uv run uvicorn app.main:app --reload
+```
+
+2. Start Vite from `frontend/`:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Development URLs:
+
+- Frontend app: `http://localhost:5173/`
+- Backend API: `http://127.0.0.1:8000`
+
+During development, open the frontend in the browser at `http://localhost:5173/`.
+The React app uses the Vite proxy to forward supported relative API requests such as `/users/me` and `/simulations/` to the FastAPI backend at `http://127.0.0.1:8000`.
+You should browse to the frontend URL, not the backend URL, for normal UI work.
