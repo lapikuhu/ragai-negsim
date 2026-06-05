@@ -40,7 +40,7 @@ ragai-negsim/
 |   +-- main.py            # FastAPI application entrypoint
 +-- chroma_db/             # Local Chroma persistence used in development
 +-- docs/                  # Specs and planning notes
-+-- migrations/            # Placeholder for migration scripts
++-- migrations/            # Alembic environment and migration versions
 +-- scripts/               # Local scripts and utilities
 +-- tests/                 # Automated test suite
 +-- pyproject.toml         # Project metadata and dependencies
@@ -91,12 +91,19 @@ Using `uv`:
 uv sync
 ```
 
+If Alembic is not already available in your environment, install it as well:
+
+```powershell
+uv add alembic
+```
+
 If you prefer `pip`:
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+pip install alembic
 ```
 
 ### 3. Configure environment variables
@@ -145,16 +152,35 @@ After the database exists and your `.env` points to it, the FastAPI startup hook
 
 ### Alembic and schema versioning
 
-This repository currently contains a `migrations/` directory placeholder, but it does not yet include committed Alembic runtime files such as `alembic.ini` or `migrations/env.py`.
+This repository now includes:
 
-The intended workflow is:
+- `alembic.ini` at the repo root
+- `migrations/env.py`
+- `migrations/script.py.mako`
+- `migrations/versions/` for generated revision files
+
+The Alembic environment reads the application settings from `.env`, imports the SQLModel metadata from the `app.models` modules, and converts the async application database URL into a synchronous SQLAlchemy URL for migration execution.
+
+Typical workflow:
 
 ```powershell
 alembic revision --autogenerate -m "describe schema change"
 alembic upgrade head
 ```
 
-Use that workflow once Alembic is initialized in your local environment or added to the repository. The backend startup code in [app/db/db.py](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/app/db/db.py:73) assumes the schema has already been created and migrated before the app starts.
+To roll back one revision:
+
+```powershell
+alembic downgrade -1
+```
+
+To inspect the current revision:
+
+```powershell
+alembic current
+```
+
+The backend startup code in [app/db/db.py](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/app/db/db.py:73) assumes the schema has already been created and migrated before the app starts.
 
 ## Starting FastAPI
 
