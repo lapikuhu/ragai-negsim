@@ -5,14 +5,17 @@ from app.core.config import settings
 from fastapi.security import OAuth2PasswordBearer
 
 # Setup password hashing context using passlib
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["argon2"], #bcrypt supports only very small passwords
+    deprecated="auto",
+)
 
 # OAuth2 scheme for token-based authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 
 
 def hash_password(raw: str) -> str:
-    """"Hash a raw password using bcrypt.
+    """"Hash a raw password using the configured hashing schemes.
     Args:
         raw (str): The raw password to hash.
     Returns:

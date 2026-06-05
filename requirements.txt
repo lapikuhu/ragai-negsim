@@ -1,197 +1,1243 @@
 accelerate==1.13.0
+    # via
+    #   docling
+    #   docling-ibm-models
+    #   ragai-negsim
 aiohappyeyeballs==2.6.1
+    # via
+    #   aiohttp
+    #   ragai-negsim
 aiohttp==3.13.5
+    # via
+    #   kubernetes
+    #   langchain-community
+    #   llama-index-core
+    #   ragai-negsim
 aiosignal==1.4.0
+    # via
+    #   aiohttp
+    #   ragai-negsim
 aiosqlite==0.22.1
+    # via
+    #   llama-index-core
+    #   ragai-negsim
+alembic==1.18.4
+    # via ragai-negsim
 annotated-doc==0.0.4
+    # via
+    #   fastapi
+    #   ragai-negsim
+    #   typer
 annotated-types==0.7.0
+    # via
+    #   pydantic
+    #   ragai-negsim
 antlr4-python3-runtime==4.9.3
+    # via
+    #   omegaconf
+    #   ragai-negsim
 anyio==4.13.0
+    # via
+    #   httpx
+    #   openai
+    #   ragai-negsim
+    #   starlette
+    #   watchfiles
+appnope==0.1.4 ; sys_platform == 'darwin'
+    # via ipykernel
+argon2-cffi==25.1.0
+    # via ragai-negsim
+argon2-cffi-bindings==25.1.0
+    # via argon2-cffi
 asttokens==3.0.1
+    # via
+    #   ragai-negsim
+    #   stack-data
+asyncpg==0.31.0
+    # via langchain-postgres
 attrs==26.1.0
+    # via
+    #   aiohttp
+    #   jsonlines
+    #   jsonschema
+    #   ragai-negsim
+    #   referencing
 banks==2.4.2
+    # via
+    #   llama-index-core
+    #   ragai-negsim
+bcrypt==4.0.1
+    # via chromadb
 beautifulsoup4==4.14.3
+    # via
+    #   docling
+    #   ragai-negsim
+build==1.5.0
+    # via chromadb
 certifi==2026.2.25
+    # via
+    #   docling
+    #   httpcore
+    #   httpx
+    #   kubernetes
+    #   ragai-negsim
+    #   requests
+cffi==2.0.0
+    # via
+    #   argon2-cffi-bindings
+    #   pyzmq
 charset-normalizer==3.4.7
+    # via
+    #   ragai-negsim
+    #   requests
+chromadb==1.5.9
+    # via langchain-chroma
 click==8.3.2
+    # via
+    #   nltk
+    #   ocrmac
+    #   ragai-negsim
+    #   typer
+    #   uvicorn
 colorama==0.4.6
+    # via
+    #   build
+    #   click
+    #   colorlog
+    #   griffecli
+    #   ipython
+    #   pytest
+    #   ragai-negsim
+    #   tqdm
+    #   uvicorn
 colorlog==6.10.1
+    # via
+    #   ragai-negsim
+    #   rapidocr
 comm==0.2.3
+    # via
+    #   ipykernel
+    #   ragai-negsim
+cuda-bindings==13.3.0 ; sys_platform == 'linux'
+    # via torch
+cuda-pathfinder==1.5.5 ; sys_platform == 'linux'
+    # via cuda-bindings
+cuda-toolkit==13.0.2 ; sys_platform == 'linux'
+    # via torch
 dataclasses-json==0.6.7
+    # via
+    #   langchain-community
+    #   llama-index-core
+    #   ragai-negsim
 debugpy==1.8.20
+    # via
+    #   ipykernel
+    #   ragai-negsim
 decorator==5.2.1
+    # via
+    #   ipython
+    #   ragai-negsim
 defusedxml==0.7.1
-Deprecated==1.3.1
+    # via
+    #   docling
+    #   docling-core
+    #   ragai-negsim
+deprecated==1.3.1
+    # via
+    #   banks
+    #   llama-index-core
+    #   llama-index-instrumentation
+    #   ragai-negsim
 dill==0.4.1
+    # via
+    #   multiprocess
+    #   ragai-negsim
 dirtyjson==1.0.8
+    # via
+    #   llama-index-core
+    #   ragai-negsim
 distro==1.9.0
+    # via
+    #   openai
+    #   ragai-negsim
 docling==2.88.0
+    # via
+    #   langchain-docling
+    #   ragai-negsim
 docling-core==2.73.0
+    # via
+    #   docling
+    #   docling-ibm-models
+    #   docling-parse
+    #   ragai-negsim
 docling-ibm-models==3.13.0
+    # via
+    #   docling
+    #   ragai-negsim
 docling-parse==5.8.0
-et_xmlfile==2.0.0
+    # via
+    #   docling
+    #   ragai-negsim
+durationpy==0.10
+    # via kubernetes
+ecdsa==0.19.2
+    # via python-jose
+et-xmlfile==2.0.0
+    # via
+    #   openpyxl
+    #   ragai-negsim
 executing==2.2.1
-Faker==40.13.0
+    # via
+    #   ragai-negsim
+    #   stack-data
+faiss-cpu==1.14.2
+    # via ragai-negsim
+faker==40.13.0
+    # via
+    #   polyfactory
+    #   ragai-negsim
+fastapi==0.136.3
+    # via ragai-negsim
 filelock==3.25.2
+    # via
+    #   huggingface-hub
+    #   ragai-negsim
+    #   torch
 filetype==1.2.0
+    # via
+    #   banks
+    #   docling
+    #   llama-index-core
+    #   ragai-negsim
+flatbuffers==25.12.19
+    # via onnxruntime
 frozenlist==1.8.0
+    # via
+    #   aiohttp
+    #   aiosignal
+    #   ragai-negsim
 fsspec==2026.3.0
+    # via
+    #   huggingface-hub
+    #   llama-index-core
+    #   ragai-negsim
+    #   torch
+googleapis-common-protos==1.75.0
+    # via opentelemetry-exporter-otlp-proto-grpc
 greenlet==3.5.0
+    # via
+    #   ragai-negsim
+    #   sqlalchemy
 griffe==2.0.2
+    # via
+    #   banks
+    #   ragai-negsim
 griffecli==2.0.2
+    # via
+    #   griffe
+    #   ragai-negsim
 griffelib==2.0.2
+    # via
+    #   griffe
+    #   griffecli
+    #   ragai-negsim
+grpcio==1.80.0
+    # via
+    #   chromadb
+    #   opentelemetry-exporter-otlp-proto-grpc
 h11==0.16.0
+    # via
+    #   httpcore
+    #   ragai-negsim
+    #   uvicorn
 hf-xet==1.4.3
+    # via
+    #   huggingface-hub
+    #   ragai-negsim
 httpcore==1.0.9
+    # via
+    #   httpx
+    #   ragai-negsim
+httptools==0.8.0
+    # via uvicorn
 httpx==0.28.1
+    # via
+    #   chromadb
+    #   docling
+    #   huggingface-hub
+    #   langgraph-sdk
+    #   langsmith
+    #   llama-index-core
+    #   ollama
+    #   openai
+    #   ragai-negsim
 httpx-sse==0.4.3
-huggingface_hub==1.10.2
+    # via
+    #   langchain-community
+    #   ragai-negsim
+huggingface-hub==1.10.2
+    # via
+    #   accelerate
+    #   docling
+    #   docling-ibm-models
+    #   langchain-huggingface
+    #   ragai-negsim
+    #   sentence-transformers
+    #   tokenizers
+    #   transformers
 idna==3.11
+    # via
+    #   anyio
+    #   httpx
+    #   ragai-negsim
+    #   requests
+    #   yarl
+importlib-resources==7.1.0
+    # via chromadb
 iniconfig==2.3.0
+    # via
+    #   pytest
+    #   ragai-negsim
 ipykernel==7.2.0
+    # via ragai-negsim
 ipython==9.12.0
-ipython_pygments_lexers==1.1.1
+    # via
+    #   ipykernel
+    #   ragai-negsim
+ipython-pygments-lexers==1.1.1
+    # via
+    #   ipython
+    #   ragai-negsim
 jedi==0.19.2
-Jinja2==3.1.6
+    # via
+    #   ipython
+    #   ragai-negsim
+jinja2==3.1.6
+    # via
+    #   banks
+    #   ragai-negsim
+    #   torch
 jiter==0.14.0
+    # via
+    #   openai
+    #   ragai-negsim
 joblib==1.5.3
+    # via
+    #   nltk
+    #   ragai-negsim
+    #   scikit-learn
 jsonlines==4.0.0
+    # via
+    #   docling-ibm-models
+    #   ragai-negsim
 jsonpatch==1.33
+    # via
+    #   langchain-core
+    #   ragai-negsim
 jsonpointer==3.1.1
+    # via
+    #   jsonpatch
+    #   ragai-negsim
 jsonref==1.1.0
+    # via
+    #   docling-core
+    #   ragai-negsim
 jsonschema==4.26.0
+    # via
+    #   chromadb
+    #   docling-core
+    #   ragai-negsim
 jsonschema-specifications==2025.9.1
-jupyter_client==8.8.0
-jupyter_core==5.9.1
+    # via
+    #   jsonschema
+    #   ragai-negsim
+jupyter-client==8.8.0
+    # via
+    #   ipykernel
+    #   ragai-negsim
+jupyter-core==5.9.1
+    # via
+    #   ipykernel
+    #   jupyter-client
+    #   ragai-negsim
+kubernetes==36.0.1
+    # via chromadb
 langchain==1.3.1
+    # via ragai-negsim
+langchain-chroma==1.1.0
+    # via ragai-negsim
 langchain-classic==1.0.7
+    # via
+    #   langchain-community
+    #   ragai-negsim
 langchain-community==0.4.1
+    # via
+    #   langchain-experimental
+    #   ragai-negsim
 langchain-core==1.4.0
+    # via
+    #   langchain
+    #   langchain-chroma
+    #   langchain-classic
+    #   langchain-community
+    #   langchain-docling
+    #   langchain-experimental
+    #   langchain-huggingface
+    #   langchain-ollama
+    #   langchain-openai
+    #   langchain-postgres
+    #   langchain-text-splitters
+    #   langgraph
+    #   langgraph-checkpoint
+    #   langgraph-prebuilt
+    #   ragai-negsim
+langchain-docling==2.0.0
+    # via ragai-negsim
 langchain-experimental==0.4.1
+    # via ragai-negsim
+langchain-huggingface==1.2.2
+    # via ragai-negsim
 langchain-ollama==1.1.0
+    # via ragai-negsim
+langchain-openai==1.2.2
+    # via ragai-negsim
+langchain-postgres==0.0.17
+    # via ragai-negsim
 langchain-protocol==0.0.15
+    # via
+    #   langchain-core
+    #   ragai-negsim
 langchain-text-splitters==1.1.2
+    # via
+    #   langchain-classic
+    #   ragai-negsim
 langgraph==1.2.0
+    # via
+    #   langchain
+    #   ragai-negsim
 langgraph-checkpoint==4.1.0
+    # via
+    #   langgraph
+    #   langgraph-prebuilt
+    #   ragai-negsim
 langgraph-prebuilt==1.1.0
+    # via
+    #   langgraph
+    #   ragai-negsim
 langgraph-sdk==0.3.13
+    # via
+    #   langgraph
+    #   ragai-negsim
 langsmith==0.7.32
+    # via
+    #   langchain-classic
+    #   langchain-community
+    #   langchain-core
+    #   ragai-negsim
 latex2mathml==3.80.0
+    # via
+    #   docling-core
+    #   ragai-negsim
 llama-index==0.14.22
+    # via ragai-negsim
 llama-index-core==0.14.22
+    # via
+    #   llama-index
+    #   llama-index-embeddings-ollama
+    #   llama-index-embeddings-openai
+    #   llama-index-graph-stores-neo4j
+    #   llama-index-llms-ollama
+    #   llama-index-llms-openai
+    #   ragai-negsim
 llama-index-embeddings-ollama==0.9.0
+    # via ragai-negsim
 llama-index-embeddings-openai==0.6.0
+    # via
+    #   llama-index
+    #   ragai-negsim
+llama-index-graph-stores-neo4j==0.7.0
+    # via ragai-negsim
 llama-index-instrumentation==0.5.0
+    # via
+    #   llama-index-workflows
+    #   ragai-negsim
 llama-index-llms-ollama==0.10.1
+    # via ragai-negsim
 llama-index-llms-openai==0.7.8
+    # via
+    #   llama-index
+    #   ragai-negsim
 llama-index-workflows==2.20.0
+    # via
+    #   llama-index-core
+    #   ragai-negsim
 lxml==6.0.4
+    # via
+    #   docling
+    #   python-docx
+    #   python-pptx
+    #   ragai-negsim
+mako==1.3.12
+    # via alembic
 markdown-it-py==4.0.0
+    # via
+    #   ragai-negsim
+    #   rich
 marko==2.2.2
-MarkupSafe==3.0.3
+    # via
+    #   docling
+    #   ragai-negsim
+markupsafe==3.0.3
+    # via
+    #   jinja2
+    #   mako
+    #   ragai-negsim
 marshmallow==3.26.2
+    # via
+    #   dataclasses-json
+    #   ragai-negsim
 matplotlib-inline==0.2.1
+    # via
+    #   ipykernel
+    #   ipython
+    #   ragai-negsim
 mdurl==0.1.2
+    # via
+    #   markdown-it-py
+    #   ragai-negsim
+mmh3==5.2.1
+    # via chromadb
 mpire==2.10.2
+    # via
+    #   ragai-negsim
+    #   semchunk
 mpmath==1.3.0
+    # via
+    #   ragai-negsim
+    #   sympy
 multidict==6.7.1
+    # via
+    #   aiohttp
+    #   ragai-negsim
+    #   yarl
 multiprocess==0.70.19
-mypy_extensions==1.1.0
-neo4j==6.2.0
+    # via
+    #   mpire
+    #   ragai-negsim
+mypy-extensions==1.1.0
+    # via
+    #   ragai-negsim
+    #   typing-inspect
+neo4j==5.28.4
+    # via
+    #   llama-index-graph-stores-neo4j
+    #   ragai-negsim
 nest-asyncio==1.6.0
+    # via
+    #   ipykernel
+    #   llama-index-core
+    #   ragai-negsim
 networkx==3.6.1
+    # via
+    #   llama-index-core
+    #   ragai-negsim
+    #   torch
 nltk==3.9.4
+    # via
+    #   llama-index
+    #   llama-index-core
+    #   ragai-negsim
 numpy==2.4.4
+    # via
+    #   accelerate
+    #   chromadb
+    #   docling-ibm-models
+    #   faiss-cpu
+    #   langchain-chroma
+    #   langchain-community
+    #   langchain-postgres
+    #   llama-index-core
+    #   onnxruntime
+    #   opencv-python
+    #   pandas
+    #   pgvector
+    #   ragai-negsim
+    #   rapidocr
+    #   safetensors
+    #   scikit-learn
+    #   scipy
+    #   sentence-transformers
+    #   shapely
+    #   torchvision
+    #   transformers
+nvidia-cublas==13.1.0.3 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cudnn-cu13
+    #   nvidia-cusolver
+nvidia-cuda-cupti==13.0.85 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cuda-nvrtc==13.0.88 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cuda-runtime==13.0.96 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cudnn-cu13==9.19.0.56 ; sys_platform == 'linux'
+    # via torch
+nvidia-cufft==12.0.0.61 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cufile==1.15.1.6 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-curand==10.4.0.35 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cusolver==12.0.4.66 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cusparse==12.6.3.3 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cusolver
+nvidia-cusparselt-cu13==0.8.0 ; sys_platform == 'linux'
+    # via torch
+nvidia-nccl-cu13==2.28.9 ; sys_platform == 'linux'
+    # via torch
+nvidia-nvjitlink==13.0.88 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cufft
+    #   nvidia-cusolver
+    #   nvidia-cusparse
+nvidia-nvshmem-cu13==3.4.5 ; sys_platform == 'linux'
+    # via torch
+nvidia-nvtx==13.0.85 ; sys_platform == 'linux'
+    # via cuda-toolkit
+oauthlib==3.3.1
+    # via requests-oauthlib
+ocrmac==1.0.1 ; sys_platform == 'darwin'
+    # via docling
 ollama==0.6.1
+    # via
+    #   langchain-ollama
+    #   llama-index-embeddings-ollama
+    #   llama-index-llms-ollama
+    #   ragai-negsim
 omegaconf==2.3.0
+    # via
+    #   ragai-negsim
+    #   rapidocr
+onnxruntime==1.26.0
+    # via chromadb
 openai==2.37.0
+    # via
+    #   langchain-openai
+    #   llama-index-embeddings-openai
+    #   llama-index-llms-openai
+    #   ragai-negsim
 opencv-python==4.13.0.92
+    # via
+    #   ragai-negsim
+    #   rapidocr
 openpyxl==3.1.5
+    # via
+    #   docling
+    #   ragai-negsim
+opentelemetry-api==1.42.1
+    # via
+    #   chromadb
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+opentelemetry-exporter-otlp-proto-common==1.42.1
+    # via opentelemetry-exporter-otlp-proto-grpc
+opentelemetry-exporter-otlp-proto-grpc==1.42.1
+    # via chromadb
+opentelemetry-proto==1.42.1
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-grpc
+opentelemetry-sdk==1.42.1
+    # via
+    #   chromadb
+    #   opentelemetry-exporter-otlp-proto-grpc
+opentelemetry-semantic-conventions==0.63b1
+    # via opentelemetry-sdk
 orjson==3.11.8
+    # via
+    #   chromadb
+    #   langgraph-sdk
+    #   langsmith
+    #   ragai-negsim
 ormsgpack==1.12.2
+    # via
+    #   langgraph-checkpoint
+    #   ragai-negsim
+overrides==7.7.0
+    # via chromadb
 packaging==26.0
+    # via
+    #   accelerate
+    #   build
+    #   faiss-cpu
+    #   huggingface-hub
+    #   ipykernel
+    #   langchain-core
+    #   langsmith
+    #   marshmallow
+    #   onnxruntime
+    #   pytest
+    #   ragai-negsim
+    #   safetensors
+    #   transformers
 pandas==3.0.2
+    # via
+    #   docling
+    #   docling-core
+    #   ragai-negsim
 parso==0.8.6
+    # via
+    #   jedi
+    #   ragai-negsim
+passlib==1.7.4
+    # via ragai-negsim
+pexpect==4.9.0 ; sys_platform != 'emscripten' and sys_platform != 'win32'
+    # via ipython
+pgvector==0.3.6
+    # via langchain-postgres
 pillow==12.2.0
+    # via
+    #   docling
+    #   docling-core
+    #   docling-ibm-models
+    #   docling-parse
+    #   llama-index-core
+    #   ocrmac
+    #   python-pptx
+    #   ragai-negsim
+    #   rapidocr
+    #   torchvision
 platformdirs==4.9.6
+    # via
+    #   banks
+    #   jupyter-core
+    #   llama-index-core
+    #   ragai-negsim
 pluggy==1.6.0
+    # via
+    #   docling
+    #   pytest
+    #   ragai-negsim
 polyfactory==3.3.0
-prompt_toolkit==3.0.52
+    # via
+    #   docling
+    #   ragai-negsim
+prompt-toolkit==3.0.52
+    # via
+    #   ipython
+    #   ragai-negsim
 propcache==0.5.2
+    # via
+    #   aiohttp
+    #   ragai-negsim
+    #   yarl
+protobuf==6.33.6
+    # via
+    #   googleapis-common-protos
+    #   onnxruntime
+    #   opentelemetry-proto
 psutil==7.2.2
+    # via
+    #   accelerate
+    #   ipykernel
+    #   ragai-negsim
 psycopg==3.3.3
+    # via
+    #   langchain-postgres
+    #   ragai-negsim
 psycopg-binary==3.3.3
-pure_eval==0.2.3
+    # via
+    #   psycopg
+    #   ragai-negsim
+psycopg-pool==3.3.1
+    # via langchain-postgres
+ptyprocess==0.7.0 ; sys_platform != 'emscripten' and sys_platform != 'win32'
+    # via pexpect
+pure-eval==0.2.3
+    # via
+    #   ragai-negsim
+    #   stack-data
+pyasn1==0.6.3
+    # via
+    #   python-jose
+    #   rsa
+pybase64==1.4.3
+    # via chromadb
 pyclipper==1.4.0
+    # via
+    #   ragai-negsim
+    #   rapidocr
+pycparser==3.0 ; implementation_name != 'PyPy'
+    # via cffi
 pydantic==2.13.0
+    # via
+    #   banks
+    #   chromadb
+    #   docling
+    #   docling-core
+    #   docling-ibm-models
+    #   docling-parse
+    #   fastapi
+    #   langchain
+    #   langchain-classic
+    #   langchain-core
+    #   langgraph
+    #   langsmith
+    #   llama-index-core
+    #   llama-index-instrumentation
+    #   llama-index-workflows
+    #   ollama
+    #   openai
+    #   pydantic-settings
+    #   ragai-negsim
+    #   sqlmodel
+pydantic-core==2.46.0
+    # via
+    #   pydantic
+    #   ragai-negsim
 pydantic-settings==2.13.1
-pydantic_core==2.46.0
-Pygments==2.20.0
+    # via
+    #   chromadb
+    #   docling
+    #   langchain-community
+    #   ragai-negsim
+pygments==2.20.0
+    # via
+    #   ipython
+    #   ipython-pygments-lexers
+    #   mpire
+    #   pytest
+    #   ragai-negsim
+    #   rich
 pylatexenc==2.10
+    # via
+    #   docling
+    #   ragai-negsim
+pyobjc-core==12.1 ; sys_platform == 'darwin'
+    # via
+    #   pyobjc-framework-cocoa
+    #   pyobjc-framework-coreml
+    #   pyobjc-framework-quartz
+    #   pyobjc-framework-vision
+pyobjc-framework-cocoa==12.1 ; sys_platform == 'darwin'
+    # via
+    #   pyobjc-framework-coreml
+    #   pyobjc-framework-quartz
+    #   pyobjc-framework-vision
+pyobjc-framework-coreml==12.1 ; sys_platform == 'darwin'
+    # via pyobjc-framework-vision
+pyobjc-framework-quartz==12.1 ; sys_platform == 'darwin'
+    # via pyobjc-framework-vision
+pyobjc-framework-vision==12.1 ; sys_platform == 'darwin'
+    # via ocrmac
 pypdf==6.10.1
+    # via ragai-negsim
 pypdfium2==5.7.0
+    # via
+    #   docling
+    #   ragai-negsim
+pypika==0.51.1
+    # via chromadb
+pyproject-hooks==1.2.0
+    # via build
 pytest==9.0.3
+    # via
+    #   pytest-asyncio
+    #   ragai-negsim
 pytest-asyncio==1.3.0
+    # via
+    #   llama-index-embeddings-ollama
+    #   ragai-negsim
 python-dateutil==2.9.0.post0
+    # via
+    #   jupyter-client
+    #   kubernetes
+    #   pandas
+    #   ragai-negsim
 python-docx==1.2.0
+    # via
+    #   docling
+    #   ragai-negsim
 python-dotenv==1.2.2
+    # via
+    #   pydantic-settings
+    #   ragai-negsim
+    #   uvicorn
+python-jose==3.5.0
+    # via ragai-negsim
 python-multipart==0.0.30
+    # via ragai-negsim
 python-pptx==1.0.2
+    # via
+    #   docling
+    #   ragai-negsim
 pytz==2026.2
+    # via
+    #   neo4j
+    #   ragai-negsim
 pywin32==311
-PyYAML==6.0.3
+    # via
+    #   docling-parse
+    #   mpire
+    #   ragai-negsim
+pyyaml==6.0.3
+    # via
+    #   accelerate
+    #   chromadb
+    #   docling-core
+    #   huggingface-hub
+    #   kubernetes
+    #   langchain-classic
+    #   langchain-community
+    #   langchain-core
+    #   llama-index-core
+    #   omegaconf
+    #   ragai-negsim
+    #   rapidocr
+    #   transformers
+    #   uvicorn
 pyzmq==27.1.0
+    # via
+    #   ipykernel
+    #   jupyter-client
+    #   ragai-negsim
 rapidocr==3.8.1
+    # via
+    #   docling
+    #   ragai-negsim
 referencing==0.37.0
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
+    #   ragai-negsim
 regex==2026.4.4
+    # via
+    #   nltk
+    #   ragai-negsim
+    #   tiktoken
+    #   transformers
 requests==2.33.1
+    # via
+    #   docling
+    #   kubernetes
+    #   langchain-classic
+    #   langchain-community
+    #   langsmith
+    #   llama-index-core
+    #   ragai-negsim
+    #   rapidocr
+    #   requests-oauthlib
+    #   requests-toolbelt
+    #   tiktoken
+requests-oauthlib==2.0.0
+    # via kubernetes
 requests-toolbelt==1.0.0
+    # via
+    #   langsmith
+    #   ragai-negsim
 rich==15.0.0
+    # via
+    #   chromadb
+    #   ragai-negsim
+    #   typer
 rpds-py==0.30.0
+    # via
+    #   jsonschema
+    #   ragai-negsim
+    #   referencing
+rsa==4.9.1
+    # via python-jose
 rtree==1.4.1
+    # via
+    #   docling
+    #   docling-ibm-models
+    #   ragai-negsim
 safetensors==0.7.0
+    # via
+    #   accelerate
+    #   docling-ibm-models
+    #   ragai-negsim
+    #   transformers
 scikit-learn==1.8.0
+    # via
+    #   ragai-negsim
+    #   sentence-transformers
 scipy==1.17.1
+    # via
+    #   docling
+    #   ragai-negsim
+    #   scikit-learn
+    #   sentence-transformers
 semchunk==3.2.5
+    # via
+    #   docling-core
+    #   ragai-negsim
 sentence-transformers==5.5.0
+    # via ragai-negsim
 setuptools==81.0.0
+    # via
+    #   llama-index-core
+    #   ragai-negsim
+    #   torch
 shapely==2.1.2
+    # via
+    #   ragai-negsim
+    #   rapidocr
 shellingham==1.5.4
+    # via
+    #   ragai-negsim
+    #   typer
 six==1.17.0
+    # via
+    #   ecdsa
+    #   kubernetes
+    #   python-dateutil
+    #   ragai-negsim
+    #   rapidocr
 sniffio==1.3.1
+    # via
+    #   openai
+    #   ragai-negsim
 soupsieve==2.8.3
-SQLAlchemy==2.0.49
+    # via
+    #   beautifulsoup4
+    #   ragai-negsim
+sqlalchemy==2.0.49
+    # via
+    #   alembic
+    #   langchain-classic
+    #   langchain-community
+    #   langchain-postgres
+    #   llama-index-core
+    #   ragai-negsim
+    #   sqlmodel
+sqlmodel==0.0.38
+    # via ragai-negsim
 stack-data==0.6.3
+    # via
+    #   ipython
+    #   ragai-negsim
+starlette==1.2.0
+    # via fastapi
 sympy==1.14.0
+    # via
+    #   ragai-negsim
+    #   torch
 tabulate==0.10.0
+    # via
+    #   docling-core
+    #   docling-parse
+    #   ragai-negsim
 tenacity==9.1.4
+    # via
+    #   chromadb
+    #   langchain-community
+    #   langchain-core
+    #   llama-index-core
+    #   ragai-negsim
 threadpoolctl==3.6.0
+    # via
+    #   ragai-negsim
+    #   scikit-learn
 tiktoken==0.13.0
+    # via
+    #   langchain-openai
+    #   llama-index-core
+    #   ragai-negsim
 tinytag==2.2.1
+    # via
+    #   llama-index-core
+    #   ragai-negsim
 tokenizers==0.22.2
+    # via
+    #   chromadb
+    #   langchain-huggingface
+    #   ragai-negsim
+    #   transformers
 torch==2.11.0
+    # via
+    #   accelerate
+    #   docling
+    #   docling-ibm-models
+    #   ragai-negsim
+    #   safetensors
+    #   sentence-transformers
+    #   torchvision
 torchvision==0.26.0
+    # via
+    #   docling
+    #   docling-ibm-models
+    #   ragai-negsim
 tornado==6.5.5
+    # via
+    #   ipykernel
+    #   jupyter-client
+    #   ragai-negsim
 tqdm==4.67.3
+    # via
+    #   chromadb
+    #   docling
+    #   docling-ibm-models
+    #   huggingface-hub
+    #   llama-index-core
+    #   mpire
+    #   nltk
+    #   openai
+    #   ragai-negsim
+    #   rapidocr
+    #   semchunk
+    #   sentence-transformers
+    #   transformers
 traitlets==5.14.3
+    # via
+    #   ipykernel
+    #   ipython
+    #   jupyter-client
+    #   jupyter-core
+    #   matplotlib-inline
+    #   ragai-negsim
 transformers==5.5.4
+    # via
+    #   docling-core
+    #   docling-ibm-models
+    #   ragai-negsim
+    #   sentence-transformers
 tree-sitter==0.25.2
+    # via
+    #   docling-core
+    #   ragai-negsim
 tree-sitter-c==0.24.1
+    # via
+    #   docling-core
+    #   ragai-negsim
 tree-sitter-javascript==0.25.0
+    # via
+    #   docling-core
+    #   ragai-negsim
 tree-sitter-python==0.25.0
+    # via
+    #   docling-core
+    #   ragai-negsim
 tree-sitter-typescript==0.23.2
+    # via
+    #   docling-core
+    #   ragai-negsim
+triton==3.6.0 ; sys_platform == 'linux'
+    # via torch
 typer==0.21.2
+    # via
+    #   chromadb
+    #   docling
+    #   docling-core
+    #   huggingface-hub
+    #   ragai-negsim
+    #   transformers
+typing-extensions==4.15.0
+    # via
+    #   aiosignal
+    #   alembic
+    #   anyio
+    #   beautifulsoup4
+    #   chromadb
+    #   docling-core
+    #   fastapi
+    #   grpcio
+    #   huggingface-hub
+    #   langchain-core
+    #   langchain-protocol
+    #   llama-index-core
+    #   llama-index-workflows
+    #   openai
+    #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+    #   polyfactory
+    #   psycopg
+    #   psycopg-pool
+    #   pydantic
+    #   pydantic-core
+    #   pytest-asyncio
+    #   python-docx
+    #   python-pptx
+    #   ragai-negsim
+    #   referencing
+    #   sentence-transformers
+    #   sqlalchemy
+    #   sqlmodel
+    #   starlette
+    #   torch
+    #   typing-inspect
+    #   typing-inspection
 typing-inspect==0.9.0
+    # via
+    #   dataclasses-json
+    #   llama-index-core
+    #   ragai-negsim
 typing-inspection==0.4.2
-typing_extensions==4.15.0
+    # via
+    #   fastapi
+    #   pydantic
+    #   pydantic-settings
+    #   ragai-negsim
 tzdata==2026.1
+    # via
+    #   faker
+    #   pandas
+    #   psycopg
+    #   ragai-negsim
 urllib3==2.6.3
-uuid_utils==0.14.1
+    # via
+    #   kubernetes
+    #   ragai-negsim
+    #   requests
+uuid-utils==0.14.1
+    # via
+    #   langchain-core
+    #   langsmith
+    #   ragai-negsim
+uvicorn==0.48.0
+    # via chromadb
+uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
+    # via uvicorn
+watchfiles==1.2.0
+    # via uvicorn
 wcwidth==0.6.0
+    # via
+    #   prompt-toolkit
+    #   ragai-negsim
+websocket-client==1.9.0
+    # via kubernetes
 websockets==16.0
+    # via
+    #   docling
+    #   ragai-negsim
+    #   uvicorn
 wrapt==2.1.2
+    # via
+    #   deprecated
+    #   llama-index-core
+    #   ragai-negsim
 xlsxwriter==3.2.9
+    # via
+    #   python-pptx
+    #   ragai-negsim
 xxhash==3.6.0
+    # via
+    #   langgraph
+    #   langsmith
+    #   ragai-negsim
 yarl==1.23.0
+    # via
+    #   aiohttp
+    #   ragai-negsim
 zstandard==0.25.0
-faiss-cpu
+    # via
+    #   langsmith
+    #   ragai-negsim

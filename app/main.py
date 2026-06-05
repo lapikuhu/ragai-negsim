@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.db import create_db_and_tables
+from app.db.db import startup_seed
 from app.core.config import settings
 from app.web.routes.chunking_profiles_route import router as chunking_profiles_router
 from app.web.routes.counterpart_personas_route import router as counterpart_personas_router
@@ -20,7 +20,7 @@ from app.web.routes.vector_stores_route import router as vector_stores_router
 @asynccontextmanager
 # async context manager for lifespan allows us to run async code during startup and shutdown
 async def lifespan(app: FastAPI):
-    await create_db_and_tables() # setup: seed startup data after Alembic migrations
+    await startup_seed() # setup: seed startup data after Alembic migrations
     
     print("Database setup complete. [OK]")
 

@@ -83,7 +83,7 @@ async def create_admin_if_not_exists():
                 session.add(admin_user)
             await session.commit()
 
-async def create_db_and_tables():
+async def startup_seed():
     """
     Seeds startup data after Alembic has created and migrated the schema.
     """
@@ -125,7 +125,7 @@ def create_neo4j_graph_store():
             the Neo4j graph database.
     """
     from llama_index.graph_stores.neo4j import Neo4jPropertyGraphStore
-
+    
     graph_store = Neo4jPropertyGraphStore(
         username=NEO4J_USERNAME,
         password=NEO4J_PASSWORD,

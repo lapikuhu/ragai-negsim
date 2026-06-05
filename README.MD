@@ -184,6 +184,12 @@ The backend startup code in [app/db/db.py](/c:/Users/iason/Documents/PYTHON_PROJ
 
 ## Starting FastAPI
 
+Day-0 alembic versioning:
+```powershell
+alembic revision --autogenerate -m "initial schema"
+alembic upgrade head
+```
+
 Run the API with the package entrypoint:
 
 ```powershell

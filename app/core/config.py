@@ -12,6 +12,9 @@ class Settings(BaseSettings):
                                       extra="ignore")
 
     ASYNC_DATABASE_URL: str
+    ADMIN_USERNAME: str
+    ADMIN_EMAIL: str
+    ADMIN_PASSWORD: str
     NEO4J_URI: str
     NEO4J_USERNAME: str
     NEO4J_PASSWORD: str
