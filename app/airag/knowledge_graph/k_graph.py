@@ -5,7 +5,7 @@ from langchain_experimental.graph_transformers import LLMGraphTransformer
 from val_schema import ENTITIES, RELATIONS, VALIDATION_SCHEMA
 
 # local imports
-from core.config import settings
+from app.core.config import settings
 ### ---------------------------------------------------------------- ###
 ### Using the LLMGraphTransformer to build a knowledge graph from documents
 # Get the OpenAI API key from the settings
@@ -36,7 +36,7 @@ def build_knowledge_graph(documents: list[Document]) -> nx.Graph:
 ### ---------------------------------------------------------------- ###
 ## -------------------- Neo4j Graph Database Setup ------------------ ##
 
-from db.db import create_neo4j_graph_store
+from app.db.db import create_neo4j_graph_store
 from llama_index.core import SimpleDirectoryReader, PropertyGraphIndex
 from llama_index.core.indices.property_graph import SimpleLLMPathExtractor
 from llama_index.core.indices.property_graph import ImplicitPathExtractor

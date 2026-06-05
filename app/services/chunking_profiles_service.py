@@ -1,8 +1,8 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from models.chunking_profiles import ChunkingProfile
-from repositories import chunking_profiles_repo
-from schemas.chunking_profiles_schemas import (
+from app.models.chunking_profiles import ChunkingProfile
+from app.repositories import chunking_profiles_repo
+from app.schemas.chunking_profiles_schemas import (
     ChunkingProfileCopy,
     ChunkingProfileCreate,
     ChunkingProfileReadWithIds,

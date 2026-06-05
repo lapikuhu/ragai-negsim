@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, status
 
-from core.dependencies import AdminDep, AdminSessionDep, Page, SessionDep
-from schemas.sessions_schemas import (
+from app.core.dependencies import AdminDep, AdminSessionDep, Page, SessionDep
+from app.schemas.sessions_schemas import (
     SessionCreateRequest,
     SessionEnd,
     SessionHeartbeat,
     SessionRead,
     SessionUpdateRequest,
 )
-from services import sessions_service
+from app.services import sessions_service
 
 # Declare the router for session-related endpoints
 router = APIRouter(prefix="/sessions", tags=["sessions"])

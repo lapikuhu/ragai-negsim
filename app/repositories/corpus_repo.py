@@ -1,9 +1,9 @@
-from models.corpus import Corpus
-from models.corpus_indices import CorpusIndex
-from models.raw_documents import CorpusRawDocumentLink
-from models.simulations import Simulation
-from repositories.helpers import commit_and_refresh
-from schemas.corpus_schemas import CorpusCreate, CorpusReadWithIds, CorpusUpdate
+from app.models.corpus import Corpus
+from app.models.corpus_indices import CorpusIndex
+from app.models.raw_documents import CorpusRawDocumentLink
+from app.models.simulations import Simulation
+from app.repositories.helpers import commit_and_refresh
+from app.schemas.corpus_schemas import CorpusCreate, CorpusReadWithIds, CorpusUpdate
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 

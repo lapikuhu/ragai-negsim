@@ -3,11 +3,11 @@ from types import SimpleNamespace
 import pytest
 from fastapi import BackgroundTasks
 
-from schemas.embeddings_schemas import (
+from app.schemas.embeddings_schemas import (
     CorpusEmbeddingBuildQueued,
     CorpusEmbeddingBuildRequest,
 )
-from web.routes import corpus_route
+from app.web.routes import corpus_route
 
 
 @pytest.mark.asyncio

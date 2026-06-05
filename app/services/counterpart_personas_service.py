@@ -1,9 +1,9 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from models.counterpart_personas import CounterPartPersonas
-from models.users import User
-from repositories import counterpart_personas_repo
-from schemas.counterpart_personas_schemas import (
+from app.models.counterpart_personas import CounterPartPersonas
+from app.models.users import User
+from app.repositories import counterpart_personas_repo
+from app.schemas.counterpart_personas_schemas import (
     CounterpartPersonaCopy,
     CounterpartPersonaCopyRequest,
     CounterpartPersonaCreate,

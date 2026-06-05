@@ -1,9 +1,9 @@
 from copy import deepcopy
 from typing import Any
 
-from models.prompts import Prompt
-from repositories.helpers import commit_and_refresh, commit_delete
-from schemas.prompts_schemas import (
+from app.models.prompts import Prompt
+from app.repositories.helpers import commit_and_refresh, commit_delete
+from app.schemas.prompts_schemas import (
     PromptAdminUpdate,
     PromptClone,
     PromptCreate,

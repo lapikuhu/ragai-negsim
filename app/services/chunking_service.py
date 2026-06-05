@@ -1,21 +1,21 @@
 from typing import Protocol
 
-from services.helpers import _persisted_id
+from app.services.helpers import _persisted_id
 from langchain_core.documents import Document
-from models.chunking_profiles import ChunkingProfile
-from models.corpus import Corpus
-from models.raw_documents import RawDocument
-from repositories import corpus_repo, raw_documents_repo
-from repositories.document_chunks_repo import (
+from app.models.chunking_profiles import ChunkingProfile
+from app.models.corpus import Corpus
+from app.models.raw_documents import RawDocument
+from app.repositories import corpus_repo, raw_documents_repo
+from app.repositories.document_chunks_repo import (
     bulk_create_document_chunks,
     list_document_chunks,
 )
-from schemas.chunking_schemas import (
+from app.schemas.chunking_schemas import (
     ChunkPreview,
     CorpusChunkResult,
     RawDocumentChunkResult,
 )
-from schemas.document_chunks_schemas import DocumentChunkCreate
+from app.schemas.document_chunks_schemas import DocumentChunkCreate
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # Protocol based on chunking options used in chunk_raw_document_srvc and chunk_corpus_srvc
@@ -70,7 +70,7 @@ def _chunk_documents(documents: list[Document], options: ChunkingOptionsLike) ->
         ValueError: If the chunker type is unsupported.
     """
     if options.chunker == "recursive":
-        from airag.chunking.chunkers import chunk_document_list_recursive
+        from app.airag.chunking.chunkers import chunk_document_list_recursive
 
         return chunk_document_list_recursive(
             documents,
@@ -80,7 +80,7 @@ def _chunk_documents(documents: list[Document], options: ChunkingOptionsLike) ->
         )
 
     if options.chunker == "semantic":
-        from airag.chunking.chunkers import chunk_document_list_semantic
+        from app.airag.chunking.chunkers import chunk_document_list_semantic
 
         return chunk_document_list_semantic(
             documents,

@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, status
 
-from core.dependencies import (
+from app.core.dependencies import (
     AdminCorpusIndexDep,
     CorpusIndexAdminDep,
     Page,
     SessionDep,
 )
-from schemas.corpus_indices_schemas import (
+from app.schemas.corpus_indices_schemas import (
     CorpusIndexBuildComplete,
     CorpusIndexCopy,
     CorpusIndexCreate,
@@ -15,7 +15,7 @@ from schemas.corpus_indices_schemas import (
     CorpusIndexReadWithIndexedChunks,
     CorpusIndexStatusUpdate,
 )
-from services import corpus_indices_service
+from app.services import corpus_indices_service
 
 # Instantiate the router for corpus indices endpoints
 router = APIRouter(prefix="/corpus-indices", tags=["corpus-indices"])

@@ -2,9 +2,9 @@ from fastapi import HTTPException, status
 from jose import JWTError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from models.users import User
-from repositories import users_repo
-from core.security import decode_access_token
+from app.models.users import User
+from app.repositories import users_repo
+from app.core.security import decode_access_token
 
 # Used by the auth deps to get the current user based on the token, 
 async def get_current_user(token: str, session: AsyncSession) -> User:

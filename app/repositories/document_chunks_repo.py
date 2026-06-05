@@ -3,13 +3,13 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
-from models.chunking_profiles import ChunkingProfile
-from models.document_chunks import DocumentChunk
-from models.indexed_chunks import IndexedChunk
-from models.raw_documents import CorpusRawDocumentLink
-from models.raw_documents import RawDocument
-from repositories.helpers import commit_and_refresh, commit_delete, utc_now
-from schemas.document_chunks_schemas import (
+from app.models.chunking_profiles import ChunkingProfile
+from app.models.document_chunks import DocumentChunk
+from app.models.indexed_chunks import IndexedChunk
+from app.models.raw_documents import CorpusRawDocumentLink
+from app.models.raw_documents import RawDocument
+from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
+from app.schemas.document_chunks_schemas import (
     DocumentChunkCreate,
     DocumentChunkIndexedChunkRead,
     DocumentChunkReadWithIds,

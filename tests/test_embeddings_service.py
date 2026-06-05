@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from airag.embeddings.embeddings import list_supported_embedding_models
-from schemas.embeddings_schemas import CorpusEmbeddingBuildRequest
-from services import embeddings_service
+from app.airag.embeddings.embeddings import list_supported_embedding_models
+from app.schemas.embeddings_schemas import CorpusEmbeddingBuildRequest
+from app.services import embeddings_service
 
 
 def _corpus(corpus_id=11):
@@ -59,7 +59,7 @@ def test_embedding_catalog_uses_registry():
 
 
 def test_queued_embedding_build_response_contains_poll_links():
-    from schemas.embeddings_schemas import CorpusEmbeddingBuildQueued
+    from app.schemas.embeddings_schemas import CorpusEmbeddingBuildQueued
 
     queued = CorpusEmbeddingBuildQueued(
         corpus_id=11,
@@ -153,8 +153,8 @@ async def test_build_corpus_embeddings_creates_index_and_vector_refs(monkeypatch
     )
     monkeypatch.setattr(embeddings_service, "bulk_create_indexed_chunks", fake_bulk_create)
 
-    from airag.embeddings import embeddings as embeddings_module
-    from airag.vector_stores import vector_stores as vector_stores_module
+    from app.airag.embeddings import embeddings as embeddings_module
+    from app.airag.vector_stores import vector_stores as vector_stores_module
 
     monkeypatch.setattr(
         embeddings_module,
@@ -193,7 +193,7 @@ async def test_build_corpus_embeddings_requires_chunks(monkeypatch):
         fake_list_chunks,
     )
 
-    from airag.embeddings import embeddings as embeddings_module
+    from app.airag.embeddings import embeddings as embeddings_module
 
     monkeypatch.setattr(
         embeddings_module,
@@ -270,8 +270,8 @@ async def test_build_corpus_embeddings_marks_index_failed_on_vector_error(monkey
     )
     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "mark_corpus_index_failed", fake_mark_failed)
 
-    from airag.embeddings import embeddings as embeddings_module
-    from airag.vector_stores import vector_stores as vector_stores_module
+    from app.airag.embeddings import embeddings as embeddings_module
+    from app.airag.vector_stores import vector_stores as vector_stores_module
 
     monkeypatch.setattr(
         embeddings_module,
@@ -320,7 +320,7 @@ async def test_queue_corpus_embedding_build_creates_building_index(monkeypatch):
     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "create_corpus_index", fake_create_index)
     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "set_corpus_index_build_metadata", fake_set_build_metadata)
 
-    from airag.embeddings import embeddings as embeddings_module
+    from app.airag.embeddings import embeddings as embeddings_module
 
     monkeypatch.setattr(
         embeddings_module,
@@ -352,7 +352,7 @@ async def test_queue_corpus_embedding_build_requires_chunks(monkeypatch):
 
     monkeypatch.setattr(embeddings_service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
 
-    from airag.embeddings import embeddings as embeddings_module
+    from app.airag.embeddings import embeddings as embeddings_module
 
     monkeypatch.setattr(
         embeddings_module,

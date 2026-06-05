@@ -2,10 +2,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
-from models.scenarios import Scenario
-from models.simulations import Simulation
-from repositories.helpers import commit_and_refresh, commit_delete, utc_now
-from schemas.scenarios_schemas import (
+from app.models.scenarios import Scenario
+from app.models.simulations import Simulation
+from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
+from app.schemas.scenarios_schemas import (
     ScenarioCopy,
     ScenarioCreate,
     ScenarioReadWithIds,

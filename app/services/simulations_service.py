@@ -6,17 +6,17 @@ from langchain_core.messages import BaseMessage
 from langchain_core.documents import Document
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from airag.chains.negotiation.negotiation import make_negotiation_graph
-from airag.embeddings.embeddings import choose_embedding_model
-from airag.retrieval.retrievers import make_dense_retriever
-from airag.vector_stores.vector_stores import (
+from app.airag.chains.negotiation.negotiation import make_negotiation_graph
+from app.airag.embeddings.embeddings import choose_embedding_model
+from app.airag.retrieval.retrievers import make_dense_retriever
+from app.airag.vector_stores.vector_stores import (
     instantiate_chroma_vector_store,
     instantiate_pgvector_store,
     load_faiss_vector_store,
 )
-from models.simulations import Simulation
-from models.users import User
-from repositories import (
+from app.models.simulations import Simulation
+from app.models.users import User
+from app.repositories import (
     counterpart_personas_repo,
     corpus_indices_repo,
     corpus_repo,
@@ -26,7 +26,7 @@ from repositories import (
     simulations_repo,
     vector_stores_repo,
 )
-from schemas.simulations_schemas import (
+from app.schemas.simulations_schemas import (
     NegotiationStateSchema,
     SimulationCreate,
     SimulationCreateRequest,
@@ -427,7 +427,7 @@ def _make_crag_graph(retriever: Any) -> Any:
     Returns:
         The CRAG graph.
     """
-    from airag.chains.crag.crag import CRAGState, make_crag
+    from app.airag.chains.crag.crag import CRAGState, make_crag
 
     return make_crag(retriever_obj=retriever, state_schema=CRAGState)
 

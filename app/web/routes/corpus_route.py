@@ -1,4 +1,4 @@
-from core.dependencies import (
+from app.core.dependencies import (
     AdminDep,
     ChunkingProfileDep,
     ChunkingOptionsDep,
@@ -8,23 +8,23 @@ from core.dependencies import (
     VectorStoreRecordDep,
     WritableCorpusDep,
 )
-from schemas.corpus_schemas import CorpusCreate, CorpusRead
-from schemas.chunking_schemas import CorpusChunkResult
-from schemas.embeddings_schemas import (
+from app.schemas.corpus_schemas import CorpusCreate, CorpusRead
+from app.schemas.chunking_schemas import CorpusChunkResult
+from app.schemas.embeddings_schemas import (
     CorpusEmbeddingBuildQueued,
     CorpusEmbeddingBuildRequest,
     CorpusEmbeddingBuildResult,
 )
-from schemas.ingestion_schemas import CorpusIngestResult
-from services.corpus_service import (create_corpus_srvc, 
+from app.schemas.ingestion_schemas import CorpusIngestResult
+from app.services.corpus_service import (create_corpus_srvc, 
                                      list_corpora_srvc)
-from services.chunking_service import chunk_corpus_srvc
-from services.embeddings_service import (
+from app.services.chunking_service import chunk_corpus_srvc
+from app.services.embeddings_service import (
     build_corpus_embeddings_srvc,
     queue_corpus_embedding_build_srvc,
     run_queued_corpus_embedding_build_srvc,
 )
-from services.ingestion_service import ingest_corpus_srvc
+from app.services.ingestion_service import ingest_corpus_srvc
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 # Instantiate the API router for corpus-related endpoints

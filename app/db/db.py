@@ -5,10 +5,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # Local imports
-from models.user_roles import Role, UserRoleLink
-from models.users import User
-from core.security import get_password_hash
-from core.config import settings
+from app.models.user_roles import Role, UserRoleLink
+from app.models.users import User
+from app.core.security import get_password_hash
+from app.core.config import settings
 
 ### ---------------------------------------------------------------- ###
 ## ------------------- PostgreSQL Database Setup ------------------- ###

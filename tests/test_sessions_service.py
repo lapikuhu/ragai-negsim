@@ -3,14 +3,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from schemas.sessions_schemas import (
+from app.schemas.sessions_schemas import (
     SessionCreate,
     SessionCreateRequest,
     SessionEnd,
     SessionHeartbeat,
     SessionUpdateRequest,
 )
-from services import sessions_service
+from app.services import sessions_service
 
 
 def _user(user_id=1, roles=None):

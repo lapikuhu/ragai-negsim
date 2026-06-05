@@ -1,8 +1,8 @@
-from models.document_chunks import DocumentChunk
-from models.raw_documents import CorpusRawDocumentLink, RawDocument
-from repositories.helpers import commit_and_refresh
+from app.models.document_chunks import DocumentChunk
+from app.models.raw_documents import CorpusRawDocumentLink, RawDocument
+from app.repositories.helpers import commit_and_refresh
 from datetime import datetime, timezone
-from schemas.raw_documents_schemas import (
+from app.schemas.raw_documents_schemas import (
     CorpusRawDocumentLinkCreate,
     CorpusRawDocumentLinkDelete,
     RawDocumentCreateDb,

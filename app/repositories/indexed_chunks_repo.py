@@ -3,11 +3,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
-from models.corpus_indices import CorpusIndex
-from models.document_chunks import DocumentChunk
-from models.indexed_chunks import IndexedChunk
-from repositories.helpers import commit_and_refresh, commit_delete
-from schemas.indexed_chunks_schemas import (
+from app.models.corpus_indices import CorpusIndex
+from app.models.document_chunks import DocumentChunk
+from app.models.indexed_chunks import IndexedChunk
+from app.repositories.helpers import commit_and_refresh, commit_delete
+from app.schemas.indexed_chunks_schemas import (
     IndexedChunkCreate,
     IndexedChunkCreateMany,
     IndexedChunkUpdate,

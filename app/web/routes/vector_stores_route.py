@@ -1,19 +1,19 @@
 from fastapi import APIRouter, HTTPException, status
 
-from core.dependencies import (
+from app.core.dependencies import (
     AdminVectorStoreDep,
     Page,
     SessionDep,
     VectorStoreAdminDep,
 )
-from schemas.vector_stores_schemas import (
+from app.schemas.vector_stores_schemas import (
     VectorStoreBackend,
     VectorStoreConnectionUpdate,
     VectorStoreCreate,
     VectorStoreReadWithIds,
     VectorStoreUpdate,
 )
-from services import vector_stores_service
+from app.services import vector_stores_service
 
 # Register the router with a prefix and tags for grouping in API docs
 router = APIRouter(prefix="/vector-stores", tags=["vector-stores"])

@@ -28,7 +28,7 @@ def cross_encoder_rerank(question: str,
 
 ### ----------------------- COHERE Reranking ---------------------- ###
 
-from core.config import settings
+from app.core.config import settings
 COHERE_API_KEY = settings.COHERE_API_KEY
 
 def  make_cohere_reranker(base_retriever,

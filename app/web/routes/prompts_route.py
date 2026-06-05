@@ -1,13 +1,13 @@
 from fastapi import APIRouter, HTTPException, status
 
-from core.dependencies import AdminDep, AdminPromptDep, Page, SessionDep
-from schemas.prompts_schemas import (
+from app.core.dependencies import AdminDep, AdminPromptDep, Page, SessionDep
+from app.schemas.prompts_schemas import (
     PromptAdminUpdate,
     PromptClone,
     PromptCreate,
     PromptRead,
 )
-from services import prompts_service
+from app.services import prompts_service
 
 # Register the router for prompt-related endpoints
 router = APIRouter(prefix="/prompts", tags=["prompts"])

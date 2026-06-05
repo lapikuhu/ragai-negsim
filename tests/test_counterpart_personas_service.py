@@ -3,13 +3,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from schemas.counterpart_personas_schemas import (
+from app.schemas.counterpart_personas_schemas import (
     CounterpartPersonaCopyRequest,
     CounterpartPersonaCreateRequest,
     CounterpartPersonaReadWithIds,
     CounterpartPersonaUpdateRequest,
 )
-from services import counterpart_personas_service
+from app.services import counterpart_personas_service
 
 
 def _user(user_id=1):

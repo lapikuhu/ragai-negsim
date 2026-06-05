@@ -4,7 +4,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 
 # local imports
-from core.config import settings
+from app.core.config import settings
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 
 EmbeddingModelName = Literal["mini-l6-v2", "bge-base", "text-embedding-3-small"]

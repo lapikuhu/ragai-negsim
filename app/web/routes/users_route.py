@@ -7,8 +7,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from core.dependencies import AdminDep, CurrentUserDep, Page, SessionDep
-from schemas.users_schemas import (
+from app.core.dependencies import AdminDep, CurrentUserDep, Page, SessionDep
+from app.schemas.users_schemas import (
     RoleRead,
     Token,
     UserCreate,
@@ -17,7 +17,7 @@ from schemas.users_schemas import (
     UserRead,
     UserUpdate,
 )
-from services import users_service
+from app.services import users_service
 
 # Create the router for the users domain endpoints.
 router = APIRouter(prefix="/users", tags=["users"])

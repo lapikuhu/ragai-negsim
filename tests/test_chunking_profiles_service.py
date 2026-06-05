@@ -3,13 +3,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from schemas.chunking_profiles_schemas import (
+from app.schemas.chunking_profiles_schemas import (
     ChunkingProfileCopy,
     ChunkingProfileCreate,
     ChunkingProfileReadWithIds,
     ChunkingProfileUpdate,
 )
-from services import chunking_profiles_service
+from app.services import chunking_profiles_service
 
 
 def _profile(

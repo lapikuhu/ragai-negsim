@@ -4,7 +4,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 
 # local imports
-from core.config import settings
+from app.core.config import settings
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 
 def hf_mini_l6_v2_embeddings() -> HuggingFaceEmbeddings:

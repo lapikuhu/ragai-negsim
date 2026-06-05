@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from schemas.corpus_indices_schemas import (
+from app.schemas.corpus_indices_schemas import (
     CorpusIndexBuildComplete,
     CorpusIndexCopy,
     CorpusIndexCreate,
@@ -12,7 +12,7 @@ from schemas.corpus_indices_schemas import (
     CorpusIndexReadWithIndexedChunks,
     CorpusIndexStatusUpdate,
 )
-from services import corpus_indices_service
+from app.services import corpus_indices_service
 
 
 def _index(

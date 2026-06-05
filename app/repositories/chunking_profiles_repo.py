@@ -4,11 +4,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
-from models.chunking_profiles import ChunkingProfile
-from models.corpus_indices import CorpusIndex
-from models.document_chunks import DocumentChunk
-from repositories.helpers import commit_and_refresh, commit_delete, utc_now
-from schemas.chunking_profiles_schemas import (
+from app.models.chunking_profiles import ChunkingProfile
+from app.models.corpus_indices import CorpusIndex
+from app.models.document_chunks import DocumentChunk
+from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
+from app.schemas.chunking_profiles_schemas import (
     ChunkingProfileCopy,
     ChunkingProfileCreate,
     ChunkingProfileReadWithIds,

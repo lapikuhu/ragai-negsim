@@ -3,13 +3,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from schemas.vector_stores_schemas import (
+from app.schemas.vector_stores_schemas import (
     VectorStoreConnectionUpdate,
     VectorStoreCreate,
     VectorStoreReadWithIds,
     VectorStoreUpdate,
 )
-from services import vector_stores_service
+from app.services import vector_stores_service
 
 
 def _vector_store(

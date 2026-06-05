@@ -3,7 +3,7 @@ from langchain_ollama import ChatOllama
 
 
 # local imports
-from core.config import settings
+from app.core.config import settings
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 
 def get_openai_llm(model_name: str = "gpt-4o-mini",

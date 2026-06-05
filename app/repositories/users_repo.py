@@ -4,18 +4,18 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
-from core.security import get_password_hash
-from models.corpus import Corpus
-from models.counterpart_personas import CounterPartPersonas
-from models.prompts import Prompt
-from models.raw_documents import RawDocument
-from models.scenarios import Scenario
-from models.sessions import Session as UserSession
-from models.simulations import Simulation
-from models.user_roles import Role, UserRoleLink
-from models.users import User
-from repositories.helpers import commit_and_refresh
-from schemas.users_schemas import UserCreate, UserUpdate
+from app.core.security import get_password_hash
+from app.models.corpus import Corpus
+from app.models.counterpart_personas import CounterPartPersonas
+from app.models.prompts import Prompt
+from app.models.raw_documents import RawDocument
+from app.models.scenarios import Scenario
+from app.models.sessions import Session as UserSession
+from app.models.simulations import Simulation
+from app.models.user_roles import Role, UserRoleLink
+from app.models.users import User
+from app.repositories.helpers import commit_and_refresh
+from app.schemas.users_schemas import UserCreate, UserUpdate
 
 async def get_user_by_id(
     user_id: int,

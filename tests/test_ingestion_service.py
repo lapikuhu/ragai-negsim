@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from services import ingestion_service
+from app.services import ingestion_service
 
 
 @pytest.mark.asyncio

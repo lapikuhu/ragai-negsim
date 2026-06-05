@@ -1,9 +1,9 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from models.prompts import Prompt
-from models.users import User
-from repositories import prompts_repo, users_repo
-from schemas.prompts_schemas import (
+from app.models.prompts import Prompt
+from app.models.users import User
+from app.repositories import prompts_repo, users_repo
+from app.schemas.prompts_schemas import (
     PromptAdminUpdate,
     PromptClone,
     PromptCreate,

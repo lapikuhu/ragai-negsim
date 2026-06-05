@@ -1,18 +1,18 @@
 from fastapi import APIRouter, HTTPException, status
 
-from core.dependencies import (
+from app.core.dependencies import (
     AdminChunkingProfileDep,
     ChunkingProfileAdminDep,
     Page,
     SessionDep,
 )
-from schemas.chunking_profiles_schemas import (
+from app.schemas.chunking_profiles_schemas import (
     ChunkingProfileCopy,
     ChunkingProfileCreate,
     ChunkingProfileReadWithIds,
     ChunkingProfileUpdate,
 )
-from services import chunking_profiles_service
+from app.services import chunking_profiles_service
 
 # Instance of APIRouter for chunking profile related endpoints
 router = APIRouter(prefix="/chunking-profiles", tags=["chunking-profiles"])

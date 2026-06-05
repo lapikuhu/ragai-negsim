@@ -2,19 +2,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from db.db import create_db_and_tables
-from web.routes.chunking_profiles_route import router as chunking_profiles_router
-from web.routes.counterpart_personas_route import router as counterpart_personas_router
-from web.routes.corpus_indices_route import router as corpus_indices_router
-from web.routes.corpus_route import router as corpus_router
-from web.routes.embeddings_route import router as embeddings_router
-from web.routes.prompts_route import router as prompts_router
-from web.routes.raw_documents_route import router as raw_documents_router
-from web.routes.scenarios_route import router as scenarios_router
-from web.routes.sessions_route import router as sessions_router
-from web.routes.simulations_route import router as simulations_router
-from web.routes.users_route import router as users_router
-from web.routes.vector_stores_route import router as vector_stores_router
+from app.db.db import create_db_and_tables
+from app.core.config import settings
+from app.web.routes.chunking_profiles_route import router as chunking_profiles_router
+from app.web.routes.counterpart_personas_route import router as counterpart_personas_router
+from app.web.routes.corpus_indices_route import router as corpus_indices_router
+from app.web.routes.corpus_route import router as corpus_router
+from app.web.routes.embeddings_route import router as embeddings_router
+from app.web.routes.prompts_route import router as prompts_router
+from app.web.routes.raw_documents_route import router as raw_documents_router
+from app.web.routes.scenarios_route import router as scenarios_router
+from app.web.routes.sessions_route import router as sessions_router
+from app.web.routes.simulations_route import router as simulations_router
+from app.web.routes.users_route import router as users_router
+from app.web.routes.vector_stores_route import router as vector_stores_router
 
 @asynccontextmanager
 # async context manager for lifespan allows us to run async code during startup and shutdown
@@ -29,6 +30,14 @@ async def lifespan(app: FastAPI):
 
 # Instantiate the FastAPI application with the lifespan handler
 app = FastAPI(title="Negotiation Simulator", lifespan=lifespan, tags=["app"])
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Register the routers
 app.include_router(users_router)

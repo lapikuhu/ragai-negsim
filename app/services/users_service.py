@@ -8,11 +8,11 @@ from datetime import datetime
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from core.security import create_access_token, verify_password
-from models.users import User
-from repositories import users_repo
-from schemas.users_schemas import UserCreate, UserPasswordChange, UserUpdate
-from services import sessions_service
+from app.core.security import create_access_token, verify_password
+from app.models.users import User
+from app.repositories import users_repo
+from app.schemas.users_schemas import UserCreate, UserPasswordChange, UserUpdate
+from app.services import sessions_service
 
 
 def _role_names_from_loaded_user(user: User) -> set[str]:

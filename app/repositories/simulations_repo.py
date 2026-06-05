@@ -2,8 +2,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
-from models.simulations import Simulation
-from schemas.simulations_schemas import (
+from app.models.simulations import Simulation
+from app.schemas.simulations_schemas import (
     SimulationCreate,
     SimulationMessageAppend,
     SimulationMessagesReplace,
@@ -13,7 +13,7 @@ from schemas.simulations_schemas import (
     SimulationTeacherReview,
     SimulationUpdate,
 )
-from repositories.helpers import commit_and_refresh, commit_delete, utc_now
+from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
 
 ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
     "created": {"active", "cancelled"},

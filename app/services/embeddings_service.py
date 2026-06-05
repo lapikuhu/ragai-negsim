@@ -1,31 +1,31 @@
 from datetime import datetime, timezone
 
-from db.db import AsyncSessionLocal
-from services.helpers import _persisted_id
+from app.db.db import AsyncSessionLocal
+from app.services.helpers import _persisted_id
 from langchain_core.documents import Document
-from models.chunking_profiles import ChunkingProfile
-from models.corpus import Corpus
-from models.corpus_indices import CorpusIndex
-from models.vector_stores import VectorStore
-from repositories import (
+from app.models.chunking_profiles import ChunkingProfile
+from app.models.corpus import Corpus
+from app.models.corpus_indices import CorpusIndex
+from app.models.vector_stores import VectorStore
+from app.repositories import (
     chunking_profiles_repo,
     corpus_indices_repo,
     corpus_repo,
     vector_stores_repo,
 )
-from repositories.document_chunks_repo import list_corpus_document_chunks_for_profile
-from repositories.indexed_chunks_repo import bulk_create_indexed_chunks
-from schemas.corpus_indices_schemas import (
+from app.repositories.document_chunks_repo import list_corpus_document_chunks_for_profile
+from app.repositories.indexed_chunks_repo import bulk_create_indexed_chunks
+from app.schemas.corpus_indices_schemas import (
     CorpusIndexBuildComplete,
     CorpusIndexCreate,
 )
-from schemas.embeddings_schemas import (
+from app.schemas.embeddings_schemas import (
     CorpusEmbeddingBuildQueued,
     CorpusEmbeddingBuildRequest,
     CorpusEmbeddingBuildResult,
     IndexedChunkBuildRef,
 )
-from schemas.indexed_chunks_schemas import IndexedChunkCreate
+from app.schemas.indexed_chunks_schemas import IndexedChunkCreate
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 def _vector_namespace(index_id: int, requested_namespace: str | None) -> str:
@@ -162,7 +162,7 @@ async def _build_existing_corpus_index(
     vector_store_id = _persisted_id(vector_store.id, "Vector store")
     corpus_index_id = _persisted_id(index.id, "Corpus index")
 
-    from airag.embeddings.embeddings import choose_embedding_model
+    from app.airag.embeddings.embeddings import choose_embedding_model
 
     embedding_model, embedding_metadata = choose_embedding_model(index.embedding_model)
     embedding_dimensions = embedding_metadata["dimensionality"]
@@ -184,7 +184,7 @@ async def _build_existing_corpus_index(
     )
     vector_ids = [vector_ref.external_vector_id for vector_ref in vector_refs]
 
-    from airag.vector_stores.vector_stores import store_docs_to_vector_store
+    from app.airag.vector_stores.vector_stores import store_docs_to_vector_store
 
     stored_vector_ids = await store_docs_to_vector_store(
         docs=documents,
@@ -266,7 +266,7 @@ async def queue_corpus_embedding_build_srvc(
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
     vector_store_id = _persisted_id(vector_store.id, "Vector store")
 
-    from airag.embeddings.embeddings import choose_embedding_model
+    from app.airag.embeddings.embeddings import choose_embedding_model
 
     _embedding_model, embedding_metadata = choose_embedding_model(build_in.embedding_model)
     embedding_dimensions = embedding_metadata["dimensionality"]

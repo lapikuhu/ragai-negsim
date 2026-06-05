@@ -3,13 +3,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from schemas.scenarios_schemas import (
+from app.schemas.scenarios_schemas import (
     ScenarioCopyRequest,
     ScenarioCreateRequest,
     ScenarioReadWithIds,
     ScenarioUpdateRequest,
 )
-from services import scenarios_service
+from app.services import scenarios_service
 
 
 def _user(user_id=1):

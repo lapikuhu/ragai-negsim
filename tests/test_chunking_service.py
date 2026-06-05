@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from services import chunking_service
+from app.services import chunking_service
 
 
 def _options(**overrides):

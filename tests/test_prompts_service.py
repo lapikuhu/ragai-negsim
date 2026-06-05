@@ -2,12 +2,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from schemas.prompts_schemas import (
+from app.schemas.prompts_schemas import (
     PromptAdminUpdate,
     PromptClone,
     PromptCreate,
 )
-from services import prompts_service
+from app.services import prompts_service
 
 
 def _user(user_id=1):

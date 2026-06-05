@@ -1,19 +1,19 @@
 from fastapi import APIRouter, HTTPException, status
 
-from core.dependencies import (
+from app.core.dependencies import (
     CurrentUserDep,
     ScenarioCreatorDep,
     ScenarioViewerDep,
     SessionDep,
     WritableScenarioDep,
 )
-from schemas.scenarios_schemas import (
+from app.schemas.scenarios_schemas import (
     ScenarioCopyRequest,
     ScenarioCreateRequest,
     ScenarioReadWithIds,
     ScenarioUpdateRequest,
 )
-from services import scenarios_service
+from app.services import scenarios_service
 
 # Declare the API router for scenario-related endpoints
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])

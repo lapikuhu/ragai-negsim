@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from schemas.simulations_schemas import (
+from app.schemas.simulations_schemas import (
     SimulationCreate,
     SimulationCreateRequest,
     SimulationReadWithState,
@@ -13,7 +13,7 @@ from schemas.simulations_schemas import (
     SimulationTurnResponse,
     SimulationUpdateRequest,
 )
-from services import simulations_service
+from app.services import simulations_service
 
 
 def _user(user_id=1):

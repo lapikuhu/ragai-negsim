@@ -2,10 +2,10 @@ from sqlalchemy import or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from models.sessions import Session as UserSession
-from models.simulations import Simulation
-from repositories.helpers import commit_and_refresh, commit_delete, utc_now
-from schemas.sessions_schemas import (
+from app.models.sessions import Session as UserSession
+from app.models.simulations import Simulation
+from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
+from app.schemas.sessions_schemas import (
     SessionCreate,
     SessionEnd,
     SessionHeartbeat,

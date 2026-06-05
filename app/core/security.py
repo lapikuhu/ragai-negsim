@@ -1,7 +1,7 @@
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta, timezone
-from core.config import settings
+from app.core.config import settings
 from fastapi.security import OAuth2PasswordBearer
 
 # Setup password hashing context using passlib

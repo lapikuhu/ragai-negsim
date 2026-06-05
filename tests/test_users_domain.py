@@ -3,8 +3,8 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from schemas.users_schemas import UserCreate, UserPasswordChange, UserUpdate
-from services import users_service
+from app.schemas.users_schemas import UserCreate, UserPasswordChange, UserUpdate
+from app.services import users_service
 
 
 def _user(user_id=1, roles=None, hashed_password="hashed"):
@@ -192,7 +192,7 @@ async def test_login_creates_session_and_returns_token_metadata(monkeypatch):
 
 
 def test_users_router_is_mounted_and_static_routes_precede_username_route():
-    from main import app
+    from app.main import app
 
     paths = [route.path for route in app.routes]
 

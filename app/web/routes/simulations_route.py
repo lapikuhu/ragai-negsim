@@ -1,13 +1,13 @@
 from fastapi import APIRouter, HTTPException, status
 
-from core.dependencies import (
+from app.core.dependencies import (
     AccessibleSimulationDep,
     CurrentUserDep,
     Page,
     SessionDep,
     TeacherReviewSimulationDep,
 )
-from schemas.simulations_schemas import (
+from app.schemas.simulations_schemas import (
     SimulationCreateRequest,
     SimulationRead,
     SimulationReadWithState,
@@ -18,7 +18,7 @@ from schemas.simulations_schemas import (
     SimulationTurnResponse,
     SimulationUpdateRequest,
 )
-from services import simulations_service
+from app.services import simulations_service
 
 # Declare the API router for simulations
 router = APIRouter(prefix="/simulations", tags=["simulations"])

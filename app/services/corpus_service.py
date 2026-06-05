@@ -1,8 +1,8 @@
-from models.corpus import Corpus
-from models.users import User
-from schemas.corpus_schemas import CorpusCreate
+from app.models.corpus import Corpus
+from app.models.users import User
+from app.schemas.corpus_schemas import CorpusCreate
 
-from repositories.corpus_repo import(AsyncSession, 
+from app.repositories.corpus_repo import(AsyncSession, 
                                      create_corpus, 
                                      list_corpora)
 

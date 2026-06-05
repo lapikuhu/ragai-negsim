@@ -1,0 +1,1 @@
+"""Negotiation simulator application package."""

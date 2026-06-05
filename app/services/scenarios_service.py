@@ -1,9 +1,9 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from models.scenarios import Scenario
-from models.users import User
-from repositories import scenarios_repo
-from schemas.scenarios_schemas import (
+from app.models.scenarios import Scenario
+from app.models.users import User
+from app.repositories import scenarios_repo
+from app.schemas.scenarios_schemas import (
     ScenarioCopy,
     ScenarioCopyRequest,
     ScenarioCreate,

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from core.dependencies import (
+from app.core.dependencies import (
     CopyableCounterpartPersonaDep,
     CounterpartPersonaCreatorDep,
     CounterpartPersonaViewerDep,
@@ -9,13 +9,13 @@ from core.dependencies import (
     SessionDep,
     WritableCounterpartPersonaDep,
 )
-from schemas.counterpart_personas_schemas import (
+from app.schemas.counterpart_personas_schemas import (
     CounterpartPersonaCopyRequest,
     CounterpartPersonaCreateRequest,
     CounterpartPersonaReadWithIds,
     CounterpartPersonaUpdateRequest,
 )
-from services import counterpart_personas_service
+from app.services import counterpart_personas_service
 
 router = APIRouter(prefix="/counterpart-personas", tags=["counterpart-personas"])
 

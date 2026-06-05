@@ -1,8 +1,8 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from models.vector_stores import VectorStore
-from repositories import vector_stores_repo
-from schemas.vector_stores_schemas import (
+from app.models.vector_stores import VectorStore
+from app.repositories import vector_stores_repo
+from app.schemas.vector_stores_schemas import (
     VectorStoreConnectionUpdate,
     VectorStoreCreate,
     VectorStoreReadWithIds,

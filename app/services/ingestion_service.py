@@ -1,14 +1,14 @@
 from pathlib import Path
 from typing import Protocol
 
-from services.helpers import _persisted_id
-from models.chunking_profiles import ChunkingProfile
-from models.corpus import Corpus
-from models.raw_documents import RawDocument
-from repositories import corpus_repo, raw_documents_repo
-from repositories.document_chunks_repo import bulk_create_document_chunks
-from schemas.document_chunks_schemas import DocumentChunkCreate
-from schemas.ingestion_schemas import CorpusIngestResult, RawDocumentIngestResult
+from app.services.helpers import _persisted_id
+from app.models.chunking_profiles import ChunkingProfile
+from app.models.corpus import Corpus
+from app.models.raw_documents import RawDocument
+from app.repositories import corpus_repo, raw_documents_repo
+from app.repositories.document_chunks_repo import bulk_create_document_chunks
+from app.schemas.document_chunks_schemas import DocumentChunkCreate
+from app.schemas.ingestion_schemas import CorpusIngestResult, RawDocumentIngestResult
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -32,9 +32,9 @@ def _parse_raw_document(path: str, options: IngestionOptionsLike) -> tuple[str, 
         List[DocumentChunkCreate]: A list of DocumentChunkCreate objects 
         representing the parsed chunks of the document.
     """
-    from airag.chunking.chunkers import chunk_document_list_recursive
-    from airag.ingestion.ingestion import clean_markdown, split_md_on_headers
-    from airag.ingestion.loaders import convert_to_markdown, ingest_single_pdf
+    from app.airag.chunking.chunkers import chunk_document_list_recursive
+    from app.airag.ingestion.ingestion import clean_markdown, split_md_on_headers
+    from app.airag.ingestion.loaders import convert_to_markdown, ingest_single_pdf
 
     raw_document_path = Path(path)
     if raw_document_path.suffix.lower() != ".pdf":

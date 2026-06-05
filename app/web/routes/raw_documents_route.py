@@ -1,14 +1,13 @@
-from services.raw_documents_service import(create_raw_document_srvc,
+from app.services.raw_documents_service import(create_uploaded_raw_document_srvc,
                                            list_raw_documents_srvc,
                                            get_raw_document_by_id_srvc,)
-from services.ingestion_service import ingest_raw_document_srvc
-from services.chunking_service import chunk_raw_document_srvc
-from schemas.chunking_schemas import RawDocumentChunkResult
-from schemas.ingestion_schemas import RawDocumentIngestResult
-from schemas.raw_documents_schemas import RawDocumentCreate
-from models.raw_documents import RawDocument
-from fastapi import APIRouter, HTTPException
-from core.dependencies import (
+from app.services.ingestion_service import ingest_raw_document_srvc
+from app.services.chunking_service import chunk_raw_document_srvc
+from app.schemas.chunking_schemas import RawDocumentChunkResult
+from app.schemas.ingestion_schemas import RawDocumentIngestResult
+from app.schemas.raw_documents_schemas import RawDocumentRead
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from app.core.dependencies import (
     ChunkingProfileDep,
     ChunkingOptionsDep,
     IngestionOptionsDep,
@@ -20,30 +19,50 @@ from core.dependencies import (
 router = APIRouter(prefix="/raw-documents", tags=["Raw Documents"])
 
 ### ------------------ CREATE A NEW RAW DOCUMENT ------------------- ###
-@router.post("/", response_model=RawDocument)
-async def create_raw_document(raw_document_data: RawDocumentCreate, 
-                              session: SessionDep,
-                              current_user: RawDocumentCreatorDep) -> RawDocument:
+@router.post("/", response_model=RawDocumentRead, status_code=status.HTTP_201_CREATED)
+async def create_raw_document(
+    *,
+    name: str = Form(...),
+    description: str | None = Form(default=None),
+    corpus_ids: list[int] = Form(default=[]),
+    file: UploadFile = File(...),
+    session: SessionDep,
+    current_user: RawDocumentCreatorDep,
+) -> RawDocumentRead:
     """
-    Endpoint to create a new raw document.
+    Upload and register a new raw document.
     Args:
-        raw_document_data: The data for the raw document to be created.
+        name: Display name for the raw document.
+        description: Optional description.
+        corpus_ids: Optional corpora to link during creation.
+        file: Uploaded PDF source file.
         session: The database session to use for the operation.
         current_user: The user creating the raw document.
     Returns:
-        The created RawDocument instance.
+        The created raw document metadata.
     """
-    # Unpack payload and add the uploaded_by_user_id from the current user
-    return await create_raw_document_srvc(raw_document_data, session, current_user)
+    try:
+        raw_document = await create_uploaded_raw_document_srvc(
+            name=name,
+            description=description,
+            corpus_ids=corpus_ids,
+            upload=file,
+            session=session,
+            current_user=current_user,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return RawDocumentRead.model_validate(raw_document)
 
 ### ------------------ LIST RAW DOCUMENTS WITH FILTERS AND PAGINATION ------------------- ###
-@router.get("/", response_model=list[RawDocument])
+@router.get("/", response_model=list[RawDocumentRead])
 async def list_raw_documents(session: SessionDep,
                              skip: int = 0,
                              limit: int = 10,
                              uploaded_by_user_id: int | None = None,
                              corpus_id: int | None = None,
-                             name_contains: str | None = None) -> list[RawDocument]:
+                             name_contains: str | None = None) -> list[RawDocumentRead]:
     """
     Endpoint to list raw documents with optional filters and pagination.
     Args:
@@ -56,16 +75,17 @@ async def list_raw_documents(session: SessionDep,
     Returns:
         A list of RawDocument instances matching the filters and pagination criteria.    
     """
-    return await list_raw_documents_srvc(session, 
-                                         skip, 
-                                         limit, 
-                                         uploaded_by_user_id, 
-                                         corpus_id, 
-                                         name_contains)
+    raw_documents = await list_raw_documents_srvc(session,
+                                                  skip,
+                                                  limit,
+                                                  uploaded_by_user_id,
+                                                  corpus_id,
+                                                  name_contains)
+    return [RawDocumentRead.model_validate(raw_document) for raw_document in raw_documents]
 
 ### ------------------ GET A RAW DOCUMENT BY ID ------------------- ###
-@router.get("/{raw_document_id}", response_model=RawDocument)
-async def get_raw_document_by_id(raw_document_id: int, session: SessionDep) -> RawDocument:
+@router.get("/{raw_document_id}", response_model=RawDocumentRead)
+async def get_raw_document_by_id(raw_document_id: int, session: SessionDep) -> RawDocumentRead:
     """
     Endpoint to get a raw document by its ID.
     Args:
@@ -77,7 +97,7 @@ async def get_raw_document_by_id(raw_document_id: int, session: SessionDep) -> R
     raw_document = await get_raw_document_by_id_srvc(session, raw_document_id)
     if not raw_document:
         raise HTTPException(status_code=404, detail="Raw document not found")
-    return raw_document
+    return RawDocumentRead.model_validate(raw_document)
 
 
 ### ------------------ INGEST A RAW DOCUMENT ------------------- ###

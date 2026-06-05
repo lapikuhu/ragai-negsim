@@ -8,8 +8,8 @@ from sqlalchemy import inspect, text
 from langchain_postgres import PGEngine, PGVectorStore
 
 # local imports
-from airag.embeddings.embeddings import choose_embedding_model
-from db.db import engine
+from app.airag.embeddings.embeddings import choose_embedding_model
+from app.db.db import engine
 # add db import here for pgvectorstore
 
 # Choose the embedding model to use for the vector store

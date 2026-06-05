@@ -1,7 +1,7 @@
-from models.corpus_indices import CorpusIndex
-from models.indexed_chunks import IndexedChunk
-from repositories.helpers import commit_and_refresh, commit_delete, utc_now
-from schemas.corpus_indices_schemas import (
+from app.models.corpus_indices import CorpusIndex
+from app.models.indexed_chunks import IndexedChunk
+from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
+from app.schemas.corpus_indices_schemas import (
     CorpusIndexBuildComplete,
     CorpusIndexCopy,
     CorpusIndexCreate,

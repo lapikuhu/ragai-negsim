@@ -3,12 +3,12 @@ from secrets import token_urlsafe
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from core.config import settings
-from models.sessions import Session as UserSession
-from models.users import User
-from repositories import sessions_repo, users_repo
-from repositories.helpers import utc_now
-from schemas.sessions_schemas import (
+from app.core.config import settings
+from app.models.sessions import Session as UserSession
+from app.models.users import User
+from app.repositories import sessions_repo, users_repo
+from app.repositories.helpers import utc_now
+from app.schemas.sessions_schemas import (
     SessionCreate,
     SessionCreateRequest,
     SessionEnd,

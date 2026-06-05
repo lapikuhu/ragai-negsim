@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from core.dependencies import AdminDep
-from airag.embeddings.embeddings import list_supported_embedding_models
-from schemas.embeddings_schemas import EmbeddingModelRead
+from app.core.dependencies import AdminDep
+from app.airag.embeddings.embeddings import list_supported_embedding_models
+from app.schemas.embeddings_schemas import EmbeddingModelRead
 
 
 router = APIRouter(prefix="/embeddings", tags=["embeddings"])

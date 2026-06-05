@@ -2,10 +2,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
-from models.corpus_indices import CorpusIndex
-from models.vector_stores import VectorStore
-from repositories.helpers import commit_and_refresh, commit_delete, utc_now
-from schemas.vector_stores_schemas import (
+from app.models.corpus_indices import CorpusIndex
+from app.models.vector_stores import VectorStore
+from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
+from app.schemas.vector_stores_schemas import (
     VectorStoreConnectionUpdate,
     VectorStoreCreate,
     VectorStoreReadWithIds,

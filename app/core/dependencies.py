@@ -1,16 +1,16 @@
-from models.users import User
-from services import auth
-from core.security import oauth2_scheme
-from db.db import get_session
+from app.models.users import User
+from app.services import auth
+from app.core.security import oauth2_scheme
+from app.db.db import get_session
 from typing import Annotated, TypeAlias
 from fastapi import Depends, HTTPException, Query
 from functools import lru_cache
 from collections.abc import Callable, Awaitable
 
-from models.user_roles import Role, UserRoleLink
+from app.models.user_roles import Role, UserRoleLink
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from core.config import Settings
+from app.core.config import Settings
 
 
 # --------------- SETTINGS DEPENDENCY ---------------
@@ -126,7 +126,7 @@ Page = Annotated[dict, Depends(pagination)]
 # -------------------------------------------------------------------- #
 
 # ------------------- USER-RELATED DEPENDENCIES ------------------- #
-from repositories import users_repo
+from app.repositories import users_repo
 
 
 async def get_user_or_404(
@@ -176,8 +176,8 @@ ReadableUserDep: TypeAlias = Annotated[User, Depends(get_readable_user)]
 # -------------------------------------------------------------------- #
 
 # ---------- CHUNKING PROFILE-RELATED DEPENDENCIES ---------- #
-from models.chunking_profiles import ChunkingProfile
-from repositories import chunking_profiles_repo
+from app.models.chunking_profiles import ChunkingProfile
+from app.repositories import chunking_profiles_repo
 
 
 async def get_chunking_profile_or_404(
@@ -212,8 +212,8 @@ AdminChunkingProfileDep: TypeAlias = Annotated[
 # -------------------------------------------------------------------- #
 
 # ---------- DOCUMENT CHUNK-RELATED DEPENDENCIES ---------- #
-from models.document_chunks import DocumentChunk
-from repositories import document_chunks_repo
+from app.models.document_chunks import DocumentChunk
+from app.repositories import document_chunks_repo
 
 
 async def get_document_chunk_or_404(
@@ -248,8 +248,8 @@ AdminDocumentChunkDep: TypeAlias = Annotated[
 # -------------------------------------------------------------------- #
 
 # ------------ CORPUS INDEX-RELATED DEPENDENCIES ------------ #
-from models.corpus_indices import CorpusIndex
-from repositories import corpus_indices_repo
+from app.models.corpus_indices import CorpusIndex
+from app.repositories import corpus_indices_repo
 
 
 async def get_corpus_index_or_404(
@@ -284,8 +284,8 @@ AdminCorpusIndexDep: TypeAlias = Annotated[
 # -------------------------------------------------------------------- #
 
 # ------------ INDEXED CHUNK-RELATED DEPENDENCIES ------------ #
-from models.indexed_chunks import IndexedChunk
-from repositories import indexed_chunks_repo
+from app.models.indexed_chunks import IndexedChunk
+from app.repositories import indexed_chunks_repo
 
 
 async def get_indexed_chunk_or_404(
@@ -325,8 +325,8 @@ AdminIndexedChunkDep: TypeAlias = Annotated[
 # -------------------------------------------------------------------- #
 
 # --------------- CORPUS-RELATED DEPENDENCIES --------------- #
-from models.corpus import Corpus
-from repositories import corpus_repo
+from app.models.corpus import Corpus
+from app.repositories import corpus_repo
 
 async def get_corpus_or_404(corpus_id: int, session: SessionDep) -> Corpus:
     """Dependency to retrieve a Corpus by ID or raise a 404 error if not found.
@@ -425,8 +425,8 @@ StudentAccessibleCorpusDep: TypeAlias = Annotated[
 # -------------------------------------------------------------------- #
 
 # ------------ RAW DOCUMENT-RELATED DEPENDENCIES ------------ #
-from models.raw_documents import RawDocument
-from repositories import raw_documents_repo
+from app.models.raw_documents import RawDocument
+from app.repositories import raw_documents_repo
 
 
 async def get_raw_document_or_404(
@@ -468,8 +468,8 @@ WritableRawDocumentDep: TypeAlias = Annotated[
 # -------------------------------------------------------------------- #
 
 # ---------- COUNTERPART PERSONA-RELATED DEPENDENCIES ---------- #
-from models.counterpart_personas import CounterPartPersonas
-from repositories import counterpart_personas_repo
+from app.models.counterpart_personas import CounterPartPersonas
+from app.repositories import counterpart_personas_repo
 
 
 async def get_counterpart_persona_or_404(
@@ -547,8 +547,8 @@ CopyableCounterpartPersonaDep: TypeAlias = Annotated[
 # -------------------------------------------------------------------- #
 
 # ------------------- SESSION-RELATED DEPENDENCIES ------------------- #
-from models.sessions import Session as UserSession
-from repositories import sessions_repo
+from app.models.sessions import Session as UserSession
+from app.repositories import sessions_repo
 
 
 async def get_session_or_404(
@@ -576,8 +576,8 @@ AdminSessionDep: TypeAlias = Annotated[UserSession, Depends(get_admin_session)]
 # -------------------------------------------------------------------- #
 
 # ------------------ SCENARIO-RELATED DEPENDENCIES ------------------ #
-from models.scenarios import Scenario
-from repositories import scenarios_repo
+from app.models.scenarios import Scenario
+from app.repositories import scenarios_repo
 
 
 async def get_scenario_or_404(
@@ -629,8 +629,8 @@ WritableScenarioDep: TypeAlias = Annotated[
 # -------------------------------------------------------------------- #
 
 # ------------------ SIMULATION-RELATED DEPENDENCIES ----------------- #
-from models.simulations import Simulation
-from repositories import simulations_repo
+from app.models.simulations import Simulation
+from app.repositories import simulations_repo
 
 
 TERMINAL_SIMULATION_STATUSES = {"completed", "cancelled", "failed"}
@@ -760,8 +760,8 @@ ActiveSimulationDep = Annotated[
 
 # ------------------- PROMPTS-RELATED DEPENDENCIES ------------------- #
 
-from models.prompts import Prompt
-from repositories import prompts_repo
+from app.models.prompts import Prompt
+from app.repositories import prompts_repo
 
 
 async def get_prompt_or_404(prompt_id: int, session: SessionDep) -> Prompt:
@@ -895,7 +895,7 @@ CopyablePromptDep: TypeAlias = Annotated[Prompt, Depends(get_copyable_prompt)]
 # Embeddings
 
 from langchain_core.embeddings import Embeddings
-from airag.embeddings.embeddings import choose_embedding_model
+from app.airag.embeddings.embeddings import choose_embedding_model
 
 
 def get_embedding_model(
@@ -921,7 +921,7 @@ EmbeddingConfigDep = Annotated[dict[str, int | str], Depends(get_embedding_confi
 # LLM
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
-from airag.llm_models.llm_models import get_llm
+from app.airag.llm_models.llm_models import get_llm
 
 
 def get_chat_model(
@@ -944,8 +944,8 @@ def get_chat_model(
 ChatModelDep = Annotated[ChatOpenAI | ChatOllama, Depends(get_chat_model)]
 
 # Vector Store
-from models.vector_stores import VectorStore
-from repositories import vector_stores_repo
+from app.models.vector_stores import VectorStore
+from app.repositories import vector_stores_repo
 
 async def get_vector_store_record_or_404(
     vector_store_id: int,
@@ -978,7 +978,7 @@ AdminVectorStoreDep: TypeAlias = Annotated[
 ]
 VectorStoreAdminDep: TypeAlias = AdminDep
 
-from airag.vector_stores.vector_stores import (
+from app.airag.vector_stores.vector_stores import (
     instantiate_chroma_vector_store,
     load_faiss_vector_store,
 )
@@ -1074,7 +1074,7 @@ def get_ingestion_options(
 IngestionOptionsDep = Annotated[IngestionOptions, Depends(get_ingestion_options)]
 
 # Chunking Options
-from schemas.chunking_schemas import ChunkingOptions
+from app.schemas.chunking_schemas import ChunkingOptions
 
 
 def get_chunking_options(

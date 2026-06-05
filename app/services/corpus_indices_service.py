@@ -1,13 +1,13 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from models.corpus_indices import CorpusIndex
-from repositories import (
+from app.models.corpus_indices import CorpusIndex
+from app.repositories import (
     chunking_profiles_repo,
     corpus_indices_repo,
     corpus_repo,
     vector_stores_repo,
 )
-from schemas.corpus_indices_schemas import (
+from app.schemas.corpus_indices_schemas import (
     CorpusIndexBuildComplete,
     CorpusIndexCopy,
     CorpusIndexCreate,

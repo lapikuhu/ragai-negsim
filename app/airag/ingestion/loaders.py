@@ -8,7 +8,7 @@ from docling.document_converter import DocumentConverter, PdfFormatOption, Conve
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
 # local imports
-from core.config import settings
+from app.core.config import settings
 
 # Set up the corpus directory path using the configuration from settings
 corpus_dir = Path(settings.RAW_DOCS_DIR)
