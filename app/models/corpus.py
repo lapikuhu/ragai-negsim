@@ -1,6 +1,7 @@
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 
+from sqlalchemy import Column, DateTime as SQLAlchemyDateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 from .raw_documents import CorpusRawDocumentLink
@@ -32,5 +33,8 @@ class Corpus(SQLModel, table=True):
     )
     corpus_indices: list["CorpusIndex"] = Relationship(back_populates="corpus")
     simulations: list["Simulation"] = Relationship(back_populates="corpus")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )
 

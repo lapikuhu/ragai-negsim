@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 from datetime import datetime, timezone
 
+from sqlalchemy import Column, DateTime as SQLAlchemyDateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
@@ -21,12 +22,21 @@ class CorpusIndex(SQLModel, table=True):
     embedding_model: str = Field(min_length=1, title="Embedding model")
     embedding_dimensions: int | None = Field(default=None, ge=1)
     vector_namespace: str | None = None
-    built_at: datetime | None = None
+    built_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=True),
+    )
     build_error: str | None = None
     corpus: "Corpus" = Relationship(back_populates="corpus_indices")
     vector_store: "VectorStore" = Relationship(back_populates="corpus_indices")
     chunking_profile: "ChunkingProfile" = Relationship(back_populates="corpus_indices")
     indexed_chunks: list["IndexedChunk"] = Relationship(back_populates="corpus_index")
     simulations: list["Simulation"] = Relationship(back_populates="corpus_index")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )
+    last_updated: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, unwrapResult } from "@/api/client";
+import { apiClient, ApiError, apiFetch, unwrapResult } from "@/api/client";
+import { getApiBaseUrl } from "@/api/clientConfig";
 import type { ApiComponents, RawDocumentRead } from "@/api/types";
 
 type RawDocumentChunkResult = ApiComponents["schemas"]["RawDocumentChunkResult"];
@@ -38,14 +39,23 @@ async function uploadDocument(input: RawDocumentUploadInput) {
   input.corpusIds.forEach((id) => form.append("corpus_ids", String(id)));
   form.set("file", input.file);
 
-  const result = await apiClient.POST("/raw-documents/", {
-    body: form as never,
-    bodySerializer(body) {
-      return body as unknown as BodyInit;
-    }
+  const response = await apiFetch(`${getApiBaseUrl()}/raw-documents/`, {
+    method: "POST",
+    body: form
   });
+  const payload = await response.text();
 
-  return unwrapResult<RawDocumentRead>(result, "Unable to upload document");
+  if (!response.ok) {
+    let detail: unknown = payload;
+    try {
+      detail = JSON.parse(payload);
+    } catch {
+      // Keep plain-text payload when the backend does not return JSON.
+    }
+    throw new ApiError("Unable to upload document", response.status, detail);
+  }
+
+  return JSON.parse(payload) as RawDocumentRead;
 }
 
 async function ingestDocument(documentId: number, profileId: number) {

@@ -1,6 +1,6 @@
 from typing import Any, Optional, TYPE_CHECKING, TypedDict
 from sqlmodel import Field, SQLModel, Relationship
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, DateTime as SQLAlchemyDateTime, JSON
 from datetime import datetime, timezone
 
 if TYPE_CHECKING:
@@ -68,6 +68,15 @@ class Simulation(SQLModel, table=True):
         sa_relationship_kwargs={"foreign_keys": "[Simulation.teacher_id]"},
     )
     teacher_feedback: str | None = Field(default=None, min_length=1, title="Teacher feedback")  # optional feedback from the teacher after review
-    reviewed_at: datetime | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    reviewed_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=True),
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )
+    last_updated: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )

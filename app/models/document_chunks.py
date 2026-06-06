@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, DateTime as SQLAlchemyDateTime, JSON
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
@@ -20,5 +20,11 @@ class DocumentChunk(SQLModel, table=True):
     raw_document: "RawDocument" = Relationship(back_populates="document_chunks")
     chunking_profile: "ChunkingProfile" = Relationship(back_populates="document_chunks")
     indexed_chunks: list["IndexedChunk"] = Relationship(back_populates="document_chunk")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )
+    last_updated: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )

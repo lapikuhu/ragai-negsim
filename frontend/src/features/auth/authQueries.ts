@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, unwrapResult } from "@/api/client";
+import { ApiError, apiClient, unwrapResult } from "@/api/client";
+import { getApiBaseUrl } from "@/api/clientConfig";
 import { clearAccessToken, setAccessToken } from "@/features/auth/authStorage";
 import type { Token, UserRead } from "@/api/types";
 
@@ -13,23 +14,30 @@ export type LoginInput = {
 };
 
 export async function loginRequest(input: LoginInput) {
-  const result = await apiClient.POST("/users/login", {
-    body: {
-      scope: "",
-      username: input.username,
-      password: input.password
-    },
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    bodySerializer(body) {
-      return new URLSearchParams(
-        Object.entries(body as Record<string, string>).map(([key, value]) => [key, value ?? ""])
-      );
-    }
+  const body = new URLSearchParams({
+    // Send the exact OAuth2 password form Swagger uses to avoid request-shape mismatches.
+    client_id: "",
+    client_secret: "",
+    scope: "",
+    username: input.username,
+    password: input.password
   });
 
-  const token = unwrapResult<Token>(result, "Login failed");
+  const response = await fetch(`${getApiBaseUrl()}/users/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json"
+    },
+    body: body.toString()
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError("Login failed", response.status, payload);
+  }
+
+  const token = payload as Token;
   setAccessToken(token.access_token);
   return token;
 }

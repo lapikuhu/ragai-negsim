@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, DateTime as SQLAlchemyDateTime, JSON
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
@@ -18,5 +18,11 @@ class VectorStore(SQLModel, table=True):
     path: str | None = None
     store_metadata: dict = Field(default_factory=dict, sa_column=Column("metadata", JSON))
     corpus_indices: list["CorpusIndex"] = Relationship(back_populates="vector_store")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )
+    last_updated: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )

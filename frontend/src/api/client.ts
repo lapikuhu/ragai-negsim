@@ -34,6 +34,10 @@ async function authFetch(input: RequestInfo | URL, init?: RequestInit) {
   return response;
 }
 
+export async function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
+  return authFetch(input, init);
+}
+
 export const apiClient = createClient<ApiPaths>({
   baseUrl: getApiBaseUrl(),
   fetch: authFetch
@@ -43,6 +47,23 @@ export function getErrorMessage(error: unknown, fallback = "Request failed") {
   if (error instanceof ApiError) {
     if (typeof error.detail === "string") {
       return error.detail;
+    }
+    if (
+      error.detail &&
+      typeof error.detail === "object" &&
+      "detail" in error.detail &&
+      Array.isArray((error.detail as { detail?: unknown }).detail)
+    ) {
+      const validationMessages = (error.detail as { detail: Array<{ loc?: unknown[]; msg?: unknown }> }).detail
+        .map((issue) => {
+          const location = Array.isArray(issue.loc) ? issue.loc.slice(1).join(".") : "";
+          const message = typeof issue.msg === "string" ? issue.msg : "Invalid value";
+          return location ? `${location}: ${message}` : message;
+        })
+        .filter(Boolean);
+      if (validationMessages.length) {
+        return validationMessages.join("; ");
+      }
     }
     if (
       error.detail &&

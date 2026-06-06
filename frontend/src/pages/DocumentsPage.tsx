@@ -37,16 +37,20 @@ export function DocumentsPage() {
               setMessage("Choose a file first.");
               return;
             }
+            const parsedCorpusIds = corpusIds
+              .split(",")
+              .map((value) => value.trim())
+              .filter(Boolean);
+            if (parsedCorpusIds.some((value) => !/^\d+$/.test(value))) {
+              setMessage("Corpus IDs must be comma-separated integers.");
+              return;
+            }
             setMessage(null);
             try {
               await uploadMutation.mutateAsync({
                 name,
                 description,
-                corpusIds: corpusIds
-                  .split(",")
-                  .map((value) => value.trim())
-                  .filter(Boolean)
-                  .map(Number),
+                corpusIds: parsedCorpusIds.map(Number),
                 file
               });
               setName("");

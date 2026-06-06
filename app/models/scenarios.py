@@ -1,6 +1,7 @@
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 
+from sqlalchemy import Column, DateTime as SQLAlchemyDateTime
 from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
@@ -22,5 +23,11 @@ class Scenario(SQLModel, table=True):
         sa_relationship_kwargs={"foreign_keys": "[Scenario.last_edit_by_user_id]"},
     )
     simulations: list["Simulation"] = Relationship(back_populates="scenario")  # simulations that have used this scenario
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )
+    last_updated: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),
+    )

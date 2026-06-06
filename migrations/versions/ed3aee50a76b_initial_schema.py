@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 32043c5516ff
+Revision ID: ed3aee50a76b
 Revises: 
-Create Date: 2026-06-05 18:38:16.889298
+Create Date: 2026-06-06 11:58:22.995048
 """
 
 from alembic import op
@@ -12,7 +12,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision = '32043c5516ff'
+revision = 'ed3aee50a76b'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -25,8 +25,8 @@ def upgrade() -> None:
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('strategy', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('config', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('last_updated', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_chunkingprofile_name'), 'chunkingprofile', ['name'], unique=True)
@@ -53,8 +53,8 @@ def upgrade() -> None:
     sa.Column('table_name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('path', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('metadata', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('last_updated', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_vectorstore_name'), 'vectorstore', ['name'], unique=True)
@@ -64,7 +64,7 @@ def upgrade() -> None:
     sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('created_by_user_id', sa.Integer(), nullable=False),
     sa.Column('last_edit_by_user_id', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['created_by_user_id'], ['user.id'], ),
     sa.ForeignKeyConstraint(['last_edit_by_user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -76,8 +76,8 @@ def upgrade() -> None:
     sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('created_by_user_id', sa.Integer(), nullable=False),
     sa.Column('last_edit_by_user_id', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('last_updated', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['created_by_user_id'], ['user.id'], ),
     sa.ForeignKeyConstraint(['last_edit_by_user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -100,8 +100,8 @@ def upgrade() -> None:
     sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('path', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('parsed_content', sa.Text(), nullable=True),
-    sa.Column('parsed_at', sa.DateTime(), nullable=True),
-    sa.Column('uploaded_at', sa.DateTime(), nullable=False),
+    sa.Column('parsed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('uploaded_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('uploaded_by_user_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['uploaded_by_user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -114,8 +114,8 @@ def upgrade() -> None:
     sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('created_by_user_id', sa.Integer(), nullable=False),
     sa.Column('last_edit_by_user_id', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('last_updated', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['created_by_user_id'], ['user.id'], ),
     sa.ForeignKeyConstraint(['last_edit_by_user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -125,10 +125,10 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('session_token', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('expires_at', sa.DateTime(), nullable=True),
-    sa.Column('last_seen_at', sa.DateTime(), nullable=True),
-    sa.Column('ended_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('last_seen_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('ended_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -150,10 +150,10 @@ def upgrade() -> None:
     sa.Column('embedding_model', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('embedding_dimensions', sa.Integer(), nullable=True),
     sa.Column('vector_namespace', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('built_at', sa.DateTime(), nullable=True),
+    sa.Column('built_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('build_error', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('last_updated', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['chunking_profile_id'], ['chunkingprofile.id'], ),
     sa.ForeignKeyConstraint(['corpus_id'], ['corpus.id'], ),
     sa.ForeignKeyConstraint(['vector_store_id'], ['vectorstore.id'], ),
@@ -175,8 +175,8 @@ def upgrade() -> None:
     sa.Column('chunk_index', sa.Integer(), nullable=False),
     sa.Column('content', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('metadata', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('last_updated', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['chunking_profile_id'], ['chunkingprofile.id'], ),
     sa.ForeignKeyConstraint(['raw_document_id'], ['rawdocument.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -185,7 +185,7 @@ def upgrade() -> None:
     sa.Column('corpus_index_id', sa.Integer(), nullable=False),
     sa.Column('document_chunk_id', sa.Integer(), nullable=False),
     sa.Column('external_vector_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['corpus_index_id'], ['corpusindex.id'], ),
     sa.ForeignKeyConstraint(['document_chunk_id'], ['documentchunk.id'], ),
     sa.PrimaryKeyConstraint('corpus_index_id', 'document_chunk_id')
@@ -211,9 +211,9 @@ def upgrade() -> None:
     sa.Column('teacher_reviewed', sa.Boolean(), nullable=False),
     sa.Column('teacher_id', sa.Integer(), nullable=True),
     sa.Column('teacher_feedback', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('reviewed_at', sa.DateTime(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('last_updated', sa.DateTime(), nullable=False),
+    sa.Column('reviewed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['coach_prompt_id'], ['prompt.id'], ),
     sa.ForeignKeyConstraint(['corpus_id'], ['corpus.id'], ),
     sa.ForeignKeyConstraint(['corpus_index_id'], ['corpusindex.id'], ),
