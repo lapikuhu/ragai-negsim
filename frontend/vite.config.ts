@@ -19,6 +19,7 @@ export default defineConfig({
       "/raw-documents": "http://127.0.0.1:8000",
       "/corpora": "http://127.0.0.1:8000",
       "/corpus-indices": "http://127.0.0.1:8000",
+      "/indexing-jobs": "http://127.0.0.1:8000",
       "/prompts": "http://127.0.0.1:8000",
       "/counterpart-personas": "http://127.0.0.1:8000",
       "/embeddings": "http://127.0.0.1:8000",

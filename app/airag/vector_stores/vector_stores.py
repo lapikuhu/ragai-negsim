@@ -313,6 +313,63 @@ async def add_docs_to_pgvector_store(
     return ids
 
 
+async def delete_vectors_from_vector_store(
+        backend: str,
+        vector_ids: list[str],
+        collection_name: str | None = None,
+        path: str | None = None,
+        table_name: str | None = None,
+) -> None:
+    """
+    Delete vectors from one of the configured vector-store backends.
+    Args:
+        backend: The backend name ("chroma", "faiss", or "pgvector").
+        vector_ids: The vector IDs to delete.
+        collection_name: Optional Chroma collection name.
+        path: Optional local store path.
+        table_name: Optional PGVector table name.
+    Returns:
+        None
+    """
+    if not vector_ids:
+        return
+
+    if backend == "chroma":
+        vector_store = instantiate_chroma_vector_store(
+            embedding_model=None,
+            collection_name=collection_name or "negotiation_corpus",
+            persist_directory=path or "./chroma_db",
+        )
+        vector_store.delete(ids=vector_ids)
+        if hasattr(vector_store, "persist"):
+            vector_store.persist()
+        return
+
+    if backend == "faiss":
+        vector_store = load_faiss_vector_store(None, path or "./faiss_db")
+        vector_store.delete(vector_ids)
+        save_faiss_vector_store(vector_store, path or "./faiss_db")
+        return
+
+    if backend == "pgvector":
+        if not table_name:
+            raise ValueError("PGVector stores require table_name")
+        await enable_pgvector()
+        lang_pg_engine = create_pg_engine(engine)
+        vector_store = await get_vector_store(
+            lang_pg_engine=lang_pg_engine,
+            vector_table_name=table_name,
+            embedding_model=None,
+        )
+        if hasattr(vector_store, "adelete"):
+            await vector_store.adelete(vector_ids)
+        else:
+            vector_store.delete(vector_ids)
+        return
+
+    raise ValueError(f"Unsupported vector store backend: {backend}")
+
+
 async def store_docs_to_vector_store(
         docs: list[Document],
         embedding_model,

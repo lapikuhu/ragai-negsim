@@ -64,6 +64,34 @@ async def get_indexed_chunks_by_corpus_index_id(
     return list(result.all())
 
 
+async def delete_indexed_chunks_by_corpus_index_id_force(
+    corpus_index_id: int,
+    session: AsyncSession,
+) -> int:
+    """
+    Delete indexed chunks for a corpus index without checking external vector
+    references. Use only after vector cleanup has already succeeded or when
+    cleaning up a failed candidate index.
+    """
+    await ensure_corpus_index_exists(corpus_index_id, session)
+    result = await session.exec(
+        select(IndexedChunk)
+        .where(IndexedChunk.corpus_index_id == corpus_index_id)
+        .order_by(IndexedChunk.document_chunk_id)
+    )
+    indexed_chunks = list(result.all())
+
+    try:
+        for indexed_chunk in indexed_chunks:
+            await session.delete(indexed_chunk)
+
+        await session.commit()
+        return len(indexed_chunks)
+    except Exception:
+        await session.rollback()
+        raise
+
+
 async def get_indexed_chunks_by_document_chunk_id(
     document_chunk_id: int,
     session: AsyncSession,

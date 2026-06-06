@@ -9,6 +9,7 @@ from app.web.routes.counterpart_personas_route import router as counterpart_pers
 from app.web.routes.corpus_indices_route import router as corpus_indices_router
 from app.web.routes.corpus_route import router as corpus_router
 from app.web.routes.embeddings_route import router as embeddings_router
+from app.web.routes.indexing_jobs_route import router as indexing_jobs_router
 from app.web.routes.prompts_route import router as prompts_router
 from app.web.routes.raw_documents_route import router as raw_documents_router
 from app.web.routes.scenarios_route import router as scenarios_router
@@ -21,6 +22,9 @@ from app.web.routes.vector_stores_route import router as vector_stores_router
 # async context manager for lifespan allows us to run async code during startup and shutdown
 async def lifespan(app: FastAPI):
     await startup_seed() # setup: seed startup data after Alembic migrations
+    from app.services.indexing_jobs_service import fail_interrupted_indexing_jobs_srvc
+
+    await fail_interrupted_indexing_jobs_srvc()
     
     print("Database setup complete. [OK]")
 
@@ -45,6 +49,7 @@ app.include_router(chunking_profiles_router)
 app.include_router(corpus_indices_router)
 app.include_router(corpus_router)
 app.include_router(embeddings_router)
+app.include_router(indexing_jobs_router)
 app.include_router(prompts_router)
 app.include_router(raw_documents_router)
 app.include_router(scenarios_router)

@@ -1,7 +1,12 @@
+from app.airag.chunking import list_chunker_definitions
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.chunking_profiles import ChunkingProfile
 from app.repositories import chunking_profiles_repo
+from app.schemas.chunker_definitions_schemas import (
+    ChunkerDefinitionRead,
+    ChunkerFieldDefinitionRead,
+)
 from app.schemas.chunking_profiles_schemas import (
     ChunkingProfileCopy,
     ChunkingProfileCreate,
@@ -49,6 +54,37 @@ async def create_chunking_profile_srvc(
         session,
     )
     return await _read_chunking_profile_with_ids(profile, session)
+
+
+async def list_chunker_definitions_srvc() -> list[ChunkerDefinitionRead]:
+    """
+    List supported chunker definitions for admin/UI consumers.
+    Args:
+        None
+    Returns:
+        Serialized chunker definitions with editable field metadata.
+    """
+    return [
+        ChunkerDefinitionRead(
+            strategy=definition.strategy,
+            label=definition.label,
+            supports_ingestion=definition.supports_ingestion,
+            fields=[
+                ChunkerFieldDefinitionRead(
+                    name=field.name,
+                    kind=field.kind,
+                    label=field.label,
+                    required=field.required,
+                    default=field.default,
+                    minimum=field.minimum,
+                    maximum=field.maximum,
+                    help_text=field.help_text,
+                )
+                for field in definition.fields
+            ],
+        )
+        for definition in list_chunker_definitions()
+    ]
 
 
 async def list_chunking_profiles_srvc(

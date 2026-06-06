@@ -84,6 +84,18 @@ async def get_document_chunks_by_chunking_profile_id(
     return list(result.all())
 
 
+async def list_document_chunks_for_job(
+    indexing_job_id: int,
+    session: AsyncSession,
+) -> list[DocumentChunk]:
+    result = await session.exec(
+        select(DocumentChunk)
+        .where(DocumentChunk.indexing_job_id == indexing_job_id)
+        .order_by(DocumentChunk.raw_document_id, DocumentChunk.chunk_index)
+    )
+    return list(result.all())
+
+
 async def ensure_raw_document_exists(
     raw_document_id: int,
     session: AsyncSession,
@@ -121,6 +133,7 @@ async def get_document_chunk_by_position(
     chunking_profile_id: int,
     chunk_index: int,
     session: AsyncSession,
+    indexing_job_id: int | None = None,
 ) -> DocumentChunk | None:
     """
     Get a document chunk by its position.
@@ -132,13 +145,17 @@ async def get_document_chunk_by_position(
         Returns:
             The DocumentChunk instance if found, otherwise None.
     """
-    result = await session.exec(
-        select(DocumentChunk).where(
-            DocumentChunk.raw_document_id == raw_document_id,
-            DocumentChunk.chunking_profile_id == chunking_profile_id,
-            DocumentChunk.chunk_index == chunk_index,
-        )
+    statement = select(DocumentChunk).where(
+        DocumentChunk.raw_document_id == raw_document_id,
+        DocumentChunk.chunking_profile_id == chunking_profile_id,
+        DocumentChunk.chunk_index == chunk_index,
     )
+    if indexing_job_id is None:
+        statement = statement.where(DocumentChunk.indexing_job_id.is_(None))
+    else:
+        statement = statement.where(DocumentChunk.indexing_job_id == indexing_job_id)
+
+    result = await session.exec(statement)
     return result.first()
 
 
@@ -148,6 +165,7 @@ async def ensure_document_chunk_position_available(
     chunk_index: int,
     session: AsyncSession,
     exclude_chunk_id: int | None = None,
+    indexing_job_id: int | None = None,
 ) -> None:
     """
     Ensure that a document chunk position is available.
@@ -165,6 +183,7 @@ async def ensure_document_chunk_position_available(
         chunking_profile_id,
         chunk_index,
         session,
+        indexing_job_id=indexing_job_id,
     )
     if existing_chunk is None:
         return
@@ -370,6 +389,7 @@ async def create_document_chunk(
         chunk_in.chunking_profile_id,
         chunk_in.chunk_index,
         session,
+        indexing_job_id=chunk_in.indexing_job_id,
     )
     chunk = DocumentChunk(**chunk_in.model_dump())
     return await commit_and_refresh(session, chunk)
@@ -402,6 +422,7 @@ async def update_document_chunk(
             update_data["chunk_index"],
             session,
             exclude_chunk_id=chunk.id,
+            indexing_job_id=chunk.indexing_job_id,
         )
 
     if "content" in update_data and update_data["content"] is not None:
@@ -454,7 +475,7 @@ async def delete_document_chunk(
     await commit_delete(session, chunk)
 
 
-def _chunk_position_key(chunk_in: DocumentChunkCreate) -> tuple[int, int, int]:
+def _chunk_position_key(chunk_in: DocumentChunkCreate) -> tuple[int | None, int, int, int]:
     # TODO: Check functionality.
     """
     Generate a unique key for a document chunk based on its position.
@@ -464,6 +485,7 @@ def _chunk_position_key(chunk_in: DocumentChunkCreate) -> tuple[int, int, int]:
             A tuple representing the unique position key.
     """
     return (
+        chunk_in.indexing_job_id,
         chunk_in.raw_document_id,
         chunk_in.chunking_profile_id,
         chunk_in.chunk_index,
@@ -532,6 +554,7 @@ async def ensure_no_duplicate_positions_in_db(
             chunk_in.chunking_profile_id,
             chunk_in.chunk_index,
             session,
+            indexing_job_id=chunk_in.indexing_job_id,
         )
 
 

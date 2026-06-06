@@ -22,14 +22,11 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
         id=3,
         name="default",
         strategy="recursive",
-        config={},
+        config={"chunk_size": 444, "chunk_overlap": 55, "separators": ["\n\n", "\n"]},
     )
     options = SimpleNamespace(
         header_depth=2,
         dynamic_header_depth=False,
-        chunk_size=1000,
-        chunk_overlap=200,
-        chunker="recursive",
     )
     parsed_chunks = [
         SimpleNamespace(page_content="first chunk", metadata={"section": "intro"}),
@@ -40,7 +37,9 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
 
     def fake_parse(path, received_options):
         assert path == "sample.pdf"
-        assert received_options is options
+        assert received_options.chunker == "recursive"
+        assert received_options.chunk_size == 444
+        assert received_options.chunk_overlap == 55
         return "stored markdown", parsed_chunks
 
     async def fake_update_parsed_content(raw_document, parsed_content, session):
@@ -89,6 +88,59 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
     assert captured_chunks[0].chunking_profile_id == 3
     assert captured_chunks[0].chunk_metadata["section"] == "intro"
     assert captured_chunks[0].chunk_metadata["source"] == "sample.pdf"
+    assert captured_chunks[0].indexing_job_id is None
+
+
+@pytest.mark.asyncio
+async def test_ingest_raw_document_sets_indexing_job_id_on_created_chunks(monkeypatch):
+    raw_document = SimpleNamespace(
+        id=7,
+        name="sample",
+        source_path="sample.pdf",
+        source_hash="hash",
+        source_size=10,
+        source_mtime=None,
+        source_status="available",
+        parsed_content=None,
+        uploaded_by_user_id=1,
+    )
+    chunking_profile = SimpleNamespace(
+        id=3,
+        name="default",
+        strategy="recursive",
+        config={"chunk_size": 444, "chunk_overlap": 55, "separators": ["\n\n", "\n"]},
+    )
+    captured_chunks = []
+
+    monkeypatch.setattr(
+        ingestion_service,
+        "_parse_raw_document",
+        lambda path, options: ("stored markdown", [SimpleNamespace(page_content="chunk", metadata={})]),
+    )
+
+    async def fake_verify_raw_document_source(raw_document, session):
+        return raw_document
+
+    async def fake_update_parsed_content(raw_document, parsed_content, session):
+        return raw_document
+
+    async def fake_bulk_create(chunks_in, session):
+        captured_chunks.extend(chunks_in)
+        return [SimpleNamespace(id=101)]
+
+    monkeypatch.setattr(ingestion_service, "verify_raw_document_source_srvc", fake_verify_raw_document_source)
+    monkeypatch.setattr(ingestion_service.raw_documents_repo, "update_raw_document_parsed_content", fake_update_parsed_content)
+    monkeypatch.setattr(ingestion_service, "bulk_create_document_chunks", fake_bulk_create)
+
+    await ingestion_service.ingest_raw_document_srvc(
+        raw_document=raw_document,
+        chunking_profile=chunking_profile,
+        session=object(),
+        options=SimpleNamespace(header_depth=2, dynamic_header_depth=False),
+        indexing_job_id=44,
+    )
+
+    assert captured_chunks[0].indexing_job_id == 44
 
 
 @pytest.mark.asyncio
@@ -102,14 +154,11 @@ async def test_ingest_corpus_ingests_linked_raw_documents(monkeypatch):
         id=3,
         name="default",
         strategy="recursive",
-        config={},
+        config={"chunk_size": 444, "chunk_overlap": 55, "separators": ["\n\n", "\n"]},
     )
     options = SimpleNamespace(
         header_depth=2,
         dynamic_header_depth=False,
-        chunk_size=1000,
-        chunk_overlap=200,
-        chunker="recursive",
     )
     raw_documents = {
         7: SimpleNamespace(
@@ -193,13 +242,14 @@ async def test_ingest_raw_document_blocks_when_source_is_not_available(monkeypat
         parsed_content=None,
         uploaded_by_user_id=1,
     )
-    chunking_profile = SimpleNamespace(id=3)
+    chunking_profile = SimpleNamespace(
+        id=3,
+        strategy="recursive",
+        config={"chunk_size": 444, "chunk_overlap": 55, "separators": ["\n\n", "\n"]},
+    )
     options = SimpleNamespace(
         header_depth=2,
         dynamic_header_depth=False,
-        chunk_size=1000,
-        chunk_overlap=200,
-        chunker="recursive",
     )
 
     async def fake_verify_raw_document_source(raw_document, session):
@@ -217,4 +267,21 @@ async def test_ingest_raw_document_blocks_when_source_is_not_available(monkeypat
             chunking_profile=chunking_profile,
             session=object(),
             options=options,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ingest_raw_document_rejects_semantic_profile():
+    chunking_profile = SimpleNamespace(
+        id=3,
+        strategy="semantic",
+        config={"breakpoint_threshold_type": "percentile", "breakpoint_threshold_amount": 90, "buffer_size": 1},
+    )
+
+    with pytest.raises(ValueError, match="does not support ingestion"):
+        await ingestion_service.ingest_raw_document_srvc(
+            raw_document=SimpleNamespace(id=9, source_status="available", source_path="doc.pdf"),
+            chunking_profile=chunking_profile,
+            session=object(),
+            options=SimpleNamespace(header_depth=2, dynamic_header_depth=False),
         )

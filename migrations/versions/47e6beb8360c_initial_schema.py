@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 07a8bfa2754f
+Revision ID: 47e6beb8360c
 Revises: 
-Create Date: 2026-06-06 14:23:11.788076
+Create Date: 2026-06-06 19:33:17.735516
 """
 
 from alembic import op
@@ -12,7 +12,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision = '07a8bfa2754f'
+revision = '47e6beb8360c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -172,28 +172,39 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['raw_document_id'], ['rawdocument.id'], ),
     sa.PrimaryKeyConstraint('corpus_id', 'raw_document_id')
     )
-    op.create_table('documentchunk',
+    op.create_table('indexingjob',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('raw_document_id', sa.Integer(), nullable=False),
+    sa.Column('corpus_id', sa.Integer(), nullable=False),
     sa.Column('chunking_profile_id', sa.Integer(), nullable=False),
-    sa.Column('chunk_index', sa.Integer(), nullable=False),
-    sa.Column('content', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('metadata', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('vector_store_id', sa.Integer(), nullable=False),
+    sa.Column('embedding_model', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('requested_index_name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('requested_vector_namespace', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('stage', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('current_raw_document_id', sa.Integer(), nullable=True),
+    sa.Column('current_document_name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('total_documents', sa.Integer(), nullable=False),
+    sa.Column('processed_documents', sa.Integer(), nullable=False),
+    sa.Column('chunks_created', sa.Integer(), nullable=False),
+    sa.Column('chunks_indexed', sa.Integer(), nullable=False),
+    sa.Column('queued_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('candidate_corpus_index_id', sa.Integer(), nullable=True),
+    sa.Column('replaced_corpus_index_id', sa.Integer(), nullable=True),
+    sa.Column('failure_detail', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.ForeignKeyConstraint(['candidate_corpus_index_id'], ['corpusindex.id'], ),
     sa.ForeignKeyConstraint(['chunking_profile_id'], ['chunkingprofile.id'], ),
-    sa.ForeignKeyConstraint(['raw_document_id'], ['rawdocument.id'], ),
+    sa.ForeignKeyConstraint(['corpus_id'], ['corpus.id'], ),
+    sa.ForeignKeyConstraint(['current_raw_document_id'], ['rawdocument.id'], ),
+    sa.ForeignKeyConstraint(['replaced_corpus_index_id'], ['corpusindex.id'], ),
+    sa.ForeignKeyConstraint(['vector_store_id'], ['vectorstore.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('indexedchunk',
-    sa.Column('corpus_index_id', sa.Integer(), nullable=False),
-    sa.Column('document_chunk_id', sa.Integer(), nullable=False),
-    sa.Column('external_vector_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['corpus_index_id'], ['corpusindex.id'], ),
-    sa.ForeignKeyConstraint(['document_chunk_id'], ['documentchunk.id'], ),
-    sa.PrimaryKeyConstraint('corpus_index_id', 'document_chunk_id')
-    )
+    op.create_index(op.f('ix_indexingjob_corpus_id'), 'indexingjob', ['corpus_id'], unique=False)
+    op.create_index(op.f('ix_indexingjob_stage'), 'indexingjob', ['stage'], unique=False)
+    op.create_index(op.f('ix_indexingjob_status'), 'indexingjob', ['status'], unique=False)
     op.create_table('simulation',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
@@ -233,16 +244,59 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_simulation_name'), 'simulation', ['name'], unique=True)
     op.create_index(op.f('ix_simulation_status'), 'simulation', ['status'], unique=False)
+    op.create_table('documentchunk',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('raw_document_id', sa.Integer(), nullable=False),
+    sa.Column('chunking_profile_id', sa.Integer(), nullable=False),
+    sa.Column('indexing_job_id', sa.Integer(), nullable=True),
+    sa.Column('chunk_index', sa.Integer(), nullable=False),
+    sa.Column('content', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('metadata', sa.JSON(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['chunking_profile_id'], ['chunkingprofile.id'], ),
+    sa.ForeignKeyConstraint(['indexing_job_id'], ['indexingjob.id'], ),
+    sa.ForeignKeyConstraint(['raw_document_id'], ['rawdocument.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('indexingjobwarning',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('indexing_job_id', sa.Integer(), nullable=False),
+    sa.Column('raw_document_id', sa.Integer(), nullable=True),
+    sa.Column('document_name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('stage', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('message', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['indexing_job_id'], ['indexingjob.id'], ),
+    sa.ForeignKeyConstraint(['raw_document_id'], ['rawdocument.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_indexingjobwarning_indexing_job_id'), 'indexingjobwarning', ['indexing_job_id'], unique=False)
+    op.create_table('indexedchunk',
+    sa.Column('corpus_index_id', sa.Integer(), nullable=False),
+    sa.Column('document_chunk_id', sa.Integer(), nullable=False),
+    sa.Column('external_vector_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['corpus_index_id'], ['corpusindex.id'], ),
+    sa.ForeignKeyConstraint(['document_chunk_id'], ['documentchunk.id'], ),
+    sa.PrimaryKeyConstraint('corpus_index_id', 'document_chunk_id')
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('indexedchunk')
+    op.drop_index(op.f('ix_indexingjobwarning_indexing_job_id'), table_name='indexingjobwarning')
+    op.drop_table('indexingjobwarning')
+    op.drop_table('documentchunk')
     op.drop_index(op.f('ix_simulation_status'), table_name='simulation')
     op.drop_index(op.f('ix_simulation_name'), table_name='simulation')
     op.drop_table('simulation')
-    op.drop_table('indexedchunk')
-    op.drop_table('documentchunk')
+    op.drop_index(op.f('ix_indexingjob_status'), table_name='indexingjob')
+    op.drop_index(op.f('ix_indexingjob_stage'), table_name='indexingjob')
+    op.drop_index(op.f('ix_indexingjob_corpus_id'), table_name='indexingjob')
+    op.drop_table('indexingjob')
     op.drop_table('corpusrawdocumentlink')
     op.drop_index(op.f('ix_corpusindex_status'), table_name='corpusindex')
     op.drop_index(op.f('ix_corpusindex_name'), table_name='corpusindex')

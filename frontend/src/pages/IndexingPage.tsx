@@ -1,0 +1,345 @@
+import { useEffect, useMemo, useState } from "react";
+import { PageHeader } from "@/components/common/PageHeader";
+import { ErrorState } from "@/components/common/ErrorState";
+import { LoadingState } from "@/components/common/LoadingState";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select } from "@/components/ui/Field";
+import { getErrorMessage } from "@/api/client";
+import { formatDateTime } from "@/utils/format";
+import {
+  useChunkingProfilesQuery,
+  useCorpusIndicesQuery,
+  useEmbeddingModelsQuery,
+  useVectorStoresQuery
+} from "@/features/corpusIndices/corpusIndexQueries";
+import { useCorporaQuery } from "@/features/corpora/corpusQueries";
+import {
+  useActiveIndexingJobQuery,
+  useCreateIndexingJobMutation,
+  useIndexingJobDetailQuery,
+  useIndexingJobsQuery
+} from "@/features/indexing/indexingQueries";
+
+function formatElapsed(queuedAt?: string, completedAt?: string | null) {
+  if (!queuedAt) {
+    return "Not started";
+  }
+  const start = new Date(queuedAt).getTime();
+  const end = completedAt ? new Date(completedAt).getTime() : Date.now();
+  const totalSeconds = Math.max(0, Math.round((end - start) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
+
+export function IndexingPage() {
+  const corpora = useCorporaQuery();
+  const profiles = useChunkingProfilesQuery();
+  const vectorStores = useVectorStoresQuery();
+  const models = useEmbeddingModelsQuery();
+  const indices = useCorpusIndicesQuery();
+  const jobs = useIndexingJobsQuery();
+  const activeJob = useActiveIndexingJobQuery();
+  const createMutation = useCreateIndexingJobMutation();
+
+  const [corpusId, setCorpusId] = useState("");
+  const [profileId, setProfileId] = useState("");
+  const [vectorStoreId, setVectorStoreId] = useState("");
+  const [modelName, setModelName] = useState("");
+  const [indexName, setIndexName] = useState("");
+  const [vectorNamespace, setVectorNamespace] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+
+  const selectedDetailId = selectedJobId ?? activeJob.data?.id ?? null;
+  const jobDetail = useIndexingJobDetailQuery(selectedDetailId);
+
+  useEffect(() => {
+    if (activeJob.data?.id) {
+      setSelectedJobId((current) => current ?? activeJob.data?.id ?? null);
+    }
+  }, [activeJob.data?.id]);
+
+  const supportedProfiles = useMemo(
+    () => (profiles.data ?? []).filter((profile) => profile.strategy === "recursive"),
+    [profiles.data]
+  );
+  const selectedCorpusIndices = useMemo(
+    () => (indices.data ?? []).filter((index) => index.corpus_id === Number(corpusId || "0")),
+    [corpusId, indices.data]
+  );
+  const formDisabled = Boolean(activeJob.data) || createMutation.isPending;
+
+  if (
+    corpora.isLoading ||
+    profiles.isLoading ||
+    vectorStores.isLoading ||
+    models.isLoading ||
+    jobs.isLoading ||
+    indices.isLoading
+  ) {
+    return <LoadingState label="Loading indexing management..." />;
+  }
+
+  if (
+    corpora.isError ||
+    profiles.isError ||
+    vectorStores.isError ||
+    models.isError ||
+    jobs.isError ||
+    indices.isError
+  ) {
+    return (
+      <ErrorState
+        message={
+          corpora.error?.message ??
+          profiles.error?.message ??
+          vectorStores.error?.message ??
+          models.error?.message ??
+          jobs.error?.message ??
+          indices.error?.message ??
+          "Unable to load indexing management."
+        }
+        onRetry={() => {
+          void corpora.refetch();
+          void profiles.refetch();
+          void vectorStores.refetch();
+          void models.refetch();
+          void jobs.refetch();
+          void indices.refetch();
+        }}
+      />
+    );
+  }
+
+  const detail = jobDetail.data ?? activeJob.data ?? null;
+  const warnings = detail?.warnings ?? [];
+
+  return (
+    <div className="grid gap-6">
+      <PageHeader
+        title="Indexing"
+        description="Run the full PDF-to-index pipeline for a corpus and monitor the resulting background job from one place."
+      />
+
+      <Card className="border-amber-200 bg-amber-50/80">
+        <h2 className="text-lg font-semibold text-amber-950">Important</h2>
+        <p className="mt-2 text-sm text-amber-900">
+          Only one indexing job can run at a time. Do not shut down or restart the app while a job is queued or running,
+          because FastAPI background tasks do not survive application shutdown.
+        </p>
+        <p className="mt-2 text-sm text-amber-900">
+          The current implementation does not support cancellation. New submissions stay disabled until the active job finishes.
+        </p>
+      </Card>
+
+      <Card>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Queue indexing job</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Select a corpus, chunking profile, embedding model, vector store, and the human-readable name for the resulting index.
+            </p>
+          </div>
+          {activeJob.data ? <StatusBadge status={activeJob.data.status} /> : null}
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Field label="Corpus">
+            <Select value={corpusId} onChange={(event) => setCorpusId(event.target.value)} disabled={formDisabled}>
+              <option value="">Select corpus</option>
+              {(corpora.data ?? []).map((corpus) => (
+                <option key={corpus.id} value={corpus.id}>
+                  {corpus.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Chunking profile" hint="Only recursive profiles are supported by the PDF ingestion pipeline today.">
+            <Select value={profileId} onChange={(event) => setProfileId(event.target.value)} disabled={formDisabled}>
+              <option value="">Select profile</option>
+              {supportedProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Embedding model">
+            <Select value={modelName} onChange={(event) => setModelName(event.target.value)} disabled={formDisabled}>
+              <option value="">Select model</option>
+              {(models.data ?? []).map((model) => (
+                <option key={model.name} value={model.name}>
+                  {model.display_name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Vector store">
+            <Select value={vectorStoreId} onChange={(event) => setVectorStoreId(event.target.value)} disabled={formDisabled}>
+              <option value="">Select vector store</option>
+              {(vectorStores.data ?? []).map((store) => (
+                <option key={store.id} value={store.id}>
+                  {store.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Index name" hint="This must stay unique unless it belongs to the same replacement configuration tuple.">
+            <Input value={indexName} onChange={(event) => setIndexName(event.target.value)} disabled={formDisabled} />
+          </Field>
+          <Field label="Vector namespace" hint="Optional. Leave blank to let the backend generate a namespace automatically.">
+            <Input
+              value={vectorNamespace}
+              onChange={(event) => setVectorNamespace(event.target.value)}
+              disabled={formDisabled}
+              placeholder="Optional namespace"
+            />
+          </Field>
+        </div>
+        {selectedCorpusIndices.length ? (
+          <div className="mt-4 rounded-xl bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">Existing indices for the selected corpus</h3>
+            <div className="mt-3 grid gap-2">
+              {selectedCorpusIndices.map((index) => (
+                <div key={index.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">{index.name}</p>
+                    <p className="text-xs text-slate-500">
+                      Profile #{index.chunking_profile_id} · Store #{index.vector_store_id} · {index.embedding_model}
+                    </p>
+                  </div>
+                  <StatusBadge status={index.status} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            disabled={!corpusId || !profileId || !vectorStoreId || !modelName || !indexName || formDisabled}
+            onClick={async () => {
+              try {
+                const queued = await createMutation.mutateAsync({
+                  corpus_id: Number(corpusId),
+                  chunking_profile_id: Number(profileId),
+                  vector_store_id: Number(vectorStoreId),
+                  embedding_model: modelName,
+                  requested_index_name: indexName,
+                  requested_vector_namespace: vectorNamespace.trim() || null,
+                  status: "queued",
+                  stage: "validating"
+                });
+                setMessage(`Queued indexing job #${queued.id}. Keep this application running until the job finishes.`);
+                setSelectedJobId(queued.id);
+              } catch (error) {
+                setMessage(getErrorMessage(error));
+              }
+            }}
+          >
+            {createMutation.isPending ? "Queueing..." : "Index corpus"}
+          </Button>
+          {message ? <p className="text-sm text-slate-600">{message}</p> : null}
+        </div>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-950">Current or selected job</h2>
+          {detail ? (
+            <div className="mt-4 grid gap-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{detail.requested_index_name}</p>
+                  <p className="text-xs text-slate-500">Job #{detail.id}</p>
+                </div>
+                <StatusBadge status={detail.status} />
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stage</p>
+                  <p className="mt-2 text-lg font-semibold capitalize text-slate-950">{detail.stage.replaceAll("_", " ")}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Elapsed</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">
+                    {formatElapsed(detail.queued_at, detail.completed_at ?? null)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Documents</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">
+                    {detail.processed_documents} / {detail.total_documents}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Chunks</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950">
+                    {detail.chunks_indexed || detail.chunks_created}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="text-sm font-medium text-slate-900">Current document</p>
+                <p className="mt-2 text-sm text-slate-600">{detail.current_document_name ?? "No document is currently being processed."}</p>
+              </div>
+              {detail.failure_detail ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{detail.failure_detail}</div>
+              ) : null}
+              <div className="rounded-xl border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Warnings</h3>
+                  <span className="text-xs text-slate-500">{warnings.length}</span>
+                </div>
+                {warnings.length ? (
+                  <div className="mt-3 grid gap-2">
+                    {warnings.map((warning, index) => (
+                      <div key={`${warning.document_name ?? "warning"}-${index}`} className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        <p className="font-medium">{warning.document_name ?? "Document warning"}</p>
+                        <p className="mt-1">{warning.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-600">No warnings recorded for this job.</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-600">No indexing job is selected. Queue a job or pick one from the history panel.</p>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-950">Job history</h2>
+          <div className="mt-4 grid gap-3">
+            {(jobs.data ?? []).length ? (
+              jobs.data?.map((job) => (
+                <button
+                  key={job.id}
+                  type="button"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-slate-300 hover:bg-slate-50"
+                  onClick={() => setSelectedJobId(job.id)}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{job.requested_index_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Corpus #{job.corpus_id} · queued {formatDateTime(job.queued_at)}
+                      </p>
+                    </div>
+                    <StatusBadge status={job.status} />
+                  </div>
+                </button>
+              ))
+            ) : (
+              <p className="text-sm text-slate-600">No indexing jobs have been recorded yet.</p>
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}

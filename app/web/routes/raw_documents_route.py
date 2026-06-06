@@ -9,8 +9,8 @@ from app.schemas.raw_documents_schemas import RawDocumentRead
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from app.core.dependencies import (
     ChunkingProfileDep,
-    ChunkingOptionsDep,
-    IngestionOptionsDep,
+    ChunkingExecutionOptionsDep,
+    IngestionExecutionOptionsDep,
     SessionDep,
     RawDocumentCreatorDep,
     WritableRawDocumentDep,
@@ -109,7 +109,7 @@ async def ingest_raw_document(
     raw_document: WritableRawDocumentDep,
     chunking_profile: ChunkingProfileDep,
     session: SessionDep,
-    options: IngestionOptionsDep,
+    options: IngestionExecutionOptionsDep,
 ) -> RawDocumentIngestResult:
     """
     Endpoint to ingest and parse a raw document into document chunks.
@@ -141,7 +141,7 @@ async def chunk_raw_document(
     raw_document: WritableRawDocumentDep,
     chunking_profile: ChunkingProfileDep,
     session: SessionDep,
-    options: ChunkingOptionsDep,
+    options: ChunkingExecutionOptionsDep,
 ) -> RawDocumentChunkResult:
     """
     Endpoint to chunk an already parsed raw document into document chunks.

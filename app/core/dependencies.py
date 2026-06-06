@@ -1070,8 +1070,26 @@ def get_ingestion_options(
         chunker=chunker,
     )
 
-
+# Ingestion options alias for dependency injection
 IngestionOptionsDep = Annotated[IngestionOptions, Depends(get_ingestion_options)]
+
+
+class IngestionExecutionOptions(BaseModel):
+    header_depth: int = 2
+    dynamic_header_depth: bool = False
+
+
+def get_ingestion_execution_options(
+    header_depth: int = Query(default=2, ge=1, le=6),
+    dynamic_header_depth: bool = Query(default=False),
+) -> IngestionExecutionOptions:
+    return IngestionExecutionOptions(
+        header_depth=header_depth,
+        dynamic_header_depth=dynamic_header_depth,
+    )
+
+
+IngestionExecutionOptionsDep = Annotated[IngestionExecutionOptions, Depends(get_ingestion_execution_options)]
 
 # Chunking Options
 from app.schemas.chunking_schemas import ChunkingOptions
@@ -1110,3 +1128,16 @@ def get_chunking_options(
 
 
 ChunkingOptionsDep = Annotated[ChunkingOptions, Depends(get_chunking_options)]
+
+
+class ChunkingExecutionOptions(BaseModel):
+    preview: bool = False
+
+
+def get_chunking_execution_options(
+    preview: bool = Query(default=False),
+) -> ChunkingExecutionOptions:
+    return ChunkingExecutionOptions(preview=preview)
+
+
+ChunkingExecutionOptionsDep = Annotated[ChunkingExecutionOptions, Depends(get_chunking_execution_options)]

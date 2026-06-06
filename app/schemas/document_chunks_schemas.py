@@ -7,6 +7,7 @@ from sqlmodel import Field, SQLModel
 class DocumentChunkBase(SQLModel):
 	raw_document_id: int
 	chunking_profile_id: int
+	indexing_job_id: int | None = None
 	chunk_index: int = Field(ge=0)
 	chunk_metadata: dict[str, Any] = Field(default_factory=dict)
 

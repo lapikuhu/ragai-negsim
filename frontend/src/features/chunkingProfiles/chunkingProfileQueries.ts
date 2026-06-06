@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError, apiClient, unwrapResult } from "@/api/client";
-import type { ApiComponents, ChunkingProfileRead } from "@/api/types";
+import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
+import { getApiBaseUrl } from "@/api/clientConfig";
+import type { ApiComponents, ChunkerDefinitionRead, ChunkingProfileRead } from "@/api/types";
 
 type ChunkingProfileCreate = ApiComponents["schemas"]["ChunkingProfileCreate"];
 type ChunkingProfileUpdate = ApiComponents["schemas"]["ChunkingProfileUpdate"];
 type ChunkingProfileCopy = ApiComponents["schemas"]["ChunkingProfileCopy"];
 
 export const chunkingProfileKeys = {
-  all: ["chunking-profiles"] as const
+  all: ["chunking-profiles"] as const,
+  definitions: ["chunking-profile-definitions"] as const
 };
 
 export async function listChunkingProfiles() {
@@ -15,25 +17,61 @@ export async function listChunkingProfiles() {
   return unwrapResult<ChunkingProfileRead[]>(result, "Unable to load chunking profiles");
 }
 
+export async function listChunkerDefinitions() {
+  const response = await apiFetch(`${getApiBaseUrl()}/chunking-profiles/definitions`);
+  const detail = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError("Unable to load chunker definitions", response.status, detail);
+  }
+  return detail as ChunkerDefinitionRead[];
+}
+
+async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
+  const response = await apiFetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers ?? {})
+    }
+  });
+  const detail = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(fallback, response.status, detail);
+  }
+  return detail as T;
+}
+
 async function createChunkingProfile(input: ChunkingProfileCreate) {
-  const result = await apiClient.POST("/chunking-profiles/", { body: input });
-  return unwrapResult<ChunkingProfileRead>(result, "Unable to create chunking profile");
+  return jsonRequest<ChunkingProfileRead>(
+    "/chunking-profiles/",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    "Unable to create chunking profile"
+  );
 }
 
 async function updateChunkingProfile(profileId: number, input: ChunkingProfileUpdate) {
-  const result = await apiClient.PATCH("/chunking-profiles/{profile_id}", {
-    params: { path: { profile_id: profileId } },
-    body: input
-  });
-  return unwrapResult<ChunkingProfileRead>(result, "Unable to update chunking profile");
+  return jsonRequest<ChunkingProfileRead>(
+    `/chunking-profiles/${profileId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    "Unable to update chunking profile"
+  );
 }
 
 async function copyChunkingProfile(profileId: number, input: ChunkingProfileCopy) {
-  const result = await apiClient.POST("/chunking-profiles/{profile_id}/copy", {
-    params: { path: { profile_id: profileId } },
-    body: input
-  });
-  return unwrapResult<ChunkingProfileRead>(result, "Unable to copy chunking profile");
+  return jsonRequest<ChunkingProfileRead>(
+    `/chunking-profiles/${profileId}/copy`,
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    "Unable to copy chunking profile"
+  );
 }
 
 async function deleteChunkingProfile(profileId: number) {
@@ -47,6 +85,10 @@ async function deleteChunkingProfile(profileId: number) {
 
 export function useChunkingProfilesQuery() {
   return useQuery({ queryKey: chunkingProfileKeys.all, queryFn: listChunkingProfiles });
+}
+
+export function useChunkerDefinitionsQuery() {
+  return useQuery({ queryKey: chunkingProfileKeys.definitions, queryFn: listChunkerDefinitions });
 }
 
 function useInvalidateChunkingProfiles() {

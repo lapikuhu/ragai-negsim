@@ -13,6 +13,8 @@ from app.models import corpus_indices  # noqa: F401
 from app.models import counterpart_personas  # noqa: F401
 from app.models import document_chunks  # noqa: F401
 from app.models import indexed_chunks  # noqa: F401
+from app.models import indexing_job_warnings  # noqa: F401
+from app.models import indexing_jobs  # noqa: F401
 from app.models import prompts  # noqa: F401
 from app.models import raw_documents  # noqa: F401
 from app.models import scenarios  # noqa: F401

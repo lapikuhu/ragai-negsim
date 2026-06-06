@@ -15,6 +15,7 @@ from app.schemas.chunking_schemas import (
 )
 from app.schemas.document_chunks_schemas import DocumentChunkCreate
 from app.services.helpers import _persisted_id
+from app.services.chunking_profile_runtime import resolve_chunking_profile_options
 from app.services.raw_documents_service import (
     RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE,
     verify_raw_document_source_srvc,
@@ -23,7 +24,11 @@ from langchain_core.documents import Document
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-class ChunkingOptionsLike(Protocol):
+class ChunkingExecutionOptionsLike(Protocol):
+    preview: bool
+
+
+class ResolvedChunkingOptionsLike(Protocol):
     chunker: str
     chunk_size: int
     chunk_overlap: int
@@ -63,7 +68,7 @@ def _load_parsed_document(raw_document: RawDocument) -> Document:
     )
 
 
-def _chunk_documents(documents: list[Document], options: ChunkingOptionsLike) -> list[Document]:
+def _chunk_documents(documents: list[Document], options: ResolvedChunkingOptionsLike) -> list[Document]:
     """
     Chunk a list of documents based on the provided chunking options.
     Args:
@@ -159,7 +164,7 @@ async def chunk_raw_document_srvc(
     raw_document: RawDocument,
     chunking_profile: ChunkingProfile,
     session: AsyncSession,
-    options: ChunkingOptionsLike,
+    options: ChunkingExecutionOptionsLike,
 ) -> RawDocumentChunkResult:
     """
     Chunk a raw document based on the provided chunking options.
@@ -193,8 +198,12 @@ async def chunk_raw_document_srvc(
             "Create a new chunking profile to re-chunk."
         )
 
+    resolved_options = resolve_chunking_profile_options(
+        chunking_profile,
+        preview=options.preview,
+    )
     parsed_document = _load_parsed_document(raw_document)
-    chunked_documents = _chunk_documents([parsed_document], options)
+    chunked_documents = _chunk_documents([parsed_document], resolved_options)
     chunks_in = _to_chunk_inputs(
         chunked_documents,
         raw_document_id=raw_document_id,
@@ -202,11 +211,11 @@ async def chunk_raw_document_srvc(
         source=raw_document.source_path,
     )
 
-    if options.preview:
+    if resolved_options.preview:
         return RawDocumentChunkResult(
             raw_document_id=raw_document_id,
             chunking_profile_id=chunking_profile_id,
-            chunker=options.chunker,
+            chunker=resolved_options.chunker,
             preview=True,
             chunks_created=len(chunks_in),
             chunks=_to_previews(chunks_in),
@@ -217,7 +226,7 @@ async def chunk_raw_document_srvc(
     return RawDocumentChunkResult(
         raw_document_id=raw_document_id,
         chunking_profile_id=chunking_profile_id,
-        chunker=options.chunker,
+        chunker=resolved_options.chunker,
         chunks_created=len(created_chunks),
         chunk_ids=chunk_ids,
     )
@@ -227,7 +236,7 @@ async def chunk_corpus_srvc(
     corpus: Corpus,
     chunking_profile: ChunkingProfile,
     session: AsyncSession,
-    options: ChunkingOptionsLike,
+    options: ChunkingExecutionOptionsLike,
 ) -> CorpusChunkResult:
     """
     Chunk a corpus based on the provided chunking options.
@@ -243,6 +252,10 @@ async def chunk_corpus_srvc(
     """
     corpus_id = _persisted_id(corpus.id, "Corpus")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
+    resolved_options = resolve_chunking_profile_options(
+        chunking_profile,
+        preview=options.preview,
+    )
     raw_document_ids = await corpus_repo.get_corpus_raw_document_ids(corpus_id, session)
 
     raw_document_results = []
@@ -263,8 +276,8 @@ async def chunk_corpus_srvc(
     return CorpusChunkResult(
         corpus_id=corpus_id,
         chunking_profile_id=chunking_profile_id,
-        chunker=options.chunker,
-        preview=options.preview,
+        chunker=resolved_options.chunker,
+        preview=resolved_options.preview,
         raw_documents=raw_document_results,
         chunks_created=sum(result.chunks_created for result in raw_document_results),
     )

@@ -58,6 +58,37 @@ def test_embedding_catalog_uses_registry():
     assert all(model["dimensionality"] > 0 for model in models)
 
 
+@pytest.mark.asyncio
+async def test_delete_vectors_from_pgvector_uses_external_vector_ids(monkeypatch):
+    captured = []
+
+    class FakeStore:
+        async def adelete(self, ids):
+            captured.extend(ids)
+
+    async def fake_get_vector_store(**kwargs):
+        return FakeStore()
+
+    async def fake_enable_pgvector():
+        return None
+
+    monkeypatch.setattr(embeddings_service, "get_vector_store", fake_get_vector_store, raising=False)
+
+    from app.airag.vector_stores import vector_stores as vector_stores_module
+
+    monkeypatch.setattr(vector_stores_module, "enable_pgvector", fake_enable_pgvector)
+    monkeypatch.setattr(vector_stores_module, "create_pg_engine", lambda engine: object())
+    monkeypatch.setattr(vector_stores_module, "get_vector_store", fake_get_vector_store)
+
+    await vector_stores_module.delete_vectors_from_vector_store(
+        backend="pgvector",
+        vector_ids=["corpus-index-7-chunk-10"],
+        table_name="rag_chunks",
+    )
+
+    assert captured == ["corpus-index-7-chunk-10"]
+
+
 def test_queued_embedding_build_response_contains_poll_links():
     from app.schemas.embeddings_schemas import CorpusEmbeddingBuildQueued
 

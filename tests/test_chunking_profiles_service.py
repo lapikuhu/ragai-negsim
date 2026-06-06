@@ -9,6 +9,7 @@ from app.schemas.chunking_profiles_schemas import (
     ChunkingProfileReadWithIds,
     ChunkingProfileUpdate,
 )
+from app.schemas.chunker_definitions_schemas import ChunkerDefinitionRead
 from app.services import chunking_profiles_service
 
 
@@ -119,6 +120,14 @@ async def test_list_chunking_profiles_passes_filters_and_converts(monkeypatch):
     assert captured == [(5, 10, "recursive", "default", True)]
     assert [profile.id for profile in result] == [1, 2]
     assert result[0].document_chunk_ids == [1]
+
+
+@pytest.mark.asyncio
+async def test_list_chunker_definitions_returns_schema_models():
+    result = await chunking_profiles_service.list_chunker_definitions_srvc()
+
+    assert all(isinstance(item, ChunkerDefinitionRead) for item in result)
+    assert {item.strategy for item in result} == {"recursive", "semantic"}
 
 
 @pytest.mark.asyncio

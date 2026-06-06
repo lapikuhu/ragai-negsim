@@ -1,9 +1,9 @@
 from app.core.dependencies import (
     AdminDep,
     ChunkingProfileDep,
-    ChunkingOptionsDep,
+    ChunkingExecutionOptionsDep,
     CorpusCreatorDep,
-    IngestionOptionsDep,
+    IngestionExecutionOptionsDep,
     SessionDep,
     VectorStoreRecordDep,
     WritableCorpusDep,
@@ -96,7 +96,7 @@ async def ingest_corpus(
     corpus: WritableCorpusDep,
     chunking_profile: ChunkingProfileDep,
     session: SessionDep,
-    options: IngestionOptionsDep,
+    options: IngestionExecutionOptionsDep,
 ) -> CorpusIngestResult:
     """
     Endpoint to ingest and parse all raw documents linked to a corpus.
@@ -130,7 +130,7 @@ async def chunk_corpus(
     corpus: WritableCorpusDep,
     chunking_profile: ChunkingProfileDep,
     session: SessionDep,
-    options: ChunkingOptionsDep,
+    options: ChunkingExecutionOptionsDep,
 ) -> CorpusChunkResult:
     """
     Endpoint to chunk already parsed raw documents linked to a corpus.

@@ -12,6 +12,7 @@ from app.schemas.chunking_profiles_schemas import (
     ChunkingProfileReadWithIds,
     ChunkingProfileUpdate,
 )
+from app.schemas.chunker_definitions_schemas import ChunkerDefinitionRead
 from app.services import chunking_profiles_service
 
 # Instance of APIRouter for chunking profile related endpoints
@@ -64,6 +65,26 @@ async def create_chunking_profile(
         )
     except ValueError as exc:
         _raise_chunking_profile_service_error(exc)
+
+### ------------------- CHUNKING DEFINITIONS LIST ------------------ ###
+@router.get(
+    "/definitions",
+    response_model=list[ChunkerDefinitionRead],
+    status_code=status.HTTP_200_OK,
+)
+async def list_chunker_definitions(
+    _admin: ChunkingProfileAdminDep,
+) -> list[ChunkerDefinitionRead]:
+    """
+    List chunker definitions endpoint.
+        Args:
+            _admin: The admin dependency.
+        Returns:
+            A list of ChunkerDefinitionRead objects containing the chunker 
+            definitions.
+    """
+    return await chunking_profiles_service.list_chunker_definitions_srvc()
+
 
 ### -------------------- CHUNKING PROFILE LIST -------------------- ###
 @router.get(

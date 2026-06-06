@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Protocol
 
 from app.services.helpers import _persisted_id
+from app.services.chunking_profile_runtime import resolve_ingestion_profile_options
 from app.models.chunking_profiles import ChunkingProfile
 from app.models.corpus import Corpus
 from app.models.raw_documents import RawDocument
@@ -16,7 +17,12 @@ from app.services.raw_documents_service import (
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-class IngestionOptionsLike(Protocol):
+class IngestionExecutionOptionsLike(Protocol):
+    header_depth: int
+    dynamic_header_depth: bool
+
+
+class ResolvedIngestionOptionsLike(Protocol):
     header_depth: int
     dynamic_header_depth: bool
     chunk_size: int
@@ -24,7 +30,7 @@ class IngestionOptionsLike(Protocol):
     chunker: str
 
 
-def _parse_raw_document(path: str, options: IngestionOptionsLike) -> tuple[str, list]:
+def _parse_raw_document(path: str, options: ResolvedIngestionOptionsLike) -> tuple[str, list]:
     """
     Processes the raw document at the given path using the specified options. 
     Currently supports only PDF documents and recursive chunking.
@@ -78,7 +84,8 @@ async def ingest_raw_document_srvc(
     raw_document: RawDocument,
     chunking_profile: ChunkingProfile,
     session: AsyncSession,
-    options: IngestionOptionsLike,
+    options: IngestionExecutionOptionsLike,
+    indexing_job_id: int | None = None,
 ) -> RawDocumentIngestResult:
     """
     Ingests a raw document using the specified chunking profile and ingestion 
@@ -96,6 +103,11 @@ async def ingest_raw_document_srvc(
     """
     raw_document_id = _persisted_id(raw_document.id, "Raw document")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
+    resolved_options = resolve_ingestion_profile_options(
+        chunking_profile,
+        header_depth=options.header_depth,
+        dynamic_header_depth=options.dynamic_header_depth,
+    )
 
     raw_document = await verify_raw_document_source_srvc(raw_document, session)
     if raw_document.source_status != RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE:
@@ -103,7 +115,7 @@ async def ingest_raw_document_srvc(
             f"Raw document source is {raw_document.source_status}. Restore or re-upload the stored file before ingesting."
         )
 
-    parsed_content, parsed_chunks = _parse_raw_document(raw_document.source_path, options)
+    parsed_content, parsed_chunks = _parse_raw_document(raw_document.source_path, resolved_options)
     await raw_documents_repo.update_raw_document_parsed_content(
         raw_document=raw_document,
         parsed_content=parsed_content,
@@ -123,6 +135,7 @@ async def ingest_raw_document_srvc(
             DocumentChunkCreate(
                 raw_document_id=raw_document_id,
                 chunking_profile_id=chunking_profile_id,
+                indexing_job_id=indexing_job_id,
                 chunk_index=chunk_index,
                 content=chunk.page_content,
                 chunk_metadata=chunk_metadata,
@@ -143,7 +156,7 @@ async def ingest_corpus_srvc(
     corpus: Corpus,
     chunking_profile: ChunkingProfile,
     session: AsyncSession,
-    options: IngestionOptionsLike,
+    options: IngestionExecutionOptionsLike,
 ) -> CorpusIngestResult:
     """
     Ingests a corpus by processing all its associated raw documents using the

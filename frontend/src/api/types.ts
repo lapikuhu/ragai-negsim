@@ -17,6 +17,28 @@ export type PromptRead = components["schemas"]["PromptRead"];
 export type ScenarioRead = components["schemas"]["ScenarioReadWithIds"];
 export type CounterpartPersonaRead = components["schemas"]["CounterpartPersonaReadWithIds"];
 export type EmbeddingModelRead = components["schemas"]["EmbeddingModelRead"];
+export type IndexingJobCreate = components["schemas"]["IndexingJobCreate"];
+export type IndexingJobQueued = components["schemas"]["IndexingJobQueued"];
+export type IndexingJobDetail = components["schemas"]["IndexingJobDetail"];
+export type IndexingJobWarningRead = components["schemas"]["IndexingJobWarningRead"];
+
+export type ChunkerFieldDefinitionRead = {
+  name: string;
+  kind: "int" | "string" | "string_list";
+  label: string;
+  required: boolean;
+  default: unknown;
+  minimum?: number | null;
+  maximum?: number | null;
+  help_text?: string | null;
+};
+
+export type ChunkerDefinitionRead = {
+  strategy: string;
+  label: string;
+  supports_ingestion: boolean;
+  fields: ChunkerFieldDefinitionRead[];
+};
 
 export type RawDocumentSourceStatus = "available" | "missing" | "changed" | "unverified" | "error";
 

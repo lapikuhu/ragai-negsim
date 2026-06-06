@@ -4,6 +4,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
+from app.airag.chunking import normalize_chunking_profile_config
 from app.models.chunking_profiles import ChunkingProfile
 from app.models.corpus_indices import CorpusIndex
 from app.models.document_chunks import DocumentChunk
@@ -38,6 +39,30 @@ def ensure_chunking_strategy(strategy: str | None) -> None:
     """
     if strategy is None or not strategy.strip():
         raise ValueError("Chunking strategy must not be blank")
+
+
+def normalize_chunking_profile_payload(
+    strategy: str,
+    config: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """
+    Validate and normalize a persisted chunking profile payload.
+    Args:
+        strategy: The chunking strategy identifier.
+        config: The strategy-specific config payload.
+    Returns:
+        A normalized config dictionary with defaults applied.
+    Raises:
+        ValueError: If the strategy or config are invalid.
+    """
+    ensure_chunking_strategy(strategy)
+    ensure_chunking_profile_config_dict(config)
+    normalized = normalize_chunking_profile_config(strategy, config)
+
+    if strategy == "recursive" and normalized["chunk_overlap"] >= normalized["chunk_size"]:
+        raise ValueError("chunk_overlap must be smaller than chunk_size")
+
+    return normalized
 
 
 async def get_chunking_profile_by_id(
@@ -314,9 +339,15 @@ async def create_chunking_profile(
         The created chunking profile.
     """
     await ensure_chunking_profile_name_available(profile_in.name, session)
-    ensure_chunking_strategy(profile_in.strategy)
-    ensure_chunking_profile_config_dict(profile_in.config)
-    profile = ChunkingProfile(**profile_in.model_dump())
+    normalized_config = normalize_chunking_profile_payload(
+        profile_in.strategy,
+        profile_in.config,
+    )
+    profile = ChunkingProfile(
+        name=profile_in.name,
+        strategy=profile_in.strategy,
+        config=normalized_config,
+    )
     return await commit_and_refresh(session, profile)
 
 
@@ -338,12 +369,17 @@ async def update_chunking_profile(
 
     if "name" in update_data and update_data["name"] is not None:
         await ensure_chunking_profile_name_available(update_data["name"], session, profile.id)
-    if "strategy" in update_data:
-        ensure_chunking_strategy(update_data["strategy"])
-    if "config" in update_data:
-        ensure_chunking_profile_config_dict(update_data["config"])
 
     await ensure_chunking_profile_can_update(profile, update_data, session)
+
+    next_strategy = update_data.get("strategy", profile.strategy)
+    next_config = update_data.get("config", profile.config)
+    if "strategy" in update_data or "config" in update_data:
+        update_data["config"] = normalize_chunking_profile_payload(
+            next_strategy,
+            next_config,
+        )
+        update_data["strategy"] = next_strategy
 
     for field_name, value in update_data.items():
         setattr(profile, field_name, value)
@@ -369,14 +405,12 @@ async def copy_chunking_profile(
     await ensure_chunking_profile_name_available(copy_in.name, session)
     strategy = copy_in.strategy if copy_in.strategy is not None else source_profile.strategy
     config = copy_in.config if copy_in.config is not None else deepcopy(source_profile.config)
-
-    ensure_chunking_strategy(strategy)
-    ensure_chunking_profile_config_dict(config)
+    normalized_config = normalize_chunking_profile_payload(strategy, config)
 
     profile = ChunkingProfile(
         name=copy_in.name,
         strategy=strategy,
-        config=config,
+        config=normalized_config,
     )
     return await commit_and_refresh(session, profile)
 

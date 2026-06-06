@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
-import type { ApiComponents, ChunkingProfileRead } from "@/api/types";
+import { useEffect, useMemo, useState } from "react";
+import type { ChunkerDefinitionRead, ChunkerFieldDefinitionRead, ChunkingProfileRead } from "@/api/types";
 import { getErrorMessage } from "@/api/client";
 import {
+  useChunkerDefinitionsQuery,
   useChunkingProfilesQuery,
   useCreateChunkingProfileMutation,
   useCopyChunkingProfileMutation,
@@ -15,13 +16,13 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { DataTable } from "@/components/common/DataTable";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Field, Input, Textarea } from "@/components/ui/Field";
+import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { formatDateTime, parseJsonInput, stringifyJson } from "@/utils/format";
 
-type ProfileFormState = {
+type ProfileCreateState = {
   name: string;
   strategy: string;
-  config: string;
+  fieldValues: Record<string, string>;
 };
 
 type ActiveAction =
@@ -30,30 +31,56 @@ type ActiveAction =
   | { type: "delete"; profileId: number }
   | null;
 
-const defaultCreateForm: ProfileFormState = {
-  name: "",
-  strategy: "recursive",
-  config: "{\n  \"chunk_size\": 1000,\n  \"chunk_overlap\": 150\n}"
-};
-
 export function ChunkingProfilesPage() {
   const query = useChunkingProfilesQuery();
+  const definitionsQuery = useChunkerDefinitionsQuery();
   const createMutation = useCreateChunkingProfileMutation();
-  const [createForm, setCreateForm] = useState<ProfileFormState>(defaultCreateForm);
+  const [createForm, setCreateForm] = useState<ProfileCreateState>({
+    name: "",
+    strategy: "recursive",
+    fieldValues: {}
+  });
   const [message, setMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
 
+  const definitions = definitionsQuery.data ?? [];
+  const createDefinition = getDefinition(definitions, createForm.strategy);
   const activeProfile = useMemo(
     () => query.data?.find((profile) => profile.id === activeAction?.profileId) ?? null,
     [activeAction?.profileId, query.data]
   );
 
-  if (query.isLoading) {
+  useEffect(() => {
+    if (!definitions.length) {
+      return;
+    }
+
+    setCreateForm((current) => {
+      const nextDefinition = getDefinition(definitions, current.strategy) ?? definitions[0];
+      if (!nextDefinition) {
+        return current;
+      }
+      if (current.strategy === nextDefinition.strategy && Object.keys(current.fieldValues).length) {
+        return current;
+      }
+      return {
+        ...current,
+        strategy: nextDefinition.strategy,
+        fieldValues: buildFieldValues(nextDefinition)
+      };
+    });
+  }, [definitions]);
+
+  if (query.isLoading || definitionsQuery.isLoading) {
     return <LoadingState label="Loading chunking profiles..." />;
   }
 
-  if (query.isError) {
-    return <ErrorState message={query.error.message} onRetry={() => query.refetch()} />;
+  const error = query.isError ? query.error : definitionsQuery.isError ? definitionsQuery.error : null;
+  if (error) {
+    return <ErrorState message={error.message} onRetry={() => {
+      void query.refetch();
+      void definitionsQuery.refetch();
+    }} />;
   }
 
   const profiles = query.data ?? [];
@@ -85,12 +112,17 @@ export function ChunkingProfilesPage() {
             event.preventDefault();
             setMessage(null);
             try {
+              const definition = requireDefinition(createDefinition, createForm.strategy);
               await createMutation.mutateAsync({
                 name: createForm.name.trim(),
-                strategy: createForm.strategy.trim(),
-                config: parseJsonInput<Record<string, unknown>>(createForm.config, {})
+                strategy: definition.strategy,
+                config: packProfileConfig(definition, createForm.fieldValues)
               });
-              setCreateForm(defaultCreateForm);
+              setCreateForm({
+                name: "",
+                strategy: definition.strategy,
+                fieldValues: buildFieldValues(definition)
+              });
               setMessage("Chunking profile created.");
             } catch (error) {
               setMessage(getErrorMessage(error, "Unable to create chunking profile"));
@@ -106,20 +138,45 @@ export function ChunkingProfilesPage() {
               />
             </Field>
             <Field label="Strategy">
-              <Input
+              <Select
                 value={createForm.strategy}
-                onChange={(event) => setCreateForm((current) => ({ ...current, strategy: event.target.value }))}
+                onChange={(event) => {
+                  const nextDefinition = getDefinition(definitions, event.target.value);
+                  setCreateForm((current) => ({
+                    ...current,
+                    strategy: event.target.value,
+                    fieldValues: nextDefinition ? buildFieldValues(nextDefinition) : {}
+                  }));
+                }}
                 required
-              />
+              >
+                {definitions.map((definition) => (
+                  <option key={definition.strategy} value={definition.strategy}>
+                    {definition.label}
+                  </option>
+                ))}
+              </Select>
             </Field>
           </div>
-          <Field label="Config JSON" hint="Stored exactly as sent to the backend. Valid JSON object required.">
-            <Textarea
-              className="min-h-40 font-mono text-sm"
-              value={createForm.config}
-              onChange={(event) => setCreateForm((current) => ({ ...current, config: event.target.value }))}
+          {createDefinition ? (
+            <DefinitionFields
+              definition={createDefinition}
+              fieldValues={createForm.fieldValues}
+              onChange={(fieldName, value) =>
+                setCreateForm((current) => ({
+                  ...current,
+                  fieldValues: { ...current.fieldValues, [fieldName]: value }
+                }))
+              }
             />
-          </Field>
+          ) : null}
+          {createDefinition ? (
+            <p className="text-xs text-slate-500">
+              {createDefinition.supports_ingestion
+                ? "Usable in ingestion and chunking flows."
+                : "Usable in chunking flows only."}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? "Creating..." : "Create profile"}
@@ -223,7 +280,13 @@ export function ChunkingProfilesPage() {
             />
 
             {activeAction && activeProfile ? (
-              <ActionPanel key={`${activeAction.type}-${activeProfile.id}`} action={activeAction} profile={activeProfile} onClose={() => setActiveAction(null)} />
+              <ActionPanel
+                key={`${activeAction.type}-${activeProfile.id}`}
+                action={activeAction}
+                profile={activeProfile}
+                definitions={definitions}
+                onClose={() => setActiveAction(null)}
+              />
             ) : null}
           </div>
         ) : (
@@ -242,29 +305,40 @@ export function ChunkingProfilesPage() {
 function ActionPanel({
   action,
   profile,
+  definitions,
   onClose
 }: {
   action: Exclude<ActiveAction, null>;
   profile: ChunkingProfileRead;
+  definitions: ChunkerDefinitionRead[];
   onClose: () => void;
 }) {
   if (action.type === "edit") {
-    return <EditProfilePanel profile={profile} onClose={onClose} />;
+    return <EditProfilePanel profile={profile} definitions={definitions} onClose={onClose} />;
   }
 
   if (action.type === "copy") {
-    return <CopyProfilePanel profile={profile} onClose={onClose} />;
+    return <CopyProfilePanel profile={profile} definitions={definitions} onClose={onClose} />;
   }
 
   return <DeleteProfilePanel profile={profile} onClose={onClose} />;
 }
 
-function EditProfilePanel({ profile, onClose }: { profile: ChunkingProfileRead; onClose: () => void }) {
+function EditProfilePanel({
+  profile,
+  definitions,
+  onClose
+}: {
+  profile: ChunkingProfileRead;
+  definitions: ChunkerDefinitionRead[];
+  onClose: () => void;
+}) {
   const updateMutation = useUpdateChunkingProfileMutation(profile.id);
-  const [form, setForm] = useState<ProfileFormState>({
+  const definition = requireDefinition(getDefinition(definitions, profile.strategy), profile.strategy);
+  const [form, setForm] = useState<ProfileCreateState>({
     name: profile.name,
     strategy: profile.strategy,
-    config: stringifyJson(profile.config)
+    fieldValues: buildFieldValues(definition, profile.config)
   });
   const [message, setMessage] = useState<string | null>(null);
   const referenced = hasReferences(profile);
@@ -285,8 +359,8 @@ function EditProfilePanel({ profile, onClose }: { profile: ChunkingProfileRead; 
           try {
             await updateMutation.mutateAsync({
               name: form.name.trim(),
-              strategy: referenced ? undefined : form.strategy.trim(),
-              config: referenced ? undefined : parseJsonInput<Record<string, unknown>>(form.config, {})
+              strategy: referenced ? undefined : form.strategy,
+              config: referenced ? undefined : packProfileConfig(definition, form.fieldValues)
             });
             onClose();
           } catch (error) {
@@ -299,22 +373,25 @@ function EditProfilePanel({ profile, onClose }: { profile: ChunkingProfileRead; 
             <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required />
           </Field>
           <Field label="Strategy">
-            <Input
-              value={form.strategy}
-              onChange={(event) => setForm((current) => ({ ...current, strategy: event.target.value }))}
-              disabled={referenced}
-              required
-            />
+            <Input value={form.strategy} disabled required />
           </Field>
         </div>
-        <Field label="Config JSON">
-          <Textarea
-            className="min-h-40 font-mono text-sm"
-            value={form.config}
-            onChange={(event) => setForm((current) => ({ ...current, config: event.target.value }))}
-            disabled={referenced}
+        {referenced ? (
+          <Field label="Config">
+            <Textarea className="min-h-40 font-mono text-sm" value={stringifyJson(profile.config)} disabled />
+          </Field>
+        ) : (
+          <DefinitionFields
+            definition={definition}
+            fieldValues={form.fieldValues}
+            onChange={(fieldName, value) =>
+              setForm((current) => ({
+                ...current,
+                fieldValues: { ...current.fieldValues, [fieldName]: value }
+              }))
+            }
           />
-        </Field>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={updateMutation.isPending}>
             {updateMutation.isPending ? "Saving..." : "Save changes"}
@@ -329,14 +406,23 @@ function EditProfilePanel({ profile, onClose }: { profile: ChunkingProfileRead; 
   );
 }
 
-function CopyProfilePanel({ profile, onClose }: { profile: ChunkingProfileRead; onClose: () => void }) {
+function CopyProfilePanel({
+  profile,
+  definitions,
+  onClose
+}: {
+  profile: ChunkingProfileRead;
+  definitions: ChunkerDefinitionRead[];
+  onClose: () => void;
+}) {
   const copyMutation = useCopyChunkingProfileMutation(profile.id);
-  const [form, setForm] = useState<ProfileFormState>({
+  const [form, setForm] = useState<ProfileCreateState>({
     name: `${profile.name} Copy`,
     strategy: profile.strategy,
-    config: stringifyJson(profile.config)
+    fieldValues: buildFieldValues(requireDefinition(getDefinition(definitions, profile.strategy), profile.strategy), profile.config)
   });
   const [message, setMessage] = useState<string | null>(null);
+  const definition = requireDefinition(getDefinition(definitions, form.strategy), form.strategy);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -352,8 +438,8 @@ function CopyProfilePanel({ profile, onClose }: { profile: ChunkingProfileRead; 
           try {
             await copyMutation.mutateAsync({
               name: form.name.trim(),
-              strategy: form.strategy.trim(),
-              config: parseJsonInput<Record<string, unknown>>(form.config, {})
+              strategy: form.strategy,
+              config: packProfileConfig(definition, form.fieldValues)
             });
             onClose();
           } catch (error) {
@@ -366,20 +452,39 @@ function CopyProfilePanel({ profile, onClose }: { profile: ChunkingProfileRead; 
             <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required />
           </Field>
           <Field label="Strategy">
-            <Input
+            <Select
               value={form.strategy}
-              onChange={(event) => setForm((current) => ({ ...current, strategy: event.target.value }))}
+              onChange={(event) => {
+                const nextDefinition = getDefinition(definitions, event.target.value);
+                setForm((current) => ({
+                  ...current,
+                  strategy: event.target.value,
+                  fieldValues: nextDefinition ? buildFieldValues(nextDefinition) : {}
+                }));
+              }}
               required
-            />
+            >
+              {definitions.map((item) => (
+                <option key={item.strategy} value={item.strategy}>
+                  {item.label}
+                </option>
+              ))}
+            </Select>
           </Field>
         </div>
-        <Field label="Config JSON">
-          <Textarea
-            className="min-h-40 font-mono text-sm"
-            value={form.config}
-            onChange={(event) => setForm((current) => ({ ...current, config: event.target.value }))}
-          />
-        </Field>
+        <DefinitionFields
+          definition={definition}
+          fieldValues={form.fieldValues}
+          onChange={(fieldName, value) =>
+            setForm((current) => ({
+              ...current,
+              fieldValues: { ...current.fieldValues, [fieldName]: value }
+            }))
+          }
+        />
+        <p className="text-xs text-slate-500">
+          {definition.supports_ingestion ? "Usable in ingestion and chunking flows." : "Usable in chunking flows only."}
+        </p>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={copyMutation.isPending}>
             {copyMutation.isPending ? "Copying..." : "Create copy"}
@@ -434,4 +539,80 @@ function DeleteProfilePanel({ profile, onClose }: { profile: ChunkingProfileRead
 
 function hasReferences(profile: ChunkingProfileRead) {
   return Boolean((profile.document_chunk_ids?.length ?? 0) || (profile.corpus_index_ids?.length ?? 0));
+}
+
+function DefinitionFields({
+  definition,
+  fieldValues,
+  onChange
+}: {
+  definition: ChunkerDefinitionRead;
+  fieldValues: Record<string, string>;
+  onChange: (fieldName: string, value: string) => void;
+}) {
+  return (
+    <div className="grid gap-3">
+      {definition.fields.map((field: ChunkerFieldDefinitionRead) => (
+        <Field key={field.name} label={field.label} hint={field.help_text ?? undefined}>
+          {field.kind === "string_list" ? (
+            <Textarea
+              className="min-h-32 font-mono text-sm"
+              value={fieldValues[field.name] ?? stringifyJson(field.default ?? [])}
+              onChange={(event) => onChange(field.name, event.target.value)}
+            />
+          ) : (
+            <Input
+              type={field.kind === "int" ? "number" : "text"}
+              min={field.kind === "int" ? field.minimum ?? undefined : undefined}
+              max={field.kind === "int" ? field.maximum ?? undefined : undefined}
+              value={fieldValues[field.name] ?? stringifyFieldValue(field.default, field.kind)}
+              onChange={(event) => onChange(field.name, event.target.value)}
+            />
+          )}
+        </Field>
+      ))}
+    </div>
+  );
+}
+
+function getDefinition(definitions: ChunkerDefinitionRead[], strategy: string) {
+  return definitions.find((definition) => definition.strategy === strategy) ?? null;
+}
+
+function requireDefinition(definition: ChunkerDefinitionRead | null, strategy: string) {
+  if (!definition) {
+    throw new Error(`Unknown chunker definition for strategy '${strategy}'`);
+  }
+  return definition;
+}
+
+function buildFieldValues(definition: ChunkerDefinitionRead, config?: Record<string, unknown>) {
+  return Object.fromEntries(
+    definition.fields.map((field: ChunkerFieldDefinitionRead) => {
+      const sourceValue = config?.[field.name] ?? field.default;
+      return [field.name, stringifyFieldValue(sourceValue, field.kind)];
+    })
+  );
+}
+
+function stringifyFieldValue(value: unknown, kind: string) {
+  if (kind === "string_list") {
+    return stringifyJson(value ?? []);
+  }
+  return String(value ?? "");
+}
+
+function packProfileConfig(definition: ChunkerDefinitionRead, fieldValues: Record<string, string>) {
+  return Object.fromEntries(
+    definition.fields.map((field: ChunkerFieldDefinitionRead) => {
+      const raw = fieldValues[field.name] ?? "";
+      if (field.kind === "int") {
+        return [field.name, Number(raw)];
+      }
+      if (field.kind === "string_list") {
+        return [field.name, parseJsonInput<string[]>(raw, [])];
+      }
+      return [field.name, raw];
+    })
+  );
 }

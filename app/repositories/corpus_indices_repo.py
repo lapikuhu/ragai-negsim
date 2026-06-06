@@ -15,15 +15,16 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-ALLOWED_CORPUS_INDEX_STATUSES = {"created", "building", "built", "failed", "cancelled"}
+ALLOWED_CORPUS_INDEX_STATUSES = {"created", "building", "built", "failed", "cancelled", "retired"}
 ALLOWED_STATUS_TRANSITIONS = {
     "created": {"building", "failed", "cancelled"},
-    "building": {"built", "failed", "cancelled"},
+    "building": {"built", "failed", "cancelled", "retired"},
     "built": set(),
     "failed": set(),
     "cancelled": set(),
+    "retired": set(),
 }
-BLOCKED_GENERAL_UPDATE_STATUSES = {"building", "built"}
+BLOCKED_GENERAL_UPDATE_STATUSES = {"building", "built", "retired"}
 
 
 def ensure_corpus_index_status(status: str) -> None:
@@ -113,6 +114,62 @@ async def get_corpus_index_by_name(
     """
     result = await session.exec(select(CorpusIndex).where(CorpusIndex.name == name))
     return result.first()
+
+
+async def get_replaceable_built_index(
+    *,
+    corpus_id: int,
+    chunking_profile_id: int,
+    vector_store_id: int,
+    embedding_model: str,
+    session: AsyncSession,
+) -> CorpusIndex | None:
+    result = await session.exec(
+        select(CorpusIndex).where(
+            CorpusIndex.corpus_id == corpus_id,
+            CorpusIndex.chunking_profile_id == chunking_profile_id,
+            CorpusIndex.vector_store_id == vector_store_id,
+            CorpusIndex.embedding_model == embedding_model,
+            CorpusIndex.status == "built",
+        )
+    )
+    return result.first()
+
+
+async def activate_candidate_index(
+    *,
+    candidate_index: CorpusIndex,
+    requested_name: str,
+    session: AsyncSession,
+    replaced_index: CorpusIndex | None = None,
+) -> tuple[CorpusIndex, CorpusIndex | None]:
+    """
+    Activate a built candidate index and optionally retire the prior built
+    index for the same configuration tuple. This bypasses the general update
+    guard for built indices because it is an orchestration-only transition.
+    """
+    if candidate_index.status != "built":
+        raise ValueError("Candidate corpus index must be built before activation")
+
+    if replaced_index is not None:
+        if replaced_index.id == candidate_index.id:
+            raise ValueError("Candidate corpus index cannot replace itself")
+        if replaced_index.status != "built":
+            raise ValueError("Only built corpus indexes can be retired during activation")
+
+        replaced_index.status = "retired"
+        replaced_index.name = f"{replaced_index.name} [retired {replaced_index.id}]"
+        replaced_index.last_updated = utc_now()
+        session.add(replaced_index)
+
+    candidate_index.name = requested_name
+    candidate_index.last_updated = utc_now()
+    session.add(candidate_index)
+    await session.commit()
+    await session.refresh(candidate_index)
+    if replaced_index is not None:
+        await session.refresh(replaced_index)
+    return candidate_index, replaced_index
 
 
 async def ensure_corpus_index_name_available(

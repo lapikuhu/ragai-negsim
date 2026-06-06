@@ -2,18 +2,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.services import chunking_profile_runtime
 from app.services import chunking_service
 
 
 def _options(**overrides):
     values = {
-        "chunker": "recursive",
-        "chunk_size": 1000,
-        "chunk_overlap": 200,
-        "separators": None,
-        "breakpoint_threshold_type": "percentile",
-        "breakpoint_threshold_amount": 90,
-        "buffer_size": 1,
         "preview": False,
     }
     values.update(overrides)
@@ -39,8 +33,24 @@ def _chunking_profile(profile_id=3):
         id=profile_id,
         name="default",
         strategy="recursive",
-        config={},
+        config={"chunk_size": 1000, "chunk_overlap": 200, "separators": ["\n\n", "\n", " ", ""]},
     )
+
+
+def test_resolve_chunking_profile_options_reads_recursive_profile():
+    profile = SimpleNamespace(
+        id=3,
+        strategy="recursive",
+        config={"chunk_size": 333, "chunk_overlap": 44, "separators": ["\n", " "]},
+    )
+
+    resolved = chunking_profile_runtime.resolve_chunking_profile_options(profile, preview=True)
+
+    assert resolved.chunker == "recursive"
+    assert resolved.chunk_size == 333
+    assert resolved.chunk_overlap == 44
+    assert resolved.separators == ["\n", " "]
+    assert resolved.preview is True
 
 
 @pytest.mark.asyncio
@@ -170,7 +180,7 @@ async def test_chunk_corpus_chunks_linked_raw_documents(monkeypatch):
         return chunking_service.RawDocumentChunkResult(
             raw_document_id=raw_document.id,
             chunking_profile_id=chunking_profile.id,
-            chunker=options.chunker,
+            chunker=chunking_profile.strategy,
             chunks_created=raw_document.id,
             chunk_ids=[raw_document.id * 10],
         )

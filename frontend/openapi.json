@@ -538,6 +538,36 @@
         }
       }
     },
+    "/chunking-profiles/definitions": {
+      "get": {
+        "tags": [
+          "chunking-profiles"
+        ],
+        "summary": "List Chunker Definitions",
+        "operationId": "list_chunker_definitions_chunking_profiles_definitions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChunkerDefinitionRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Chunker Definitions Chunking Profiles Definitions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/chunking-profiles/{profile_id}": {
       "get": {
         "tags": [
@@ -1499,40 +1529,6 @@
               "default": false,
               "title": "Dynamic Header Depth"
             }
-          },
-          {
-            "name": "chunk_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 8000,
-              "minimum": 100,
-              "default": 1000,
-              "title": "Chunk Size"
-            }
-          },
-          {
-            "name": "chunk_overlap",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2000,
-              "minimum": 0,
-              "default": 200,
-              "title": "Chunk Overlap"
-            }
-          },
-          {
-            "name": "chunker",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "recursive",
-              "title": "Chunker"
-            }
           }
         ],
         "responses": {
@@ -1592,40 +1588,6 @@
             }
           },
           {
-            "name": "chunker",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "recursive",
-              "title": "Chunker"
-            }
-          },
-          {
-            "name": "chunk_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 8000,
-              "minimum": 100,
-              "default": 1000,
-              "title": "Chunk Size"
-            }
-          },
-          {
-            "name": "chunk_overlap",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2000,
-              "minimum": 0,
-              "default": 200,
-              "title": "Chunk Overlap"
-            }
-          },
-          {
             "name": "preview",
             "in": "query",
             "required": false,
@@ -1633,38 +1595,6 @@
               "type": "boolean",
               "default": false,
               "title": "Preview"
-            }
-          },
-          {
-            "name": "breakpoint_threshold_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "percentile",
-              "title": "Breakpoint Threshold Type"
-            }
-          },
-          {
-            "name": "breakpoint_threshold_amount",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 90,
-              "title": "Breakpoint Threshold Amount"
-            }
-          },
-          {
-            "name": "buffer_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 1,
-              "title": "Buffer Size"
             }
           }
         ],
@@ -1873,6 +1803,220 @@
             "OAuth2PasswordBearer": []
           }
         ]
+      }
+    },
+    "/indexing-jobs/": {
+      "post": {
+        "tags": [
+          "indexing-jobs"
+        ],
+        "summary": "Create Indexing Job",
+        "operationId": "create_indexing_job_indexing_jobs__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexingJobCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexingJobQueued"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "indexing-jobs"
+        ],
+        "summary": "List Indexing Jobs",
+        "operationId": "list_indexing_jobs_indexing_jobs__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status_filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status Filter"
+            }
+          },
+          {
+            "name": "corpus_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Corpus Id"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IndexingJobQueued"
+                  },
+                  "title": "Response List Indexing Jobs Indexing Jobs  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/indexing-jobs/active": {
+      "get": {
+        "tags": [
+          "indexing-jobs"
+        ],
+        "summary": "Get Active Indexing Job",
+        "operationId": "get_active_indexing_job_indexing_jobs_active_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexingJobDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/indexing-jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "indexing-jobs"
+        ],
+        "summary": "Get Indexing Job Detail",
+        "operationId": "get_indexing_job_detail_indexing_jobs__job_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexingJobDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/prompts/": {
@@ -2482,40 +2626,6 @@
               "default": false,
               "title": "Dynamic Header Depth"
             }
-          },
-          {
-            "name": "chunk_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 8000,
-              "minimum": 100,
-              "default": 1000,
-              "title": "Chunk Size"
-            }
-          },
-          {
-            "name": "chunk_overlap",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2000,
-              "minimum": 0,
-              "default": 200,
-              "title": "Chunk Overlap"
-            }
-          },
-          {
-            "name": "chunker",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "recursive",
-              "title": "Chunker"
-            }
           }
         ],
         "responses": {
@@ -2575,40 +2685,6 @@
             }
           },
           {
-            "name": "chunker",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "recursive",
-              "title": "Chunker"
-            }
-          },
-          {
-            "name": "chunk_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 8000,
-              "minimum": 100,
-              "default": 1000,
-              "title": "Chunk Size"
-            }
-          },
-          {
-            "name": "chunk_overlap",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 2000,
-              "minimum": 0,
-              "default": 200,
-              "title": "Chunk Overlap"
-            }
-          },
-          {
             "name": "preview",
             "in": "query",
             "required": false,
@@ -2616,38 +2692,6 @@
               "type": "boolean",
               "default": false,
               "title": "Preview"
-            }
-          },
-          {
-            "name": "breakpoint_threshold_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "percentile",
-              "title": "Breakpoint Threshold Type"
-            }
-          },
-          {
-            "name": "breakpoint_threshold_amount",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 90,
-              "title": "Breakpoint Threshold Amount"
-            }
-          },
-          {
-            "name": "buffer_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 1,
-              "title": "Buffer Size"
             }
           }
         ],
@@ -4989,6 +5033,106 @@
         ],
         "title": "ChunkPreview"
       },
+      "ChunkerDefinitionRead": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "title": "Strategy"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "supports_ingestion": {
+            "type": "boolean",
+            "title": "Supports Ingestion"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ChunkerFieldDefinitionRead"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy",
+          "label",
+          "supports_ingestion"
+        ],
+        "title": "ChunkerDefinitionRead"
+      },
+      "ChunkerFieldDefinitionRead": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "int",
+              "string",
+              "string_list"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "default": {
+            "title": "Default"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "help_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Help Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "label",
+          "required",
+          "default"
+        ],
+        "title": "ChunkerFieldDefinitionRead"
+      },
       "ChunkingProfileCopy": {
         "properties": {
           "name": {
@@ -5417,7 +5561,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5499,7 +5643,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5541,7 +5685,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5649,7 +5793,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5688,7 +5832,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5798,7 +5942,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -6196,6 +6340,454 @@
         ],
         "title": "IndexedChunkBuildRef"
       },
+      "IndexingJobCreate": {
+        "properties": {
+          "corpus_id": {
+            "type": "integer",
+            "title": "Corpus Id"
+          },
+          "chunking_profile_id": {
+            "type": "integer",
+            "title": "Chunking Profile Id"
+          },
+          "vector_store_id": {
+            "type": "integer",
+            "title": "Vector Store Id"
+          },
+          "embedding_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Embedding Model"
+          },
+          "requested_index_name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Requested Index Name"
+          },
+          "requested_vector_namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Vector Namespace"
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Status",
+            "default": "queued"
+          },
+          "stage": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Stage",
+            "default": "validating"
+          }
+        },
+        "type": "object",
+        "required": [
+          "corpus_id",
+          "chunking_profile_id",
+          "vector_store_id",
+          "embedding_model",
+          "requested_index_name"
+        ],
+        "title": "IndexingJobCreate"
+      },
+      "IndexingJobDetail": {
+        "properties": {
+          "corpus_id": {
+            "type": "integer",
+            "title": "Corpus Id"
+          },
+          "chunking_profile_id": {
+            "type": "integer",
+            "title": "Chunking Profile Id"
+          },
+          "vector_store_id": {
+            "type": "integer",
+            "title": "Vector Store Id"
+          },
+          "embedding_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Embedding Model"
+          },
+          "requested_index_name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Requested Index Name"
+          },
+          "requested_vector_namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Vector Namespace"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "current_raw_document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Raw Document Id"
+          },
+          "current_document_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Document Name"
+          },
+          "total_documents": {
+            "type": "integer",
+            "title": "Total Documents"
+          },
+          "processed_documents": {
+            "type": "integer",
+            "title": "Processed Documents"
+          },
+          "chunks_created": {
+            "type": "integer",
+            "title": "Chunks Created"
+          },
+          "chunks_indexed": {
+            "type": "integer",
+            "title": "Chunks Indexed"
+          },
+          "queued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Queued At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "candidate_corpus_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Corpus Index Id"
+          },
+          "replaced_corpus_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced Corpus Index Id"
+          },
+          "failure_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Detail"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/IndexingJobWarningRead"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "corpus_id",
+          "chunking_profile_id",
+          "vector_store_id",
+          "embedding_model",
+          "requested_index_name",
+          "id",
+          "status",
+          "stage",
+          "total_documents",
+          "processed_documents",
+          "chunks_created",
+          "chunks_indexed",
+          "queued_at"
+        ],
+        "title": "IndexingJobDetail"
+      },
+      "IndexingJobQueued": {
+        "properties": {
+          "corpus_id": {
+            "type": "integer",
+            "title": "Corpus Id"
+          },
+          "chunking_profile_id": {
+            "type": "integer",
+            "title": "Chunking Profile Id"
+          },
+          "vector_store_id": {
+            "type": "integer",
+            "title": "Vector Store Id"
+          },
+          "embedding_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Embedding Model"
+          },
+          "requested_index_name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Requested Index Name"
+          },
+          "requested_vector_namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Vector Namespace"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "current_raw_document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Raw Document Id"
+          },
+          "current_document_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Document Name"
+          },
+          "total_documents": {
+            "type": "integer",
+            "title": "Total Documents"
+          },
+          "processed_documents": {
+            "type": "integer",
+            "title": "Processed Documents"
+          },
+          "chunks_created": {
+            "type": "integer",
+            "title": "Chunks Created"
+          },
+          "chunks_indexed": {
+            "type": "integer",
+            "title": "Chunks Indexed"
+          },
+          "queued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Queued At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "candidate_corpus_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Corpus Index Id"
+          },
+          "replaced_corpus_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced Corpus Index Id"
+          },
+          "failure_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "corpus_id",
+          "chunking_profile_id",
+          "vector_store_id",
+          "embedding_model",
+          "requested_index_name",
+          "id",
+          "status",
+          "stage",
+          "total_documents",
+          "processed_documents",
+          "chunks_created",
+          "chunks_indexed",
+          "queued_at"
+        ],
+        "title": "IndexingJobQueued"
+      },
+      "IndexingJobWarningRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "raw_document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Document Id"
+          },
+          "document_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Name"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "stage",
+          "message",
+          "created_at"
+        ],
+        "title": "IndexingJobWarningRead"
+      },
       "NegotiationStateSchema": {
         "properties": {
           "current_phase": {
@@ -6502,6 +7094,53 @@
       },
       "RawDocumentRead": {
         "properties": {
+          "source_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Hash"
+          },
+          "source_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Size"
+          },
+          "source_mtime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Mtime"
+          },
+          "source_status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "missing",
+              "changed",
+              "unverified",
+              "error"
+            ],
+            "title": "Source Status",
+            "default": "unverified"
+          },
           "name": {
             "type": "string",
             "minLength": 3,
@@ -6518,10 +7157,10 @@
             ],
             "title": "Description"
           },
-          "path": {
+          "source_path": {
             "type": "string",
             "minLength": 1,
-            "title": "Raw document path"
+            "title": "Raw document source path"
           },
           "id": {
             "type": "integer",
@@ -6552,7 +7191,7 @@
         "type": "object",
         "required": [
           "name",
-          "path",
+          "source_path",
           "id",
           "uploaded_at",
           "uploaded_by_user_id"
@@ -7471,8 +8110,8 @@
           },
           "max_turn_count": {
             "type": "integer",
-            "maximum": 100,
-            "minimum": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
             "title": "Max Turn Count",
             "default": 12
           }
