@@ -15,6 +15,7 @@ import { CorpusDetailPage } from "@/pages/CorpusDetailPage";
 import { ScenariosPage } from "@/pages/ScenariosPage";
 import { PersonasPage } from "@/pages/PersonasPage";
 import { PromptsPage } from "@/pages/PromptsPage";
+import { ChunkingProfilesPage } from "@/pages/ChunkingProfilesPage";
 import { EvaluationsPage } from "@/pages/EvaluationsPage";
 import { ModelsPage } from "@/pages/ModelsPage";
 import { UsersPage } from "@/pages/UsersPage";
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
               { path: "sessions", element: <SessionsPage /> },
               { path: "sessions/:sessionId", element: <SessionDetailPage /> },
               { path: "prompts", element: <PromptsPage /> },
+              { path: "chunking-profiles", element: <ChunkingProfilesPage /> },
               { path: "models", element: <ModelsPage /> },
               { path: "users", element: <UsersPage /> }
             ]

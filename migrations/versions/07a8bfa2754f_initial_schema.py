@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: ed3aee50a76b
+Revision ID: 07a8bfa2754f
 Revises: 
-Create Date: 2026-06-06 11:58:22.995048
+Create Date: 2026-06-06 14:23:11.788076
 """
 
 from alembic import op
@@ -12,7 +12,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision = 'ed3aee50a76b'
+revision = '07a8bfa2754f'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -98,7 +98,11 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('path', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('source_path', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('source_hash', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('source_size', sa.Integer(), nullable=True),
+    sa.Column('source_mtime', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('source_status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('parsed_content', sa.Text(), nullable=True),
     sa.Column('parsed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('uploaded_at', sa.DateTime(timezone=True), nullable=False),
@@ -107,7 +111,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_rawdocument_name'), 'rawdocument', ['name'], unique=True)
-    op.create_index(op.f('ix_rawdocument_path'), 'rawdocument', ['path'], unique=True)
+    op.create_index(op.f('ix_rawdocument_source_path'), 'rawdocument', ['source_path'], unique=True)
     op.create_table('scenario',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
@@ -248,7 +252,7 @@ def downgrade() -> None:
     op.drop_table('session')
     op.drop_index(op.f('ix_scenario_name'), table_name='scenario')
     op.drop_table('scenario')
-    op.drop_index(op.f('ix_rawdocument_path'), table_name='rawdocument')
+    op.drop_index(op.f('ix_rawdocument_source_path'), table_name='rawdocument')
     op.drop_index(op.f('ix_rawdocument_name'), table_name='rawdocument')
     op.drop_table('rawdocument')
     op.drop_index(op.f('ix_prompt_name'), table_name='prompt')
