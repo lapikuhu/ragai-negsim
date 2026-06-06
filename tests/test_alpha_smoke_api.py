@@ -24,7 +24,7 @@ def _now() -> datetime:
 
 @pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:3000"])
 def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, origin):
-    async def fake_create_db_and_tables():
+    async def fake_startup_seed():
         return None
 
     async def fake_get_current_user():
@@ -48,7 +48,11 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
             id=21,
             name="alpha brief",
             description="Uploaded for smoke testing",
-            path="app/airag/raw_docs/alpha-brief.pdf",
+            source_path="app/raw_docs_store/alpha-brief.pdf",
+            source_hash="abc123",
+            source_size=2048,
+            source_mtime=_now(),
+            source_status="available",
             uploaded_at=_now(),
             uploaded_by_user_id=1,
             parsed_at=None,
@@ -181,7 +185,7 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
             event_log=["orchestrator:paused_for_user"],
         )
 
-    monkeypatch.setattr(main_module, "create_db_and_tables", fake_create_db_and_tables)
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
     monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
 
     from app.services import simulations_service, users_service

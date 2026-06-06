@@ -10,6 +10,7 @@ import { DataTable } from "@/components/common/DataTable";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
+import { StatusBadge } from "@/components/common/StatusBadge";
 import { formatDateTime } from "@/utils/format";
 import { getErrorMessage } from "@/api/client";
 
@@ -108,7 +109,8 @@ export function DocumentsPage() {
                 </div>
               )
             },
-            { key: "path", header: "Path", render: (document) => document.path },
+            { key: "source_path", header: "Source path", render: (document) => document.source_path },
+            { key: "source_status", header: "Source status", render: (document) => <StatusBadge status={document.source_status} /> },
             { key: "uploaded", header: "Uploaded", render: (document) => formatDateTime(document.uploaded_at) }
           ]}
         />

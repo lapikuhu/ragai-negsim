@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
     FIXED_ROLES: list[str] = ["admin", "student", "teacher"]
-    RAW_DOCS_DIR: str = "app/airag/raw_docs"
+    RAW_DOCS_DIR: str = "app/raw_docs_store"
     CORS_ALLOW_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",

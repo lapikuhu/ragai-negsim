@@ -1,7 +1,5 @@
 from typing import Protocol
 
-from app.services.helpers import _persisted_id
-from langchain_core.documents import Document
 from app.models.chunking_profiles import ChunkingProfile
 from app.models.corpus import Corpus
 from app.models.raw_documents import RawDocument
@@ -16,9 +14,15 @@ from app.schemas.chunking_schemas import (
     RawDocumentChunkResult,
 )
 from app.schemas.document_chunks_schemas import DocumentChunkCreate
+from app.services.helpers import _persisted_id
+from app.services.raw_documents_service import (
+    RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE,
+    verify_raw_document_source_srvc,
+)
+from langchain_core.documents import Document
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-# Protocol based on chunking options used in chunk_raw_document_srvc and chunk_corpus_srvc
+
 class ChunkingOptionsLike(Protocol):
     chunker: str
     chunk_size: int
@@ -29,17 +33,18 @@ class ChunkingOptionsLike(Protocol):
     buffer_size: int
     preview: bool
 
+
 def _load_parsed_document(raw_document: RawDocument) -> Document:
     """
     Load the parsed content of a raw document and return a Document object.
     Args:
-        raw_document (RawDocument): The raw document whose parsed content 
+        raw_document (RawDocument): The raw document whose parsed content
             is to be loaded.
     Returns:
-        Document: A Document object containing the parsed content and 
+        Document: A Document object containing the parsed content and
             associated metadata.
     Raises:
-        ValueError: If the raw document has no parsed content or if the 
+        ValueError: If the raw document has no parsed content or if the
             parsed content is empty
     """
     content = raw_document.parsed_content
@@ -52,7 +57,7 @@ def _load_parsed_document(raw_document: RawDocument) -> Document:
     return Document(
         page_content=content,
         metadata={
-            "source": raw_document.path,
+            "source": raw_document.source_path,
             "raw_document_id": raw_document.id,
         },
     )
@@ -132,10 +137,10 @@ def _to_chunk_inputs(
 
 def _to_previews(chunks_in: list[DocumentChunkCreate]) -> list[ChunkPreview]:
     """
-    Convert a list of DocumentChunkCreate objects into a list of 
+    Convert a list of DocumentChunkCreate objects into a list of
     ChunkPreview objects.
     Args:
-        chunks_in (list[DocumentChunkCreate]): The list of 
+        chunks_in (list[DocumentChunkCreate]): The list of
             DocumentChunkCreate objects.
     Returns:
         list[ChunkPreview]: The list of ChunkPreview objects.
@@ -170,6 +175,11 @@ async def chunk_raw_document_srvc(
     """
     raw_document_id = _persisted_id(raw_document.id, "Raw document")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
+    raw_document = await verify_raw_document_source_srvc(raw_document, session)
+    if raw_document.source_status != RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE:
+        raise ValueError(
+            f"Raw document source is {raw_document.source_status}. Restore or re-upload the stored file before chunking."
+        )
 
     existing_chunks = await list_document_chunks(
         session=session,
@@ -189,7 +199,7 @@ async def chunk_raw_document_srvc(
         chunked_documents,
         raw_document_id=raw_document_id,
         chunking_profile_id=chunking_profile_id,
-        source=raw_document.path,
+        source=raw_document.source_path,
     )
 
     if options.preview:

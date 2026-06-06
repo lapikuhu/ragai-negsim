@@ -1,21 +1,55 @@
+from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
-from uuid import uuid4
+import re
 
 from fastapi import UploadFile
 
 from app.core.config import settings
 from app.models.raw_documents import RawDocument
 from app.models.users import User
+from app.repositories.raw_documents_repo import (
+    create_raw_document,
+    get_raw_document_by_id,
+    list_raw_documents,
+)
 from app.schemas.raw_documents_schemas import RawDocumentCreate, RawDocumentCreateDb
-from app.repositories.raw_documents_repo import (create_raw_document, 
-                                             list_raw_documents, 
-                                             get_raw_document_by_id,)
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-async def create_raw_document_srvc(raw_document_data: RawDocumentCreate,
-                                   session: AsyncSession,
-                                   current_user: User) -> RawDocument:
+RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE = "available"
+RAW_DOCUMENT_SOURCE_STATUS_MISSING = "missing"
+RAW_DOCUMENT_SOURCE_STATUS_CHANGED = "changed"
+RAW_DOCUMENT_SOURCE_STATUS_UNVERIFIED = "unverified"
+RAW_DOCUMENT_SOURCE_STATUS_ERROR = "error"
+
+
+def _hash_bytes(file_bytes: bytes) -> str:
+    return sha256(file_bytes).hexdigest()
+
+
+def _to_utc_datetime(timestamp: float) -> datetime:
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+
+def _normalize_upload_filename(filename: str) -> str:
+    candidate = Path(filename).name.strip()
+    if not candidate:
+        raise ValueError("Uploaded file must have a filename")
+
+    extension = Path(candidate).suffix.lower()
+    stem = Path(candidate).stem.strip()
+    cleaned_stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", stem).strip(" ._-")
+    if not cleaned_stem:
+        raise ValueError("Uploaded filename must contain readable characters")
+
+    return f"{cleaned_stem}{extension}"
+
+
+async def create_raw_document_srvc(
+    raw_document_data: RawDocumentCreate,
+    session: AsyncSession,
+    current_user: User,
+) -> RawDocument:
     """
     Service function to create a new raw document.
     Args:
@@ -25,12 +59,54 @@ async def create_raw_document_srvc(raw_document_data: RawDocumentCreate,
     Returns:
         The created RawDocument instance.
     """
-    # Ensure the uploaded_by_user_id is set to the current user's ID
     raw_document_in = RawDocumentCreateDb(
         **raw_document_data.model_dump(),
         uploaded_by_user_id=current_user.id,
     )
     return await create_raw_document(raw_document_in=raw_document_in, session=session)
+
+
+async def verify_raw_document_source_srvc(
+    raw_document: RawDocument,
+    session: AsyncSession,
+) -> RawDocument:
+    source_file = Path(raw_document.source_path)
+    try:
+        if not source_file.exists():
+            if raw_document.source_status != RAW_DOCUMENT_SOURCE_STATUS_MISSING:
+                raw_document.source_status = RAW_DOCUMENT_SOURCE_STATUS_MISSING
+                session.add(raw_document)
+                await session.commit()
+                await session.refresh(raw_document)
+            return raw_document
+
+        stat_result = source_file.stat()
+        current_size = stat_result.st_size
+        current_mtime = _to_utc_datetime(stat_result.st_mtime)
+        current_hash = _hash_bytes(source_file.read_bytes())
+        if raw_document.source_hash and current_hash != raw_document.source_hash:
+            if raw_document.source_status != RAW_DOCUMENT_SOURCE_STATUS_CHANGED:
+                raw_document.source_status = RAW_DOCUMENT_SOURCE_STATUS_CHANGED
+                session.add(raw_document)
+                await session.commit()
+                await session.refresh(raw_document)
+            return raw_document
+
+        raw_document.source_hash = current_hash
+        raw_document.source_size = current_size
+        raw_document.source_mtime = current_mtime
+        raw_document.source_status = RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE
+        session.add(raw_document)
+        await session.commit()
+        await session.refresh(raw_document)
+        return raw_document
+    except Exception:
+        if raw_document.source_status != RAW_DOCUMENT_SOURCE_STATUS_ERROR:
+            raw_document.source_status = RAW_DOCUMENT_SOURCE_STATUS_ERROR
+            session.add(raw_document)
+            await session.commit()
+            await session.refresh(raw_document)
+        return raw_document
 
 
 async def create_uploaded_raw_document_srvc(
@@ -53,17 +129,25 @@ async def create_uploaded_raw_document_srvc(
     raw_docs_dir = Path(settings.RAW_DOCS_DIR)
     raw_docs_dir.mkdir(parents=True, exist_ok=True)
 
-    stored_filename = f"{uuid4().hex}{extension}"
+    stored_filename = _normalize_upload_filename(original_name)
     stored_path = raw_docs_dir / stored_filename
+    if stored_path.exists():
+        raise ValueError(f"A stored source document named '{stored_filename}' already exists")
+
     file_bytes = await upload.read()
     if not file_bytes:
         raise ValueError("Uploaded file is empty")
 
     stored_path.write_bytes(file_bytes)
+    stat_result = stored_path.stat()
     raw_document_in = RawDocumentCreate(
         name=name,
         description=description,
-        path=str(stored_path),
+        source_path=str(stored_path),
+        source_hash=_hash_bytes(file_bytes),
+        source_size=len(file_bytes),
+        source_mtime=_to_utc_datetime(stat_result.st_mtime),
+        source_status=RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE,
         corpus_ids=corpus_ids,
     )
     try:
@@ -73,14 +157,15 @@ async def create_uploaded_raw_document_srvc(
             stored_path.unlink()
         raise
 
+
 async def list_raw_documents_srvc(
-        session: AsyncSession,
-        skip: int = 0,
-        limit: int = 10,
-        uploaded_by_user_id: int | None = None,
-        corpus_id: int | None = None,
-        name_contains: str | None = None,
-        ) -> list[RawDocument]:
+    session: AsyncSession,
+    skip: int = 0,
+    limit: int = 10,
+    uploaded_by_user_id: int | None = None,
+    corpus_id: int | None = None,
+    name_contains: str | None = None,
+) -> list[RawDocument]:
     """
     Service function to list raw documents with optional filters and pagination.
     Args:
@@ -91,12 +176,19 @@ async def list_raw_documents_srvc(
         corpus_id: Optional filter to return documents associated with a specific corpus.
         name_contains: Optional filter to return documents whose names contain a specific substring.
     Returns:
-        A list of RawDocument instances matching the filters and pagination criteria.    
+        A list of RawDocument instances matching the filters and pagination criteria.
     """
-    return await list_raw_documents(session, skip, limit, uploaded_by_user_id, corpus_id, name_contains)
+    raw_documents = await list_raw_documents(session, skip, limit, uploaded_by_user_id, corpus_id, name_contains)
+    verified_documents = []
+    for raw_document in raw_documents:
+        verified_documents.append(await verify_raw_document_source_srvc(raw_document, session))
+    return verified_documents
 
-async def get_raw_document_by_id_srvc(session: AsyncSession,
-                                      raw_document_id: int) -> RawDocument | None:
+
+async def get_raw_document_by_id_srvc(
+    session: AsyncSession,
+    raw_document_id: int,
+) -> RawDocument | None:
     """
     Service function to get a raw document by its ID.
     Args:
@@ -105,4 +197,7 @@ async def get_raw_document_by_id_srvc(session: AsyncSession,
     Returns:
         The RawDocument instance if found, else None.
     """
-    return await get_raw_document_by_id(session, raw_document_id)
+    raw_document = await get_raw_document_by_id(raw_document_id, session)
+    if raw_document is None:
+        return None
+    return await verify_raw_document_source_srvc(raw_document, session)

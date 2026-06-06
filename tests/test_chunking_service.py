@@ -20,11 +20,15 @@ def _options(**overrides):
     return SimpleNamespace(**values)
 
 
-def _raw_document(raw_document_id=7, path="source.pdf", parsed_content="parsed text"):
+def _raw_document(raw_document_id=7, source_path="source.pdf", parsed_content="parsed text", source_status="available"):
     return SimpleNamespace(
         id=raw_document_id,
         name="parsed",
-        path=path,
+        source_path=source_path,
+        source_hash="hash",
+        source_size=10,
+        source_mtime=None,
+        source_status=source_status,
         parsed_content=parsed_content,
         uploaded_by_user_id=1,
     )
@@ -53,6 +57,14 @@ async def test_chunk_raw_document_preview_does_not_persist(monkeypatch):
         raise AssertionError("preview mode should not persist chunks")
 
     monkeypatch.setattr(chunking_service, "list_document_chunks", fake_list_document_chunks)
+    async def fake_verify_raw_document_source(raw_document, session):
+        return raw_document
+
+    monkeypatch.setattr(
+        chunking_service,
+        "verify_raw_document_source_srvc",
+        fake_verify_raw_document_source,
+    )
     monkeypatch.setattr(
         chunking_service,
         "_chunk_documents",
@@ -79,6 +91,14 @@ async def test_chunk_raw_document_requires_new_profile_when_chunks_exist(monkeyp
         return [SimpleNamespace(id=1)]
 
     monkeypatch.setattr(chunking_service, "list_document_chunks", fake_list_document_chunks)
+    async def fake_verify_raw_document_source(raw_document, session):
+        return raw_document
+
+    monkeypatch.setattr(
+        chunking_service,
+        "verify_raw_document_source_srvc",
+        fake_verify_raw_document_source,
+    )
 
     with pytest.raises(ValueError, match="already exist"):
         await chunking_service.chunk_raw_document_srvc(
@@ -102,6 +122,14 @@ async def test_chunk_raw_document_persists_parsed_db_content(monkeypatch):
         return [SimpleNamespace(id=101)]
 
     monkeypatch.setattr(chunking_service, "list_document_chunks", fake_list_document_chunks)
+    async def fake_verify_raw_document_source(raw_document, session):
+        return raw_document
+
+    monkeypatch.setattr(
+        chunking_service,
+        "verify_raw_document_source_srvc",
+        fake_verify_raw_document_source,
+    )
     def fake_chunk_documents(documents, options):
         assert documents[0].page_content == "stored markdown"
         assert documents[0].metadata["source"] == "source.pdf"
@@ -169,3 +197,23 @@ async def test_chunk_corpus_chunks_linked_raw_documents(monkeypatch):
     assert result.corpus_id == 11
     assert result.chunks_created == 15
     assert [item.raw_document_id for item in result.raw_documents] == [7, 8]
+
+
+@pytest.mark.asyncio
+async def test_chunk_raw_document_blocks_when_source_is_not_available(monkeypatch):
+    async def fake_verify_raw_document_source(raw_document, session):
+        return raw_document
+
+    monkeypatch.setattr(
+        chunking_service,
+        "verify_raw_document_source_srvc",
+        fake_verify_raw_document_source,
+    )
+
+    with pytest.raises(ValueError, match="source is missing"):
+        await chunking_service.chunk_raw_document_srvc(
+            raw_document=_raw_document(source_status="missing"),
+            chunking_profile=_chunking_profile(),
+            session=object(),
+            options=_options(),
+        )

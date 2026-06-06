@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiError, apiFetch, unwrapResult } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
-import type { ApiComponents, RawDocumentRead } from "@/api/types";
+import { coerceRawDocumentRead, type ApiComponents, type RawDocumentRead } from "@/api/types";
 
 type RawDocumentChunkResult = ApiComponents["schemas"]["RawDocumentChunkResult"];
 type RawDocumentIngestResult = ApiComponents["schemas"]["RawDocumentIngestResult"];
@@ -20,14 +20,14 @@ export type RawDocumentUploadInput = {
 
 export async function listDocuments() {
   const result = await apiClient.GET("/raw-documents/", { params: { query: { skip: 0, limit: 50 } } });
-  return unwrapResult<RawDocumentRead[]>(result, "Unable to load documents");
+  return unwrapResult(result, "Unable to load documents").map(coerceRawDocumentRead);
 }
 
 export async function getDocument(documentId: number) {
   const result = await apiClient.GET("/raw-documents/{raw_document_id}", {
     params: { path: { raw_document_id: documentId } }
   });
-  return unwrapResult<RawDocumentRead>(result, "Unable to load document");
+  return coerceRawDocumentRead(unwrapResult(result, "Unable to load document"));
 }
 
 async function uploadDocument(input: RawDocumentUploadInput) {
@@ -55,7 +55,7 @@ async function uploadDocument(input: RawDocumentUploadInput) {
     throw new ApiError("Unable to upload document", response.status, detail);
   }
 
-  return JSON.parse(payload) as RawDocumentRead;
+  return coerceRawDocumentRead(JSON.parse(payload));
 }
 
 async function ingestDocument(documentId: number, profileId: number) {

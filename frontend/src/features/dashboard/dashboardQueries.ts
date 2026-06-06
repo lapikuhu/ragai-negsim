@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, ApiError, unwrapResult } from "@/api/client";
-import type { RawDocumentRead, SessionRead, SimulationRead } from "@/api/types";
+import { coerceRawDocumentRead, type RawDocumentRead, type SessionRead, type SimulationRead } from "@/api/types";
 
 type DashboardData = {
   simulations: SimulationRead[];
@@ -27,7 +27,7 @@ export async function fetchDashboardData() {
     }, []),
     safeList(async () => {
       const result = await apiClient.GET("/raw-documents/", { params: { query: { skip: 0, limit: 5 } } });
-      return unwrapResult<RawDocumentRead[]>(result, "Unable to load documents");
+      return unwrapResult(result, "Unable to load documents").map(coerceRawDocumentRead);
     }, []),
     safeList(async () => {
       const result = await apiClient.GET("/sessions/", { params: { query: { skip: 0, limit: 5 } } });

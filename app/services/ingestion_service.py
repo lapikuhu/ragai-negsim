@@ -9,6 +9,10 @@ from app.repositories import corpus_repo, raw_documents_repo
 from app.repositories.document_chunks_repo import bulk_create_document_chunks
 from app.schemas.document_chunks_schemas import DocumentChunkCreate
 from app.schemas.ingestion_schemas import CorpusIngestResult, RawDocumentIngestResult
+from app.services.raw_documents_service import (
+    RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE,
+    verify_raw_document_source_srvc,
+)
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -93,7 +97,13 @@ async def ingest_raw_document_srvc(
     raw_document_id = _persisted_id(raw_document.id, "Raw document")
     chunking_profile_id = _persisted_id(chunking_profile.id, "Chunking profile")
 
-    parsed_content, parsed_chunks = _parse_raw_document(raw_document.path, options)
+    raw_document = await verify_raw_document_source_srvc(raw_document, session)
+    if raw_document.source_status != RAW_DOCUMENT_SOURCE_STATUS_AVAILABLE:
+        raise ValueError(
+            f"Raw document source is {raw_document.source_status}. Restore or re-upload the stored file before ingesting."
+        )
+
+    parsed_content, parsed_chunks = _parse_raw_document(raw_document.source_path, options)
     await raw_documents_repo.update_raw_document_parsed_content(
         raw_document=raw_document,
         parsed_content=parsed_content,
@@ -104,7 +114,7 @@ async def ingest_raw_document_srvc(
         chunk_metadata = dict(chunk.metadata)
         chunk_metadata.update(
             {
-                "source": raw_document.path,
+                "source": raw_document.source_path,
                 "raw_document_id": raw_document_id,
                 "chunking_profile_id": chunking_profile_id,
             }

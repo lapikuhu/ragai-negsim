@@ -1,7 +1,8 @@
+from datetime import datetime, timezone
+
 from app.models.document_chunks import DocumentChunk
 from app.models.raw_documents import CorpusRawDocumentLink, RawDocument
 from app.repositories.helpers import commit_and_refresh
-from datetime import datetime, timezone
 from app.schemas.raw_documents_schemas import (
     CorpusRawDocumentLinkCreate,
     CorpusRawDocumentLinkDelete,
@@ -27,19 +28,19 @@ async def get_raw_document_by_id(
     return await session.get(RawDocument, raw_document_id)
 
 
-async def get_raw_document_by_path(
-    path: str,
+async def get_raw_document_by_source_path(
+    source_path: str,
     session: AsyncSession,
 ) -> RawDocument | None:
     """
-    Get a raw document by its path.
+    Get a raw document by its canonical source path.
         Args:
-            path: The path of the raw document.
+            source_path: The source path of the raw document.
             session: The database session.
         Returns:
             The RawDocument instance if found, else None.
     """
-    result = await session.exec(select(RawDocument).where(RawDocument.path == path))
+    result = await session.exec(select(RawDocument).where(RawDocument.source_path == source_path))
     return result.first()
 
 
@@ -73,7 +74,7 @@ async def list_raw_documents(
             session: The database session.
             skip: The number of records to skip.
             limit: The maximum number of records to return.
-            uploaded_by_user_id: Filter by the ID of the user who uploaded 
+            uploaded_by_user_id: Filter by the ID of the user who uploaded
                 the document.
             corpus_id: Filter by the ID of the corpus.
             name_contains: Filter by a substring in the document name.
@@ -142,7 +143,7 @@ async def create_raw_document(
     """
     Create a new raw document.
         Args:
-            raw_document_in: The RawDocumentCreate instance containing raw 
+            raw_document_in: The RawDocumentCreate instance containing raw
                 document data.
             session: The database session.
         Returns:
@@ -283,7 +284,7 @@ async def unlink_raw_document_from_corpus(
     """
     Unlink a raw document from a corpus.
         Args:
-            link_in: The CorpusRawDocumentLinkDelete instance containing link 
+            link_in: The CorpusRawDocumentLinkDelete instance containing link
                 data.
             session: The database session.
         Raises:

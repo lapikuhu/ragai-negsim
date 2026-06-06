@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, unwrapResult } from "@/api/client";
+import { apiClient, ApiError, apiFetch, unwrapResult } from "@/api/client";
+import { getApiBaseUrl } from "@/api/clientConfig";
 import type { ApiComponents, CorpusRead } from "@/api/types";
 
 type CorpusCreate = ApiComponents["schemas"]["CorpusCreate"];
@@ -18,8 +19,26 @@ export async function listCorpora() {
 }
 
 async function createCorpus(input: CorpusCreate) {
-  const result = await apiClient.POST("/corpora/", { body: input });
-  return unwrapResult<CorpusRead>(result, "Unable to create corpus");
+  const response = await apiFetch(`${getApiBaseUrl()}/corpora/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+  const payload = await response.text();
+
+  if (!response.ok) {
+    let detail: unknown = payload;
+    try {
+      detail = JSON.parse(payload);
+    } catch {
+      // Keep plain-text payload when the backend does not return JSON.
+    }
+    throw new ApiError("Unable to create corpus", response.status, detail);
+  }
+
+  return JSON.parse(payload) as CorpusRead;
 }
 
 async function ingestCorpus(corpusId: number, profileId: number) {
