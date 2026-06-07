@@ -32,6 +32,12 @@ Side A profile:
 Side B profile:
 {side_b_profile}
 
+Explicit counterpart persona context:
+{counterpart_persona}
+
+Effective counterpart profile after persona merge:
+{effective_counterpart_profile}
+
 Current negotiation phase:
 {phase}
 

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, unwrapResult } from "@/api/client";
+import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
+import { getApiBaseUrl } from "@/api/clientConfig";
 import type { ApiComponents, CounterpartPersonaRead } from "@/api/types";
 
 type CounterpartPersonaCreateRequest = ApiComponents["schemas"]["CounterpartPersonaCreateRequest"];
@@ -14,17 +15,41 @@ export async function listPersonas() {
   return unwrapResult<CounterpartPersonaRead[]>(result, "Unable to load personas");
 }
 
+async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
+  const response = await apiFetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers ?? {})
+    }
+  });
+  const detail = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(fallback, response.status, detail);
+  }
+  return detail as T;
+}
+
 async function createPersona(input: CounterpartPersonaCreateRequest) {
-  const result = await apiClient.POST("/counterpart-personas/", { body: input });
-  return unwrapResult<CounterpartPersonaRead>(result, "Unable to create persona");
+  return jsonRequest<CounterpartPersonaRead>(
+    "/counterpart-personas/",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    "Unable to create persona"
+  );
 }
 
 async function updatePersona(personaId: number, input: CounterpartPersonaUpdateRequest) {
-  const result = await apiClient.PATCH("/counterpart-personas/{persona_id}", {
-    params: { path: { persona_id: personaId } },
-    body: input
-  });
-  return unwrapResult<CounterpartPersonaRead>(result, "Unable to update persona");
+  return jsonRequest<CounterpartPersonaRead>(
+    `/counterpart-personas/${personaId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    "Unable to update persona"
+  );
 }
 
 export function usePersonasQuery() {

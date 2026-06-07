@@ -60,6 +60,7 @@ class CounterpartGraphState(TypedDict, total=False):
 	app_session_id: int
 	session_id: str
 	user_id: str
+	counterpart_persona: dict[str, Any]
 	user_side: Side
 	side_a: SideProfile
 	side_b: SideProfile

@@ -545,6 +545,22 @@ def _counterpart_persona_side_profile(persona: Any) -> dict[str, Any]:
     return _json_safe({key: value for key, value in profile.items() if value is not None})
 
 
+def _counterpart_persona_runtime_context(persona: Any) -> dict[str, Any]:
+    """
+    Create explicit runtime context for a counterpart persona.
+    Args:
+        persona: The counterpart persona.
+    Returns:
+        A dictionary containing persona runtime context for graph state.
+    """
+    context = {
+        "id": getattr(persona, "id", None),
+        "name": getattr(persona, "name", None),
+        "description": getattr(persona, "description", None),
+    }
+    return _json_safe({key: value for key, value in context.items() if value is not None})
+
+
 def _side_profiles_with_context_defaults(
     simulation: Simulation,
     start_data: SimulationStartRequest,
@@ -662,6 +678,9 @@ def _initial_graph_state(
         "simulation_id": simulation_id,
         "session_id": simulation_id,
         "user_id": str(current_user.id),
+        "counterpart_persona": _counterpart_persona_runtime_context(runtime_context.counterpart_persona)
+        if runtime_context.counterpart_persona is not None
+        else {},
         "user_side": simulation.user_side or "side_a",
         "side_a": side_a,
         "side_b": side_b,

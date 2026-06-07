@@ -22,15 +22,46 @@ def get_side_profile(state: CounterpartGraphState, side: Side) -> SideProfile:
 	return state.get(side, {})
 
 
-def get_counterpart_profile(state: CounterpartGraphState) -> SideProfile:
-	"""Return the inferred counterpart profile."""
-	return get_side_profile(state, get_counterpart_side(state))
+def get_counterpart_persona(state: CounterpartGraphState) -> dict[str, Any]:
+	"""Return explicit counterpart persona context from graph state."""
+	persona = state.get("counterpart_persona", {})
+	return persona if isinstance(persona, dict) else {}
+
+
+def get_counterpart_profile(state: CounterpartGraphState) -> dict[str, Any]:
+	"""Return the inferred counterpart side profile from graph state."""
+	return dict(get_side_profile(state, get_counterpart_side(state)))
+
+
+def build_effective_counterpart_profile(state: CounterpartGraphState) -> dict[str, Any]:
+	"""Merge explicit persona context with side-profile runtime state.
+	Side-profile fields take precedence over persona defaults.
+	"""
+	persona = get_counterpart_persona(state)
+	counterpart_profile = get_counterpart_profile(state)
+	persona_defaults = {
+		"persona_id": persona.get("id"),
+		"name": persona.get("name"),
+		"description": persona.get("description"),
+		"role": persona.get("role"),
+		"goal": persona.get("goal"),
+		"constraints": persona.get("constraints"),
+		"batna": persona.get("batna"),
+		"reservation_value": persona.get("reservation_value"),
+		"target_value": persona.get("target_value"),
+		"value_preference": persona.get("value_preference"),
+	}
+	return {
+		key: value
+		for key, value in {**persona_defaults, **counterpart_profile}.items()
+		if value is not None
+	}
 
 
 def collect_missing_information(state: CounterpartGraphState) -> list[str]:
 	"""Collect state gaps that may weaken counterpart response generation."""
 	missing = []
-	counterpart_profile = get_counterpart_profile(state)
+	effective_counterpart_profile = build_effective_counterpart_profile(state)
 
 	if not state.get("user_side"):
 		missing.append("user_side")
@@ -38,13 +69,15 @@ def collect_missing_information(state: CounterpartGraphState) -> list[str]:
 		missing.append("side_a_profile")
 	if not state.get("side_b"):
 		missing.append("side_b_profile")
+	if not get_counterpart_persona(state):
+		missing.append("counterpart_persona")
 	if not state.get("current_offer"):
 		missing.append("current_offer")
 	if not state.get("offer_history"):
 		missing.append("offer_history")
 
 	for field_name in ("target_value", "reservation_value", "value_preference"):
-		if field_name not in counterpart_profile:
+		if field_name not in effective_counterpart_profile:
 			missing.append(f"counterpart_profile.{field_name}")
 
 	return missing
@@ -62,11 +95,14 @@ def render_counterpart_prompt(
 	Returns:
 		A string with the prompt ready to be sent to the LLM.
 	"""
+	effective_counterpart_profile = build_effective_counterpart_profile(state)
 	replacements = {
 		"{user_side}": state.get("user_side", ""),
 		"{counterpart_side}": state.get("counterpart_side", get_counterpart_side(state)),
 		"{side_a_profile}": json_dumps(state.get("side_a", {})),
 		"{side_b_profile}": json_dumps(state.get("side_b", {})),
+		"{counterpart_persona}": json_dumps(get_counterpart_persona(state)),
+		"{effective_counterpart_profile}": json_dumps(effective_counterpart_profile),
 		"{phase}": state.get("phase", ""),
 		"{active_side}": state.get("active_side", ""),
 		"{messages}": format_messages(state.get("messages", [])),

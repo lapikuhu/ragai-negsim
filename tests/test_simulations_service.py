@@ -527,6 +527,11 @@ async def test_start_simulation_uses_persona_as_counterpart_default(monkeypatch)
         "name": "Firm seller",
         "description": "Persona context",
     }
+    assert result.negotiation_state.data["counterpart_persona"] == {
+        "id": 300,
+        "name": "Firm seller",
+        "description": "Persona context",
+    }
 
 
 @pytest.mark.asyncio

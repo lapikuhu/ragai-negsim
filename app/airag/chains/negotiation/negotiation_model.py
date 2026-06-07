@@ -104,6 +104,7 @@ class ParentNegotiationState(TypedDict, total=False):
     session_id: str
     app_session_id: int
     user_id: str
+    counterpart_persona: dict[str, object]
 
     # Which negotiation side the real user controls
     user_side: Side
