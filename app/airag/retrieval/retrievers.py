@@ -11,8 +11,10 @@ def make_dense_retriever(
 ):
     """Create a langchain retriever from the specified vector store.
     Args:
-        vector_store: The vector store instance to use for creating the retriever.
-        k (int, optional): The number of top documents to retrieve. Defaults to 4.
+        vector_store: The vector store instance to use for creating the 
+            retriever.
+        k (int, optional): The number of top documents to retrieve. 
+            Defaults to 4.
     Returns:
         A langchain retriever instance that can be used to retrieve relevant 
         documents based on queries.
@@ -28,10 +30,13 @@ def make_dense_retriever(
 def make_bm25_retriever(documents: list[Document], k: int = 4):
     """Create a BM25Retriever from a list of langchain Documents.
     Args:
-        documents (list[Document]): A list of langchain Document objects to use for the BM25 retriever.
-        k (int, optional): The number of top documents to retrieve. Defaults to 4.
+        documents (list[Document]): A list of langchain Document objects 
+            to use for the BM25 retriever.
+        k (int, optional): The number of top documents to retrieve. Defaults 
+            to 4.
     Returns:
-        A BM25Retriever instance that can be used to retrieve relevant documents based on queries.
+        A BM25Retriever instance that can be used to retrieve relevant 
+        documents based on queries.
     """
     retriever = BM25Retriever.from_documents(
         documents=documents,
@@ -74,10 +79,13 @@ def make_hybrid_retriever(vector_store,
 def make_graph_retriever(graph_index, k: int = 3):
     """Create a retriever from a llama-index graph index.
     Args:
-        graph_index: The graph index instance to use for creating the retriever.
-        k (int, optional): The number of top documents to retrieve. Defaults to 3.
+        graph_index: The graph index instance to use for creating the 
+            retriever.
+        k (int, optional): The number of top documents to retrieve. 
+            Defaults to 3.
     Returns:
-        A retriever instance that can be used to retrieve relevant documents based on queries using the graph
+        A retriever instance that can be used to retrieve relevant 
+        documents based on queries using the graph
         index.
     """
     retriever = graph_index.as_retriever(

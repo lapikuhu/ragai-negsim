@@ -3,9 +3,8 @@ export {
   listChunkingProfiles,
   listCorpusIndices,
   listEmbeddingModels,
-  listVectorStores,
   useChunkingProfilesQuery,
   useCorpusIndicesQuery,
-  useEmbeddingModelsQuery,
-  useVectorStoresQuery
+  useEmbeddingModelsQuery
 } from "@/features/corpusIndices/corpusIndexQueries";
+export { listVectorStores, useVectorStoresQuery, vectorStoreKeys } from "@/features/vectorStores/vectorStoreQueries";

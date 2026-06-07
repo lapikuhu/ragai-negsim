@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, unwrapResult } from "@/api/client";
 import type { ChunkingProfileRead, CorpusIndexRead, EmbeddingModelRead, VectorStoreRead } from "@/api/types";
+export { listVectorStores, useVectorStoresQuery, vectorStoreKeys } from "@/features/vectorStores/vectorStoreQueries";
 
 export const corpusIndexKeys = {
   all: ["corpus-indices"] as const,
   detail: (indexId: number) => ["corpus-indices", indexId] as const,
   chunkingProfiles: ["chunking-profiles"] as const,
-  vectorStores: ["vector-stores"] as const,
   embeddingModels: ["embedding-models"] as const
 };
 
@@ -25,11 +25,6 @@ export async function getCorpusIndex(indexId: number) {
 export async function listChunkingProfiles() {
   const result = await apiClient.GET("/chunking-profiles/", { params: { query: { skip: 0, limit: 50 } } });
   return unwrapResult<ChunkingProfileRead[]>(result, "Unable to load chunking profiles");
-}
-
-export async function listVectorStores() {
-  const result = await apiClient.GET("/vector-stores/", { params: { query: { skip: 0, limit: 50 } } });
-  return unwrapResult<VectorStoreRead[]>(result, "Unable to load vector stores");
 }
 
 export async function listEmbeddingModels() {
@@ -51,10 +46,6 @@ export function useCorpusIndexDetailQuery(indexId: number) {
 
 export function useChunkingProfilesQuery() {
   return useQuery({ queryKey: corpusIndexKeys.chunkingProfiles, queryFn: listChunkingProfiles });
-}
-
-export function useVectorStoresQuery() {
-  return useQuery({ queryKey: corpusIndexKeys.vectorStores, queryFn: listVectorStores });
 }
 
 export function useEmbeddingModelsQuery() {

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, unwrapResult } from "@/api/client";
+import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
+import { getApiBaseUrl } from "@/api/clientConfig";
 import type {
   ApiComponents,
   IndexingJobCreate,
@@ -15,9 +16,30 @@ export const indexingKeys = {
   detail: (jobId: number) => ["indexing-jobs", jobId] as const
 };
 
+async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
+  const response = await apiFetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers ?? {})
+    }
+  });
+  const detail = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(fallback, response.status, detail);
+  }
+  return detail as T;
+}
+
 async function createIndexingJob(input: IndexingJobCreate) {
-  const result = await apiClient.POST("/indexing-jobs/", { body: input });
-  return unwrapResult<IndexingJobQueued>(result, "Unable to queue indexing job");
+  return jsonRequest<IndexingJobQueued>(
+    "/indexing-jobs/",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    "Unable to queue indexing job"
+  );
 }
 
 async function listIndexingJobs() {

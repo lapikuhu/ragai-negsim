@@ -25,7 +25,8 @@ def instantiate_chroma_vector_store(
     """
     Instantiate a Chroma vector store.
     Args:
-        embedding_model: The embedding model instance to use for the vector store.
+        embedding_model: The embedding model instance to use for the 
+            vector store.
         collection_name: The name of the Chroma collection to use (default: 
             "negotiation_corpus").
         persist_directory: The directory where Chroma will persist its data
@@ -45,14 +46,14 @@ def store_docs_to_chroma_store(docs: list[Document], vector_store):
     """Store a list of langchain Documents to the specified Chroma vector store.
     Args:
         docs (list[Document]): A list of langchain Document objects to store.
-        vector_store: The vector store instance to use for storing the documents. 
+        vector_store: The vector store instance to use for storing the 
+            documents. 
     """
     ids = [str(uuid4()) for _ in docs]
     vector_store.add_documents(
         documents=docs,
         ids=ids,
     )
-
 
 def add_docs_to_chroma_store(
         docs: list[Document],
@@ -74,7 +75,8 @@ def instantiate_faiss_vector_store(embedding_model) -> FAISS:
     """
     Instantiate an empty FAISS vector store.
     Args:
-        embedding_model: The embedding model instance to use for the vector store.
+        embedding_model: The embedding model instance to use for the 
+            vector store.
     Returns:
         An instance of a FAISS vector store initialized with the specified
         embedding model."""
@@ -89,7 +91,8 @@ def store_docs_to_faiss_store(docs: list[Document], vector_store):
     Store a list of langchain Documents to the specified FAISS vector store.
     Args:
         docs (list[Document]): A list of langchain Document objects to store.
-        vector_store: The vector store instance to use for storing the documents.
+        vector_store: The vector store instance to use for storing the 
+            documents.
     """
     ids = [str(uuid4()) for _ in docs]
     vector_store.add_documents(
@@ -134,8 +137,10 @@ def add_docs_to_faiss_store(
     Create or update a local FAISS store and persist it to disk.
     Args:
         docs (list[Document]): A list of langchain Document objects to store.
-        embedding_model: The embedding model instance to use for the FAISS index.
-        path (str): The path to the directory where the FAISS index should be saved.
+        embedding_model: The embedding model instance to use for the 
+            FAISS index.
+        path (str): The path to the directory where the FAISS index should 
+            be saved.
         ids (list[str]): A list of unique IDs for the documents.
     Returns:
         list[str]: The list of IDs for the stored documents.
@@ -174,11 +179,14 @@ async def enable_pgvector() -> None:
 
 # Create LangChain PGEngine from your existing async engine
 def create_pg_engine(engine) -> PGEngine:
-    """Create a LangChain PGEngine instance from the existing async SQLAlchemy engine.
+    """
+    Create a LangChain PGEngine instance from the existing async SQLAlchemy 
+    engine.
     Args:
         engine: The existing async SQLAlchemy engine to use for the PGEngine.
     Returns:
-        A PGEngine instance that can be used with LangChain's PGVectorStore."""
+        A PGEngine instance that can be used with LangChain's PGVectorStore.
+    """
     return PGEngine.from_engine(engine)
 
 def get_vector_size(embedding_model_name: str) -> int | None:
@@ -287,8 +295,10 @@ async def add_docs_to_pgvector_store(
     Store documents in a pgvector table backed by the app database.
     Args:
         docs (list[Document]): A list of langchain Document objects to store.
-        embedding_model: The embedding model instance to use for the PGVectorStore.
-        table_name (str): The name of the vector table to store the documents in.
+        embedding_model: The embedding model instance to use for the 
+            PGVectorStore.
+        table_name (str): The name of the vector table to store the 
+            documents in.
         vector_size (int): The size of the vectors to store in the table.
         ids (list[str]): A list of unique IDs for the documents.
     Returns:
@@ -440,9 +450,10 @@ async def instantiate_pgvector_store( # CHECK FOR FULL FUNCTIONALITY
     Enable pgvector extension, initialize the vector table if it doesn't 
     exist, and return a PGVectorStore instance connected to that table.
     Args:
-        vector_table_name (str): The name of the vector table to check/create and 
-            connect to.
-        embedding_model: The embedding model instance to use for the PGVectorStore.
+        vector_table_name (str): The name of the vector table to 
+            check/create and connect to.
+        embedding_model: The embedding model instance to use for the 
+            PGVectorStore.
         embedding_model_name (str): The name of the embedding model to use for 
             determining vector size when initializing the table.
     Returns:

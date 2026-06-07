@@ -27,7 +27,7 @@ export function ModelsPage() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Models and stores" description="Embedding models, vector stores, chunking profiles, and corpus indices exposed by the backend." />
+      <PageHeader title="Models and stores" description="Embedding models with read-only store, chunking profile, and corpus index visibility from the backend." />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
