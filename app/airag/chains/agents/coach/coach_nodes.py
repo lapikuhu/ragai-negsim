@@ -7,7 +7,6 @@ from app.airag.chains.agents.coach.coach_helpers import (
     fallback_advice,
     render_coach_prompt,
 	collect_missing_information,
-	get_existing_retrieval_context,
 )
 from app.airag.chains.agents.helpers import json_dumps, format_messages
 from app.airag.chains.agents.coach.coach_model import CoachGraphState, CoachAdviceModel
@@ -27,9 +26,8 @@ def node_prepare_coach_context(state: CoachGraphState) -> dict:
 			log entry describing the preparation step.
 	"""
 	missing_information = collect_missing_information(state)
-	retrieval_context = get_existing_retrieval_context(state)
 	return {
-		"retrieval_context": retrieval_context,
+		"retrieval_context": "",
 		"coach_retry_count": state.get("coach_retry_count", 0),
 		"coach_validation_error": "",
 		"event_log": [

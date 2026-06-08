@@ -26,7 +26,8 @@ NegotiationPhase = Literal[
     "ended",
 ]
 
-# What to do next in the negotiation, as decided by the graph's routing logic.
+# Legacy routing values retained only for deserializing persisted state.
+# New orchestration must not read or write this field.
 NextAction = Literal[
     "call_side_a",
     "call_side_b",
@@ -35,6 +36,15 @@ NextAction = Literal[
     "call_retriever",
     "ask_user",
     "end",
+]
+RequestedAction = Literal["continue", "end"]
+EndIntent = Literal["continue", "end"]
+EvaluatorStrategy = Literal["continue", "counter", "accept", "walk_away"]
+EvaluationMode = Literal["rolling", "final"]
+TerminalReason = Literal[
+    "student_request",
+    "classified_intent",
+    "turn_limit",
 ]
 
 class SideProfile(TypedDict, total=False):
@@ -79,13 +89,38 @@ class CoachAdvice(TypedDict, total=False):
     missing_information: list[str]
 
 
+class IntentClassification(TypedDict, total=False):
+    """Structured end-intent classification for the latest user turn."""
+    intent: EndIntent
+    confidence: Confidence
+    reasoning: str
+
+
 class Evaluation(TypedDict, total=False):
     """Evaluation of the current negotiation state."""
     evaluated_side: Side
     score: float
     reasoning: str
     detected_risks: list[str]
-    next_best_action: str
+    next_best_action: EvaluatorStrategy
+    confidence: Confidence
+    missing_information: list[str]
+
+
+class FinalEvaluation(TypedDict, total=False):
+    """Overall student-performance assessment for a finished simulation."""
+    evaluated_side: Side
+    overall_score: float
+    goal_achievement: str
+    strengths: list[str]
+    mistakes: list[str]
+    concession_quality: str
+    communication_quality: str
+    outcome_quality: str
+    lessons: list[str]
+    reasoning: str
+    confidence: Confidence
+    missing_information: list[str]
 
 
 class RetrievalResult(TypedDict, total=False):
@@ -105,6 +140,9 @@ class ParentNegotiationState(TypedDict, total=False):
     app_session_id: int
     user_id: str
     counterpart_persona: dict[str, object]
+    scenario_public_context: dict[str, object]
+    side_a_private_context: dict[str, object]
+    side_b_private_context: dict[str, object]
 
     # Which negotiation side the real user controls
     user_side: Side
@@ -127,11 +165,18 @@ class ParentNegotiationState(TypedDict, total=False):
     side_a_response: str
     side_b_response: str
     evaluation: Evaluation
+    final_evaluation: FinalEvaluation
     retrieval_result: RetrievalResult
 
     # Control flow
     next_action: NextAction
+    requested_action: RequestedAction
+    intent_classification: IntentClassification
+    evaluation_mode: EvaluationMode
+    terminal_reason: TerminalReason
     turn_count: int
+    should_pause: bool
+    pause_reason: str
 
     # Debug / observability
     event_log: Annotated[list[str], operator.add]

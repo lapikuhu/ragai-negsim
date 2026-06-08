@@ -6,9 +6,10 @@ from app.models.scenarios import Scenario
 from app.models.simulations import Simulation
 from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
 from app.schemas.scenarios_schemas import (
+    ScenarioAuthoringReadWithIds,
     ScenarioCopy,
     ScenarioCreate,
-    ScenarioReadWithIds,
+    ScenarioPublicReadWithIds,
     ScenarioUpdate,
 )
 
@@ -163,26 +164,56 @@ async def get_scenario_simulation_ids(
     return [simulation_id for simulation_id in result.all() if simulation_id is not None]
 
 
-async def to_scenario_read_with_ids(
+async def to_scenario_authoring_read_with_ids(
     scenario: Scenario,
     session: AsyncSession,
-) -> ScenarioReadWithIds:
+) -> ScenarioAuthoringReadWithIds:
     """
-    Convert a Scenario instance to a ScenarioReadWithIds instance, including 
+    Convert a Scenario instance to a ScenarioAuthoringReadWithIds instance, including 
     related simulation IDs.
         Args:
             scenario: The Scenario instance to convert.
             session: The database session.
         Returns:
-            A ScenarioReadWithIds instance.
+            A ScenarioAuthoringReadWithIds instance.
         Raises:
             ValueError: If the scenario has not been persisted.
     """
     if scenario.id is None:
         raise ValueError("Scenario must be persisted before relationship ids can be loaded")
 
-    return ScenarioReadWithIds(
+    return ScenarioAuthoringReadWithIds(
         **scenario.model_dump(),
+        simulation_ids=await get_scenario_simulation_ids(scenario.id, session),
+    )
+
+
+async def to_scenario_public_read_with_ids(
+    scenario: Scenario,
+    session: AsyncSession,
+) -> ScenarioPublicReadWithIds:
+    """
+    Convert a Scenario instance to a ScenarioPublicReadWithIds instance, 
+    including related simulation IDs.
+        Args:
+            scenario: The Scenario instance to convert.
+            session: The database session.
+        Returns:
+            A ScenarioPublicReadWithIds instance.
+        Raises:
+            ValueError: If the scenario has not been persisted.
+    """
+    if scenario.id is None:
+        raise ValueError("Scenario must be persisted before relationship ids can be loaded")
+
+    return ScenarioPublicReadWithIds(
+        id=scenario.id,
+        name=scenario.name,
+        public_context=scenario.public_context,
+        created_by_user_id=scenario.created_by_user_id,
+        last_edit_by_user_id=scenario.last_edit_by_user_id,
+        created_at=scenario.created_at,
+        last_updated=scenario.last_updated,
         simulation_ids=await get_scenario_simulation_ids(scenario.id, session),
     )
 
@@ -260,6 +291,9 @@ async def copy_scenario(
             if copy_in.description is not None
             else source_scenario.description
         ),
+        public_context=source_scenario.public_context,
+        side_a_private_context=source_scenario.side_a_private_context,
+        side_b_private_context=source_scenario.side_b_private_context,
         created_by_user_id=copy_in.created_by_user_id,
     )
     return await commit_and_refresh(session, scenario)

@@ -1,30 +1,58 @@
 from typing import Any
-# local imports
+
 from app.airag.chains.agents.evaluator.evaluator_model import (
-    EvaluatorResponseModel,
     Evaluation,
-    EvaluatorGraphState
+    EvaluatorGraphState,
+    EvaluatorResponseModel,
+    FinalEvaluatorResponseModel,
+)
+from app.airag.chains.agents.helpers import (
+	append_missing_context_sections,
+	format_messages,
+	json_dumps,
+)
+from app.airag.chains.negotiation.negotiation_model import (
+	FinalEvaluation,
+	Side,
+	SideProfile,
 )
 from app.airag.prompts.neg_prompts.md_loader import EVALUATOR_PROMPT
-from app.airag.chains.agents.helpers import json_dumps, format_messages
-from app.airag.chains.negotiation.negotiation_model import (
-	Side, 
-	SideProfile,
-	NextAction
-)
 
+# Helper candidate
 def get_counterpart_side(state: EvaluatorGraphState) -> Side:
-	"""Infer counterpart side as opposite the user-controlled side."""
+	"""
+	Infer counterpart side as opposite the user-controlled side.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+	Returns:
+		The side opposite to the user-controlled side.
+	"""
 	return "side_a" if state.get("user_side") == "side_b" else "side_b"
 
 
 def get_side_profile(state: EvaluatorGraphState, side: Side) -> SideProfile:
-	"""Return a side profile from graph state."""
+	"""
+	Return a side profile from graph state.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+		side: The side for which to retrieve the profile.
+	Returns:
+		The profile of the specified side.
+	"""
 	return state.get(side, {})
 
 
 def get_latest_counterpart_response(state: EvaluatorGraphState) -> str:
-	"""Return the latest counterpart response text from parent state fields."""
+	"""
+	Return the latest counterpart response text from parent state fields.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+	Returns:
+		The latest counterpart response text.
+	"""
 	counterpart_side = get_counterpart_side(state)
 	if counterpart_side == "side_a":
 		return state.get("side_a_response", "")
@@ -32,12 +60,27 @@ def get_latest_counterpart_response(state: EvaluatorGraphState) -> str:
 
 
 def get_existing_retrieval_context(state: EvaluatorGraphState) -> str:
+	"""
+	Return the existing retrieval context from the evaluator graph state.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+	Returns:
+		The existing retrieval context summary.
+	"""
 	retrieval_result = state.get("retrieval_result", {})
 	return retrieval_result.get("summary", "") if isinstance(retrieval_result, dict) else ""
 
 
 def collect_missing_information(state: EvaluatorGraphState) -> list[str]:
-	"""Collect state gaps that may weaken evaluation quality."""
+	"""
+	Collect state gaps that may weaken evaluation quality.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+	Returns:
+		A list of missing information keys.
+	"""
 	missing = []
 	if not state.get("user_side"):
 		missing.append("user_side")
@@ -45,24 +88,30 @@ def collect_missing_information(state: EvaluatorGraphState) -> list[str]:
 		missing.append("side_a_profile")
 	if not state.get("side_b"):
 		missing.append("side_b_profile")
+	if not state.get("scenario_public_context"):
+		missing.append("scenario_public_context")
+	if not state.get("side_a_private_context"):
+		missing.append("side_a_private_context")
+	if not state.get("side_b_private_context"):
+		missing.append("side_b_private_context")
 	if not state.get("messages"):
 		missing.append("messages")
 	if not state.get("current_offer"):
 		missing.append("current_offer")
 	if not state.get("offer_history"):
 		missing.append("offer_history")
-
-	for side in ("side_a", "side_b"):
-		profile = get_side_profile(state, side)
-		for field_name in ("target_value", "reservation_value", "value_preference"):
-			if field_name not in profile:
-				missing.append(f"{side}.{field_name}")
-
 	return missing
 
-
+# Check prompts quality
 def build_evaluator_crag_query(state: EvaluatorGraphState) -> str:
-	"""Build a concise grounding query for negotiation evaluation theory."""
+	"""
+	Build a concise grounding query for negotiation evaluation theory.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+	Returns:
+		A string representing the grounding query for evaluation.
+	"""
 	query_parts = [
 		"Provide concise negotiation evaluation theory for assessing the current state.",
 		f"Phase: {state.get('phase', 'unknown')}.",
@@ -96,18 +145,22 @@ def render_evaluator_prompt(
 	state: EvaluatorGraphState,
 	prompt_template: str | None = None,
 ) -> str:
-	"""Render evaluator_prompt.md with the current graph state.
+	"""
+	Render evaluator_prompt.md with the current graph state.
 	Args:
-		state: The current graph state containing negotiation context.
-		prompt_template: Optional custom prompt template to use instead 
-			of the default.
+		state: The current evaluator graph state containing negotiation 
+			context.
+		prompt_template: Optional custom prompt template for the evaluator.
 	Returns:
-		A string with the prompt ready to be sent to the LLM.
+		A string representing the rendered evaluator prompt.
 	"""
 	replacements = {
 		"{user_side}": state.get("user_side", ""),
 		"{side_a_profile}": json_dumps(state.get("side_a", {})),
 		"{side_b_profile}": json_dumps(state.get("side_b", {})),
+		"{public_context}": json_dumps(state.get("scenario_public_context", {})),
+		"{side_a_private_context}": json_dumps(state.get("side_a_private_context", {})),
+		"{side_b_private_context}": json_dumps(state.get("side_b_private_context", {})),
 		"{phase}": state.get("phase", ""),
 		"{active_side}": state.get("active_side", ""),
 		"{messages}": format_messages(state.get("messages", [])),
@@ -118,45 +171,97 @@ def render_evaluator_prompt(
 		"{counterpart_response}": get_latest_counterpart_response(state),
 	}
 
-	prompt = prompt_template or EVALUATOR_PROMPT
+	template = prompt_template or EVALUATOR_PROMPT
+	prompt = template
 	for placeholder, value in replacements.items():
 		prompt = prompt.replace(placeholder, str(value))
-	return prompt
+	return append_missing_context_sections(
+		prompt,
+		template,
+		[
+			("{public_context}", "PUBLIC CONTEXT", state.get("scenario_public_context", {})),
+			(
+				"{side_a_private_context}",
+				"SIDE A PRIVATE CONTEXT",
+				state.get("side_a_private_context", {}),
+			),
+			(
+				"{side_b_private_context}",
+				"SIDE B PRIVATE CONTEXT",
+				state.get("side_b_private_context", {}),
+			),
+		],
+	)
 
 
-def coerce_evaluator_response(result: Any) -> dict[str, Any]:
+def render_final_evaluator_prompt(state: EvaluatorGraphState) -> str:
 	"""
-	Coerce an evaluator response into a standardized dictionary format.
+	Render a dedicated final evaluator prompt using the full transcript.
 	Args:
-		result: The evaluator response, which can be an EvaluatorResponseModel,
-			dictionary, or JSON string.
+		state: The current evaluator graph state containing negotiation 
+			context.
 	Returns:
-		A dictionary representation of the evaluator response.
+		A string representing the rendered final evaluator prompt.
 	"""
-	if isinstance(result, EvaluatorResponseModel):
+	return "\n".join(
+		[
+			"PERSONA",
+			"You are the final evaluator for a negotiation simulation.",
+			"You assess the student's overall performance across the full negotiation.",
+			"",
+			"CONTEXT",
+			f"User side: {state.get('user_side', '')}",
+			f"Side A profile: {json_dumps(state.get('side_a', {}))}",
+			f"Side B profile: {json_dumps(state.get('side_b', {}))}",
+			f"Public context: {json_dumps(state.get('scenario_public_context', {}))}",
+			f"Side A private context: {json_dumps(state.get('side_a_private_context', {}))}",
+			f"Side B private context: {json_dumps(state.get('side_b_private_context', {}))}",
+			f"Final phase: {state.get('phase', '')}",
+			f"Conversation history: {format_messages(state.get('messages', []))}",
+			f"Current offer: {json_dumps(state.get('current_offer', {}))}",
+			f"Offer history: {json_dumps(state.get('offer_history', []))}",
+			f"Rolling evaluation: {json_dumps(state.get('evaluation', {}))}",
+			f"Latest coach advice: {json_dumps(state.get('coach_advice', {}))}",
+			f"Grounding context: {state.get('retrieval_context', '')}",
+			"",
+			"TASK",
+			"Assess the student's overall performance over the whole negotiation.",
+			"Work with the available information and state unknowns explicitly.",
+			"Because the simulation has ended, the final debrief may explicitly compare the student's decisions with either side's private targets, reservation points, BATNAs, and constraints.",
+			"",
+			"FORMAT",
+			"{",
+			'  "overall_score": 0.0,',
+			'  "goal_achievement": "...",',
+			'  "strengths": ["..."],',
+			'  "mistakes": ["..."],',
+			'  "concession_quality": "...",',
+			'  "communication_quality": "...",',
+			'  "outcome_quality": "...",',
+			'  "lessons": ["..."],',
+			'  "reasoning": "...",',
+			'  "confidence": "low | medium | high",',
+			'  "missing_information": ["..."]',
+			"}",
+		]
+	)
+
+
+def coerce_evaluator_response(result: Any, final_mode: bool = False) -> dict[str, Any]:
+	"""
+	Coerce an evaluator response into a validated dictionary format.
+	Args:
+		result: The evaluator response to be coerced.
+		final_mode: Whether to use the final evaluator response model.
+	Returns:
+		A dictionary representing the validated evaluator response.
+	"""
+	model_cls = FinalEvaluatorResponseModel if final_mode else EvaluatorResponseModel
+	if isinstance(result, model_cls):
 		return result.model_dump()
 	if isinstance(result, dict):
-		return EvaluatorResponseModel.model_validate(result).model_dump()
-	return EvaluatorResponseModel.model_validate_json(str(result)).model_dump()
-
-
-def map_evaluator_next_action(
-	state: EvaluatorGraphState,
-	next_best_action: str,
-) -> NextAction:
-	"""
-	Map evaluator prompt action values to existing ParentNegotiationState values.
-	Args:
-		state: The current graph state containing negotiation context.
-		next_best_action: The next best action suggested by the evaluator.
-	Returns:
-		The mapped next action compatible with ParentNegotiationState.
-	"""
-	if next_best_action == "call_counterpart":
-		return "call_side_a" if get_counterpart_side(state) == "side_a" else "call_side_b"
-	if next_best_action in {"call_coach", "call_retriever", "ask_user", "end"}:
-		return next_best_action
-	return "ask_user"
+		return model_cls.model_validate(result).model_dump()
+	return model_cls.model_validate_json(str(result)).model_dump()
 
 
 def compact_evaluation_from_response(
@@ -166,24 +271,44 @@ def compact_evaluation_from_response(
 	"""
 	Convert full evaluator response to the compact parent Evaluation shape.
 	Args:
-		state: The current graph state containing negotiation context.
-		response: The full evaluator response as a dictionary.
+		state: The current evaluator graph state containing negotiation 
+			context.
+		response: The full evaluator response to be converted.
 	Returns:
-		A compact representation of the evaluator response compatible with 
-		the parent Evaluation shape.
+		A dictionary representing the compact evaluation.
 	"""
 	return {
 		"evaluated_side": state.get("user_side", "side_a"),
 		"score": response.get("score", 0.5),
 		"reasoning": response.get("reasoning", ""),
 		"detected_risks": response.get("detected_risks", []),
-		"next_best_action": map_evaluator_next_action(
-			state,
-			response.get("next_best_action", "ask_user"),
-		),
+		"next_best_action": response.get("next_best_action", "continue"),
+		"confidence": response.get("confidence", "low"),
+		"missing_information": response.get("missing_information", []),
 	}
 
 
+def final_evaluation_from_response(
+	state: EvaluatorGraphState,
+	response: dict[str, Any],
+) -> FinalEvaluation:
+	"""Convert final evaluator output to the parent final-evaluation shape."""
+	return {
+		"evaluated_side": state.get("user_side", "side_a"),
+		"overall_score": response.get("overall_score", 0.5),
+		"goal_achievement": response.get("goal_achievement", ""),
+		"strengths": response.get("strengths", []),
+		"mistakes": response.get("mistakes", []),
+		"concession_quality": response.get("concession_quality", ""),
+		"communication_quality": response.get("communication_quality", ""),
+		"outcome_quality": response.get("outcome_quality", ""),
+		"lessons": response.get("lessons", []),
+		"reasoning": response.get("reasoning", ""),
+		"confidence": response.get("confidence", "low"),
+		"missing_information": response.get("missing_information", []),
+	}
+
+# The response here is fine
 def fallback_evaluator_response(
 	state: EvaluatorGraphState,
 	reason: str,
@@ -191,10 +316,11 @@ def fallback_evaluator_response(
 	"""
 	Build a valid low-confidence evaluator response for failure paths.
 	Args:
-		state: The current graph state containing negotiation context.
-		reason: The reason for triggering the fallback response.
+		state: The current evaluator graph state containing negotiation 
+			context.
+		reason: The reason for the fallback response.
 	Returns:
-		A dictionary representation of the fallback evaluator response.
+		A dictionary representing the low-confidence evaluator response.
 	"""
 	missing_information = [*state.get("missing_information", [])]
 	if reason:
@@ -233,21 +359,54 @@ def fallback_evaluator_response(
 			"for_side_b": "unknown",
 			"overall": "unknown",
 		},
-		next_best_action="ask_user",
+		next_best_action="continue",
 		reasoning=grounding_note,
 		missing_information=missing_information,
 		confidence="low",
 	).model_dump()
 
 
+def fallback_final_evaluator_response(
+	state: EvaluatorGraphState,
+	reason: str,
+) -> dict[str, Any]:
+	"""
+	Build a safe final assessment when final evaluation fails.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+		reason: The reason for the fallback response.
+	Returns:
+		A dictionary representing the low-confidence final evaluator response.
+	"""
+	missing_information = [*state.get("missing_information", [])]
+	if reason:
+		missing_information.append(f"final_evaluator_generation_error: {reason}")
+
+	return FinalEvaluatorResponseModel(
+		overall_score=0.5,
+		goal_achievement="Overall goal achievement is uncertain from the available information.",
+		strengths=["A reliable final assessment could not be generated."],
+		mistakes=["The final evaluator fell back to a low-confidence summary."],
+		concession_quality="unknown",
+		communication_quality="unknown",
+		outcome_quality="unknown",
+		lessons=["Review the transcript manually before drawing strong conclusions."],
+		reasoning=(
+			"I could not generate a grounded final evaluation, so this is a "
+			"low-confidence fallback summary."
+		),
+		confidence="low",
+		missing_information=missing_information,
+	).model_dump()
+
+# Helper candidate for all agents/graphs
 def get_default_evaluator_model() -> Any | None:
 	"""
-	Lazily construct a default model so imports remain cheap and testable.
-	Args:
-		None
+	Best-effort default model loader for evaluator generation.
 	Returns:
-		An instance of the default LLM model for evaluator response generation,
-		or None if no suitable model is available.
+		An instance of the default model for evaluator response generation, 
+		or None if no model is available.
 	"""
 	try:
 		from app.airag.llm_models.llm_models import get_openai_llm

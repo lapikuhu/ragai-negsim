@@ -16,11 +16,12 @@ The negotiation has two sides:
 
 The user controls: {user_side}
 
-Side A profile:
-{side_a_profile}
+Public negotiation context:
+{public_context}
 
-Side B profile:
-{side_b_profile}
+The student's private role, goals, constraints, BATNA, targets, and
+reservation points:
+{student_private_context}
 
 Current negotiation phase:
 {phase}
@@ -39,9 +40,6 @@ Offer history:
 
 Relevant negotiation theory / retrieved context:
 {retrieval_context}
-
-Latest evaluation, if available:
-{evaluation}
 
 
 TASK
@@ -66,6 +64,9 @@ If the current offer is outside the user's acceptable range, say so clearly.
 If the current offer is inside the acceptable range but worse than the target, recommend whether to counter, accept, pause, ask for clarification, or package terms differently.
 
 If non-price terms matter, evaluate them separately from price.
+You do not know the counterpart's private target, reservation point, BATNA, or
+hidden constraints. Do not claim that you know them. Infer only from public
+context and observable negotiation behavior.
 
 
 FORMAT

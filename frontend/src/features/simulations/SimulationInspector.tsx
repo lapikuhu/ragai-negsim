@@ -46,9 +46,9 @@ export function SimulationInspector({
                   pause_reason: latestTurn.pause_reason,
                   coach_advice: latestTurn.coach_advice,
                   counterpart_response: latestTurn.counterpart_response,
-                  event_log: latestTurn.event_log
+                  final_evaluation: latestTurn.final_evaluation
                 }
-              : { note: "Submit a turn to inspect coach advice and event output." }
+              : { note: "Submit a turn to inspect the latest public outputs." }
           )}
         </pre>
       </Card>

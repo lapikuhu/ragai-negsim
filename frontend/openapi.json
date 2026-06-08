@@ -544,6 +544,7 @@
           "chunking-profiles"
         ],
         "summary": "List Chunker Definitions",
+        "description": "List chunker definitions endpoint.\n    Args:\n        _admin: The admin dependency.\n    Returns:\n        A list of ChunkerDefinitionRead objects containing the chunker \n        definitions.",
         "operationId": "list_chunker_definitions_chunking_profiles_definitions_get",
         "responses": {
           "200": {
@@ -1811,6 +1812,7 @@
           "indexing-jobs"
         ],
         "summary": "Create Indexing Job",
+        "description": "Create an indexing job endpoint.\n    Args:\n        job_in: The data to create the indexing job with.\n        session: The database session.\n        background_tasks: The background tasks manager.\n        _admin: The admin dependency.\n    Returns:\n        An IndexingJobQueued object containing the queued indexing job data.\n    Raises:\n        HTTPException: If the indexing job cannot be created due to validation\n        errors or other constraints, with a 409 status code and error detail.",
         "operationId": "create_indexing_job_indexing_jobs__post",
         "security": [
           {
@@ -1855,6 +1857,7 @@
           "indexing-jobs"
         ],
         "summary": "List Indexing Jobs",
+        "description": "List indexing jobs endpoint.\n    Args:\n        session: The database session.\n        _admin: The admin dependency.\n        page: The pagination parameters.\n        status_filter: Optional status to filter indexing jobs by.\n        corpus_id: Optional corpus ID to filter indexing jobs by.\n    Returns:\n        A list of IndexingJobQueued objects containing the indexing \n        job data.",
         "operationId": "list_indexing_jobs_indexing_jobs__get",
         "security": [
           {
@@ -1952,6 +1955,7 @@
           "indexing-jobs"
         ],
         "summary": "Get Active Indexing Job",
+        "description": "Get the active indexing job endpoint.\n    Args:\n        session: The database session.\n        _admin: The admin dependency.\n    Returns:\n        An IndexingJobDetail object containing the active indexing job data,\n        or a 204 No Content response if no active job is found.",
         "operationId": "get_active_indexing_job_indexing_jobs_active_get",
         "responses": {
           "200": {
@@ -1978,6 +1982,7 @@
           "indexing-jobs"
         ],
         "summary": "Get Indexing Job Detail",
+        "description": "Get indexing job detail endpoint.\n    Args:\n        job_id: The ID of the indexing job to retrieve.\n        session: The database session.\n        _admin: The admin dependency.\n    Returns:\n        An IndexingJobDetail object containing the indexing job data.\n    Raises:\n        HTTPException: If the indexing job is not found, with a 404 status\n        code and error detail.",
         "operationId": "get_indexing_job_detail_indexing_jobs__job_id__get",
         "security": [
           {
@@ -2725,7 +2730,7 @@
           "scenarios"
         ],
         "summary": "Create Scenario",
-        "description": "Create a new scenario endpoint.\nArgs:\n    scenario_data (ScenarioCreateRequest): The data for the scenario \n        to be created.\n    session (SessionDep): The database session dependency.\n    current_user (ScenarioCreatorDep): The current user dependency with \n        scenario creation permissions.\nReturns:\n    ScenarioReadWithIds: The created scenario with its IDs.",
+        "description": "Create a new scenario endpoint.\nArgs:\n    scenario_data (ScenarioCreateRequest): The data for the scenario \n        to be created.\n    session (SessionDep): The database session dependency.\n    current_user (ScenarioCreatorDep): The current user dependency with \n        scenario creation permissions.\nReturns:\n    ScenarioAuthoringReadWithIds: The created scenario with its IDs.",
         "operationId": "create_scenario_scenarios__post",
         "security": [
           {
@@ -2748,7 +2753,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScenarioReadWithIds"
+                  "$ref": "#/components/schemas/ScenarioAuthoringReadWithIds"
                 }
               }
             }
@@ -2770,7 +2775,7 @@
           "scenarios"
         ],
         "summary": "List Scenarios",
-        "description": "List scenarios with optional filters.\nArgs:\n    session (SessionDep): The database session dependency.\n    _current_user (CurrentUserDep): The current user dependency (not used in this endpoint but can be used for future enhancements).\n    skip (int): Number of scenarios to skip for pagination.\n    limit (int): Maximum number of scenarios to return.\n    created_by_user_id (int | None): Filter scenarios by creator user ID.\n    name_contains (str | None): Filter scenarios by name containing this string.\n    used (bool | None): Filter scenarios by usage status.\nReturns:\n    list[ScenarioReadWithIds]: A list of scenarios matching the filters.",
+        "description": "List scenarios with optional filters.\nArgs:\n    session (SessionDep): The database session dependency.\n    _current_user (CurrentUserDep): The current user dependency (not used in this endpoint but can be used for future enhancements).\n    skip (int): Number of scenarios to skip for pagination.\n    limit (int): Maximum number of scenarios to return.\n    created_by_user_id (int | None): Filter scenarios by creator user ID.\n    name_contains (str | None): Filter scenarios by name containing this string.\n    used (bool | None): Filter scenarios by usage status.\nReturns:\n    list[ScenarioPublicReadWithIds]: A list of scenarios matching the filters.",
         "operationId": "list_scenarios_scenarios__get",
         "security": [
           {
@@ -2855,7 +2860,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ScenarioReadWithIds"
+                    "$ref": "#/components/schemas/ScenarioPublicReadWithIds"
                   },
                   "title": "Response List Scenarios Scenarios  Get"
                 }
@@ -2881,7 +2886,7 @@
           "scenarios"
         ],
         "summary": "Get Scenario",
-        "description": "Get a scenario by its ID.\nArgs:\n    scenario (ScenarioViewerDep): The scenario dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    ScenarioReadWithIds: The scenario with its IDs.\nRaises:\n    HTTPException: If the scenario is not found or if there is an error retrieving the scenario.",
+        "description": "Get a scenario by its ID.\nArgs:\n    scenario (ScenarioViewerDep): The scenario dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    ScenarioPublicReadWithIds: The scenario with its IDs.\nRaises:\n    HTTPException: If the scenario is not found or if there is an error retrieving the scenario.",
         "operationId": "get_scenario_scenarios__scenario_id__get",
         "security": [
           {
@@ -2905,7 +2910,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScenarioReadWithIds"
+                  "$ref": "#/components/schemas/ScenarioPublicReadWithIds"
                 }
               }
             }
@@ -2927,7 +2932,7 @@
           "scenarios"
         ],
         "summary": "Update Scenario",
-        "description": "Update an existing scenario.\nArgs:\n    scenario_data (ScenarioUpdateRequest): The data for updating the \n        scenario.\n    scenario (WritableScenarioDep): The scenario dependency with write \n        permissions.\n    session (SessionDep): The database session dependency.\n    current_user (CurrentUserDep): The current user dependency.\nReturns:\n    ScenarioReadWithIds: The updated scenario with its IDs.",
+        "description": "Update an existing scenario.\nArgs:\n    scenario_data (ScenarioUpdateRequest): The data for updating the \n        scenario.\n    scenario (WritableScenarioDep): The scenario dependency with write \n        permissions.\n    session (SessionDep): The database session dependency.\n    current_user (CurrentUserDep): The current user dependency.\nReturns:\n    ScenarioAuthoringReadWithIds: The updated scenario with its IDs.",
         "operationId": "update_scenario_scenarios__scenario_id__patch",
         "security": [
           {
@@ -2961,7 +2966,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScenarioReadWithIds"
+                  "$ref": "#/components/schemas/ScenarioAuthoringReadWithIds"
                 }
               }
             }
@@ -3018,13 +3023,60 @@
         }
       }
     },
+    "/scenarios/{scenario_id}/authoring": {
+      "get": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Get Scenario Authoring",
+        "operationId": "get_scenario_authoring_scenarios__scenario_id__authoring_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scenario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioAuthoringReadWithIds"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/scenarios/{scenario_id}/copy": {
       "post": {
         "tags": [
           "scenarios"
         ],
         "summary": "Copy Scenario",
-        "description": "Copy an existing scenario.\nArgs:\n    copy_data (ScenarioCopyRequest): The data for copying the scenario.\n    source_scenario (ScenarioViewerDep): The source scenario dependency.\n    session (SessionDep): The database session dependency.\n    current_user (ScenarioCreatorDep): The current user dependency with \n        scenario creation permissions.\nReturns:\n    ScenarioReadWithIds: The copied scenario with its IDs.\nRaises:\n    HTTPException: If there is an error copying the scenario.",
+        "description": "Copy an existing scenario.\nArgs:\n    copy_data (ScenarioCopyRequest): The data for copying the scenario.\n    source_scenario (ScenarioViewerDep): The source scenario dependency.\n    session (SessionDep): The database session dependency.\n    current_user (ScenarioCreatorDep): The current user dependency with \n        scenario creation permissions.\nReturns:\n    ScenarioAuthoringReadWithIds: The copied scenario with its IDs.\nRaises:\n    HTTPException: If there is an error copying the scenario.",
         "operationId": "copy_scenario_scenarios__scenario_id__copy_post",
         "security": [
           {
@@ -3058,7 +3110,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScenarioReadWithIds"
+                  "$ref": "#/components/schemas/ScenarioAuthoringReadWithIds"
                 }
               }
             }
@@ -5561,7 +5613,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -5643,7 +5695,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -5685,7 +5737,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -5793,7 +5845,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -5832,7 +5884,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -5942,7 +5994,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -7109,7 +7161,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -7216,7 +7268,7 @@
         ],
         "title": "RoleRead"
       },
-      "ScenarioCopyRequest": {
+      "ScenarioAuthoringReadWithIds": {
         "properties": {
           "name": {
             "type": "string",
@@ -7233,56 +7285,21 @@
               }
             ],
             "title": "Description"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "title": "ScenarioCopyRequest"
-      },
-      "ScenarioCreateRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 3,
-            "title": "Scenario name"
           },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "title": "ScenarioCreateRequest"
-      },
-      "ScenarioReadWithIds": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 3,
-            "title": "Scenario name"
+          "public_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Public Context"
           },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
+          "side_a_private_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Side A Private Context"
+          },
+          "side_b_private_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Side B Private Context"
           },
           "id": {
             "type": "integer",
@@ -7329,7 +7346,131 @@
           "created_at",
           "last_updated"
         ],
-        "title": "ScenarioReadWithIds"
+        "title": "ScenarioAuthoringReadWithIds"
+      },
+      "ScenarioCopyRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Scenario name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ScenarioCopyRequest"
+      },
+      "ScenarioCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Scenario name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "public_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Public Context"
+          },
+          "side_a_private_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Side A Private Context"
+          },
+          "side_b_private_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Side B Private Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ScenarioCreateRequest"
+      },
+      "ScenarioPublicReadWithIds": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Scenario name"
+          },
+          "public_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Public Context"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_by_user_id": {
+            "type": "integer",
+            "title": "Created By User Id"
+          },
+          "last_edit_by_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Edit By User Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Updated"
+          },
+          "simulation_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Simulation Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "id",
+          "created_by_user_id",
+          "created_at",
+          "last_updated"
+        ],
+        "title": "ScenarioPublicReadWithIds"
       },
       "ScenarioUpdateRequest": {
         "properties": {
@@ -7355,6 +7496,42 @@
               }
             ],
             "title": "Description"
+          },
+          "public_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Context"
+          },
+          "side_a_private_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side A Private Context"
+          },
+          "side_b_private_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side B Private Context"
           }
         },
         "type": "object",
@@ -8110,8 +8287,8 @@
           },
           "max_turn_count": {
             "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Max Turn Count",
             "default": 12
           }
@@ -8151,6 +8328,21 @@
               }
             ],
             "title": "Current Offer"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "continue",
+                  "end"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
           }
         },
         "type": "object",
@@ -8216,6 +8408,11 @@
             "type": "object",
             "title": "Coach Advice"
           },
+          "final_evaluation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Final Evaluation"
+          },
           "counterpart_response": {
             "anyOf": [
               {
@@ -8226,13 +8423,6 @@
               }
             ],
             "title": "Counterpart Response"
-          },
-          "event_log": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Event Log"
           }
         },
         "type": "object",

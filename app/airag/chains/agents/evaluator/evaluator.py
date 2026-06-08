@@ -5,6 +5,7 @@ from langgraph.graph import StateGraph, START, END
 from app.airag.chains.agents.evaluator.evaluator_helpers import (
     get_default_evaluator_model
 )
+from app.airag.chains.agents.context_projections import project_evaluator_state
 from app.airag.chains.negotiation.negotiation_model import (
 	Evaluation,
 	ParentNegotiationState,
@@ -32,7 +33,17 @@ def make_evaluator_graph(
 	prompt_template: str | None = None,
 	state_schema: type[EvaluatorGraphState] = EvaluatorGraphState,
 ):
-	"""Build and compile the evaluator graph."""
+	"""
+	Build and compile the evaluator graph.
+	Args:
+		crag_graph: The CRAG graph to use for context retrieval.
+		model: The LLM model to use for generating evaluator responses.
+		prompt_template: The template to use for rendering the evaluator 
+			prompt.
+		state_schema: The schema for the evaluator graph state.
+	Returns:
+		The compiled evaluator StateGraph.
+	"""
 	evaluator_model = model or get_default_evaluator_model()
 
 	evaluator_flow = StateGraph(state_schema)
@@ -78,15 +89,23 @@ def make_evaluator_graph(
 
 
 def make_evaluator_node(evaluator_graph: Any):
-	"""Wrap the evaluator graph as a parent negotiation graph node."""
+	"""
+	Wrap the evaluator graph as a parent negotiation graph node.
+	Args:
+		evaluator_graph: The compiled evaluator StateGraph to wrap.
+	Returns:
+		A function that can be used as a node in the parent negotiation graph.
+	"""
 	def evaluator_node(state: ParentNegotiationState) -> dict:
-		original_event_count = len(state.get("event_log", []))
-		result = evaluator_graph.invoke(state)
-		return {
-			"evaluation": result.get("evaluation", {}),
-			"next_action": result.get("next_action", "ask_user"),
-			"event_log": result.get("event_log", [])[original_event_count:],
+		result = evaluator_graph.invoke(project_evaluator_state(state))
+		updates = {
+			"event_log": result.get("event_log", []),
 		}
+		if state.get("evaluation_mode") == "final":
+			updates["final_evaluation"] = result.get("final_evaluation", {})
+		else:
+			updates["evaluation"] = result.get("evaluation", {})
+		return updates
 
 	return evaluator_node
 
@@ -95,7 +114,14 @@ def invoke_evaluator_response(
 	evaluator_graph: Any,
 	state: ParentNegotiationState,
 ) -> dict[str, Any]:
-	"""Invoke the evaluator graph and return the full validated response."""
+	"""
+	Invoke the evaluator graph and return the full validated response.
+	Args:
+		evaluator_graph: The compiled evaluator StateGraph to invoke.
+		state: The current parent graph state containing negotiation context.
+	Returns:
+		A dictionary representing the full validated evaluator response.
+	"""
 	result = evaluator_graph.invoke(state)
 	return result.get("evaluator_response", {})
 
@@ -104,6 +130,13 @@ def invoke_compact_evaluation(
 	evaluator_graph: Any,
 	state: ParentNegotiationState,
 ) -> Evaluation:
-	"""Invoke the evaluator graph and return only compact Evaluation."""
+	"""
+	Invoke the evaluator graph and return only compact Evaluation.
+	Args:
+		evaluator_graph: The compiled evaluator StateGraph to invoke.
+		state: The current parent graph state containing negotiation context.
+	Returns:
+		A compact Evaluation dictionary.
+	"""
 	result = evaluator_graph.invoke(state)
 	return result.get("evaluation", {})

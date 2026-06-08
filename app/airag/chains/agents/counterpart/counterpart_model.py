@@ -61,20 +61,16 @@ class CounterpartGraphState(TypedDict, total=False):
 	session_id: str
 	user_id: str
 	counterpart_persona: dict[str, Any]
+	scenario_public_context: dict[str, Any]
+	own_private_context: dict[str, Any]
 	user_side: Side
-	side_a: SideProfile
-	side_b: SideProfile
 	messages: list[Any]
 	phase: str
 	active_side: Side
 	current_offer: Offer
 	offer_history: Annotated[list[Offer], operator.add]
-	coach_advice: CoachAdvice
 	side_a_response: str
 	side_b_response: str
-	evaluation: Evaluation
-	retrieval_result: RetrievalResult
-	next_action: str
 	turn_count: int
 	event_log: NotRequired[Annotated[list[str], operator.add]]
 

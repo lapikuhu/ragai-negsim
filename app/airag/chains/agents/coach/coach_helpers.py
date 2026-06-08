@@ -1,126 +1,116 @@
 from typing import Any
 
-# local imports
-from app.airag.chains.agents.helpers import json_dumps, format_messages
-from app.airag.prompts.neg_prompts.md_loader import COACH_PROMPT
 from app.airag.chains.agents.coach.coach_model import CoachGraphState
-from app.airag.chains.negotiation.negotiation_model import (
-	CoachAdvice,
-	SideProfile,
+from app.airag.chains.agents.helpers import (
+	append_missing_context_sections,
+	format_messages,
+	json_dumps,
 )
-### -------------------- COACH SPECIFIC HELPERS -------------------- ###
+from app.airag.chains.negotiation.negotiation_model import CoachAdvice
+from app.airag.prompts.neg_prompts.md_loader import COACH_PROMPT
+
 
 def render_coach_prompt(
 	state: CoachGraphState,
 	prompt_template: str | None = None,
 ) -> str:
-	"""Render the coach prompt by replacing placeholders with current state values.
-	Args:
-        state: The current state of the coach graph, containing all relevant information about the negotiation.
-    Returns:
-        A string containing the rendered coach prompt ready to be sent to the LLM.
+	"""
+	Render the coach prompt with only coach-safe context.
+	Coach-safe context includes information that is either public or 
+	explicitly designated as coach-accessible. 
+	Args: 
+		state: The current state of the coach graph, containing various 
+			context fields.
+		prompt_template: Optional custom prompt template to use instead 
+			of the default.
+	Returns:
+	A string containing the rendered prompt ready for coach generation.
 	"""
 	replacements = {
 		"{user_side}": state.get("user_side", ""),
-		"{side_a_profile}": json_dumps(state.get("side_a", {})),
-		"{side_b_profile}": json_dumps(state.get("side_b", {})),
+		"{public_context}": json_dumps(state.get("scenario_public_context", {})),
+		"{student_private_context}": json_dumps(state.get("student_private_context", {})),
 		"{phase}": state.get("phase", ""),
 		"{active_side}": state.get("active_side", ""),
 		"{messages}": format_messages(state.get("messages", [])),
 		"{current_offer}": json_dumps(state.get("current_offer", {})),
 		"{offer_history}": json_dumps(state.get("offer_history", [])),
 		"{retrieval_context}": state.get("retrieval_context", ""),
-		"{evaluation}": json_dumps(state.get("evaluation", {})),
 	}
-
-	prompt = prompt_template or COACH_PROMPT
+	# Check how the template is structured, perhaps use a combination?
+	template = prompt_template or COACH_PROMPT
+	prompt = template
 	for placeholder, value in replacements.items():
 		prompt = prompt.replace(placeholder, str(value))
-	return prompt
+	return append_missing_context_sections(
+		prompt,
+		template,
+		[
+			("{public_context}", "PUBLIC CONTEXT", state.get("scenario_public_context", {})),
+			(
+				"{student_private_context}", # Coach has access to student private context
+				"STUDENT PRIVATE CONTEXT",
+				state.get("student_private_context", {}),
+			),
+		],
+	)
 
 
-def get_user_profile(state: CoachGraphState) -> SideProfile:
+def get_student_private_context(state: CoachGraphState) -> dict[str, Any]:
 	"""
-	Helper function to extract the user-controlled side's profile from the 
-	state.
+	Retrieve the student private context from the coach graph state.
 	Args:
-        state: The current state of the coach graph, containing all relevant 
-		    information about the negotiation.
-    Returns:
-        A SideProfile object containing the profile information of the 
-		    user-controlled side.
+		state: The current state of the coach graph.
+	Returns:
+		A dictionary containing the student private context, or an empty 
+		dictionary if not available.
 	"""
-	if state.get("user_side") == "side_b":
-		return state.get("side_b", {})
-	return state.get("side_a", {})
-
-
-def get_existing_retrieval_context(state: CoachGraphState) -> str:
-	"""
-	Helper function to extract any existing retrieval context from the 
-	state.
-	Args:
-        state: The current state of the coach graph, containing all relevant
-            information about the negotiation.
-    Returns:
-        A string containing the existing retrieval context, or an empty string
-            if no context is available.
-	"""
-	retrieval_result = state.get("retrieval_result", {})
-	return retrieval_result.get("summary", "") if isinstance(retrieval_result, dict) else ""
+	value = state.get("student_private_context", {})
+	return value if isinstance(value, dict) else {}
 
 
 def collect_missing_information(state: CoachGraphState) -> list[str]:
 	"""
-	Helper function to collect information about missing or incomplete state fields that may be relevant for coach advice generation and validation.
-    Args:    
-	    state: The current state of the coach graph, containing all relevant 
-		    information about the negotiation.
-    Returns:    
-	    A list of strings describing missing or incomplete information in the 
-		    state that may impact coach advice generation or validation.
-    """
+	Collect state gaps that may weaken coach advice quality.
+	Args:
+		state: The current state of the coach graph.
+	Returns:
+		A list of strings representing the missing information keys.
+	"""
 	missing = []
-	user_side = state.get("user_side")
-	user_profile = get_user_profile(state)
 
-	if not user_side:
+	if not state.get("user_side"):
 		missing.append("user_side")
+	if not state.get("scenario_public_context"):
+		missing.append("scenario_public_context")
+	if not get_student_private_context(state):
+		missing.append("student_private_context")
 	if not state.get("current_offer"):
 		missing.append("current_offer")
 	if not state.get("offer_history"):
 		missing.append("offer_history")
-	if "target_value" not in user_profile:
-		missing.append("user_profile.target_value")
-	if "reservation_value" not in user_profile:
-		missing.append("user_profile.reservation_value")
-	if "value_preference" not in user_profile:
-		missing.append("user_profile.value_preference")
 
 	return missing
 
 
 def build_crag_query(state: CoachGraphState) -> str:
 	"""
-	Helper function to build a focused CRAG query based on the current 
-	state, emphasizing missing information and key negotiation details that
-	the coach can use to provide relevant advice.
+	Build a coach-local CRAG query without evaluator or counterpart secrets.
 	Args:
-        state: The current state of the coach graph, containing all relevant
-            information about the negotiation.
+		state: The current state of the coach graph.
 	Returns:
-        A string containing a focused CRAG query that the coach can use to 
-            retrieve relevant information for advice generation.
+		A string containing the CRAG query.
 	"""
 	user_side = state.get("user_side", "the user-controlled side")
 	phase = state.get("phase", "unknown")
 	current_offer = state.get("current_offer", {})
 	offer_history = state.get("offer_history", [])
-	evaluation = state.get("evaluation", {})
-	user_profile = get_user_profile(state)
+	student_context = get_student_private_context(state)
 	query_parts = [
 		"Provide concise negotiation theory and tactics for coaching a user.",
 		f"The user controls {user_side}. The negotiation phase is {phase}.",
+		f"Public scenario context: {json_dumps(state.get('scenario_public_context', {}))}",
+		f"Student private context: {json_dumps(student_context)}",
 	]
 
 	if not current_offer:
@@ -130,7 +120,7 @@ def build_crag_query(state: CoachGraphState) -> str:
 	else:
 		query_parts.append(f"Current offer: {json_dumps(current_offer)}")
 
-	if "target_value" in user_profile or "reservation_value" in user_profile:
+	if student_context:
 		query_parts.append(
 			"Discuss target values, reservation values, BATNA protection, and concession strategy."
 		)
@@ -140,26 +130,18 @@ def build_crag_query(state: CoachGraphState) -> str:
 			"Discuss concession patterns, anchoring, momentum, and avoiding premature concessions."
 		)
 
-	detected_risks = evaluation.get("detected_risks", []) if isinstance(evaluation, dict) else []
-	if detected_risks:
-		query_parts.append(f"Known risks to address: {json_dumps(detected_risks)}")
-
 	return "\n".join(query_parts)
 
-
+# Check and change: fallback can rely the conversation itself and improvise
+# after explicitly stating the missing information. Check with the prompt.
 def fallback_advice(state: CoachGraphState, reason: str) -> CoachAdvice:
 	"""
-	Helper function to generate fallback coach advice when validation or 
-	generation fails, providing safe and generic guidance while indicating the 
-	limitations of the advice.
+	Generate low-confidence fallback advice when coach generation fails.
 	Args:
-        state: The current state of the coach graph, containing all relevant
-            information about the negotiation.
-		reason: A string describing the reason for the fallback, such as 
-		    validation errors or generation failures.
-    Returns:
-        A CoachAdvice object containing generic fallback advice and an 
-            explanation of the limitations.
+		state: The current state of the coach graph.
+		reason: The reason for the fallback advice.
+	Returns:
+		A dictionary containing the fallback coach advice.
 	"""
 	user_side = state.get("user_side", "side_a")
 	if user_side not in {"side_a", "side_b"}:
@@ -189,16 +171,12 @@ def fallback_advice(state: CoachGraphState, reason: str) -> CoachAdvice:
 
 def get_default_coach_model() -> Any | None:
 	"""
-	Helper function to get a default LLM model for the coach if one is 
-	not provided, with error handling to ensure the graph can still function 
-	even if no model is available.
+	Best-effort default LLM for coach generation.
 	Args:
-        None
-    Returns:
-        An LLM model instance configured for the coach, or None if no model
-        could be loaded, allowing the graph to handle the absence of a model
-		gracefully.
-
+		None
+	Returns:
+		An instance of the default LLM for coach generation, or None if 
+		not available.
 	"""
 	try:
 		from app.airag.llm_models.llm_models import get_openai_llm

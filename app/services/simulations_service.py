@@ -44,10 +44,28 @@ from app.schemas.simulations_schemas import (
     SimulationStartRequest,
 )
 
+# TODO: This is now a god file. It should be split into multiple modules.
 
 TERMINAL_STATUSES = {"completed", "cancelled", "failed"}
 RUNNABLE_STATUSES = {"active", "paused"}
 NEGOTIATION_GRAPH_CACHE: dict[tuple[Any, ...], Any] = {}
+PUBLIC_GRAPH_STATE_FIELDS = (
+    "simulation_id",
+    "user_side",
+    "scenario_public_context",
+    "messages",
+    "phase",
+    "active_side",
+    "current_offer",
+    "offer_history",
+    "coach_advice",
+    "side_a_response",
+    "side_b_response",
+    "turn_count",
+    "should_pause",
+    "pause_reason",
+    "terminal_reason",
+)
 
 
 @dataclass(frozen=True)
@@ -177,7 +195,7 @@ def _read_simulation_with_state(simulation: Simulation) -> SimulationReadWithSta
     raw_messages = simulation.messages or []
     return SimulationReadWithState(
         **base,
-        negotiation_state=NegotiationStateSchema.model_validate(raw_state),
+        negotiation_state=_public_state_schema_from_internal(raw_state),
         messages=[_message_to_schema(message) for message in raw_messages],
     )
 
@@ -228,6 +246,38 @@ def _record_context(record: Any) -> dict[str, Any]:
         if value is not None:
             context[field_name] = value
     return _json_safe(context)
+
+
+def _safe_context_dict(value: Any) -> dict[str, Any]:
+    return _json_safe(value) if isinstance(value, dict) else {}
+
+
+def _scenario_runtime_snapshot(scenario: Any) -> dict[str, Any]:
+    if scenario is None:
+        return {
+            "scenario_public_context": {},
+            "side_a_private_context": {},
+            "side_b_private_context": {},
+        }
+
+    public_context = {
+        "id": getattr(scenario, "id", None),
+        "name": getattr(scenario, "name", None),
+        **_safe_context_dict(getattr(scenario, "public_context", {})),
+    }
+    return {
+        "scenario_public_context": {
+            key: value
+            for key, value in public_context.items()
+            if value is not None
+        },
+        "side_a_private_context": _safe_context_dict(
+            getattr(scenario, "side_a_private_context", {})
+        ),
+        "side_b_private_context": _safe_context_dict(
+            getattr(scenario, "side_b_private_context", {})
+        ),
+    }
 
 
 async def _get_valid_built_corpus_index(
@@ -505,8 +555,7 @@ def _runtime_context_snapshot(runtime_context: SimulationRuntimeContext) -> dict
         )
     if runtime_context.evaluator_prompt is not None:
         snapshot["evaluator_prompt_context"] = _record_context(runtime_context.evaluator_prompt)
-    if runtime_context.scenario is not None:
-        snapshot["scenario_context"] = _record_context(runtime_context.scenario)
+    snapshot.update(_scenario_runtime_snapshot(runtime_context.scenario))
     if runtime_context.counterpart_persona is not None:
         snapshot["counterpart_persona_context"] = _record_context(
             runtime_context.counterpart_persona
@@ -722,6 +771,40 @@ def _state_schema_from_graph_state(state: dict[str, Any]) -> NegotiationStateSch
     )
 
 
+def _public_graph_state(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Convert a graph state dictionary to a public-facing dictionary.
+    Args:
+        state: The graph state dictionary.
+    Returns:
+        A dictionary representing the public-facing state.
+    """
+    public = {
+        field: _json_safe(state[field])
+        for field in PUBLIC_GRAPH_STATE_FIELDS
+        if field in state
+    }
+    if state.get("phase") == "ended" and state.get("final_evaluation"):
+        public["final_evaluation"] = _json_safe(state["final_evaluation"])
+    return public
+
+
+def _public_state_schema_from_internal(raw_state: dict[str, Any]) -> NegotiationStateSchema:
+    """
+    Convert a raw state dictionary to a public-facing NegotiationStateSchema.
+    Args:
+        raw_state: The raw state dictionary.
+    Returns:
+        A NegotiationStateSchema instance representing the public-facing state.
+    """
+    data = raw_state.get("data", {}) if isinstance(raw_state, dict) else {}
+    return NegotiationStateSchema(
+        current_phase=raw_state.get("current_phase"),
+        user_side=raw_state.get("user_side"),
+        data=_public_graph_state(data if isinstance(data, dict) else {}),
+    )
+
+
 def _messages_from_graph_state(state: dict[str, Any]) -> list[SimulationMessageSchema]:
     """
     Convert messages from a graph state dictionary to a list of SimulationMessageSchema.
@@ -787,7 +870,7 @@ def _status_after_graph(graph_state: dict[str, Any]) -> SimulationStatus:
     Returns:
         The status of the simulation.
     """
-    if graph_state.get("phase") == "ended" or graph_state.get("next_action") == "end":
+    if graph_state.get("phase") == "ended":
         return "completed"
     if graph_state.get("should_pause"):
         return "paused"
@@ -1058,9 +1141,14 @@ async def submit_simulation_turn_srvc(
     state["messages"] = [*state["messages"], _user_message(turn_data, simulation)]
     if turn_data.current_offer:
         state["current_offer"] = _json_safe(turn_data.current_offer)
+    if turn_data.action is None:
+        state.pop("requested_action", None)
+    else:
+        state["requested_action"] = turn_data.action
 
     graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
     graph_state = _json_safe(graph.invoke(state))
+    graph_state.pop("requested_action", None)
     next_status = _status_after_graph(graph_state)
     update_in = SimulationUpdate(
         status=next_status,
@@ -1081,8 +1169,12 @@ async def submit_simulation_turn_srvc(
         pause_reason=graph_state.get("pause_reason") or None,
         messages=_messages_from_graph_state(graph_state),
         coach_advice=graph_state.get("coach_advice") or {},
+        final_evaluation=(
+            graph_state.get("final_evaluation") or {}
+            if graph_state.get("phase") == "ended"
+            else {}
+        ),
         counterpart_response=_counterpart_response(graph_state, state.get("user_side")),
-        event_log=graph_state.get("event_log") or [],
     )
 
 

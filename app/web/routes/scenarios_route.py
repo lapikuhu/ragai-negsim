@@ -8,9 +8,10 @@ from app.core.dependencies import (
     WritableScenarioDep,
 )
 from app.schemas.scenarios_schemas import (
+    ScenarioAuthoringReadWithIds,
     ScenarioCopyRequest,
     ScenarioCreateRequest,
-    ScenarioReadWithIds,
+    ScenarioPublicReadWithIds,
     ScenarioUpdateRequest,
 )
 from app.services import scenarios_service
@@ -35,14 +36,14 @@ def _raise_scenario_service_error(exc: ValueError) -> None:
 ### ------------------------ CREATE SCENARIO ----------------------- ###
 @router.post(
     "/",
-    response_model=ScenarioReadWithIds,
+    response_model=ScenarioAuthoringReadWithIds,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_scenario(
     scenario_data: ScenarioCreateRequest,
     session: SessionDep,
     current_user: ScenarioCreatorDep,
-) -> ScenarioReadWithIds:
+) -> ScenarioAuthoringReadWithIds:
     """
     Create a new scenario endpoint.
     Args:
@@ -52,7 +53,7 @@ async def create_scenario(
         current_user (ScenarioCreatorDep): The current user dependency with 
             scenario creation permissions.
     Returns:
-        ScenarioReadWithIds: The created scenario with its IDs.
+        ScenarioAuthoringReadWithIds: The created scenario with its IDs.
     """
     try:
         return await scenarios_service.create_scenario_srvc(
@@ -66,7 +67,7 @@ async def create_scenario(
 ### ------------------------ LIST SCENARIOS ----------------------- ###
 @router.get(
     "/",
-    response_model=list[ScenarioReadWithIds],
+    response_model=list[ScenarioPublicReadWithIds],
     status_code=status.HTTP_200_OK,
 )
 async def list_scenarios(
@@ -77,7 +78,7 @@ async def list_scenarios(
     created_by_user_id: int | None = None,
     name_contains: str | None = None,
     used: bool | None = None,
-) -> list[ScenarioReadWithIds]:
+) -> list[ScenarioPublicReadWithIds]:
     """
     List scenarios with optional filters.
     Args:
@@ -89,7 +90,7 @@ async def list_scenarios(
         name_contains (str | None): Filter scenarios by name containing this string.
         used (bool | None): Filter scenarios by usage status.
     Returns:
-        list[ScenarioReadWithIds]: A list of scenarios matching the filters.
+        list[ScenarioPublicReadWithIds]: A list of scenarios matching the filters.
     """
     return await scenarios_service.list_scenarios_srvc(
         session=session,
@@ -103,20 +104,20 @@ async def list_scenarios(
 ### ----------------------- GET SCENARIO BY ID --------------------- ###
 @router.get(
     "/{scenario_id}",
-    response_model=ScenarioReadWithIds,
+    response_model=ScenarioPublicReadWithIds,
     status_code=status.HTTP_200_OK,
 )
 async def get_scenario(
     scenario: ScenarioViewerDep,
     session: SessionDep,
-) -> ScenarioReadWithIds:
+) -> ScenarioPublicReadWithIds:
     """
     Get a scenario by its ID.
     Args:
         scenario (ScenarioViewerDep): The scenario dependency.
         session (SessionDep): The database session dependency.
     Returns:
-        ScenarioReadWithIds: The scenario with its IDs.
+        ScenarioPublicReadWithIds: The scenario with its IDs.
     Raises:
         HTTPException: If the scenario is not found or if there is an error retrieving the scenario.
     """
@@ -125,10 +126,25 @@ async def get_scenario(
     except ValueError as exc:
         _raise_scenario_service_error(exc)
 
+
+@router.get(
+    "/{scenario_id}/authoring",
+    response_model=ScenarioAuthoringReadWithIds,
+    status_code=status.HTTP_200_OK,
+)
+async def get_scenario_authoring(
+    scenario: WritableScenarioDep,
+    session: SessionDep,
+) -> ScenarioAuthoringReadWithIds:
+    try:
+        return await scenarios_service.get_scenario_authoring_srvc(scenario, session)
+    except ValueError as exc:
+        _raise_scenario_service_error(exc)
+
 ### ------------------------- UPDATE SCENARIO ---------------------- ###
 @router.patch(
     "/{scenario_id}",
-    response_model=ScenarioReadWithIds,
+    response_model=ScenarioAuthoringReadWithIds,
     status_code=status.HTTP_200_OK,
 )
 async def update_scenario(
@@ -136,7 +152,7 @@ async def update_scenario(
     scenario: WritableScenarioDep,
     session: SessionDep,
     current_user: CurrentUserDep,
-) -> ScenarioReadWithIds:
+) -> ScenarioAuthoringReadWithIds:
     """
     Update an existing scenario.
     Args:
@@ -147,7 +163,7 @@ async def update_scenario(
         session (SessionDep): The database session dependency.
         current_user (CurrentUserDep): The current user dependency.
     Returns:
-        ScenarioReadWithIds: The updated scenario with its IDs.
+        ScenarioAuthoringReadWithIds: The updated scenario with its IDs.
     """
     try:
         return await scenarios_service.update_scenario_srvc(
@@ -162,7 +178,7 @@ async def update_scenario(
 ### -------------------------- COPY SCENARIO ----------------------- ###
 @router.post(
     "/{scenario_id}/copy",
-    response_model=ScenarioReadWithIds,
+    response_model=ScenarioAuthoringReadWithIds,
     status_code=status.HTTP_201_CREATED,
 )
 async def copy_scenario(
@@ -170,7 +186,7 @@ async def copy_scenario(
     source_scenario: ScenarioViewerDep,
     session: SessionDep,
     current_user: ScenarioCreatorDep,
-) -> ScenarioReadWithIds:
+) -> ScenarioAuthoringReadWithIds:
     """
     Copy an existing scenario.
     Args:
@@ -180,7 +196,7 @@ async def copy_scenario(
         current_user (ScenarioCreatorDep): The current user dependency with 
             scenario creation permissions.
     Returns:
-        ScenarioReadWithIds: The copied scenario with its IDs.
+        ScenarioAuthoringReadWithIds: The copied scenario with its IDs.
     Raises:
         HTTPException: If there is an error copying the scenario.
     """

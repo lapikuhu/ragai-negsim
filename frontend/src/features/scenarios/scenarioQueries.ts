@@ -1,18 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
-import type { ApiComponents, ScenarioRead } from "@/api/types";
+import type { ApiComponents, ScenarioAuthoringRead, ScenarioPublicRead } from "@/api/types";
 
 type ScenarioCreateRequest = ApiComponents["schemas"]["ScenarioCreateRequest"];
 type ScenarioUpdateRequest = ApiComponents["schemas"]["ScenarioUpdateRequest"];
 
 export const scenarioKeys = {
-  all: ["scenarios"] as const
+  all: ["scenarios"] as const,
+  authoring: (scenarioId: number) => ["scenarios", scenarioId, "authoring"] as const
 };
 
 export async function listScenarios() {
   const result = await apiClient.GET("/scenarios/", { params: { query: { skip: 0, limit: 50 } } });
-  return unwrapResult<ScenarioRead[]>(result, "Unable to load scenarios");
+  return unwrapResult<ScenarioPublicRead[]>(result, "Unable to load scenarios");
 }
 
 async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
@@ -31,7 +32,7 @@ async function jsonRequest<T>(path: string, init: RequestInit, fallback: string)
 }
 
 async function createScenario(input: ScenarioCreateRequest) {
-  return jsonRequest<ScenarioRead>(
+  return jsonRequest<ScenarioAuthoringRead>(
     "/scenarios/",
     {
       method: "POST",
@@ -41,8 +42,16 @@ async function createScenario(input: ScenarioCreateRequest) {
   );
 }
 
+async function getScenarioAuthoring(scenarioId: number) {
+  return jsonRequest<ScenarioAuthoringRead>(
+    `/scenarios/${scenarioId}/authoring`,
+    { method: "GET" },
+    "Unable to load scenario authoring data"
+  );
+}
+
 async function updateScenario(scenarioId: number, input: ScenarioUpdateRequest) {
-  return jsonRequest<ScenarioRead>(
+  return jsonRequest<ScenarioAuthoringRead>(
     `/scenarios/${scenarioId}`,
     {
       method: "PATCH",
@@ -54,6 +63,14 @@ async function updateScenario(scenarioId: number, input: ScenarioUpdateRequest) 
 
 export function useScenariosQuery() {
   return useQuery({ queryKey: scenarioKeys.all, queryFn: listScenarios });
+}
+
+export function useScenarioAuthoringQuery(scenarioId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: scenarioKeys.authoring(scenarioId),
+    queryFn: () => getScenarioAuthoring(scenarioId),
+    enabled
+  });
 }
 
 function useInvalidateScenarios() {

@@ -28,6 +28,32 @@ def _admin(user_id=1):
     )
 
 
+def _internal_state_with_secrets():
+    return {
+        "simulation_id": "10",
+        "user_side": "side_b",
+        "phase": "bargaining",
+        "scenario_public_context": {"sentinel": "PUBLIC"},
+        "side_a_private_context": {"sentinel": "SIDE_A_SECRET"},
+        "side_b_private_context": {"sentinel": "SIDE_B_SECRET"},
+        "side_a": {"sentinel": "RAW_SIDE_A"},
+        "side_b": {"sentinel": "RAW_SIDE_B"},
+        "counterpart_persona": {"sentinel": "PERSONA_SECRET"},
+        "messages": [{"role": "user", "content": "Offer"}],
+        "current_offer": {"terms": {"time": "14:00"}},
+        "offer_history": [],
+        "coach_advice": {"summary": "Coach safely"},
+        "evaluation": {"sentinel": "ROLLING_EVALUATION_SECRET"},
+        "retrieval_result": {"sentinel": "RETRIEVAL_SECRET"},
+        "event_log": ["INTERNAL_EVENT"],
+        "evaluator_validation_error": "INTERNAL_ERROR",
+        "turn_count": 2,
+        "should_pause": True,
+        "pause_reason": "counterpart_response_ready",
+        "final_evaluation": {},
+    }
+
+
 def _simulation(
     simulation_id=10,
     status="created",
@@ -98,6 +124,36 @@ def _simulation(
     )
 
 
+def test_turn_request_accepts_structured_action():
+    request = SimulationTurnRequest(message="Please finish.", action="end")
+    assert request.action == "end"
+
+
+def test_public_graph_state_is_positive_allow_list():
+    public = simulations_service._public_graph_state(_internal_state_with_secrets())
+    serialized = repr(public)
+
+    assert "PUBLIC" in serialized
+    assert "Coach safely" in serialized
+    assert "SIDE_A_SECRET" not in serialized
+    assert "SIDE_B_SECRET" not in serialized
+    assert "ROLLING_EVALUATION_SECRET" not in serialized
+    assert "INTERNAL_EVENT" not in serialized
+    assert "INTERNAL_ERROR" not in serialized
+
+
+def test_public_graph_state_includes_final_evaluation_only_after_end():
+    internal = _internal_state_with_secrets()
+    internal["final_evaluation"] = {"reasoning": "FINAL DEBRIEF"}
+
+    active = simulations_service._public_graph_state(internal)
+    internal["phase"] = "ended"
+    ended = simulations_service._public_graph_state(internal)
+
+    assert "final_evaluation" not in active
+    assert ended["final_evaluation"]["reasoning"] == "FINAL DEBRIEF"
+
+
 def _patch_runtime_context_repositories(
     monkeypatch,
     *,
@@ -111,7 +167,14 @@ def _patch_runtime_context_repositories(
     if corpus is None:
         corpus = SimpleNamespace(id=200, name="Negotiation corpus", description="Corpus context")
     if scenario is None:
-        scenario = SimpleNamespace(id=100, name="Salary scenario", description="Scenario context")
+        scenario = SimpleNamespace(
+            id=100,
+            name="Salary scenario",
+            description="AUTHORING-ONLY-DESCRIPTION",
+            public_context={"topic": "salary negotiation"},
+            side_a_private_context={"reservation": "SIDE-A-SECRET"},
+            side_b_private_context={"reservation": "SIDE-B-SECRET"},
+        )
     if corpus_index is None:
         corpus_index = SimpleNamespace(
             id=77,
@@ -478,20 +541,40 @@ async def test_start_simulation_initializes_graph_state_and_activates(monkeypatc
     assert result.status == "active"
     assert result.negotiation_state.user_side == "side_a"
     assert result.negotiation_state.current_phase == "opening"
-    assert result.negotiation_state.data["side_a"]["name"] == "Buyer"
-    assert result.negotiation_state.data["side_b"]["name"] == "Seller"
-    assert result.negotiation_state.data["corpus_context"] == {
+    assert result.negotiation_state.data["scenario_public_context"] == {
+        "id": 100,
+        "name": "Salary scenario",
+        "topic": "salary negotiation",
+    }
+    assert "side_a" not in result.negotiation_state.data
+    assert "side_b" not in result.negotiation_state.data
+    assert "corpus_context" not in result.negotiation_state.data
+    assert "counterpart_persona_context" not in result.negotiation_state.data
+    assert "side_a_private_context" not in result.negotiation_state.data
+    assert "side_b_private_context" not in result.negotiation_state.data
+    internal = simulation.negotiation_state["data"]
+    assert internal["side_a"]["name"] == "Buyer"
+    assert internal["side_b"]["name"] == "Seller"
+    assert internal["corpus_context"] == {
         "id": 200,
         "name": "Negotiation corpus",
         "description": "Corpus context",
     }
-    assert result.negotiation_state.data["corpus_index_context"]["id"] == 77
-    assert result.negotiation_state.data["corpus_index_context"]["name"] == "Negotiation index"
-    assert result.negotiation_state.data["coach_prompt_context"]["name"] == "Coach prompt"
-    assert result.negotiation_state.data["counterpart_prompt_context"]["name"] == "Counterpart prompt"
-    assert result.negotiation_state.data["evaluator_prompt_context"]["name"] == "Evaluator prompt"
-    assert result.negotiation_state.data["scenario_context"]["name"] == "Salary scenario"
-    assert result.negotiation_state.data["counterpart_persona_context"]["name"] == "Firm seller"
+    assert internal["corpus_index_context"]["id"] == 77
+    assert internal["corpus_index_context"]["name"] == "Negotiation index"
+    assert internal["coach_prompt_context"]["name"] == "Coach prompt"
+    assert internal["counterpart_prompt_context"]["name"] == "Counterpart prompt"
+    assert internal["evaluator_prompt_context"]["name"] == "Evaluator prompt"
+    assert internal["counterpart_persona_context"]["name"] == "Firm seller"
+    assert internal["scenario_public_context"] == {
+        "id": 100,
+        "name": "Salary scenario",
+        "topic": "salary negotiation",
+    }
+    assert internal["side_a_private_context"]["reservation"] == "SIDE-A-SECRET"
+    assert internal["side_b_private_context"]["reservation"] == "SIDE-B-SECRET"
+    assert "scenario_context" not in internal
+    assert "AUTHORING-ONLY-DESCRIPTION" not in str(internal)
     assert result.messages[0].content == "I would like to discuss the price."
     assert captured_status == []
 
@@ -521,13 +604,16 @@ async def test_start_simulation_uses_persona_as_counterpart_default(monkeypatch)
     )
 
     assert result.negotiation_state.current_phase == "opening"
-    assert result.negotiation_state.data["side_a"]["name"] == "Buyer"
-    assert result.negotiation_state.data["side_b"] == {
+    assert result.negotiation_state.data["simulation_id"] == "10"
+    assert "side_a" not in result.negotiation_state.data
+    assert "side_b" not in result.negotiation_state.data
+    assert simulation.negotiation_state["data"]["side_a"]["name"] == "Buyer"
+    assert simulation.negotiation_state["data"]["side_b"] == {
         "persona_id": 300,
         "name": "Firm seller",
         "description": "Persona context",
     }
-    assert result.negotiation_state.data["counterpart_persona"] == {
+    assert simulation.negotiation_state["data"]["counterpart_persona"] == {
         "id": 300,
         "name": "Firm seller",
         "description": "Persona context",
@@ -562,8 +648,10 @@ async def test_start_simulation_separates_simulation_and_app_session_ids(monkeyp
     )
 
     assert result.negotiation_state.data["simulation_id"] == "10"
-    assert result.negotiation_state.data["session_id"] == "10"
-    assert result.negotiation_state.data["app_session_id"] == 44
+    assert "session_id" not in result.negotiation_state.data
+    assert "app_session_id" not in result.negotiation_state.data
+    assert simulation.negotiation_state["data"]["session_id"] == "10"
+    assert simulation.negotiation_state["data"]["app_session_id"] == 44
 
 
 @pytest.mark.asyncio
@@ -601,7 +689,9 @@ async def test_submit_turn_invokes_graph_and_persists_json_safe_response(monkeyp
                 "user_side": "side_a",
                 "phase": "opening",
                 "corpus_context": {"id": 200, "name": "Negotiation corpus"},
-                "scenario_context": {"id": 100, "name": "Salary scenario"},
+                "scenario_public_context": {"id": 100, "name": "Salary scenario"},
+                "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
+                "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
                 "counterpart_persona_context": {"id": 300, "name": "Firm seller"},
                 "messages": [],
                 "event_log": [],
@@ -619,6 +709,8 @@ async def test_submit_turn_invokes_graph_and_persists_json_safe_response(monkeyp
                 "pause_reason": "counterpart_response_ready",
                 "side_b_response": "I can move a little, but not that far.",
                 "coach_advice": {"summary": "Hold near target."},
+                "evaluation": {"next_best_action": "counter", "score": 0.6},
+                "final_evaluation": {},
                 "messages": [
                     *state["messages"],
                     {
@@ -656,10 +748,18 @@ async def test_submit_turn_invokes_graph_and_persists_json_safe_response(monkeyp
     assert result.should_pause is True
     assert result.pause_reason == "counterpart_response_ready"
     assert result.coach_advice == {"summary": "Hold near target."}
+    assert not hasattr(result, "evaluation")
+    assert result.final_evaluation == {}
     assert result.counterpart_response == "I can move a little, but not that far."
     assert captured_state[0]["simulation_id"] == "10"
     assert captured_state[0]["corpus_context"]["name"] == "Negotiation corpus"
     assert captured_state[0]["messages"][0]["content"] == "Could you do 95?"
+    assert simulation.negotiation_state["data"]["evaluation"] == {
+        "next_best_action": "counter",
+        "score": 0.6,
+    }
+    assert "evaluation" not in result.model_dump()
+    assert "event_log" not in result.model_dump()
     assert simulation.negotiation_state["data"]["counterpart_persona_context"]["name"] == "Firm seller"
     assert simulation.negotiation_state["data"]["phase"] == "bargaining"
 
@@ -711,6 +811,88 @@ async def test_submit_turn_backfills_simulation_id_from_legacy_session_id(monkey
 
     assert captured_state[0]["simulation_id"] == "10"
     assert captured_state[0]["session_id"] == "10"
+
+
+@pytest.mark.asyncio
+async def test_submit_end_action_returns_final_evaluation(monkeypatch):
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state):
+            assert state["requested_action"] == "end"
+            return {
+                **state,
+                "phase": "ended",
+                "should_pause": False,
+                "pause_reason": "",
+                "terminal_reason": "student_request",
+                "final_evaluation": {
+                    "evaluated_side": "side_a",
+                    "overall_score": 0.8,
+                    "reasoning": "Strong overall performance.",
+                    "confidence": "high",
+                },
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+
+    result = await simulations_service.submit_simulation_turn_srvc(
+        simulation,
+        SimulationTurnRequest(message="End the simulation.", action="end"),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert result.status == "completed"
+    assert result.should_pause is False
+    assert result.final_evaluation["overall_score"] == 0.8
+
+
+@pytest.mark.asyncio
+async def test_get_simulation_state_redacts_internal_negotiation_secrets():
+    simulation = _simulation(
+        status="active",
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_b",
+            "data": _internal_state_with_secrets(),
+        },
+    )
+
+    result = await simulations_service.get_simulation_state_srvc(simulation)
+    serialized = repr(result.negotiation_state.data)
+
+    assert "PUBLIC" in serialized
+    assert "SIDE_A_SECRET" not in serialized
+    assert "ROLLING_EVALUATION_SECRET" not in serialized
+    assert "INTERNAL_EVENT" not in serialized
 
 
 @pytest.mark.asyncio
@@ -771,6 +953,7 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         coach_prompt_template=None,
         counterpart_prompt_template=None,
         evaluator_prompt_template=None,
+        intent_classifier_model=None,
     ):
         build_calls.append(
             (
@@ -778,6 +961,7 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
                 coach_prompt_template,
                 counterpart_prompt_template,
                 evaluator_prompt_template,
+                intent_classifier_model,
             )
         )
         return SimpleNamespace(invoke=lambda state: state)
@@ -820,6 +1004,7 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         "DB coach {phase}",
         "DB counterpart {phase}",
         "DB evaluator {phase}",
+        None,
     )
 
 

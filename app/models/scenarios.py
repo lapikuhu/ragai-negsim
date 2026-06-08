@@ -1,7 +1,7 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime as SQLAlchemyDateTime
+from sqlalchemy import Column, DateTime as SQLAlchemyDateTime, JSON
 from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
@@ -12,6 +12,18 @@ class Scenario(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)         # e.g. "salary_negotiation"
     description: str | None = None
+    public_context: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )
+    side_a_private_context: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )
+    side_b_private_context: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )
     created_by_user_id: int = Field(foreign_key="user.id")
     created_by_user: "User" = Relationship(
         back_populates="scenarios_created",

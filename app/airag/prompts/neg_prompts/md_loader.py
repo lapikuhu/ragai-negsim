@@ -6,3 +6,4 @@ def load_neg_prompt(filename: str) -> str:
 COACH_PROMPT = load_neg_prompt("coach_prompt.md")
 COUNTERPART_PROMPT = load_neg_prompt("counterpart_prompt.md")
 EVALUATOR_PROMPT = load_neg_prompt("evaluator_prompt.md")
+INTENT_CLASSIFIER_PROMPT = load_neg_prompt("intent_classifier_prompt.md")

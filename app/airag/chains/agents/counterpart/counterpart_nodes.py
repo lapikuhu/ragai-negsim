@@ -16,6 +16,15 @@ from app.airag.chains.agents.counterpart.counterpart_helpers import (
 
 
 def node_prepare_counterpart_context(state: CounterpartGraphState) -> dict:
+	"""
+	Prepare the counterpart context for response generation.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A dictionary with the prepared counterpart context, including side,
+		messages, offer history, retry count, validation error, missing 
+		information, and event log.
+	"""
 	counterpart_side = get_counterpart_side(state)
 	prepared_state = {**state, "counterpart_side": counterpart_side}
 	missing_information = collect_missing_information(prepared_state)
@@ -24,8 +33,6 @@ def node_prepare_counterpart_context(state: CounterpartGraphState) -> dict:
 		"counterpart_side": counterpart_side,
 		"messages": state.get("messages", []),
 		"offer_history": state.get("offer_history", []),
-		"evaluation": state.get("evaluation", {}),
-		"retrieval_result": state.get("retrieval_result", {}),
 		"counterpart_retry_count": state.get("counterpart_retry_count", 0),
 		"counterpart_validation_error": "",
 		"missing_information": missing_information,
@@ -40,6 +47,15 @@ def make_generate_counterpart_response_node(
 	prompt_template: str | None = None,
 ):
 	def node_generate_counterpart_response(state: CounterpartGraphState) -> dict:
+		"""
+		Generate a counterpart response using the provided model and prompt 
+		template.
+		Args:
+			state: The current graph state containing negotiation context.
+		Returns:
+			A dictionary with the generated counterpart response, validation 
+			error, and event log.
+		"""
 		if model is None:
 			return {
 				"counterpart_validation_error": "Counterpart model is not configured.",
@@ -48,7 +64,10 @@ def make_generate_counterpart_response_node(
 
 		prompt = render_counterpart_prompt(state, prompt_template)
 		try:
-			structured_model = model.with_structured_output(CounterpartResponseModel)
+			structured_model = model.with_structured_output(
+				CounterpartResponseModel,
+				method="function_calling",
+			)
 			response = coerce_counterpart_response(structured_model.invoke(prompt))
 		except Exception as exc:
 			return {
@@ -72,6 +91,15 @@ def make_repair_counterpart_response_node(
 	prompt_template: str | None = None,
 ):
 	def node_repair_counterpart_response(state: CounterpartGraphState) -> dict:
+		"""
+		Repair the counterpart response using the provided model and 
+		prompt template.
+		Args:
+			state: The current graph state containing negotiation context.
+		Returns:
+			A dictionary with the repaired counterpart response, 
+			validation error, retry count, and event log.
+		"""
 		retry_count = state.get("counterpart_retry_count", 0) + 1
 		if model is None:
 			return {
@@ -90,7 +118,10 @@ def make_repair_counterpart_response_node(
 		)
 
 		try:
-			structured_model = model.with_structured_output(CounterpartResponseModel)
+			structured_model = model.with_structured_output(
+				CounterpartResponseModel,
+				method="function_calling",
+			)
 			response = coerce_counterpart_response(structured_model.invoke(repair_prompt))
 		except Exception as exc:
 			return {
@@ -110,6 +141,14 @@ def make_repair_counterpart_response_node(
 
 
 def node_fallback_counterpart_response(state: CounterpartGraphState) -> dict:
+	"""
+	Node function to provide a fallback counterpart response when 
+	generation or repair fails.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A dictionary with the fallback counterpart response and event log.
+	"""
 	return {
 		"counterpart_response": fallback_counterpart_response(
 			state,
@@ -120,6 +159,15 @@ def node_fallback_counterpart_response(state: CounterpartGraphState) -> dict:
 
 
 def node_finalize_counterpart(state: CounterpartGraphState) -> dict:
+	"""
+	Node function to finalize the counterpart response and update the graph state
+	with the response, current offer, and event log.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A dictionary with the finalized counterpart response, current 
+		offer, and event log.
+	"""
 	response = state.get("counterpart_response") or fallback_counterpart_response(
 		state,
 		"missing counterpart_response at finalize",
@@ -150,6 +198,15 @@ def node_finalize_counterpart(state: CounterpartGraphState) -> dict:
 
 
 def decide_after_generate(state: CounterpartGraphState) -> str:
+	"""
+	Node function to decide the next action after generating a 
+	counterpart response.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A string indicating the next action: "finalize", "repair", 
+		or "fallback".
+	"""
 	if state.get("counterpart_response"):
 		return "finalize"
 	if state.get("counterpart_retry_count", 0) < 1:
@@ -158,6 +215,14 @@ def decide_after_generate(state: CounterpartGraphState) -> str:
 
 
 def decide_after_repair(state: CounterpartGraphState) -> str:
+	"""
+	Node function to decide the next action after attempting to repair a 
+	counterpart response.
+	Args:
+		state: The current graph state containing negotiation context.
+	Returns:
+		A string indicating the next action: "finalize" or "fallback".
+	"""
 	if state.get("counterpart_response"):
 		return "finalize"
 	return "fallback"

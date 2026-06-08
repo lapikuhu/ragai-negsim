@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, START, END
 
 # local imports
 from app.airag.chains.agents.helpers import json_dumps, format_messages
+from app.airag.chains.agents.context_projections import project_counterpart_state
 from app.airag.chains.negotiation.negotiation_model import (
 	ParentNegotiationState,
 )
@@ -30,7 +31,19 @@ def make_counterpart_graph(
 	prompt_template: str | None = None,
 	state_schema: type[CounterpartGraphState] = CounterpartGraphState,
 ):
-	"""Build and compile the counterpart graph."""
+	"""
+	Build and compile the counterpart graph.
+	Args:
+		model: The model to use for generating and repairing counterpart 
+			responses.
+		prompt_template: Optional custom prompt template for the 
+			counterpart.
+		state_schema: The schema class for the graph state, defaulting to 
+			CounterpartGraphState.
+	Returns:
+		A compiled StateGraph instance representing the counterpart 
+		response generation flow.
+	"""
 	counterpart_model = model or get_default_counterpart_model()
 
 	counterpart_flow = StateGraph(state_schema)
@@ -72,22 +85,48 @@ def make_counterpart_graph(
 
 
 def make_counterpart_node(counterpart_graph: Any):
-	"""Wrap the counterpart graph as a parent negotiation graph node."""
+	"""
+	Wrap the counterpart graph as a parent negotiation graph node.
+	Args:
+		counterpart_graph: The compiled counterpart StateGraph to invoke.
+	Returns:
+		A function that can be used as a node in the parent negotiation graph,
+		invoking the counterpart graph and returning the relevant updates to
+		the parent graph state.
+	"""
 	def counterpart_node(state: ParentNegotiationState) -> dict:
-		original_event_count = len(state.get("event_log", []))
-		result = counterpart_graph.invoke(state)
+		"""
+		Invoke the counterpart graph with the projected state and return 
+		updates to the parent graph state.
+		Args:
+			state: The current parent graph state containing negotiation context.
+		Returns:
+			A dictionary with updates to the parent graph state based on the
+			counterpart graph response, including the current offer, event log,
+			and any messages from the counterpart.
+		"""
+		result = counterpart_graph.invoke(project_counterpart_state(state))
 		response = result.get("counterpart_response", {})
 		side = response.get("side", result.get("counterpart_side"))
 		offer = response.get("offer", {})
+		message = response.get("message", "")
 
 		updates: dict[str, Any] = {
 			"current_offer": offer,
-			"event_log": result.get("event_log", [])[original_event_count:],
+			"event_log": result.get("event_log", []),
 		}
+		if message:
+			updates["messages"] = [
+				{
+					"role": "assistant",
+					"content": message,
+					"side": side,
+				}
+			]
 		if side == "side_a":
-			updates["side_a_response"] = response.get("message", "")
+			updates["side_a_response"] = message
 		elif side == "side_b":
-			updates["side_b_response"] = response.get("message", "")
+			updates["side_b_response"] = message
 		if offer:
 			updates["offer_history"] = [offer]
 
@@ -100,6 +139,13 @@ def invoke_counterpart_response(
 	counterpart_graph: Any,
 	state: ParentNegotiationState,
 ) -> dict[str, Any]:
-	"""Invoke the counterpart graph and return only the validated response."""
+	"""
+	Invoke the counterpart graph and return only the validated response.
+	Args:
+		counterpart_graph: The compiled counterpart StateGraph to invoke.
+		state: The current parent graph state containing negotiation context.
+	Returns:
+		A dictionary with the validated counterpart response.
+	"""
 	result = counterpart_graph.invoke(state)
 	return result.get("counterpart_response", {})

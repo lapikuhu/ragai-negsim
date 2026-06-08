@@ -4,18 +4,31 @@ from app.airag.chains.agents.helpers import json_dumps
 from app.airag.chains.agents.evaluator.evaluator_model import (
     EvaluatorGraphState,
 	EvaluatorResponseModel,
+	FinalEvaluatorResponseModel,
 )
 from app.airag.chains.agents.evaluator.evaluator_helpers import (
     get_existing_retrieval_context,
     collect_missing_information,
     build_evaluator_crag_query,
 	render_evaluator_prompt,
+	render_final_evaluator_prompt,
 	coerce_evaluator_response,
 	compact_evaluation_from_response,
 	fallback_evaluator_response,
+	fallback_final_evaluator_response,
+	final_evaluation_from_response,
 )
 
 def node_prepare_evaluator_context(state: EvaluatorGraphState) -> dict:
+	"""
+	Prepare the evaluator context by collecting relevant information from 
+	the state.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+	Returns:
+		A dictionary representing the prepared evaluator context.
+	"""
 	missing_information = collect_missing_information(state)
 	return {
 		"messages": state.get("messages", []),
@@ -33,6 +46,14 @@ def node_prepare_evaluator_context(state: EvaluatorGraphState) -> dict:
 
 
 def node_build_evaluator_crag_query(state: EvaluatorGraphState) -> dict:
+	"""
+	Build a CRAG query for the evaluator based on the current state.
+	Args:
+		state: The current evaluator graph state containing negotiation 
+			context.
+	Returns:
+		A dictionary with the constructed CRAG query for retrieval.
+	"""
 	return {
 		"evaluator_query": build_evaluator_crag_query(state),
 		"event_log": ["evaluator:selected_crag_query"],
@@ -41,6 +62,14 @@ def node_build_evaluator_crag_query(state: EvaluatorGraphState) -> dict:
 
 def make_call_crag_node(crag_graph: Any = None):
 	def node_call_crag(state: EvaluatorGraphState) -> dict:
+		"""
+		Call the CRAG graph to retrieve additional context for the evaluator.
+		Args:
+			state: The current evaluator graph state containing negotiation 
+				context.
+		Returns:
+			A dictionary with the retrieval context and event log.
+		"""
 		existing_context = get_existing_retrieval_context(state)
 		if crag_graph is None:
 			return {
@@ -98,10 +127,19 @@ def make_generate_evaluator_response_node(
 				"event_log": ["evaluator:generation_failed"],
 			}
 
-		prompt = render_evaluator_prompt(state, prompt_template)
+		final_mode = state.get("evaluation_mode") == "final"
+		prompt = (
+			render_final_evaluator_prompt(state)
+			if final_mode
+			else render_evaluator_prompt(state, prompt_template)
+		)
 		try:
-			structured_model = model.with_structured_output(EvaluatorResponseModel)
-			response = coerce_evaluator_response(structured_model.invoke(prompt))
+			schema = FinalEvaluatorResponseModel if final_mode else EvaluatorResponseModel
+			structured_model = model.with_structured_output(schema)
+			response = coerce_evaluator_response(
+				structured_model.invoke(prompt),
+				final_mode=final_mode,
+			)
 		except Exception as exc:
 			return {
 				"evaluator_prompt": prompt,
@@ -124,6 +162,15 @@ def make_repair_evaluator_response_node(
 	prompt_template: str | None = None,
 ):
 	def node_repair_evaluator_response(state: EvaluatorGraphState) -> dict:
+		"""
+		Repair the evaluator response node for failure paths.
+		Args:
+			state: The current evaluator graph state containing negotiation 
+				context.
+		Returns:
+			A dictionary representation of the repaired evaluator response 
+			node.
+		"""
 		retry_count = state.get("evaluator_retry_count", 0) + 1
 		if model is None:
 			return {
@@ -132,18 +179,23 @@ def make_repair_evaluator_response_node(
 				"event_log": ["evaluator:repair_failed"],
 			}
 
+		final_mode = state.get("evaluation_mode") == "final"
 		repair_prompt = "\n\n".join(
 			[
 				"Repair the evaluator response so it satisfies the required schema.",
 				"Return only the structured output. Do not add markdown or commentary.",
 				f"Validation or generation error:\n{state.get('evaluator_validation_error', '')}",
-				f"Original evaluator prompt:\n{state.get('evaluator_prompt') or render_evaluator_prompt(state, prompt_template)}",
+				f"Original evaluator prompt:\n{state.get('evaluator_prompt') or (render_final_evaluator_prompt(state) if final_mode else render_evaluator_prompt(state, prompt_template))}",
 			]
 		)
 
 		try:
-			structured_model = model.with_structured_output(EvaluatorResponseModel)
-			response = coerce_evaluator_response(structured_model.invoke(repair_prompt))
+			schema = FinalEvaluatorResponseModel if final_mode else EvaluatorResponseModel
+			structured_model = model.with_structured_output(schema)
+			response = coerce_evaluator_response(
+				structured_model.invoke(repair_prompt),
+				final_mode=final_mode,
+			)
 		except Exception as exc:
 			return {
 				"evaluator_retry_count": retry_count,
@@ -165,14 +217,28 @@ def node_fallback_evaluator_response(state: EvaluatorGraphState) -> dict:
 	"""
 	Build a fallback evaluator response node for failure paths.
 	Args:
-		state: The current graph state containing negotiation context.
+		state: The current evaluator graph state containing negotiation 
+			context.
 	Returns:
 		A dictionary representation of the fallback evaluator response node.
 	"""
 	return {
-		"evaluator_response": fallback_evaluator_response(
-			state,
-			state.get("evaluator_validation_error", "unknown evaluator generation failure"),
+		"evaluator_response": (
+			fallback_final_evaluator_response(
+				state,
+				state.get(
+					"evaluator_validation_error",
+					"unknown final evaluator generation failure",
+				),
+			)
+			if state.get("evaluation_mode") == "final"
+			else fallback_evaluator_response(
+				state,
+				state.get(
+					"evaluator_validation_error",
+					"unknown evaluator generation failure",
+				),
+			)
 		),
 		"event_log": ["evaluator:fallback"],
 	}
@@ -186,22 +252,31 @@ def node_finalize_evaluator(state: EvaluatorGraphState) -> dict:
 	Returns:
 		A dictionary representation of the finalized evaluator response node.
 	"""
-	response = state.get("evaluator_response") or fallback_evaluator_response(
-		state,
-		"missing evaluator_response at finalize",
+	final_mode = state.get("evaluation_mode") == "final"
+	response = state.get("evaluator_response") or (
+		fallback_final_evaluator_response(
+			state,
+			"missing evaluator_response at finalize",
+		)
+		if final_mode
+		else fallback_evaluator_response(
+			state,
+			"missing evaluator_response at finalize",
+		)
 	)
-	evaluation = compact_evaluation_from_response(state, response)
-	next_action = evaluation.get("next_best_action", "ask_user")
 
-	return {
+	updates = {
 		"evaluator_response": response,
-		"evaluation": evaluation,
-		"next_action": next_action,
 		"event_log": [
 			f"evaluator:full_response {json_dumps(response)}",
 			"evaluator:completed",
 		],
 	}
+	if final_mode:
+		updates["final_evaluation"] = final_evaluation_from_response(state, response)
+	else:
+		updates["evaluation"] = compact_evaluation_from_response(state, response)
+	return updates
 
 
 def decide_after_generate(state: EvaluatorGraphState) -> str:

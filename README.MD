@@ -249,6 +249,8 @@ The repository currently includes service-level coverage as well as an API-level
 
 ## Frontend
 
+Authored by Codex.
+
 A React + Vite frontend now lives in [frontend/README.md](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/README.md:1).
 
 Typical local setup:

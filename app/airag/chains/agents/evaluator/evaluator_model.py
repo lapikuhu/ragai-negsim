@@ -8,7 +8,9 @@ from app.airag.chains.negotiation.negotiation_model import (
 	CoachAdvice,
 	Confidence,
 	Evaluation,
-	NextAction,
+	EvaluationMode,
+	EvaluatorStrategy,
+	FinalEvaluation,
 	Offer,
 	RetrievalResult,
 	Side,
@@ -17,13 +19,7 @@ from app.airag.chains.negotiation.negotiation_model import (
 
 RiskLevel = Literal["low", "medium", "high"]
 DealQuality = Literal["poor", "acceptable", "good", "excellent", "unknown"]
-EvaluatorNextBestAction = Literal[
-	"call_counterpart",
-	"call_coach",
-	"call_retriever",
-	"ask_user",
-	"end",
-]
+EvaluatorNextBestAction = EvaluatorStrategy
 
 class SideAssessmentModel(BaseModel):
 	"""Validated side-specific assessment matching evaluator_prompt.md."""
@@ -67,6 +63,22 @@ class EvaluatorResponseModel(BaseModel):
 	confidence: Confidence
 
 
+class FinalEvaluatorResponseModel(BaseModel):
+	"""Validated final evaluator response for overall student assessment."""
+
+	overall_score: float = Field(ge=0.0, le=1.0)
+	goal_achievement: str
+	strengths: list[str] = Field(default_factory=list)
+	mistakes: list[str] = Field(default_factory=list)
+	concession_quality: str
+	communication_quality: str
+	outcome_quality: str
+	lessons: list[str] = Field(default_factory=list)
+	reasoning: str
+	confidence: Confidence
+	missing_information: list[str] = Field(default_factory=list)
+
+
 class EvaluatorGraphState(TypedDict, total=False):
 	"""State consumed and produced by the evaluator graph."""
 
@@ -74,6 +86,9 @@ class EvaluatorGraphState(TypedDict, total=False):
 	app_session_id: int
 	session_id: str
 	user_id: str
+	scenario_public_context: dict[str, Any]
+	side_a_private_context: dict[str, Any]
+	side_b_private_context: dict[str, Any]
 	user_side: Side
 	side_a: SideProfile
 	side_b: SideProfile
@@ -86,8 +101,9 @@ class EvaluatorGraphState(TypedDict, total=False):
 	side_a_response: str
 	side_b_response: str
 	evaluation: Evaluation
+	final_evaluation: FinalEvaluation
 	retrieval_result: RetrievalResult
-	next_action: NextAction
+	evaluation_mode: EvaluationMode
 	turn_count: int
 	event_log: NotRequired[Annotated[list[str], operator.add]]
 

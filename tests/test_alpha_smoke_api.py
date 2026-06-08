@@ -182,7 +182,6 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
             ],
             coach_advice={"summary": "Hold near target."},
             counterpart_response="I can move a little, but not that far.",
-            event_log=["orchestrator:paused_for_user"],
         )
 
     monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)

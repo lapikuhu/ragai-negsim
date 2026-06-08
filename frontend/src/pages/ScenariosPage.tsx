@@ -1,19 +1,40 @@
 import { useState } from "react";
-import { useCreateScenarioMutation, useScenariosQuery, useUpdateScenarioMutation } from "@/features/scenarios/scenarioQueries";
-import type { ScenarioRead } from "@/api/types";
-import { PageHeader } from "@/components/common/PageHeader";
-import { LoadingState } from "@/components/common/LoadingState";
-import { ErrorState } from "@/components/common/ErrorState";
+import type { ScenarioAuthoringRead, ScenarioRead } from "@/api/types";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Card } from "@/components/ui/Card";
+import { ErrorState } from "@/components/common/ErrorState";
+import { LoadingState } from "@/components/common/LoadingState";
+import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Field, Input, Textarea } from "@/components/ui/Field";
-import { formatDateTime } from "@/utils/format";
+import {
+  useCreateScenarioMutation,
+  useScenarioAuthoringQuery,
+  useScenariosQuery,
+  useUpdateScenarioMutation
+} from "@/features/scenarios/scenarioQueries";
+import { formatDateTime, parseJsonInput, stringifyJson } from "@/utils/format";
+
+type ScenarioFormState = {
+  name: string;
+  description: string;
+  publicContext: string;
+  sideAPrivateContext: string;
+  sideBPrivateContext: string;
+};
+
+const EMPTY_FORM: ScenarioFormState = {
+  name: "",
+  description: "",
+  publicContext: "{}",
+  sideAPrivateContext: "{}",
+  sideBPrivateContext: "{}"
+};
 
 export function ScenariosPage() {
   const query = useScenariosQuery();
   const createMutation = useCreateScenarioMutation();
-  const [createForm, setCreateForm] = useState({ name: "", description: "" });
+  const [createForm, setCreateForm] = useState<ScenarioFormState>(EMPTY_FORM);
   const [editId, setEditId] = useState<number | null>(null);
 
   if (query.isLoading) {
@@ -26,42 +47,40 @@ export function ScenariosPage() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Scenarios" description="Teacher and admin scenario management with real create and update endpoints." />
+      <PageHeader
+        title="Scenarios"
+        description="Teacher and admin scenario management with structured public and private negotiation context."
+      />
 
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">Create scenario</h2>
-        <form
-          className="mt-4 grid gap-3"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            await createMutation.mutateAsync(createForm);
-            setCreateForm({ name: "", description: "" });
+        <ScenarioForm
+          form={createForm}
+          submitLabel={createMutation.isPending ? "Creating..." : "Create scenario"}
+          onChange={setCreateForm}
+          onSubmit={async () => {
+            await createMutation.mutateAsync({
+              name: createForm.name,
+              description: createForm.description || null,
+              public_context: parseJsonInput(createForm.publicContext, {}),
+              side_a_private_context: parseJsonInput(createForm.sideAPrivateContext, {}),
+              side_b_private_context: parseJsonInput(createForm.sideBPrivateContext, {})
+            });
+            setCreateForm(EMPTY_FORM);
           }}
-        >
-          <Field label="Name">
-            <Input
-              value={createForm.name}
-              onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))}
-            />
-          </Field>
-          <Field label="Description">
-            <Textarea
-              value={createForm.description}
-              onChange={(event) => setCreateForm((current) => ({ ...current, description: event.target.value }))}
-            />
-          </Field>
-          <div>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Creating..." : "Create scenario"}
-            </Button>
-          </div>
-        </form>
+          disabled={createMutation.isPending}
+        />
       </Card>
 
       {query.data?.length ? (
         <div className="grid gap-4">
           {query.data.map((scenario) => (
-            <ScenarioCard key={scenario.id} scenario={scenario} isEditing={editId === scenario.id} onEdit={setEditId} />
+            <ScenarioCard
+              key={scenario.id}
+              scenario={scenario}
+              isEditing={editId === scenario.id}
+              onEdit={setEditId}
+            />
           ))}
         </div>
       ) : (
@@ -80,42 +99,21 @@ function ScenarioCard({
   isEditing: boolean;
   onEdit: (id: number | null) => void;
 }) {
-  const updateMutation = useUpdateScenarioMutation(scenario.id);
-  const [name, setName] = useState(scenario.name);
-  const [description, setDescription] = useState(scenario.description ?? "");
-
   return (
     <Card>
       {isEditing ? (
-        <form
-          className="grid gap-3"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            await updateMutation.mutateAsync({ name, description });
-            onEdit(null);
-          }}
-        >
-          <Field label="Name">
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
-          <Field label="Description">
-            <Textarea value={description} onChange={(event) => setDescription(event.target.value)} />
-          </Field>
-          <div className="flex gap-2">
-            <Button type="submit" disabled={updateMutation.isPending}>
-              Save
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => onEdit(null)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
+        <ScenarioEditor scenarioId={scenario.id} onClose={() => onEdit(null)} />
       ) : (
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold text-slate-950">{scenario.name}</h3>
-            <p className="mt-1 text-sm text-slate-600">{scenario.description ?? "No description"}</p>
-            <p className="mt-2 text-xs text-slate-500">Updated {formatDateTime(scenario.last_updated)}</p>
+            <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+              Public context
+            </p>
+            <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">
+              {stringifyJson(scenario.public_context)}
+            </pre>
+            <p className="mt-3 text-xs text-slate-500">Updated {formatDateTime(scenario.last_updated)}</p>
           </div>
           <Button type="button" variant="secondary" onClick={() => onEdit(scenario.id)}>
             Edit
@@ -123,5 +121,134 @@ function ScenarioCard({
         </div>
       )}
     </Card>
+  );
+}
+
+function ScenarioEditor({
+  scenarioId,
+  onClose
+}: {
+  scenarioId: number;
+  onClose: () => void;
+}) {
+  const query = useScenarioAuthoringQuery(scenarioId, true);
+
+  if (query.isLoading) {
+    return <LoadingState label="Loading scenario authoring data..." />;
+  }
+
+  if (query.isError || !query.data) {
+    return (
+      <ErrorState
+        message={query.error?.message ?? "Unable to load scenario"}
+        onRetry={() => query.refetch()}
+      />
+    );
+  }
+
+  return <ScenarioEditorForm key={`${scenarioId}-${query.data.last_updated}`} scenario={query.data} onClose={onClose} />;
+}
+
+function ScenarioEditorForm({
+  scenario,
+  onClose
+}: {
+  scenario: ScenarioAuthoringRead;
+  onClose: () => void;
+}) {
+  const updateMutation = useUpdateScenarioMutation(scenario.id);
+  const [form, setForm] = useState<ScenarioFormState>({
+    name: scenario.name,
+    description: scenario.description ?? "",
+    publicContext: stringifyJson(scenario.public_context),
+    sideAPrivateContext: stringifyJson(scenario.side_a_private_context),
+    sideBPrivateContext: stringifyJson(scenario.side_b_private_context)
+  });
+
+  return (
+    <ScenarioForm
+      form={form}
+      submitLabel={updateMutation.isPending ? "Saving..." : "Save"}
+      onChange={setForm}
+      onSubmit={async () => {
+        await updateMutation.mutateAsync({
+          name: form.name,
+          description: form.description || null,
+          public_context: parseJsonInput(form.publicContext, {}),
+          side_a_private_context: parseJsonInput(form.sideAPrivateContext, {}),
+          side_b_private_context: parseJsonInput(form.sideBPrivateContext, {})
+        });
+        onClose();
+      }}
+      disabled={updateMutation.isPending}
+      onCancel={onClose}
+    />
+  );
+}
+
+function ScenarioForm({
+  form,
+  submitLabel,
+  onChange,
+  onSubmit,
+  disabled,
+  onCancel
+}: {
+  form: ScenarioFormState;
+  submitLabel: string;
+  onChange: (value: ScenarioFormState) => void;
+  onSubmit: () => Promise<void>;
+  disabled: boolean;
+  onCancel?: () => void;
+}) {
+  return (
+    <form
+      className="mt-4 grid gap-3"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        await onSubmit();
+      }}
+    >
+      <Field label="Name">
+        <Input value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} />
+      </Field>
+      <Field label="Description">
+        <Textarea
+          value={form.description}
+          onChange={(event) => onChange({ ...form, description: event.target.value })}
+        />
+      </Field>
+      <Field label="Public context JSON">
+        <Textarea
+          className="min-h-32 font-mono text-sm"
+          value={form.publicContext}
+          onChange={(event) => onChange({ ...form, publicContext: event.target.value })}
+        />
+      </Field>
+      <Field label="Side A private context JSON">
+        <Textarea
+          className="min-h-32 font-mono text-sm"
+          value={form.sideAPrivateContext}
+          onChange={(event) => onChange({ ...form, sideAPrivateContext: event.target.value })}
+        />
+      </Field>
+      <Field label="Side B private context JSON">
+        <Textarea
+          className="min-h-32 font-mono text-sm"
+          value={form.sideBPrivateContext}
+          onChange={(event) => onChange({ ...form, sideBPrivateContext: event.target.value })}
+        />
+      </Field>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={disabled}>
+          {submitLabel}
+        </Button>
+        {onCancel ? (
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
+      </div>
+    </form>
   );
 }

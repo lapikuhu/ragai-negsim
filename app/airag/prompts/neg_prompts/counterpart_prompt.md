@@ -26,11 +26,11 @@ The user controls:
 You control:
 {counterpart_side}
 
-Side A profile:
-{side_a_profile}
+Public negotiation context:
+{public_context}
 
-Side B profile:
-{side_b_profile}
+Your private role, goals, constraints, BATNA, targets, and reservation points:
+{own_private_context}
 
 Explicit counterpart persona context:
 {counterpart_persona}
@@ -53,13 +53,6 @@ Current offer:
 Offer history:
 {offer_history}
 
-Relevant retrieved context, if any:
-{retrieval_context}
-
-Latest evaluation, if available:
-{evaluation}
-
-
 TASK
 
 Generate the next message from the counterpart side.
@@ -73,6 +66,7 @@ You must:
 5. Keep the response realistic and useful for the simulation.
 6. Do not explain your hidden reasoning to the user.
 7. Do not mention that you are an AI model or that this is a prompt.
+8. You do not know the student's private target, reservation point, BATNA, or hidden constraints. Infer only from public context and what the student says or offers.
 
 Strategic rules:
 

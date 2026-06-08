@@ -4,11 +4,12 @@ from app.models.scenarios import Scenario
 from app.models.users import User
 from app.repositories import scenarios_repo
 from app.schemas.scenarios_schemas import (
+    ScenarioAuthoringReadWithIds,
     ScenarioCopy,
     ScenarioCopyRequest,
     ScenarioCreate,
     ScenarioCreateRequest,
-    ScenarioReadWithIds,
+    ScenarioPublicReadWithIds,
     ScenarioUpdate,
     ScenarioUpdateRequest,
 )
@@ -18,7 +19,7 @@ async def create_scenario_srvc(
     scenario_data: ScenarioCreateRequest,
     session: AsyncSession,
     current_user: User,
-) -> ScenarioReadWithIds:
+) -> ScenarioAuthoringReadWithIds:
     """
     Create a new scenario.
     Args:
@@ -27,14 +28,14 @@ async def create_scenario_srvc(
         current_user (User): The current user creating the scenario.
 
     Returns:
-        ScenarioReadWithIds: The created scenario with its IDs.
+        ScenarioAuthoringReadWithIds: The created scenario with its IDs.
     """
     scenario_in = ScenarioCreate(
         **scenario_data.model_dump(),
         created_by_user_id=current_user.id,
     )
     scenario = await scenarios_repo.create_scenario(scenario_in, session)
-    return await scenarios_repo.to_scenario_read_with_ids(scenario, session)
+    return await scenarios_repo.to_scenario_authoring_read_with_ids(scenario, session)
 
 
 async def list_scenarios_srvc(
@@ -44,7 +45,7 @@ async def list_scenarios_srvc(
     created_by_user_id: int | None = None,
     name_contains: str | None = None,
     used: bool | None = None,
-) -> list[ScenarioReadWithIds]:
+) -> list[ScenarioPublicReadWithIds]:
     """
     List scenarios with optional filters.
     Args:
@@ -56,7 +57,7 @@ async def list_scenarios_srvc(
         used (bool | None): Filter by usage status.
 
     Returns:
-        list[ScenarioReadWithIds]: A list of scenarios matching the filters.
+        list[ScenarioPublicReadWithIds]: A list of scenarios matching the filters.
     """
     scenarios = await scenarios_repo.list_scenarios(
         session=session,
@@ -67,7 +68,7 @@ async def list_scenarios_srvc(
         used=used,
     )
     return [
-        await scenarios_repo.to_scenario_read_with_ids(scenario, session)
+        await scenarios_repo.to_scenario_public_read_with_ids(scenario, session)
         for scenario in scenarios
     ]
 
@@ -75,7 +76,7 @@ async def list_scenarios_srvc(
 async def get_scenario_srvc(
     scenario: Scenario,
     session: AsyncSession,
-) -> ScenarioReadWithIds:
+) -> ScenarioPublicReadWithIds:
     """
     Get a scenario by its ID.
     Args:
@@ -83,9 +84,25 @@ async def get_scenario_srvc(
         session (AsyncSession): The database session.
 
     Returns:
-        ScenarioReadWithIds: The retrieved scenario with its IDs.
+        ScenarioPublicReadWithIds: The retrieved scenario with its IDs.
     """
-    return await scenarios_repo.to_scenario_read_with_ids(scenario, session)
+    return await scenarios_repo.to_scenario_public_read_with_ids(scenario, session)
+
+
+async def get_scenario_authoring_srvc(
+    scenario: Scenario,
+    session: AsyncSession,
+) -> ScenarioAuthoringReadWithIds:
+    """
+    Get a scenario authoring details by its ID.
+    Args:
+        scenario (Scenario): The scenario to retrieve.
+        session (AsyncSession): The database session.
+    Returns:
+        ScenarioAuthoringReadWithIds: The retrieved scenario with its IDs 
+        for authoring.
+    """
+    return await scenarios_repo.to_scenario_authoring_read_with_ids(scenario, session)
 
 
 async def update_scenario_srvc(
@@ -93,7 +110,7 @@ async def update_scenario_srvc(
     scenario_data: ScenarioUpdateRequest,
     session: AsyncSession,
     current_user: User,
-) -> ScenarioReadWithIds:
+) -> ScenarioAuthoringReadWithIds:
     """
     Update an existing scenario.
     Args:
@@ -103,7 +120,7 @@ async def update_scenario_srvc(
         session (AsyncSession): The database session.
         current_user (User): The current user updating the scenario.
     Returns:
-        ScenarioReadWithIds: The updated scenario with its IDs.
+        ScenarioAuthoringReadWithIds: The updated scenario with its IDs.
     """
     scenario_in = ScenarioUpdate(
         **scenario_data.model_dump(exclude_unset=True),
@@ -114,7 +131,7 @@ async def update_scenario_srvc(
         scenario_in,
         session,
     )
-    return await scenarios_repo.to_scenario_read_with_ids(updated_scenario, session)
+    return await scenarios_repo.to_scenario_authoring_read_with_ids(updated_scenario, session)
 
 
 async def copy_scenario_srvc(
@@ -122,7 +139,7 @@ async def copy_scenario_srvc(
     copy_data: ScenarioCopyRequest,
     session: AsyncSession,
     current_user: User,
-) -> ScenarioReadWithIds:
+) -> ScenarioAuthoringReadWithIds:
     """
     Copy an existing scenario.
     Args:
@@ -131,7 +148,7 @@ async def copy_scenario_srvc(
         session (AsyncSession): The database session.
         current_user (User): The current user performing the copy.
     Returns:
-        ScenarioReadWithIds: The copied scenario with its IDs.
+        ScenarioAuthoringReadWithIds: The copied scenario with its IDs.
     """
     copy_in = ScenarioCopy(
         **copy_data.model_dump(),
@@ -142,7 +159,7 @@ async def copy_scenario_srvc(
         copy_in,
         session,
     )
-    return await scenarios_repo.to_scenario_read_with_ids(copied_scenario, session)
+    return await scenarios_repo.to_scenario_authoring_read_with_ids(copied_scenario, session)
 
 
 async def delete_scenario_srvc(

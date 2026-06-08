@@ -138,6 +138,7 @@ class SimulationStartRequest(SQLModel):
 class SimulationTurnRequest(SQLModel):
     message: str = Field(min_length=1)
     current_offer: dict[str, Any] | None = None
+    action: Literal["continue", "end"] | None = None
 
 
 class SimulationTurnResponse(SQLModel):
@@ -148,8 +149,8 @@ class SimulationTurnResponse(SQLModel):
     pause_reason: str | None = None
     messages: list[SimulationMessageSchema] = Field(default_factory=list)
     coach_advice: dict[str, Any] = Field(default_factory=dict)
+    final_evaluation: dict[str, Any] = Field(default_factory=dict)
     counterpart_response: str | None = None
-    event_log: list[str] = Field(default_factory=list)
 
 
 class SimulationTeacherReview(SQLModel):
