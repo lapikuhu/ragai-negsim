@@ -47,6 +47,16 @@ async def generate_scenario_context_srvc(
     scenario_data: ScenarioContextGenerateRequest,
     model,
 ) -> ScenarioContextGenerateResponse:
+    """
+    Generate structured context for a negotiation scenario using the 
+    provided model. Split to public, side_a and side_b.
+    Args:
+        scenario_data (ScenarioContextGenerateRequest): The data for the 
+            scenario context generation.
+        model: The language model to use for generating the context.
+    Returns:
+        ScenarioContextGenerateResponse: The generated scenario context.
+    """
     try:
         structured_model = model.with_structured_output(
             ScenarioContextGenerationModel,

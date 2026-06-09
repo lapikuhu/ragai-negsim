@@ -108,7 +108,9 @@ def render_counterpart_prompt(
 	return append_missing_context_sections(
 		prompt,
 		template,
-		# Build the prompt with the allowed public and private context sections
+		# Build the prompt with the allowed public and private context sections,
+		# and the persona.
+		# Careful: The master prompt must be aware of these fields.
 		[
 			("{public_context}", "PUBLIC CONTEXT", state.get("scenario_public_context", {})),
 			("{own_private_context}", "YOUR PRIVATE CONTEXT", state.get("own_private_context", {})),
