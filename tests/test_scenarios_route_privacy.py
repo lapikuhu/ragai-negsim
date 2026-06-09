@@ -7,6 +7,7 @@ from app import main as main_module
 from app.core import dependencies
 from app.schemas.scenarios_schemas import (
     ScenarioAuthoringReadWithIds,
+    ScenarioContextGenerateResponse,
     ScenarioPublicReadWithIds,
 )
 from app.services import scenarios_service
@@ -46,6 +47,9 @@ def _authoring_scenario() -> ScenarioAuthoringReadWithIds:
 
 
 def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
+    async def fake_startup_seed():
+        return None
+
     async def fake_get_current_user():
         return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
 
@@ -83,6 +87,7 @@ def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
     )
 
     app = main_module.app
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
     app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
     app.dependency_overrides[dependencies.get_session] = fake_get_session
     app.dependency_overrides[dependencies.get_visible_scenario] = lambda: SimpleNamespace(id=10)
@@ -106,5 +111,54 @@ def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
             assert authoring_response.json()["description"] == "AUTHORING-DESCRIPTION"
             assert authoring_response.json()["side_a_private_context"]["reservation"] == "SIDE-A-SECRET"
             assert authoring_response.json()["side_b_private_context"]["reservation"] == "SIDE-B-SECRET"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_generate_context_route_returns_authoring_preview(monkeypatch):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
+
+    async def fake_get_session():
+        yield object()
+
+    async def fake_user_has_role(_user, _role_name, _session):
+        return True
+
+    async def fake_generate_scenario_context(data, model):
+        assert data.name == "Hotel late checkout"
+        return ScenarioContextGenerateResponse(
+            public_context={"issue": "late checkout"},
+            side_a_private_context={"goal": "avoid fee"},
+            side_b_private_context={"goal": "protect revenue"},
+        )
+
+    app = main_module.app
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+    monkeypatch.setattr(
+        scenarios_service,
+        "generate_scenario_context_srvc",
+        fake_generate_scenario_context,
+    )
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+    app.dependency_overrides[dependencies.get_chat_model] = lambda: object()
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/scenarios/generate-context",
+                json={
+                    "name": "Hotel late checkout",
+                    "description": "A guest wants more time and the manager must balance policy and satisfaction.",
+                },
+            )
+        assert response.status_code == 200
+        assert response.json()["public_context"]["issue"] == "late checkout"
+        assert response.json()["side_a_private_context"]["goal"] == "avoid fee"
     finally:
         app.dependency_overrides.clear()

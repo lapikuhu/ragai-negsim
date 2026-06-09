@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.dependencies import (
+    ChatModelDep,
     CurrentUserDep,
     ScenarioCreatorDep,
     ScenarioViewerDep,
@@ -9,6 +10,8 @@ from app.core.dependencies import (
 )
 from app.schemas.scenarios_schemas import (
     ScenarioAuthoringReadWithIds,
+    ScenarioContextGenerateRequest,
+    ScenarioContextGenerateResponse,
     ScenarioCopyRequest,
     ScenarioCreateRequest,
     ScenarioPublicReadWithIds,
@@ -100,6 +103,25 @@ async def list_scenarios(
         name_contains=name_contains,
         used=used,
     )
+
+
+@router.post(
+    "/generate-context",
+    response_model=ScenarioContextGenerateResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def generate_scenario_context(
+    scenario_data: ScenarioContextGenerateRequest,
+    model: ChatModelDep,
+    _current_user: ScenarioCreatorDep,
+) -> ScenarioContextGenerateResponse:
+    try:
+        return await scenarios_service.generate_scenario_context_srvc(
+            scenario_data,
+            model,
+        )
+    except ValueError as exc:
+        _raise_scenario_service_error(exc)
 
 ### ----------------------- GET SCENARIO BY ID --------------------- ###
 @router.get(

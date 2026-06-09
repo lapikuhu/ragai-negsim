@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
-import type { ApiComponents, ScenarioAuthoringRead, ScenarioPublicRead } from "@/api/types";
+import type {
+  ApiComponents,
+  ScenarioAuthoringRead,
+  ScenarioContextGenerateRequest,
+  ScenarioContextGenerateResponse,
+  ScenarioPublicRead
+} from "@/api/types";
 
 type ScenarioCreateRequest = ApiComponents["schemas"]["ScenarioCreateRequest"];
 type ScenarioUpdateRequest = ApiComponents["schemas"]["ScenarioUpdateRequest"];
@@ -61,6 +67,17 @@ async function updateScenario(scenarioId: number, input: ScenarioUpdateRequest) 
   );
 }
 
+async function generateScenarioContext(input: ScenarioContextGenerateRequest) {
+  return jsonRequest<ScenarioContextGenerateResponse>(
+    "/scenarios/generate-context",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    "Unable to generate scenario context"
+  );
+}
+
 export function useScenariosQuery() {
   return useQuery({ queryKey: scenarioKeys.all, queryFn: listScenarios });
 }
@@ -91,5 +108,11 @@ export function useUpdateScenarioMutation(scenarioId: number) {
   return useMutation({
     mutationFn: (input: ScenarioUpdateRequest) => updateScenario(scenarioId, input),
     onSuccess: async () => invalidate()
+  });
+}
+
+export function useGenerateScenarioContextMutation() {
+  return useMutation({
+    mutationFn: generateScenarioContext
   });
 }

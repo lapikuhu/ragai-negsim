@@ -1,3 +1,5 @@
+from textwrap import dedent
+
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.scenarios import Scenario
@@ -5,6 +7,9 @@ from app.models.users import User
 from app.repositories import scenarios_repo
 from app.schemas.scenarios_schemas import (
     ScenarioAuthoringReadWithIds,
+    ScenarioContextGenerateRequest,
+    ScenarioContextGenerateResponse,
+    ScenarioContextGenerationModel,
     ScenarioCopy,
     ScenarioCopyRequest,
     ScenarioCreate,
@@ -13,6 +18,53 @@ from app.schemas.scenarios_schemas import (
     ScenarioUpdate,
     ScenarioUpdateRequest,
 )
+
+
+def _build_scenario_context_generation_prompt(
+    scenario_data: ScenarioContextGenerateRequest,
+) -> str:
+    return dedent(
+        f"""
+        You are generating structured context for a negotiation simulator.
+
+        Split the scenario into exactly three sections:
+        1. public_context: facts both sides can know
+        2. side_a_private_context: facts only Side A should know
+        3. side_b_private_context: facts only Side B should know
+
+        Keep the structure useful and readable. Do not return markdown.
+
+        Scenario name:
+        {scenario_data.name}
+
+        Scenario description:
+        {scenario_data.description}
+        """
+    ).strip()
+
+
+async def generate_scenario_context_srvc(
+    scenario_data: ScenarioContextGenerateRequest,
+    model,
+) -> ScenarioContextGenerateResponse:
+    try:
+        structured_model = model.with_structured_output(
+            ScenarioContextGenerationModel,
+            method="function_calling",
+        )
+        result = structured_model.invoke(
+            _build_scenario_context_generation_prompt(scenario_data)
+        )
+        if hasattr(result, "model_dump"):
+            payload = result.model_dump()
+        elif hasattr(result, "__dict__"):
+            payload = result.__dict__
+        else:
+            payload = result
+        validated = ScenarioContextGenerationModel.model_validate(payload)
+        return ScenarioContextGenerateResponse(**validated.model_dump())
+    except Exception as exc:
+        raise ValueError("Unable to generate scenario context right now") from exc
 
 
 async def create_scenario_srvc(

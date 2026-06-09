@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel
 from sqlmodel import Field, SQLModel
 
 
@@ -67,6 +68,23 @@ class ScenarioCopy(SQLModel):
     name: str = Field(min_length=3, title="Scenario name")
     description: str | None = None
     created_by_user_id: int
+
+
+class ScenarioContextGenerateRequest(SQLModel):
+    name: str = Field(min_length=3, title="Scenario name")
+    description: str = Field(min_length=10, title="Scenario description")
+
+
+class ScenarioContextGenerateResponse(SQLModel):
+    public_context: dict[str, Any] = Field(default_factory=dict)
+    side_a_private_context: dict[str, Any] = Field(default_factory=dict)
+    side_b_private_context: dict[str, Any] = Field(default_factory=dict)
+
+
+class ScenarioContextGenerationModel(BaseModel):
+    public_context: dict[str, Any] = Field(default_factory=dict)
+    side_a_private_context: dict[str, Any] = Field(default_factory=dict)
+    side_b_private_context: dict[str, Any] = Field(default_factory=dict)
 
 
 class ScenarioAuthoringReadWithIds(ScenarioAuthoringRead):

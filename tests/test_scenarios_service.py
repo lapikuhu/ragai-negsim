@@ -5,6 +5,7 @@ import pytest
 
 from app.schemas.scenarios_schemas import (
     ScenarioAuthoringReadWithIds,
+    ScenarioContextGenerateRequest,
     ScenarioCopyRequest,
     ScenarioCreateRequest,
     ScenarioPublicReadWithIds,
@@ -245,3 +246,86 @@ async def test_delete_scenario_propagates_repo_guard(monkeypatch):
 
     with pytest.raises(ValueError, match="used in a simulation"):
         await scenarios_service.delete_scenario_srvc(_scenario(), object())
+
+
+@pytest.mark.asyncio
+async def test_generate_scenario_context_returns_structured_preview():
+    class FakeStructuredModel:
+        def invoke(self, payload):
+            assert "Hotel late checkout" in payload
+            return SimpleNamespace(
+                public_context={"issue": "late checkout"},
+                side_a_private_context={"goal": "avoid paying a fee"},
+                side_b_private_context={"goal": "protect policy"},
+            )
+
+    class FakeModel:
+        def with_structured_output(self, schema, **kwargs):
+            assert schema.__name__ == "ScenarioContextGenerationModel"
+            assert kwargs == {"method": "function_calling"}
+            return FakeStructuredModel()
+
+    result = await scenarios_service.generate_scenario_context_srvc(
+        ScenarioContextGenerateRequest(
+            name="Hotel late checkout",
+            description="A guest negotiates with a front desk manager.",
+        ),
+        FakeModel(),
+    )
+
+    assert result.public_context["issue"] == "late checkout"
+    assert result.side_a_private_context["goal"] == "avoid paying a fee"
+    assert result.side_b_private_context["goal"] == "protect policy"
+
+
+@pytest.mark.asyncio
+async def test_generate_scenario_context_raises_value_error_on_model_failure():
+    class FakeStructuredModel:
+        def invoke(self, payload):
+            raise RuntimeError("boom")
+
+    class FakeModel:
+        def with_structured_output(self, schema):
+            return FakeStructuredModel()
+
+    with pytest.raises(ValueError, match="Unable to generate scenario context"):
+        await scenarios_service.generate_scenario_context_srvc(
+            ScenarioContextGenerateRequest(
+                name="Salary negotiation",
+                description="Candidate and recruiter discuss compensation.",
+            ),
+            FakeModel(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_generate_scenario_context_uses_prompt_string_and_function_calling():
+    captured = {}
+
+    class FakeStructuredModel:
+        def invoke(self, payload):
+            captured["payload"] = payload
+            return SimpleNamespace(
+                public_context={"issue": "late checkout"},
+                side_a_private_context={"goal": "avoid paying a fee"},
+                side_b_private_context={"goal": "protect policy"},
+            )
+
+    class FakeModel:
+        def with_structured_output(self, schema, **kwargs):
+            captured["schema"] = schema.__name__
+            captured["kwargs"] = kwargs
+            return FakeStructuredModel()
+
+    await scenarios_service.generate_scenario_context_srvc(
+        ScenarioContextGenerateRequest(
+            name="Hotel late checkout",
+            description="A guest negotiates with a front desk manager.",
+        ),
+        FakeModel(),
+    )
+
+    assert captured["schema"] == "ScenarioContextGenerationModel"
+    assert captured["kwargs"] == {"method": "function_calling"}
+    assert isinstance(captured["payload"], str)
+    assert "Split the scenario into exactly three sections" in captured["payload"]

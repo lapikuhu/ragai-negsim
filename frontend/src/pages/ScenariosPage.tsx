@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { ScenarioAuthoringRead, ScenarioRead } from "@/api/types";
+import { getErrorMessage } from "@/api/client";
+import type { ScenarioAuthoringRead, ScenarioContextGenerateResponse, ScenarioRead } from "@/api/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
@@ -9,6 +10,7 @@ import { Card } from "@/components/ui/Card";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import {
   useCreateScenarioMutation,
+  useGenerateScenarioContextMutation,
   useScenarioAuthoringQuery,
   useScenariosQuery,
   useUpdateScenarioMutation
@@ -21,6 +23,8 @@ type ScenarioFormState = {
   publicContext: string;
   sideAPrivateContext: string;
   sideBPrivateContext: string;
+  advancedOpen: boolean;
+  generatedOnce: boolean;
 };
 
 const EMPTY_FORM: ScenarioFormState = {
@@ -28,8 +32,24 @@ const EMPTY_FORM: ScenarioFormState = {
   description: "",
   publicContext: "{}",
   sideAPrivateContext: "{}",
-  sideBPrivateContext: "{}"
+  sideBPrivateContext: "{}",
+  advancedOpen: false,
+  generatedOnce: false
 };
+
+function applyGeneratedContext(
+  form: ScenarioFormState,
+  generated: ScenarioContextGenerateResponse
+): ScenarioFormState {
+  return {
+    ...form,
+    publicContext: stringifyJson(generated.public_context ?? {}),
+    sideAPrivateContext: stringifyJson(generated.side_a_private_context ?? {}),
+    sideBPrivateContext: stringifyJson(generated.side_b_private_context ?? {}),
+    advancedOpen: true,
+    generatedOnce: true
+  };
+}
 
 export function ScenariosPage() {
   const query = useScenariosQuery();
@@ -162,7 +182,9 @@ function ScenarioEditorForm({
     description: scenario.description ?? "",
     publicContext: stringifyJson(scenario.public_context),
     sideAPrivateContext: stringifyJson(scenario.side_a_private_context),
-    sideBPrivateContext: stringifyJson(scenario.side_b_private_context)
+    sideBPrivateContext: stringifyJson(scenario.side_b_private_context),
+    advancedOpen: true,
+    generatedOnce: true
   });
 
   return (
@@ -201,6 +223,10 @@ function ScenarioForm({
   disabled: boolean;
   onCancel?: () => void;
 }) {
+  const generateMutation = useGenerateScenarioContextMutation();
+  const [message, setMessage] = useState<string | null>(null);
+  const canGenerate = form.name.trim().length >= 3 && form.description.trim().length >= 10;
+
   return (
     <form
       className="mt-4 grid gap-3"
@@ -218,27 +244,69 @@ function ScenarioForm({
           onChange={(event) => onChange({ ...form, description: event.target.value })}
         />
       </Field>
-      <Field label="Public context JSON">
-        <Textarea
-          className="min-h-32 font-mono text-sm"
-          value={form.publicContext}
-          onChange={(event) => onChange({ ...form, publicContext: event.target.value })}
-        />
-      </Field>
-      <Field label="Side A private context JSON">
-        <Textarea
-          className="min-h-32 font-mono text-sm"
-          value={form.sideAPrivateContext}
-          onChange={(event) => onChange({ ...form, sideAPrivateContext: event.target.value })}
-        />
-      </Field>
-      <Field label="Side B private context JSON">
-        <Textarea
-          className="min-h-32 font-mono text-sm"
-          value={form.sideBPrivateContext}
-          onChange={(event) => onChange({ ...form, sideBPrivateContext: event.target.value })}
-        />
-      </Field>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={disabled || generateMutation.isPending || !canGenerate}
+          onClick={async () => {
+            const shouldReplace =
+              !form.generatedOnce || window.confirm("Replace the current generated context?");
+            if (!shouldReplace) {
+              return;
+            }
+            try {
+              setMessage(null);
+              const generated = await generateMutation.mutateAsync({
+                name: form.name.trim(),
+                description: form.description.trim()
+              });
+              onChange(applyGeneratedContext(form, generated));
+            } catch (error) {
+              setMessage(getErrorMessage(error, "Unable to generate scenario context"));
+            }
+          }}
+        >
+          {generateMutation.isPending
+            ? "Generating..."
+            : form.generatedOnce
+              ? "Regenerate context"
+              : "Generate context"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => onChange({ ...form, advancedOpen: !form.advancedOpen })}
+        >
+          {form.advancedOpen ? "Hide advanced context" : "Show advanced context"}
+        </Button>
+      </div>
+      {message ? <p className="text-sm text-red-700">{message}</p> : null}
+      {form.advancedOpen ? (
+        <>
+          <Field label="Public context JSON">
+            <Textarea
+              className="min-h-32 font-mono text-sm"
+              value={form.publicContext}
+              onChange={(event) => onChange({ ...form, publicContext: event.target.value })}
+            />
+          </Field>
+          <Field label="Side A private context JSON">
+            <Textarea
+              className="min-h-32 font-mono text-sm"
+              value={form.sideAPrivateContext}
+              onChange={(event) => onChange({ ...form, sideAPrivateContext: event.target.value })}
+            />
+          </Field>
+          <Field label="Side B private context JSON">
+            <Textarea
+              className="min-h-32 font-mono text-sm"
+              value={form.sideBPrivateContext}
+              onChange={(event) => onChange({ ...form, sideBPrivateContext: event.target.value })}
+            />
+          </Field>
+        </>
+      ) : null}
       <div className="flex gap-2">
         <Button type="submit" disabled={disabled}>
           {submitLabel}

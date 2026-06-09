@@ -2643,6 +2643,28 @@ export type components = {
                 [key: string]: unknown;
             };
         };
+        /** ScenarioContextGenerateRequest */
+        ScenarioContextGenerateRequest: {
+            /** Scenario description */
+            description: string;
+            /** Scenario name */
+            name: string;
+        };
+        /** ScenarioContextGenerateResponse */
+        ScenarioContextGenerateResponse: {
+            /** Public Context */
+            public_context?: {
+                [key: string]: unknown;
+            };
+            /** Side A Private Context */
+            side_a_private_context?: {
+                [key: string]: unknown;
+            };
+            /** Side B Private Context */
+            side_b_private_context?: {
+                [key: string]: unknown;
+            };
+        };
         /** ScenarioPublicReadWithIds */
         ScenarioPublicReadWithIds: {
             /**
@@ -5817,4 +5839,3 @@ export interface operations {
         };
     };
 }
-
