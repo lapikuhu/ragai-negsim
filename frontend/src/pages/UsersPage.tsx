@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useCreateUserMutation, useUsersQuery, useUpdateUserMutation } from "@/features/users/userQueries";
+import { getErrorMessage } from "@/api/client";
+import { useCreateUserMutation, useUserRolesQuery, useUsersQuery } from "@/features/users/userQueries";
 import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -11,8 +12,19 @@ import { Field, Input } from "@/components/ui/Field";
 
 export function UsersPage() {
   const query = useUsersQuery();
+  const rolesQuery = useUserRolesQuery();
   const createMutation = useCreateUserMutation();
-  const [form, setForm] = useState({ username: "", password: "", roles: "" });
+  const [form, setForm] = useState({ username: "", password: "", roleIds: [] as number[] });
+  const [message, setMessage] = useState<string | null>(null);
+
+  const toggleRole = (roleId: number) => {
+    setForm((current) => ({
+      ...current,
+      roleIds: current.roleIds.includes(roleId)
+        ? current.roleIds.filter((value) => value !== roleId)
+        : [...current.roleIds, roleId]
+    }));
+  };
 
   return (
     <div className="grid gap-6">
@@ -24,16 +36,17 @@ export function UsersPage() {
           className="mt-4 grid gap-3 md:grid-cols-3"
           onSubmit={async (event) => {
             event.preventDefault();
-            await createMutation.mutateAsync({
-              username: form.username,
-              password: form.password,
-              role_ids: form.roles
-                .split(",")
-                .map((role) => role.trim())
-                .filter(Boolean)
-                .map(Number)
-            });
-            setForm({ username: "", password: "", roles: "" });
+            try {
+              setMessage(null);
+              await createMutation.mutateAsync({
+                username: form.username,
+                password: form.password,
+                role_ids: form.roleIds
+              });
+              setForm({ username: "", password: "", roleIds: [] });
+            } catch (error) {
+              setMessage(getErrorMessage(error, "Unable to create user"));
+            }
           }}
         >
           <Field label="Username">
@@ -51,11 +64,33 @@ export function UsersPage() {
               required
             />
           </Field>
-          <Field label="Role IDs" hint="Comma-separated role IDs from the seeded backend, for example `1` or `1,2`.">
-            <Input value={form.roles} onChange={(event) => setForm((current) => ({ ...current, roles: event.target.value }))} />
+          <Field
+            label="Roles"
+            hint="Select one or more roles for the new user."
+            error={rolesQuery.isError ? rolesQuery.error.message : undefined}
+          >
+            <div className="grid gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm">
+              {rolesQuery.isLoading ? (
+                <span className="text-slate-500">Loading roles...</span>
+              ) : rolesQuery.data?.length ? (
+                rolesQuery.data.map((role) => (
+                  <label key={role.id} className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.roleIds.includes(role.id)}
+                      onChange={() => toggleRole(role.id)}
+                    />
+                    <span className="capitalize">{role.name}</span>
+                  </label>
+                ))
+              ) : (
+                <span className="text-slate-500">No roles available.</span>
+              )}
+            </div>
           </Field>
+          {message ? <p className="md:col-span-3 text-sm text-red-700">{message}</p> : null}
           <div className="md:col-span-3">
-            <Button type="submit" disabled={createMutation.isPending}>
+            <Button type="submit" disabled={createMutation.isPending || rolesQuery.isLoading || !form.roleIds.length}>
               {createMutation.isPending ? "Creating..." : "Register user"}
             </Button>
           </div>

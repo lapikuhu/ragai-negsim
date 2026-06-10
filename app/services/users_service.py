@@ -9,6 +9,7 @@ from datetime import datetime
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import create_access_token, verify_password
+from app.models.user_roles import Role
 from app.models.users import User
 from app.repositories import users_repo
 from app.schemas.users_schemas import UserCreate, UserPasswordChange, UserUpdate
@@ -176,6 +177,15 @@ async def get_all_users_service(
     """Get a list of users. Only admins can list users."""
     await _ensure_admin(current_user, session)
     return await users_repo.list_users(session, skip=skip, limit=limit)
+
+
+async def list_roles_service(
+    session: AsyncSession,
+    current_user: User,
+) -> list[Role]:
+    """List assignable roles. Only admins can list role options."""
+    await _ensure_admin(current_user, session)
+    return await users_repo.list_roles(session)
 
 
 async def get_user_by_id_service(

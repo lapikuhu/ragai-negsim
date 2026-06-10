@@ -83,6 +83,19 @@ async def create_user(
     except (ValueError, PermissionError) as exc:
         _raise_user_service_error(exc)
 
+
+@router.get("/roles", response_model=list[RoleRead], status_code=status.HTTP_200_OK)
+async def list_roles(
+    session: SessionDep,
+    admin_user: AdminDep,
+) -> list[RoleRead]:
+    """List available roles for admin user-management forms."""
+    try:
+        roles = await users_service.list_roles_service(session, admin_user)
+        return [RoleRead(id=role.id, name=role.name) for role in roles if role.id is not None]
+    except (ValueError, PermissionError) as exc:
+        _raise_user_service_error(exc)
+
 ###--------------------------- LOGIN USER ------------------------- ###
 
 @router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)

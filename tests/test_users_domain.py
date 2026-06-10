@@ -191,6 +191,26 @@ async def test_login_creates_session_and_returns_token_metadata(monkeypatch):
     assert token_expires_at is expires_at
 
 
+@pytest.mark.asyncio
+async def test_admin_can_list_roles(monkeypatch):
+    roles = [_role(1, "admin"), _role(2, "student"), _role(3, "teacher")]
+
+    async def fake_list_roles(session):
+        return roles
+
+    monkeypatch.setattr(users_service.users_repo, "list_roles", fake_list_roles)
+
+    result = await users_service.list_roles_service(object(), _admin())
+
+    assert result == roles
+
+
+@pytest.mark.asyncio
+async def test_non_admin_role_listing_denied():
+    with pytest.raises(PermissionError, match="Admin role required"):
+        await users_service.list_roles_service(object(), _student())
+
+
 def test_users_router_is_mounted_and_static_routes_precede_username_route():
     from app.main import app
 
@@ -198,8 +218,10 @@ def test_users_router_is_mounted_and_static_routes_precede_username_route():
 
     assert "/users/login" in paths
     assert "/users/register" in paths
+    assert "/users/roles" in paths
     assert "/users/me/password" in paths
     assert paths.index("/users/me") < paths.index("/users/{username}")
+    assert paths.index("/users/roles") < paths.index("/users/{username}")
     assert "/scenarios/" in paths
     assert "/scenarios/{scenario_id}" in paths
     assert "/scenarios/{scenario_id}/copy" in paths

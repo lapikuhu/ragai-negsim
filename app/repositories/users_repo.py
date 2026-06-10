@@ -88,6 +88,18 @@ async def get_role_by_name(
     return result.first()
 
 
+async def list_roles(session: AsyncSession) -> list[Role]:
+    """
+    List all available roles in a stable display order.
+    Args:
+        session: The database session.
+    Returns:
+        A list of roles.
+    """
+    result = await session.exec(select(Role).order_by(Role.name))
+    return list(result.all())
+
+
 async def ensure_username_available(
     username: str,
     session: AsyncSession,

@@ -1,13 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, unwrapResult } from "@/api/client";
+import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
+import { getApiBaseUrl } from "@/api/clientConfig";
 import type { ApiComponents, UserRead } from "@/api/types";
 
+type RoleRead = ApiComponents["schemas"]["RoleRead"];
 type UserCreate = ApiComponents["schemas"]["UserCreate"];
 type UserCreatedResponse = ApiComponents["schemas"]["UserCreatedResponse"];
 type UserUpdate = ApiComponents["schemas"]["UserUpdate"];
 
 export const userKeys = {
-  all: ["users"] as const
+  all: ["users"] as const,
+  roles: ["users", "roles"] as const
 };
 
 export async function listUsers() {
@@ -15,21 +18,54 @@ export async function listUsers() {
   return unwrapResult<UserRead[]>(result, "Unable to load users");
 }
 
+export async function listUserRoles() {
+  const result = await apiClient.GET("/users/roles");
+  return unwrapResult<RoleRead[]>(result, "Unable to load roles");
+}
+
+async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
+  const response = await apiFetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers ?? {})
+    }
+  });
+  const detail = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(fallback, response.status, detail);
+  }
+  return detail as T;
+}
+
 async function createUser(input: UserCreate) {
-  const result = await apiClient.POST("/users/register", { body: input });
-  return unwrapResult<UserCreatedResponse>(result, "Unable to create user");
+  return jsonRequest<UserCreatedResponse>(
+    "/users/register",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    "Unable to create user"
+  );
 }
 
 async function updateUser(userId: number, input: UserUpdate) {
-  const result = await apiClient.PATCH("/users/{user_id}", {
-    params: { path: { user_id: userId } },
-    body: input
-  });
-  return unwrapResult<UserRead>(result, "Unable to update user");
+  return jsonRequest<UserRead>(
+    `/users/${userId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    "Unable to update user"
+  );
 }
 
 export function useUsersQuery() {
   return useQuery({ queryKey: userKeys.all, queryFn: listUsers });
+}
+
+export function useUserRolesQuery() {
+  return useQuery({ queryKey: userKeys.roles, queryFn: listUserRoles });
 }
 
 function useInvalidateUsers() {

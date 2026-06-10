@@ -58,10 +58,14 @@ def chunk_document_list_recursive(documents: list[Document],
                                 separators=["\n\n", "\n", " ", ""]) -> List[Document]:
     """Chunk a list of documents into smaller pieces using recursive character splitting.
     Args:
-        documents (list[Document]): The input list of LangChain documents to chunk.
-        chunk_size (int, optional): The maximum size of each chunk. Defaults to 1000.
-        chunk_overlap (int, optional): The number of characters to overlap between chunks. Defaults to 200.
-        separators (List[str], optional): The list of separators to use for splitting. Defaults to ["\n\n", "\n", " ", ""].
+        documents (list[Document]): The input list of LangChain documents 
+            to chunk.
+        chunk_size (int, optional): The maximum size of each chunk. 
+            Defaults to 1000.
+        chunk_overlap (int, optional): The number of characters to overlap 
+            between chunks. Defaults to 200.
+        separators (List[str], optional): The list of separators to use 
+            for splitting. Defaults to ["\n\n", "\n", " ", ""].
     Returns:
         List[Document]: A list of chunked LangChain documents.
     """
@@ -160,4 +164,52 @@ def chunk_document_list_semantic(documents: list[Document],
         )
         chunks = splitter.split_documents([doc])
         all_chunks.extend(chunks)
+    return all_chunks
+
+def chunk_document_list_hybrid(documents: list[Document],
+                                embeddings: Embeddings | None = None,
+                                breakpoint_threshold_type: str = "percentile",
+                                breakpoint_threshold_amount: int = 90,
+                                buffer_size: int = 1,
+                                chunk_size: int = 1000,
+                                chunk_overlap: int = 200,
+                                separators: list[str] = ["\n\n", "\n", " ", ""]) -> list[Document]:
+    """Chunk a list of documents into smaller pieces using a hybrid approach.
+    Args:
+        documents (list[Document]): The input list of LangChain documents 
+            to chunk.
+        embeddings (Embeddings, optional): The embeddings model to use for 
+            semantic chunking. Defaults to HuggingFaceEmbeddings with 
+            "sentence-transformers/all-MiniLM-L6-v2".
+        breakpoint_threshold_type (str, optional): The type of threshold to 
+            use for determining breakpoints. Defaults to "percentile".
+        breakpoint_threshold_amount (int, optional): The amount for the 
+            breakpoint threshold. Defaults to 90.
+        buffer_size (int, optional): The buffer size to use. Defaults to 1.
+        chunk_size (int, optional): The maximum size of each chunk. 
+            Defaults to 1000.
+        chunk_overlap (int, optional): The number of characters to overlap 
+            between chunks. Defaults to 200.
+        separators (list[str], optional): The list of separators to use 
+            for splitting. Defaults to ["\n\n", "\n", " ", ""].
+    Returns:
+        list[Document]: A list of chunked LangChain documents with metadata 
+        preserved from the input documents.
+    """
+
+    # First do semantic chunking
+    semantic_chunks = chunk_document_list_semantic(
+        documents,
+        embeddings=embeddings,
+        breakpoint_threshold_type=breakpoint_threshold_type,
+        breakpoint_threshold_amount=breakpoint_threshold_amount,
+        buffer_size=buffer_size
+    )
+    # Then do recursive character-based chunking on the semantic chunks
+    all_chunks = chunk_document_list_recursive(
+        semantic_chunks,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=separators
+    )
     return all_chunks

@@ -52,6 +52,37 @@
         ]
       }
     },
+    "/users/roles": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "List Roles",
+        "description": "List available roles for admin user-management forms.",
+        "operationId": "list_roles_users_roles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoleRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Roles Users Roles Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/users/login": {
       "post": {
         "tags": [
@@ -2863,6 +2894,84 @@
                     "$ref": "#/components/schemas/ScenarioPublicReadWithIds"
                   },
                   "title": "Response List Scenarios Scenarios  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scenarios/generate-context": {
+      "post": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Generate Scenario Context",
+        "operationId": "generate_scenario_context_scenarios_generate_context_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "openai",
+              "title": "Provider"
+            }
+          },
+          {
+            "name": "model_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "gpt-4o-mini",
+              "title": "Model Name"
+            }
+          },
+          {
+            "name": "temperature",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0,
+              "title": "Temperature"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenarioContextGenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioContextGenerateResponse"
                 }
               }
             }
@@ -7347,6 +7456,47 @@
           "last_updated"
         ],
         "title": "ScenarioAuthoringReadWithIds"
+      },
+      "ScenarioContextGenerateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Scenario name"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10,
+            "title": "Scenario description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "ScenarioContextGenerateRequest"
+      },
+      "ScenarioContextGenerateResponse": {
+        "properties": {
+          "public_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Public Context"
+          },
+          "side_a_private_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Side A Private Context"
+          },
+          "side_b_private_context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Side B Private Context"
+          }
+        },
+        "type": "object",
+        "title": "ScenarioContextGenerateResponse"
       },
       "ScenarioCopyRequest": {
         "properties": {

@@ -1126,6 +1126,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/scenarios/generate-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Scenario Context */
+        post: operations["generate_scenario_context_scenarios_generate_context_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions/": {
         parameters: {
             query?: never;
@@ -1669,6 +1686,26 @@ export type paths = {
          *         UserCreatedResponse: The response containing the created user.
          */
         post: operations["create_user_users_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Roles
+         * @description List available roles for admin user-management forms.
+         */
+        get: operations["list_roles_users_roles_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2617,19 +2654,15 @@ export type components = {
             /** Simulation Ids */
             simulation_ids?: number[];
         };
-        /** ScenarioCopyRequest */
-        ScenarioCopyRequest: {
-            /** Description */
-            description?: string | null;
+        /** ScenarioContextGenerateRequest */
+        ScenarioContextGenerateRequest: {
+            /** Scenario description */
+            description: string;
             /** Scenario name */
             name: string;
         };
-        /** ScenarioCreateRequest */
-        ScenarioCreateRequest: {
-            /** Description */
-            description?: string | null;
-            /** Scenario name */
-            name: string;
+        /** ScenarioContextGenerateResponse */
+        ScenarioContextGenerateResponse: {
             /** Public Context */
             public_context?: {
                 [key: string]: unknown;
@@ -2643,15 +2676,19 @@ export type components = {
                 [key: string]: unknown;
             };
         };
-        /** ScenarioContextGenerateRequest */
-        ScenarioContextGenerateRequest: {
-            /** Scenario description */
-            description: string;
+        /** ScenarioCopyRequest */
+        ScenarioCopyRequest: {
+            /** Description */
+            description?: string | null;
             /** Scenario name */
             name: string;
         };
-        /** ScenarioContextGenerateResponse */
-        ScenarioContextGenerateResponse: {
+        /** ScenarioCreateRequest */
+        ScenarioCreateRequest: {
+            /** Description */
+            description?: string | null;
+            /** Scenario name */
+            name: string;
             /** Public Context */
             public_context?: {
                 [key: string]: unknown;
@@ -4824,6 +4861,43 @@ export interface operations {
             };
         };
     };
+    generate_scenario_context_scenarios_generate_context_post: {
+        parameters: {
+            query?: {
+                model_name?: string;
+                provider?: string;
+                temperature?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScenarioContextGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScenarioContextGenerateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_sessions_sessions__get: {
         parameters: {
             query?: {
@@ -5641,6 +5715,26 @@ export interface operations {
             };
         };
     };
+    list_roles_users_roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleRead"][];
+                };
+            };
+        };
+    };
     list_vector_stores_vector_stores__get: {
         parameters: {
             query?: {
@@ -5839,3 +5933,4 @@ export interface operations {
         };
     };
 }
+
