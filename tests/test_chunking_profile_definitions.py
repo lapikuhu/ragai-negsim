@@ -16,7 +16,7 @@ def test_hybrid_definition_exposes_combined_fields_and_defaults():
     definition = get_chunker_definition("hybrid")
     field_names = [field.name for field in definition.fields]
 
-    assert definition.supports_ingestion is False
+    assert definition.supports_ingestion is True
     assert field_names == [
         "breakpoint_threshold_type",
         "breakpoint_threshold_amount",
@@ -36,6 +36,12 @@ def test_hybrid_definition_exposes_combined_fields_and_defaults():
         "chunk_overlap": 200,
         "separators": ["\n\n", "\n", " ", ""],
     }
+
+
+def test_semantic_definition_supports_ingestion():
+    definition = get_chunker_definition("semantic")
+
+    assert definition.supports_ingestion is True
 
 
 def test_recursive_definition_exposes_immutable_separator_default():

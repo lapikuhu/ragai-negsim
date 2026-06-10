@@ -65,7 +65,7 @@ _DEFINITIONS: dict[ChunkingStrategy, ChunkerDefinition] = {
     "semantic": ChunkerDefinition(
         strategy="semantic",
         label="Semantic chunker",
-        supports_ingestion=False,
+        supports_ingestion=True,
         fields=(
             ChunkerFieldDefinition(
                 "breakpoint_threshold_type",
@@ -95,7 +95,7 @@ _DEFINITIONS: dict[ChunkingStrategy, ChunkerDefinition] = {
     "hybrid": ChunkerDefinition(
         strategy="hybrid",
         label="Hybrid semantic + recursive splitter",
-        supports_ingestion=False,
+        supports_ingestion=True,
         fields=(
             ChunkerFieldDefinition(
                 "breakpoint_threshold_type",

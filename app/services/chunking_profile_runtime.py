@@ -25,6 +25,9 @@ class ResolvedIngestionOptions:
     chunk_size: int = 1000
     chunk_overlap: int = 200
     separators: list[str] | None = None
+    breakpoint_threshold_type: str = "percentile"
+    breakpoint_threshold_amount: int = 90
+    buffer_size: int = 1
 
 
 def resolve_chunking_profile_options(profile, preview: bool) -> ResolvedChunkingOptions:

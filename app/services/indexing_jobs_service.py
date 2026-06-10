@@ -422,6 +422,10 @@ async def _process_documents(
     if chunking_profile is None:
         raise ValueError("Chunking profile not found")
 
+    chunking_embeddings = None
+    if chunking_profile.strategy in {"semantic", "hybrid"}:
+        chunking_embeddings, _ = choose_embedding_model(job.embedding_model)
+
     successful_documents = 0
     chunks_created = 0
     for processed_index, raw_document_id in enumerate(raw_document_ids, start=1):
@@ -455,6 +459,7 @@ async def _process_documents(
                     dynamic_header_depth=False,
                 ),
                 indexing_job_id=job.id,
+                embeddings=chunking_embeddings,
             )
         except Exception as exc:
             await indexing_jobs_repo.create_indexing_job_warning(

@@ -62,10 +62,7 @@ export function IndexingPage() {
     }
   }, [activeJob.data?.id]);
 
-  const supportedProfiles = useMemo(
-    () => (profiles.data ?? []).filter((profile) => profile.strategy === "recursive"),
-    [profiles.data]
-  );
+  const availableProfiles = useMemo(() => profiles.data ?? [], [profiles.data]);
   const selectedCorpusIndices = useMemo(
     () => (indices.data ?? []).filter((index) => index.corpus_id === Number(corpusId || "0")),
     [corpusId, indices.data]
@@ -156,10 +153,10 @@ export function IndexingPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Chunking profile" hint="Only recursive profiles are supported by the PDF ingestion pipeline today.">
+          <Field label="Chunking profile" hint="Semantic and hybrid profiles use the selected embedding model during chunking before final indexing.">
             <Select value={profileId} onChange={(event) => setProfileId(event.target.value)} disabled={formDisabled}>
               <option value="">Select profile</option>
-              {supportedProfiles.map((profile) => (
+              {availableProfiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
                   {profile.name}
                 </option>

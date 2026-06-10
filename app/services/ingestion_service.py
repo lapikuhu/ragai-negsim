@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from app.services.helpers import _persisted_id
 from app.services.chunking_profile_runtime import resolve_ingestion_profile_options
@@ -16,6 +16,9 @@ from app.services.raw_documents_service import (
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+if TYPE_CHECKING:
+    from langchain_core.embeddings import Embeddings
+
 
 class IngestionExecutionOptionsLike(Protocol):
     header_depth: int
@@ -27,13 +30,21 @@ class ResolvedIngestionOptionsLike(Protocol):
     dynamic_header_depth: bool
     chunk_size: int
     chunk_overlap: int
+    separators: list[str] | None
+    breakpoint_threshold_type: str
+    breakpoint_threshold_amount: int
+    buffer_size: int
     chunker: str
 
 
-def _parse_raw_document(path: str, options: ResolvedIngestionOptionsLike) -> tuple[str, list]:
+def _parse_raw_document(
+    path: str,
+    options: ResolvedIngestionOptionsLike,
+    embeddings: "Embeddings | None" = None,
+) -> tuple[str, list]:
     """
     Processes the raw document at the given path using the specified options. 
-    Currently supports only PDF documents and recursive chunking.
+    Currently supports PDF documents with recursive, semantic, or hybrid chunking.
     Args:
         path (str): The file path to the raw document to be ingested.
         options (IngestionOptionsLike): An object containing ingestion 
@@ -42,7 +53,11 @@ def _parse_raw_document(path: str, options: ResolvedIngestionOptionsLike) -> tup
         List[DocumentChunkCreate]: A list of DocumentChunkCreate objects 
         representing the parsed chunks of the document.
     """
-    from app.airag.chunking.chunkers import chunk_document_list_recursive
+    from app.airag.chunking.chunkers import (
+        chunk_document_list_hybrid,
+        chunk_document_list_recursive,
+        chunk_document_list_semantic,
+    )
     from app.airag.ingestion.ingestion import clean_markdown, split_md_on_headers
     from app.airag.ingestion.loaders import convert_to_markdown, ingest_single_pdf
 
@@ -50,8 +65,10 @@ def _parse_raw_document(path: str, options: ResolvedIngestionOptionsLike) -> tup
     if raw_document_path.suffix.lower() != ".pdf":
         raise ValueError("Only PDF raw document ingestion is currently supported")
 
-    if options.chunker != "recursive":
-        raise ValueError("Only recursive chunking is currently supported by this ingestion service")
+    if options.chunker == "semantic" and embeddings is None:
+        raise ValueError("Semantic chunking requires an embedding model")
+    if options.chunker == "hybrid" and embeddings is None:
+        raise ValueError("Hybrid chunking requires an embedding model")
 
     docling_document = ingest_single_pdf(raw_document_path)
     markdown = convert_to_markdown(docling_document)
@@ -70,14 +87,36 @@ def _parse_raw_document(path: str, options: ResolvedIngestionOptionsLike) -> tup
         header_depth=options.header_depth,
         dynamic_length=options.dynamic_header_depth,
     )
-    return (
-        cleaned_markdown,
-        chunk_document_list_recursive(
+    if options.chunker == "recursive":
+        chunks = chunk_document_list_recursive(
             sections,
             chunk_size=options.chunk_size,
             chunk_overlap=options.chunk_overlap,
-        ),
-    )
+            separators=options.separators,
+        )
+    elif options.chunker == "semantic":
+        chunks = chunk_document_list_semantic(
+            sections,
+            embeddings=embeddings,
+            breakpoint_threshold_type=options.breakpoint_threshold_type,
+            breakpoint_threshold_amount=options.breakpoint_threshold_amount,
+            buffer_size=options.buffer_size,
+        )
+    elif options.chunker == "hybrid":
+        chunks = chunk_document_list_hybrid(
+            sections,
+            embeddings=embeddings,
+            breakpoint_threshold_type=options.breakpoint_threshold_type,
+            breakpoint_threshold_amount=options.breakpoint_threshold_amount,
+            buffer_size=options.buffer_size,
+            chunk_size=options.chunk_size,
+            chunk_overlap=options.chunk_overlap,
+            separators=options.separators,
+        )
+    else:
+        raise ValueError(f"Unsupported chunking strategy: {options.chunker}")
+
+    return (cleaned_markdown, chunks)
 
 
 async def ingest_raw_document_srvc(
@@ -86,6 +125,7 @@ async def ingest_raw_document_srvc(
     session: AsyncSession,
     options: IngestionExecutionOptionsLike,
     indexing_job_id: int | None = None,
+    embeddings: "Embeddings | None" = None,
 ) -> RawDocumentIngestResult:
     """
     Ingests a raw document using the specified chunking profile and ingestion 
@@ -115,7 +155,17 @@ async def ingest_raw_document_srvc(
             f"Raw document source is {raw_document.source_status}. Restore or re-upload the stored file before ingesting."
         )
 
-    parsed_content, parsed_chunks = _parse_raw_document(raw_document.source_path, resolved_options)
+    if embeddings is None:
+        parsed_content, parsed_chunks = _parse_raw_document(
+            raw_document.source_path,
+            resolved_options,
+        )
+    else:
+        parsed_content, parsed_chunks = _parse_raw_document(
+            raw_document.source_path,
+            resolved_options,
+            embeddings=embeddings,
+        )
     await raw_documents_repo.update_raw_document_parsed_content(
         raw_document=raw_document,
         parsed_content=parsed_content,
@@ -157,6 +207,7 @@ async def ingest_corpus_srvc(
     chunking_profile: ChunkingProfile,
     session: AsyncSession,
     options: IngestionExecutionOptionsLike,
+    embeddings: "Embeddings | None" = None,
 ) -> CorpusIngestResult:
     """
     Ingests a corpus by processing all its associated raw documents using the
@@ -184,6 +235,14 @@ async def ingest_corpus_srvc(
 
         raw_document_results.append(
             await ingest_raw_document_srvc(
+                raw_document=raw_document,
+                chunking_profile=chunking_profile,
+                session=session,
+                options=options,
+                embeddings=embeddings,
+            )
+            if embeddings is not None
+            else await ingest_raw_document_srvc(
                 raw_document=raw_document,
                 chunking_profile=chunking_profile,
                 session=session,
