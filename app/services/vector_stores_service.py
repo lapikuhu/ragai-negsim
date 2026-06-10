@@ -10,6 +10,20 @@ from app.schemas.vector_stores_schemas import (
 )
 
 
+def _vector_store_create_payload(vector_store_data: VectorStoreCreate) -> VectorStoreCreate:
+    from app.airag.embeddings.embeddings import get_embedding_model_info
+
+    get_embedding_model_info(vector_store_data.embedding_model)
+    return vector_store_data
+
+
+def _vector_store_embedding_dimensions(vector_store_data: VectorStoreCreate) -> int:
+    from app.airag.embeddings.embeddings import get_embedding_model_info
+
+    embedding_info = get_embedding_model_info(vector_store_data.embedding_model)
+    return embedding_info["dimensionality"]
+
+
 async def _read_vector_store_with_ids(
     vector_store: VectorStore,
     session: AsyncSession,
@@ -40,8 +54,9 @@ async def create_vector_store_srvc(
             data and associated corpus index IDs.
     """
     vector_store = await vector_stores_repo.create_vector_store(
-        vector_store_data,
+        _vector_store_create_payload(vector_store_data),
         session,
+        embedding_dimensions=_vector_store_embedding_dimensions(vector_store_data),
     )
     return await _read_vector_store_with_ids(vector_store, session)
 

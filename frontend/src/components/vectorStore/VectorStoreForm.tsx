@@ -3,10 +3,13 @@ import type { ApiComponents, VectorStoreRead } from "@/api/types";
 import { getErrorMessage } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { useEmbeddingModelsQuery } from "@/features/corpusIndices/corpusIndexQueries";
 import { parseJsonInput, stringifyJson } from "@/utils/format";
 
 type VectorStoreBackend = ApiComponents["schemas"]["VectorStoreCreate"]["backend"];
 type VectorStoreCreate = ApiComponents["schemas"]["VectorStoreCreate"];
+type VectorStoreUpdate = ApiComponents["schemas"]["VectorStoreUpdate"];
+type VectorStoreFormSubmit = VectorStoreCreate | VectorStoreUpdate;
 
 type VectorStoreFormState = {
   name: string;
@@ -15,6 +18,7 @@ type VectorStoreFormState = {
   collectionName: string;
   tableName: string;
   path: string;
+  embeddingModel: string;
   storeMetadata: string;
 };
 
@@ -23,7 +27,7 @@ type VectorStoreFormProps = {
   submitLabel: string;
   submittingLabel: string;
   successMessage: string;
-  onSubmit: (input: VectorStoreCreate) => Promise<unknown>;
+  onSubmit: (input: VectorStoreFormSubmit) => Promise<unknown>;
   onCancel?: () => void;
   onSuccess?: () => void;
   resetOnSuccess?: boolean;
@@ -42,6 +46,7 @@ export function VectorStoreForm({
   resetOnSuccess = false
 }: VectorStoreFormProps) {
   const initialForm = useMemo(() => buildFormState(initialValue), [initialValue]);
+  const models = useEmbeddingModelsQuery();
   const [form, setForm] = useState<VectorStoreFormState>(initialForm);
   const [message, setMessage] = useState<string | null>(null);
   const [metadataError, setMetadataError] = useState<string | null>(null);
@@ -54,6 +59,14 @@ export function VectorStoreForm({
   }, [initialForm]);
 
   const backendHint = getBackendHint(form.backend);
+  const isEditMode = Boolean(initialValue?.id);
+  const selectedEmbeddingModel = (models.data ?? []).find((model) => model.name === form.embeddingModel) ?? null;
+  const embeddingModelHint = selectedEmbeddingModel
+    ? `Dimensions: ${selectedEmbeddingModel.dimensionality}`
+    : "Select the embedding model used to size this vector store.";
+  const storedDimensionsHint = initialValue?.embedding_dimensions
+    ? `Dimensions: ${initialValue.embedding_dimensions}`
+    : "Dimensions not set. This store cannot be used for new indexing jobs until dimensions are set.";
 
   return (
     <form
@@ -73,7 +86,7 @@ export function VectorStoreForm({
 
         setIsSubmitting(true);
         try {
-          await onSubmit({
+          const payload = {
             name: form.name.trim(),
             backend: form.backend,
             connection_uri: toNullable(form.connectionUri),
@@ -81,7 +94,15 @@ export function VectorStoreForm({
             table_name: toNullable(form.tableName),
             path: toNullable(form.path),
             store_metadata: storeMetadata
-          });
+          };
+          await onSubmit(
+            isEditMode
+              ? payload
+              : {
+                  ...payload,
+                  embedding_model: form.embeddingModel
+                }
+          );
           setMessage(successMessage);
           if (resetOnSuccess) {
             setForm(buildFormState());
@@ -102,6 +123,30 @@ export function VectorStoreForm({
             required
           />
         </Field>
+        {isEditMode ? (
+          <Field label="Vector dimensions" hint={storedDimensionsHint}>
+            <Input value={initialValue?.embedding_dimensions?.toString() ?? "Not set"} disabled readOnly />
+          </Field>
+        ) : (
+          <Field label="Embedding model" hint={embeddingModelHint}>
+            <Select
+              value={form.embeddingModel}
+              onChange={(event) => setForm((current) => ({ ...current, embeddingModel: event.target.value }))}
+              disabled={models.isLoading}
+              required
+            >
+              <option value="">Select model</option>
+              {(models.data ?? []).map((model) => (
+                <option key={model.name} value={model.name}>
+                  {model.display_name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
         <Field label="Backend" hint={backendHint.summary}>
           <Select
             value={form.backend}
@@ -165,7 +210,7 @@ export function VectorStoreForm({
       </Field>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting || (!isEditMode && !form.embeddingModel)}>
           {isSubmitting ? submittingLabel : submitLabel}
         </Button>
         {onCancel ? (
@@ -187,6 +232,7 @@ function buildFormState(initialValue?: Partial<VectorStoreRead>): VectorStoreFor
     collectionName: initialValue?.collection_name ?? "",
     tableName: initialValue?.table_name ?? "",
     path: initialValue?.path ?? "",
+    embeddingModel: "",
     storeMetadata: stringifyJson(initialValue?.store_metadata ?? {})
   };
 }

@@ -16,6 +16,7 @@ class VectorStore(SQLModel, table=True):
     collection_name: str | None = None
     table_name: str | None = None
     path: str | None = None
+    embedding_dimensions: int | None = Field(default=None, ge=1)
     store_metadata: dict = Field(default_factory=dict, sa_column=Column("metadata", JSON))
     corpus_indices: list["CorpusIndex"] = Relationship(back_populates="vector_store")
     created_at: datetime = Field(

@@ -230,6 +230,7 @@ async def ensure_vector_store_name_available(
 async def create_vector_store(
     vector_store_in: VectorStoreCreate,
     session: AsyncSession,
+    embedding_dimensions: int,
 ) -> VectorStore:
     """
     Create a new vector store.
@@ -248,7 +249,10 @@ async def create_vector_store(
         path=vector_store_in.path,
     )
 
-    vector_store = VectorStore(**vector_store_in.model_dump())
+    vector_store = VectorStore(
+        **vector_store_in.model_dump(exclude={"embedding_model"}),
+        embedding_dimensions=embedding_dimensions,
+    )
     return await commit_and_refresh(session, vector_store)
 
 

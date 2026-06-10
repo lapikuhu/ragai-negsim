@@ -179,8 +179,18 @@ async def _ensure_resources_exist(job_in: IndexingJobCreate, session: AsyncSessi
     )
     if profile is None:
         raise ValueError("Chunking profile not found")
-    if await vector_stores_repo.get_vector_store_by_id(job_in.vector_store_id, session) is None:
+    vector_store = await vector_stores_repo.get_vector_store_by_id(job_in.vector_store_id, session)
+    if vector_store is None:
         raise ValueError("Vector store not found")
+    embedding_info = get_embedding_model_info(job_in.embedding_model)
+    if vector_store.embedding_dimensions is None:
+        raise ValueError("Vector store dimensions are not set")
+    if vector_store.embedding_dimensions != embedding_info["dimensionality"]:
+        raise ValueError(
+            "Embedding model dimensions "
+            f"({embedding_info['dimensionality']}) do not match vector store dimensions "
+            f"({vector_store.embedding_dimensions})"
+        )
     resolve_ingestion_profile_options(profile, header_depth=2, dynamic_header_depth=False)
 
 

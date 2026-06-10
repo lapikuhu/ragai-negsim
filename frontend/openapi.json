@@ -9076,12 +9076,18 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Store Metadata"
+          },
+          "embedding_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Embedding model"
           }
         },
         "type": "object",
         "required": [
           "name",
-          "backend"
+          "backend",
+          "embedding_model"
         ],
         "title": "VectorStoreCreate"
       },
@@ -9153,6 +9159,18 @@
           "id": {
             "type": "integer",
             "title": "Id"
+          },
+          "embedding_dimensions": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Dimensions"
           },
           "created_at": {
             "type": "string",

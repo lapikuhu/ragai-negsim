@@ -20,6 +20,7 @@ def _vector_store(
     collection_name="negotiation-corpus",
     table_name=None,
     path="./chroma_db",
+    embedding_dimensions=384,
     store_metadata=None,
 ):
     now = datetime.now(timezone.utc)
@@ -31,6 +32,7 @@ def _vector_store(
         collection_name=collection_name,
         table_name=table_name,
         path=path,
+        embedding_dimensions=embedding_dimensions,
         store_metadata=store_metadata or {"purpose": "tests"},
         created_at=now,
         last_updated=now,
@@ -42,8 +44,8 @@ async def test_create_vector_store_delegates_and_returns_ids(monkeypatch):
     captured = []
     created = _vector_store(vector_store_id=12)
 
-    async def fake_create_vector_store(vector_store_in, session):
-        captured.append(vector_store_in)
+    async def fake_create_vector_store(vector_store_in, session, embedding_dimensions):
+        captured.append((vector_store_in, embedding_dimensions))
         return created
 
     async def fake_to_vector_store_read_with_ids(vector_store, session):
@@ -69,6 +71,7 @@ async def test_create_vector_store_delegates_and_returns_ids(monkeypatch):
         backend="chroma",
         collection_name="negotiation",
         path="./chroma_db",
+        embedding_model="mini-l6-v2",
     )
     result = await vector_stores_service.create_vector_store_srvc(
         vector_store_in,
@@ -76,8 +79,9 @@ async def test_create_vector_store_delegates_and_returns_ids(monkeypatch):
     )
 
     assert result.id == 12
+    assert result.embedding_dimensions == 384
     assert result.corpus_index_ids == [1, 2]
-    assert captured == [vector_store_in]
+    assert captured == [(vector_store_in, 384)]
 
 
 @pytest.mark.asyncio

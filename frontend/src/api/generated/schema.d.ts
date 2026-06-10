@@ -3125,6 +3125,8 @@ export type components = {
             collection_name?: string | null;
             /** Connection Uri */
             connection_uri?: string | null;
+            /** Embedding model */
+            embedding_model: string;
             /** Vector store name */
             name: string;
             /** Path */
@@ -3154,6 +3156,8 @@ export type components = {
              * Format: date-time
              */
             created_at: string;
+            /** Embedding Dimensions */
+            embedding_dimensions?: number | null;
             /** Id */
             id: number;
             /**

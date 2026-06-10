@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { VectorStoreRead } from "@/api/types";
+import type { ApiComponents, VectorStoreRead } from "@/api/types";
 import { getErrorMessage } from "@/api/client";
 import {
   useCreateVectorStoreMutation,
@@ -20,6 +20,8 @@ type ActiveAction =
   | { type: "edit"; vectorStoreId: number }
   | { type: "delete"; vectorStoreId: number }
   | null;
+type VectorStoreCreate = ApiComponents["schemas"]["VectorStoreCreate"];
+type VectorStoreUpdate = ApiComponents["schemas"]["VectorStoreUpdate"];
 
 export function VectorStoresPage() {
   const query = useVectorStoresQuery();
@@ -58,7 +60,7 @@ export function VectorStoresPage() {
             submittingLabel="Creating..."
             successMessage="Vector store created."
             resetOnSuccess
-            onSubmit={(input) => createMutation.mutateAsync(input)}
+            onSubmit={(input) => createMutation.mutateAsync(input as VectorStoreCreate)}
           />
         </div>
       </Card>
@@ -137,8 +139,8 @@ function VectorStoreCard({
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <SummaryItem label="Connection" value={summarizeConnection(store)} />
             <SummaryItem label="Collection / table" value={summarizeCollectionTarget(store)} />
+            <SummaryItem label="Dimensions" value={formatDimensions(store.embedding_dimensions)} />
             <SummaryItem label="Linked corpus indices" value={linkedIndices.length ? linkedIndices.join(", ") : "None"} />
-            <SummaryItem label="Updated" value={formatDateTime(store.last_updated)} />
           </div>
           <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
             <span>Created {formatDateTime(store.created_at)}</span>
@@ -181,7 +183,7 @@ function EditVectorStorePanel({ store, onClose }: { store: VectorStoreRead; onCl
           submitLabel="Save changes"
           submittingLabel="Saving..."
           successMessage="Vector store updated."
-          onSubmit={(input) => updateMutation.mutateAsync(input)}
+          onSubmit={(input) => updateMutation.mutateAsync(input as VectorStoreUpdate)}
           onCancel={onClose}
           onSuccess={onClose}
         />
@@ -248,6 +250,10 @@ function summarizeConnection(store: VectorStoreRead) {
 function summarizeCollectionTarget(store: VectorStoreRead) {
   const parts = [store.collection_name, store.table_name].filter(Boolean);
   return parts.length ? parts.join(" / ") : "No collection or table stored";
+}
+
+function formatDimensions(dimensions?: number | null) {
+  return dimensions ? dimensions.toString() : "Not set";
 }
 
 function hasMetadata(store: VectorStoreRead) {

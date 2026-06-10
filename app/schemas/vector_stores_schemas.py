@@ -15,10 +15,11 @@ class VectorStoreBase(SQLModel):
     store_metadata: dict[str, Any] = Field(default_factory=dict)
 
 class VectorStoreCreate(VectorStoreBase):
-    pass
+    embedding_model: str = Field(min_length=1, title="Embedding model")
 
 class VectorStoreRead(VectorStoreBase):
     id: int
+    embedding_dimensions: int | None = Field(default=None, ge=1)
     created_at: datetime
     last_updated: datetime
 

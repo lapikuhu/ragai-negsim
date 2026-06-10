@@ -44,7 +44,7 @@ async def test_queue_job_rejects_when_non_terminal_simulation_uses_replaceable_i
         return SimpleNamespace(id=profile_id, strategy="recursive", config={"chunk_size": 100, "chunk_overlap": 10})
 
     async def fake_get_store(store_id, session):
-        return SimpleNamespace(id=store_id)
+        return SimpleNamespace(id=store_id, embedding_dimensions=384)
 
     async def fake_get_corpus_raw_document_ids(corpus_id, session):
         return [7]
@@ -67,6 +67,62 @@ async def test_queue_job_rejects_when_non_terminal_simulation_uses_replaceable_i
     monkeypatch.setattr(indexing_jobs_service, "_has_non_terminal_simulations_for_index", fake_has_non_terminal)
 
     with pytest.raises(ValueError, match="Cannot replace corpus index while simulations are still using it"):
+        await indexing_jobs_service.queue_indexing_job_srvc(
+            IndexingJobCreate(
+                corpus_id=1,
+                chunking_profile_id=2,
+                vector_store_id=3,
+                embedding_model="mini-l6-v2",
+                requested_index_name="policy-index",
+            ),
+            object(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_queue_job_rejects_when_vector_store_dimensions_are_unset(monkeypatch):
+    async def fake_get_corpus_by_id(corpus_id, session):
+        return SimpleNamespace(id=corpus_id)
+
+    async def fake_get_profile(profile_id, session):
+        return SimpleNamespace(id=profile_id, strategy="recursive", config={"chunk_size": 100, "chunk_overlap": 10})
+
+    async def fake_get_store(store_id, session):
+        return SimpleNamespace(id=store_id, embedding_dimensions=None)
+
+    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+
+    with pytest.raises(ValueError, match="Vector store dimensions are not set"):
+        await indexing_jobs_service.queue_indexing_job_srvc(
+            IndexingJobCreate(
+                corpus_id=1,
+                chunking_profile_id=2,
+                vector_store_id=3,
+                embedding_model="mini-l6-v2",
+                requested_index_name="policy-index",
+            ),
+            object(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_queue_job_rejects_when_vector_store_dimensions_mismatch(monkeypatch):
+    async def fake_get_corpus_by_id(corpus_id, session):
+        return SimpleNamespace(id=corpus_id)
+
+    async def fake_get_profile(profile_id, session):
+        return SimpleNamespace(id=profile_id, strategy="recursive", config={"chunk_size": 100, "chunk_overlap": 10})
+
+    async def fake_get_store(store_id, session):
+        return SimpleNamespace(id=store_id, embedding_dimensions=1536)
+
+    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+
+    with pytest.raises(ValueError, match=r"Embedding model dimensions \(384\) do not match vector store dimensions \(1536\)"):
         await indexing_jobs_service.queue_indexing_job_srvc(
             IndexingJobCreate(
                 corpus_id=1,

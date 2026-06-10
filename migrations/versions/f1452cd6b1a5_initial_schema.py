@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 95c6cf32d9c9
+Revision ID: f1452cd6b1a5
 Revises: 
-Create Date: 2026-06-09 18:03:17.227416
+Create Date: 2026-06-10 20:04:09.361913
 """
 
 from alembic import op
@@ -12,7 +12,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision = '95c6cf32d9c9'
+revision = 'f1452cd6b1a5'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -52,6 +52,7 @@ def upgrade() -> None:
     sa.Column('collection_name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('table_name', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('path', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('embedding_dimensions', sa.Integer(), nullable=True),
     sa.Column('metadata', sa.JSON(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),

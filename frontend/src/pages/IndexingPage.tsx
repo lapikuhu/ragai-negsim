@@ -63,10 +63,19 @@ export function IndexingPage() {
   }, [activeJob.data?.id]);
 
   const availableProfiles = useMemo(() => profiles.data ?? [], [profiles.data]);
+  const selectedModel = useMemo(
+    () => (models.data ?? []).find((model) => model.name === modelName) ?? null,
+    [modelName, models.data]
+  );
+  const selectedVectorStore = useMemo(
+    () => (vectorStores.data ?? []).find((store) => store.id === Number(vectorStoreId || "0")) ?? null,
+    [vectorStoreId, vectorStores.data]
+  );
   const selectedCorpusIndices = useMemo(
     () => (indices.data ?? []).filter((index) => index.corpus_id === Number(corpusId || "0")),
     [corpusId, indices.data]
   );
+  const dimensionWarning = getDimensionWarning(selectedModel, selectedVectorStore);
   const formDisabled = Boolean(activeJob.data) || createMutation.isPending;
 
   if (
@@ -163,7 +172,7 @@ export function IndexingPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Embedding model">
+          <Field label="Embedding model" hint={selectedModel ? `Dimensions: ${selectedModel.dimensionality}` : undefined}>
             <Select value={modelName} onChange={(event) => setModelName(event.target.value)} disabled={formDisabled}>
               <option value="">Select model</option>
               {(models.data ?? []).map((model) => (
@@ -173,7 +182,10 @@ export function IndexingPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Vector store">
+          <Field
+            label="Vector store"
+            hint={selectedVectorStore ? formatVectorStoreDimensions(selectedVectorStore.embedding_dimensions) : undefined}
+          >
             <Select value={vectorStoreId} onChange={(event) => setVectorStoreId(event.target.value)} disabled={formDisabled}>
               <option value="">Select vector store</option>
               {(vectorStores.data ?? []).map((store) => (
@@ -216,7 +228,7 @@ export function IndexingPage() {
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button
             type="button"
-            disabled={!corpusId || !profileId || !vectorStoreId || !modelName || !indexName || formDisabled}
+            disabled={!corpusId || !profileId || !vectorStoreId || !modelName || !indexName || Boolean(dimensionWarning) || formDisabled}
             onClick={async () => {
               try {
                 const queued = await createMutation.mutateAsync({
@@ -238,6 +250,7 @@ export function IndexingPage() {
           >
             {createMutation.isPending ? "Queueing..." : "Index corpus"}
           </Button>
+          {dimensionWarning ? <p className="text-sm font-medium text-amber-800">{dimensionWarning}</p> : null}
           {message ? <p className="text-sm text-slate-600">{message}</p> : null}
         </div>
       </Card>
@@ -339,4 +352,24 @@ export function IndexingPage() {
       </div>
     </div>
   );
+}
+
+function formatVectorStoreDimensions(dimensions?: number | null) {
+  return dimensions ? `Dimensions: ${dimensions}` : "Dimensions not set";
+}
+
+function getDimensionWarning(
+  selectedModel: { dimensionality: number } | null,
+  selectedVectorStore: { embedding_dimensions?: number | null } | null,
+) {
+  if (!selectedModel || !selectedVectorStore) {
+    return null;
+  }
+  if (!selectedVectorStore.embedding_dimensions) {
+    return "The selected vector store does not have dimensions set and cannot be used for indexing.";
+  }
+  if (selectedModel.dimensionality !== selectedVectorStore.embedding_dimensions) {
+    return `Embedding model dimensions (${selectedModel.dimensionality}) do not match vector store dimensions (${selectedVectorStore.embedding_dimensions}).`;
+  }
+  return null;
 }
