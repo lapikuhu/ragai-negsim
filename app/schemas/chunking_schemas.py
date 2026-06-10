@@ -4,7 +4,7 @@ from sqlmodel import Field, SQLModel
 
 
 class ChunkingOptions(SQLModel):
-    chunker: Literal["recursive", "semantic"] = "recursive"
+    chunker: Literal["recursive", "semantic", "hybrid"] = "recursive"
     chunk_size: int = Field(default=1000, ge=100, le=8000)
     chunk_overlap: int = Field(default=200, ge=0, le=2000)
     separators: list[str] | None = None

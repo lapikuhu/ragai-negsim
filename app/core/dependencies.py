@@ -1110,10 +1110,10 @@ def get_chunking_options(
             detail="chunk_overlap must be smaller than chunk_size",
         )
 
-    if chunker not in {"recursive", "semantic"}:
+    if chunker not in {"recursive", "semantic", "hybrid"}:
         raise HTTPException(
             status_code=422,
-            detail="chunker must be one of: recursive, semantic",
+            detail="chunker must be one of: recursive, semantic, hybrid",
         )
 
     return ChunkingOptions(

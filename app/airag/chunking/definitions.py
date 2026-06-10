@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-# Expand this
-ChunkingStrategy = Literal["recursive", "semantic"]
+ChunkingStrategy = Literal["recursive", "semantic", "hybrid"]
 
 # 
 @dataclass(frozen=True)
@@ -28,7 +27,8 @@ class ChunkerDefinition:
 
 
 _DEFAULT_SEPARATORS = ("\n\n", "\n", " ", "")
-
+# Definitions for supported chunking strategies and their configuration 
+# fields, along with normalization and validation logic.
 _DEFINITIONS: dict[ChunkingStrategy, ChunkerDefinition] = {
     "recursive": ChunkerDefinition(
         strategy="recursive",
@@ -89,6 +89,61 @@ _DEFINITIONS: dict[ChunkingStrategy, ChunkerDefinition] = {
                 True,
                 1,
                 minimum=0,
+            ),
+        ),
+    ),
+    "hybrid": ChunkerDefinition(
+        strategy="hybrid",
+        label="Hybrid semantic + recursive splitter",
+        supports_ingestion=False,
+        fields=(
+            ChunkerFieldDefinition(
+                "breakpoint_threshold_type",
+                "string",
+                "Breakpoint threshold type",
+                True,
+                "percentile",
+            ),
+            ChunkerFieldDefinition(
+                "breakpoint_threshold_amount",
+                "int",
+                "Breakpoint threshold amount",
+                True,
+                90,
+                minimum=1,
+            ),
+            ChunkerFieldDefinition(
+                "buffer_size",
+                "int",
+                "Buffer size",
+                True,
+                1,
+                minimum=0,
+            ),
+            ChunkerFieldDefinition(
+                "chunk_size",
+                "int",
+                "Chunk size",
+                True,
+                1000,
+                minimum=100,
+                maximum=8000,
+            ),
+            ChunkerFieldDefinition(
+                "chunk_overlap",
+                "int",
+                "Chunk overlap",
+                True,
+                200,
+                minimum=0,
+                maximum=2000,
+            ),
+            ChunkerFieldDefinition(
+                "separators",
+                "string_list",
+                "Separators",
+                False,
+                _DEFAULT_SEPARATORS,
             ),
         ),
     ),

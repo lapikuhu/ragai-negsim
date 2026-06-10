@@ -53,6 +53,51 @@ def test_resolve_chunking_profile_options_reads_recursive_profile():
     assert resolved.preview is True
 
 
+def test_chunk_documents_dispatches_hybrid_with_combined_options(monkeypatch):
+    from app.airag.chunking import chunkers
+
+    documents = [SimpleNamespace(page_content="source", metadata={})]
+    chunked_documents = [SimpleNamespace(page_content="chunk", metadata={})]
+    captured = {}
+
+    def fake_chunk_document_list_hybrid(input_documents, **kwargs):
+        captured["documents"] = input_documents
+        captured["kwargs"] = kwargs
+        return chunked_documents
+
+    monkeypatch.setattr(
+        chunkers,
+        "chunk_document_list_hybrid",
+        fake_chunk_document_list_hybrid,
+    )
+
+    result = chunking_service._chunk_documents(
+        documents,
+        _options(
+            chunker="hybrid",
+            chunk_size=512,
+            chunk_overlap=64,
+            separators=["\n\n", "\n"],
+            breakpoint_threshold_type="percentile",
+            breakpoint_threshold_amount=85,
+            buffer_size=2,
+        ),
+    )
+
+    assert result == chunked_documents
+    assert captured == {
+        "documents": documents,
+        "kwargs": {
+            "breakpoint_threshold_type": "percentile",
+            "breakpoint_threshold_amount": 85,
+            "buffer_size": 2,
+            "chunk_size": 512,
+            "chunk_overlap": 64,
+            "separators": ["\n\n", "\n"],
+        },
+    }
+
+
 @pytest.mark.asyncio
 async def test_chunk_raw_document_preview_does_not_persist(monkeypatch):
     chunked_documents = [

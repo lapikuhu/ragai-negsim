@@ -127,7 +127,7 @@ async def test_list_chunker_definitions_returns_schema_models():
     result = await chunking_profiles_service.list_chunker_definitions_srvc()
 
     assert all(isinstance(item, ChunkerDefinitionRead) for item in result)
-    assert {item.strategy for item in result} == {"recursive", "semantic"}
+    assert {item.strategy for item in result} == {"recursive", "semantic", "hybrid"}
 
 
 @pytest.mark.asyncio

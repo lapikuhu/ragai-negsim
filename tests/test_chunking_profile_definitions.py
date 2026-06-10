@@ -5,11 +5,37 @@ from app.airag.chunking.definitions import (
 )
 
 
-def test_list_chunker_definitions_exposes_recursive_and_semantic():
+def test_list_chunker_definitions_exposes_supported_strategies():
     definitions = list_chunker_definitions()
     strategies = {definition.strategy for definition in definitions}
 
-    assert strategies == {"recursive", "semantic"}
+    assert strategies == {"recursive", "semantic", "hybrid"}
+
+
+def test_hybrid_definition_exposes_combined_fields_and_defaults():
+    definition = get_chunker_definition("hybrid")
+    field_names = [field.name for field in definition.fields]
+
+    assert definition.supports_ingestion is False
+    assert field_names == [
+        "breakpoint_threshold_type",
+        "breakpoint_threshold_amount",
+        "buffer_size",
+        "chunk_size",
+        "chunk_overlap",
+        "separators",
+    ]
+
+    normalized = normalize_chunking_profile_config("hybrid", {})
+
+    assert normalized == {
+        "breakpoint_threshold_type": "percentile",
+        "breakpoint_threshold_amount": 90,
+        "buffer_size": 1,
+        "chunk_size": 1000,
+        "chunk_overlap": 200,
+        "separators": ["\n\n", "\n", " ", ""],
+    }
 
 
 def test_recursive_definition_exposes_immutable_separator_default():

@@ -99,6 +99,19 @@ def _chunk_documents(documents: list[Document], options: ResolvedChunkingOptions
             buffer_size=options.buffer_size,
         )
 
+    if options.chunker == "hybrid":
+        from app.airag.chunking.chunkers import chunk_document_list_hybrid
+
+        return chunk_document_list_hybrid(
+            documents,
+            breakpoint_threshold_type=options.breakpoint_threshold_type,
+            breakpoint_threshold_amount=options.breakpoint_threshold_amount,
+            buffer_size=options.buffer_size,
+            chunk_size=options.chunk_size,
+            chunk_overlap=options.chunk_overlap,
+            separators=options.separators,
+        )
+
     raise ValueError("Unsupported chunker")
 
 
