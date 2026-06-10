@@ -131,7 +131,6 @@ class SimulationNegotiationStateUpdate(SQLModel):
 class SimulationStartRequest(SQLModel):
     side_a: dict[str, Any] = Field(default_factory=dict)
     side_b: dict[str, Any] = Field(default_factory=dict)
-    opening_message: str | None = Field(default=None, min_length=1)
     max_turn_count: int = Field(default=12, ge=1, le=100)
 
 

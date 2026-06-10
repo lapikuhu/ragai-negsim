@@ -8423,18 +8423,6 @@
             "type": "object",
             "title": "Side B"
           },
-          "opening_message": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Opening Message"
-          },
           "max_turn_count": {
             "type": "integer",
             "maximum": 100,

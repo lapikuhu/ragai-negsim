@@ -26,7 +26,6 @@ export function SimulationCockpitPage() {
   const startMutation = useStartSimulationMutation(simulationId);
   const turnMutation = useSimulationTurnMutation(simulationId);
   const reviewMutation = useReviewSimulationMutation(simulationId);
-  const [openingMessage, setOpeningMessage] = useState("");
   const [maxTurnCount, setMaxTurnCount] = useState("12");
   const [reviewText, setReviewText] = useState("");
   const [latestTurn, setLatestTurn] = useState<SimulationTurnResponse | null>(null);
@@ -68,14 +67,10 @@ export function SimulationCockpitPage() {
                   await startMutation.mutateAsync({
                     side_a: {},
                     side_b: {},
-                    opening_message: openingMessage || null,
                     max_turn_count: Number(maxTurnCount || "12")
                   });
                 }}
               >
-                <Field label="Opening message">
-                  <Textarea value={openingMessage} onChange={(event) => setOpeningMessage(event.target.value)} />
-                </Field>
                 <Field label="Max turn count">
                   <Input value={maxTurnCount} onChange={(event) => setMaxTurnCount(event.target.value)} />
                 </Field>

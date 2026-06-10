@@ -531,7 +531,6 @@ async def test_start_simulation_initializes_graph_state_and_activates(monkeypatc
         SimulationStartRequest(
             side_a={"name": "Buyer", "role": "buyer"},
             side_b={"name": "Seller", "role": "seller"},
-            opening_message="I would like to discuss the price.",
         ),
         object(),
         _user(7),
@@ -575,7 +574,8 @@ async def test_start_simulation_initializes_graph_state_and_activates(monkeypatc
     assert internal["side_b_private_context"]["reservation"] == "SIDE-B-SECRET"
     assert "scenario_context" not in internal
     assert "AUTHORING-ONLY-DESCRIPTION" not in str(internal)
-    assert result.messages[0].content == "I would like to discuss the price."
+    assert internal["messages"] == []
+    assert result.messages == []
     assert captured_status == []
 
 

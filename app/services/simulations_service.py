@@ -743,16 +743,6 @@ def _initial_graph_state(
     }
     state.update(_runtime_context_snapshot(runtime_context))
 
-    if start_data.opening_message:
-        state["messages"].append(
-            {
-                "role": "user",
-                "content": start_data.opening_message,
-                "timestamp": _utc_timestamp(),
-                "side": state["user_side"],
-            }
-        )
-
     return state
 
 

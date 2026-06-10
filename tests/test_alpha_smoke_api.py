@@ -156,12 +156,7 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
                 user_side="side_a",
                 data={"simulation_id": "31", "phase": "opening"},
             ),
-            messages=[
-                SimulationMessageSchema(
-                    role="user",
-                    content=start_data.opening_message or "",
-                )
-            ],
+            messages=[],
         )
 
     async def fake_submit_turn(simulation, turn_data, session, current_user):
@@ -311,7 +306,6 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
                 json={
                     "side_a": {"name": "Buyer", "role": "buyer"},
                     "side_b": {"name": "Seller", "role": "seller"},
-                    "opening_message": "I'd like to discuss the price.",
                 },
                 headers=headers,
             )

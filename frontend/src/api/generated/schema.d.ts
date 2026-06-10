@@ -2944,8 +2944,6 @@ export type components = {
              * @default 12
              */
             max_turn_count: number;
-            /** Opening Message */
-            opening_message?: string | null;
             /** Side A */
             side_a?: {
                 [key: string]: unknown;
