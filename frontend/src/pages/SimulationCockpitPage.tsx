@@ -56,8 +56,8 @@ export function SimulationCockpitPage() {
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="grid gap-4">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]">
+        <div className="grid content-start gap-4">
           {canStart ? (
             <Card>
               <h2 className="text-lg font-semibold text-slate-950">Start simulation</h2>
