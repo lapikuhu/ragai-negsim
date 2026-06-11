@@ -958,6 +958,165 @@ async def test_submit_turn_without_structured_end_cannot_report_student_request(
 
 
 @pytest.mark.asyncio
+async def test_submit_turn_acceptance_preflags_requested_end(monkeypatch):
+    simulation = _simulation(
+        status="active",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state):
+            assert state["requested_action"] == "end"
+            return {
+                **state,
+                "phase": "ended",
+                "should_pause": False,
+                "pause_reason": "",
+                "terminal_reason": "student_request",
+                "final_evaluation": {
+                    "evaluated_side": "side_a",
+                    "overall_score": 0.9,
+                    "reasoning": "Deal accepted.",
+                    "confidence": "high",
+                },
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+
+    result = await simulations_service.submit_simulation_turn_srvc(
+        simulation,
+        SimulationTurnRequest(message="I agree to your terms."),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert result.status == "completed"
+    assert result.phase == "ended"
+    assert result.should_pause is False
+
+
+@pytest.mark.asyncio
+async def test_submit_turn_terminal_response_does_not_reuse_old_counterpart_message(monkeypatch):
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        user_side="side_a",
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "side_b_response": "Earlier counterpart message.",
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": "Earlier counterpart message.",
+                        "side": "side_b",
+                    }
+                ],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state):
+            return {
+                **state,
+                "phase": "ended",
+                "should_pause": False,
+                "pause_reason": "",
+                "terminal_reason": "student_request",
+                "final_evaluation": {
+                    "evaluated_side": "side_a",
+                    "overall_score": 0.9,
+                    "reasoning": "Finished cleanly.",
+                    "confidence": "high",
+                },
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+
+    result = await simulations_service.submit_simulation_turn_srvc(
+        simulation,
+        SimulationTurnRequest(message="I agree to your terms."),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert result.status == "completed"
+    assert result.counterpart_response is None
+
+
+@pytest.mark.asyncio
+async def test_submit_turn_rejects_terminal_phase_even_if_status_is_paused(monkeypatch):
+    simulation = _simulation(
+        status="paused",
+        negotiation_state={
+            "current_phase": "ended",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "ended",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    with pytest.raises(ValueError, match="Ended simulations cannot accept additional turns"):
+        await simulations_service.submit_simulation_turn_srvc(
+            simulation,
+            SimulationTurnRequest(message="One more message."),
+            object(),
+            _user(7),
+            object(),
+        )
+
+
+@pytest.mark.asyncio
 async def test_get_simulation_state_redacts_internal_negotiation_secrets():
     simulation = _simulation(
         status="active",

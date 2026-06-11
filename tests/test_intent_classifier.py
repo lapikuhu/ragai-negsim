@@ -62,13 +62,13 @@ def test_classifier_failure_defaults_to_continue():
     assert "intent_classifier:fallback_continue" in result["event_log"]
 
 
-def test_classifier_acceptance_language_stays_continue():
+def test_classifier_acceptance_language_can_end_simulation():
     graph = make_intent_classifier_graph(
         model=StructuredModel(
             {
-                "intent": "continue",
+                "intent": "end",
                 "confidence": "high",
-                "reasoning": "The student is accepting terms, not ending the simulation.",
+                "reasoning": "The student explicitly accepted the deal, so the simulation should end.",
             }
         )
     )
@@ -81,7 +81,7 @@ def test_classifier_acceptance_language_stays_continue():
         }
     )
 
-    assert result["intent_classification"]["intent"] == "continue"
+    assert result["intent_classification"]["intent"] == "end"
     assert result["intent_classification"]["confidence"] == "high"
 
 

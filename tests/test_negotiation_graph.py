@@ -257,7 +257,7 @@ def test_low_confidence_end_continues():
     assert result["phase"] != "ended"
 
 
-def test_acceptance_language_does_not_end_simulation():
+def test_acceptance_language_ends_simulation_without_counterpart_turn():
     trace = []
     state = {
         **base_state(),
@@ -272,17 +272,18 @@ def test_acceptance_language_does_not_end_simulation():
     graph = build_stubbed_negotiation_graph(
         trace=trace,
         classifier={
-            "intent": "continue",
+            "intent": "end",
             "confidence": "high",
-            "reasoning": "Agreement on terms is not a stop request.",
+            "reasoning": "Agreement on terms ends the simulation.",
         },
     )
 
     result = graph.invoke(state)
 
-    assert trace == ["classifier", "counterpart", "evaluator:rolling", "coach"]
-    assert result["phase"] != "ended"
-    assert result["terminal_reason"] is None
+    assert trace == ["classifier", "evaluator:final"]
+    assert result["phase"] == "ended"
+    assert result["terminal_reason"] == "classified_intent"
+    assert result["should_pause"] is False
 
 
 def test_high_confidence_end_routes_to_final_evaluation():

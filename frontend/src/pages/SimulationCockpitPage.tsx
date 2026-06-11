@@ -39,8 +39,11 @@ export function SimulationCockpitPage() {
   }
 
   const simulation = query.data;
+  const effectiveStatus = latestTurn?.status ?? simulation.status;
+  const effectivePhase = latestTurn?.phase ?? simulation.negotiation_state?.current_phase ?? null;
+  const isTerminal = effectiveStatus === "completed" || effectivePhase === "ended";
   const canStart = simulation.status === "created";
-  const canSendTurn = ["active", "paused"].includes(simulation.status);
+  const canSendTurn = ["active", "paused"].includes(effectiveStatus) && !isTerminal;
   const canReview = auth.hasRole("teacher");
 
   return (
@@ -50,7 +53,7 @@ export function SimulationCockpitPage() {
         description={simulation.description ?? "Simulation-backed negotiation cockpit."}
         actions={
           <div className="flex items-center gap-2">
-            <StatusBadge status={simulation.status} />
+            <StatusBadge status={effectiveStatus} />
           </div>
         }
       />
@@ -85,6 +88,9 @@ export function SimulationCockpitPage() {
           <SimulationTranscript simulation={simulation} />
           <SimulationInput
             disabled={!canSendTurn || turnMutation.isPending}
+            disabledMessage={
+              isTerminal ? "This simulation has ended. No further turns can be sent." : null
+            }
             onSubmit={async (message) => {
               const result = await turnMutation.mutateAsync({ message, current_offer: null });
               setLatestTurn(result);

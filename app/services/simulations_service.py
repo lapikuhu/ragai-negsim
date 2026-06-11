@@ -7,6 +7,9 @@ from langchain_core.documents import Document
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.airag.chains.negotiation.negotiation import make_negotiation_graph
+from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
+    is_terminal_acceptance_message,
+)
 from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.retrieval.retrievers import make_dense_retriever
 from app.airag.vector_stores.vector_stores import (
@@ -1126,13 +1129,17 @@ async def submit_simulation_turn_srvc(
         raise ValueError("Simulation must be active or paused to submit a turn")
 
     state = _graph_state_from_simulation(simulation)
+    if state.get("phase") == "ended":
+        raise ValueError("Ended simulations cannot accept additional turns")
     state["user_id"] = str(current_user.id)
     state["user_side"] = simulation.user_side or state.get("user_side") or "side_a"
     state.setdefault("messages", [])
     state["messages"] = [*state["messages"], _user_message(turn_data, simulation)]
     if turn_data.current_offer:
         state["current_offer"] = _json_safe(turn_data.current_offer)
-    if turn_data.action is None:
+    if turn_data.action is None and is_terminal_acceptance_message(turn_data.message):
+        state["requested_action"] = "end"
+    elif turn_data.action is None:
         state.pop("requested_action", None)
     else:
         state["requested_action"] = turn_data.action
@@ -1165,7 +1172,11 @@ async def submit_simulation_turn_srvc(
             if graph_state.get("phase") == "ended"
             else {}
         ),
-        counterpart_response=_counterpart_response(graph_state, state.get("user_side")),
+        counterpart_response=(
+            None
+            if graph_state.get("phase") == "ended"
+            else _counterpart_response(graph_state, state.get("user_side"))
+        ),
     )
 
 

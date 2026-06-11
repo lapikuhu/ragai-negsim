@@ -18,7 +18,7 @@ from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
 ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
     "created": {"active", "cancelled"},
     "active": {"paused", "completed", "cancelled", "failed"},
-    "paused": {"active", "cancelled", "failed"},
+    "paused": {"active", "completed", "cancelled", "failed"},
     "completed": set(),
     "cancelled": set(),
     "failed": set(),

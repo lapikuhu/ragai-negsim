@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from app.airag.chains.agents.intent_classifier.intent_classifier_model import (
@@ -5,6 +6,17 @@ from app.airag.chains.agents.intent_classifier.intent_classifier_model import (
     IntentClassifierGraphState,
 )
 from app.airag.prompts.neg_prompts.md_loader import INTENT_CLASSIFIER_PROMPT
+
+
+TERMINAL_ACCEPTANCE_PATTERNS = (
+    r"\bi agree\b",
+    r"\bi accept\b",
+    r"\bthat works for me\b",
+    r"\blet'?s do it\b",
+    r"\bwe have a deal\b",
+    r"\bit'?s a deal\b",
+    r"\bdeal\b",
+)
 
 
 def latest_user_message(state: IntentClassifierGraphState) -> str:
@@ -38,6 +50,20 @@ def render_intent_prompt(state: IntentClassifierGraphState) -> str:
         "{latest_user_message}",
         latest_user_message(state),
     )
+
+
+def is_terminal_acceptance_message(message: str) -> bool:
+    """
+    Detect explicit agreement language that should end the simulation.
+    Args:
+        message: The latest user-authored message content.
+    Returns:
+        True when the message contains a clear acceptance phrase.
+    """
+    normalized = message.strip().lower()
+    if not normalized:
+        return False
+    return any(re.search(pattern, normalized) for pattern in TERMINAL_ACCEPTANCE_PATTERNS)
 
 
 def coerce_intent_classification(result: Any) -> dict[str, Any]:

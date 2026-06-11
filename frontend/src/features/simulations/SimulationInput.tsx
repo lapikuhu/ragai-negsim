@@ -4,9 +4,11 @@ import { Field, Textarea } from "@/components/ui/Field";
 
 export function SimulationInput({
   disabled,
+  disabledMessage,
   onSubmit
 }: {
   disabled?: boolean;
+  disabledMessage?: string | null;
   onSubmit: (message: string) => Promise<void>;
 }) {
   const [message, setMessage] = useState("");
@@ -31,6 +33,7 @@ export function SimulationInput({
           placeholder="Write the next negotiation message..."
         />
       </Field>
+      {disabledMessage ? <p className="text-sm text-slate-600">{disabledMessage}</p> : null}
       <div className="flex justify-end">
         <Button type="submit" disabled={disabled || !message.trim()}>
           Send turn

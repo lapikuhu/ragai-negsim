@@ -3,6 +3,8 @@ from typing import Any
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
     coerce_intent_classification,
     fallback_intent_classification,
+    is_terminal_acceptance_message,
+    latest_user_message,
     render_intent_prompt,
 )
 from app.airag.chains.agents.intent_classifier.intent_classifier_model import (
@@ -36,6 +38,19 @@ def make_classify_intent_node(model: Any):
                 prompt
             )
             classification = coerce_intent_classification(result)
+            user_message = latest_user_message(state)
+            if (
+                classification.get("intent") != "end"
+                and is_terminal_acceptance_message(user_message)
+            ):
+                classification = {
+                    "intent": "end",
+                    "confidence": "high",
+                    "reasoning": (
+                        "The student explicitly accepted the deal, so the "
+                        "simulation should end immediately."
+                    ),
+                }
         except Exception as exc:
             return {
                 "intent_prompt": prompt,
