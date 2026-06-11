@@ -101,11 +101,11 @@ export function useCancelIndexingJobMutation() {
   });
 }
 
-export function useIndexingJobsQuery() {
+export function useIndexingJobsQuery(isActivePolling: boolean) {
   return useQuery({
     queryKey: indexingKeys.all,
     queryFn: listIndexingJobs,
-    refetchInterval: 10000
+    refetchInterval: isActivePolling ? 2000 : false
   });
 }
 
@@ -120,14 +120,11 @@ export function useActiveIndexingJobQuery() {
   });
 }
 
-export function useIndexingJobDetailQuery(jobId: number | null) {
+export function useIndexingJobDetailQuery(jobId: number | null, isActivePolling: boolean) {
   return useQuery({
     queryKey: jobId ? indexingKeys.detail(jobId) : [...indexingKeys.detail(0), "disabled"],
     queryFn: () => getIndexingJobDetail(jobId as number),
     enabled: jobId !== null,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "queued" || status === "running" ? 2000 : 10000;
-    }
+    refetchInterval: isActivePolling ? 2000 : false
   });
 }

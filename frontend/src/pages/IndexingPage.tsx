@@ -41,8 +41,9 @@ export function IndexingPage() {
   const vectorStores = useVectorStoresQuery();
   const models = useEmbeddingModelsQuery();
   const indices = useCorpusIndicesQuery();
-  const jobs = useIndexingJobsQuery();
   const activeJob = useActiveIndexingJobQuery();
+  const isActivePolling = activeJob.data?.status === "queued" || activeJob.data?.status === "running";
+  const jobs = useIndexingJobsQuery(isActivePolling);
   const createMutation = useCreateIndexingJobMutation();
   const cancelMutation = useCancelIndexingJobMutation();
 
@@ -56,7 +57,7 @@ export function IndexingPage() {
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
   const selectedDetailId = selectedJobId ?? activeJob.data?.id ?? null;
-  const jobDetail = useIndexingJobDetailQuery(selectedDetailId);
+  const jobDetail = useIndexingJobDetailQuery(selectedDetailId, isActivePolling);
 
   useEffect(() => {
     if (activeJob.data?.id) {
