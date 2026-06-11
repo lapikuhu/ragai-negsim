@@ -2,9 +2,22 @@ from langchain_core.prompts import ChatPromptTemplate
 
 DOC_GRADE_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
-     "You are a strict document relevance grader for a RAG system. "
-     "Return 'relevant' only if the context contains information that can help answer the question. "
-     "If the context is empty or unrelated, return 'not_relevant'."),
+     "You are a document relevance grader for a RAG system that combines "
+     "retrieved knowledge with separate scenario facts. "
+     "Evaluate whether the retrieved context contains at least one materially "
+     "useful concept that can improve the answer. "
+     "Transferable theory, tactics, frameworks, definitions, or decision "
+     "criteria count as relevant even when they are not scenario-specific. "
+     "For negotiation questions, applicable concepts may include ZOPA, "
+     "reservation values, BATNA, anchoring, concessions, package terms, "
+     "questioning tactics, and deal evaluation. "
+     "Do not require the context to mention the same scenario, actors, domain "
+     "terms, or numeric values as the question. "
+     "A single materially useful concept is sufficient for 'relevant'. "
+     "Return 'not_relevant' only when the context is empty, belongs to an "
+     "unrelated domain, or is too vague to improve the answer. "
+     "In the reasoning, identify the applicable concept or briefly explain "
+     "why no useful concept applies."),
     ("human", "Question:\n{question}\n\nRetrieved context:\n{context}"),
 ])
 

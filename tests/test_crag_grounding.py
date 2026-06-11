@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+from langchain_core.documents import Document
+
 from app.airag.chains.agents.coach.coach_helpers import build_coach_trusted_context
 from app.airag.chains.agents.coach.coach_nodes import make_call_crag_node as make_call_coach_crag_node
 from app.airag.chains.agents.evaluator.evaluator_helpers import (
@@ -9,6 +11,103 @@ from app.airag.chains.agents.evaluator.evaluator_nodes import (
     make_call_crag_node as make_call_evaluator_crag_node,
 )
 from app.airag.chains.crag import crag_nodes
+from app.airag.prompts.sys_prompts import DOC_GRADE_PROMPT
+
+
+def test_document_grader_prompt_accepts_transferable_negotiation_concepts():
+    rendered = DOC_GRADE_PROMPT.invoke(
+        {
+            "question": "How should I negotiate a hotel late checkout fee?",
+            "context": (
+                "A ZOPA exists when the parties' reservation values overlap. "
+                "Use conditional concessions and avoid conceding without receiving value."
+            ),
+        }
+    ).to_string()
+
+    assert "transferable" in rendered.lower()
+    assert "scenario-specific" in rendered.lower()
+    assert "single materially useful concept" in rendered.lower()
+    assert "zopa" in rendered.lower()
+    assert "unrelated" in rendered.lower()
+
+
+def test_node_grade_accepts_general_theory_for_scenario_query(monkeypatch):
+    captured = {}
+
+    class FakeDocumentGrader:
+        def invoke(self, payload):
+            captured.update(payload)
+            return SimpleNamespace(
+                relevance="relevant",
+                reasoning=(
+                    "The context explains ZOPA and reservation values, which "
+                    "apply to evaluating the late-checkout fee negotiation."
+                ),
+            )
+
+    monkeypatch.setattr(crag_nodes, "document_grader", FakeDocumentGrader())
+
+    result = crag_nodes.node_grade(
+        {
+            "question": "How should I negotiate a hotel late checkout fee?",
+            "documents": [
+                Document(
+                    page_content=(
+                        "A ZOPA exists when reservation values overlap. "
+                        "Conditional concessions can protect value."
+                    ),
+                    metadata={"source": "negotiation-guide"},
+                )
+            ],
+        }
+    )
+
+    assert result == {"grade": "relevant"}
+    assert "hotel late checkout" in captured["question"]
+    assert "ZOPA exists" in captured["context"]
+
+
+def test_node_grade_rejects_unrelated_documents(monkeypatch):
+    class FakeDocumentGrader:
+        def invoke(self, payload):
+            return SimpleNamespace(
+                relevance="not_relevant",
+                reasoning="The context concerns database indexing, not negotiation.",
+            )
+
+    monkeypatch.setattr(crag_nodes, "document_grader", FakeDocumentGrader())
+
+    result = crag_nodes.node_grade(
+        {
+            "question": "How should I negotiate a hotel late checkout fee?",
+            "documents": [
+                Document(
+                    page_content="Database indexes speed up query lookup.",
+                    metadata={"source": "database-guide"},
+                )
+            ],
+        }
+    )
+
+    assert result == {"grade": "not_relevant"}
+
+
+def test_node_grade_rejects_empty_documents_without_invoking_grader(monkeypatch):
+    class FailingDocumentGrader:
+        def invoke(self, payload):
+            raise AssertionError("document grader should not be invoked")
+
+    monkeypatch.setattr(crag_nodes, "document_grader", FailingDocumentGrader())
+
+    result = crag_nodes.node_grade(
+        {
+            "question": "How should I negotiate a hotel late checkout fee?",
+            "documents": [],
+        }
+    )
+
+    assert result == {"grade": "not_relevant"}
 
 
 def test_node_generate_passes_retrieval_and_trusted_context(monkeypatch):
