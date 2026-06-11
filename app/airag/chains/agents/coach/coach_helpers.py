@@ -6,6 +6,7 @@ from app.airag.chains.agents.helpers import (
 	format_messages,
 	json_dumps,
 )
+from app.airag.chains.crag.helpers import format_trusted_context_sections
 from app.airag.chains.negotiation.negotiation_model import CoachAdvice
 from app.airag.prompts.neg_prompts.md_loader import COACH_PROMPT
 
@@ -131,6 +132,26 @@ def build_crag_query(state: CoachGraphState) -> str:
 		)
 
 	return "\n".join(query_parts)
+
+
+def build_coach_trusted_context(state: CoachGraphState) -> str:
+	"""
+	Build the coach-safe trusted simulation evidence passed into CRAG.
+	Args:
+		state: The current coach graph state.
+	Returns:
+		A labeled plain-text summary of trusted simulation state.
+	"""
+	return format_trusted_context_sections(
+		[
+			("User side", state.get("user_side", "")),
+			("Negotiation phase", state.get("phase", "")),
+			("Public scenario context", state.get("scenario_public_context", {})),
+			("Student private context", get_student_private_context(state)),
+			("Current offer", state.get("current_offer", {})),
+			("Offer history", state.get("offer_history", [])),
+		]
+	)
 
 # Check and change: fallback can rely the conversation itself and improvise
 # after explicitly stating the missing information. Check with the prompt.

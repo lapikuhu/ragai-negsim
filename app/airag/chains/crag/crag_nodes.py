@@ -82,18 +82,29 @@ def node_quality_check(state) -> dict:
             and reasoning for the quality assessment.
     """
     context = state.get("context") or format_docs(state.get("documents", []))
+    trusted_context = state.get("trusted_context", "")
     answer = state.get("answer", "")
 
-    if not context or not answer:
+    if not answer or (not context and not trusted_context):
         return {
             "hallucination_grade": "no",
             "answer_grade": "no",
             "quality_reasoning": "Missing context or answer.",
         }
 
-    hall = hallucination_grader.invoke({"context": context, "answer": answer})
+    hall = hallucination_grader.invoke(
+        {
+            "context": context,
+            "trusted_context": trusted_context,
+            "answer": answer,
+        }
+    )
     ans = answer_grader.invoke({"question": state["question"], "answer": answer})
-    reasoning = f"grounded={hall.grounded}; addresses={ans.addresses}; hallucination_reasoning={hall.reasoning}"
+    reasoning = (
+        f"grounded={hall.grounded}; addresses={ans.addresses}; "
+        f"trusted_context={'yes' if trusted_context else 'no'}; "
+        f"hallucination_reasoning={hall.reasoning}"
+    )
     print(f"[quality_check] {reasoning}")
 
     return {
@@ -116,9 +127,11 @@ def node_generate(state) -> dict:
     """
     docs = state.get("documents", [])
     context = format_docs(docs)
+    trusted_context = state.get("trusted_context", "")
     answer = generation_chain.invoke({
         "question": state["question"],
         "context": context,
+        "trusted_context": trusted_context,
     }).strip()
     return {"answer": answer, "context": context}
 

@@ -1,5 +1,6 @@
+import json
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Any, Literal
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 import re
@@ -41,6 +42,29 @@ def format_docs(documents: list[Document]) -> str:
     )
 ### ---------------------------------------------------------------- ###
 
+
+def format_trusted_context_sections(sections: list[tuple[str, Any]]) -> str:
+    """
+    Format trusted non-retrieval evidence into labeled text blocks.
+    Args:
+        sections (list[tuple[str, Any]]): A list of tuples containing a 
+            label and a value.
+    Returns:
+        str: A formatted string representation of the trusted context 
+        sections.
+    """
+    blocks = []
+    for label, value in sections:
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, str):
+            rendered = value
+        else:
+            rendered = json.dumps(value, default=str, ensure_ascii=False, indent=2)
+        blocks.append(f"{label}:\n{rendered}")
+    return "\n\n".join(blocks)
+### ---------------------------------------------------------------- ###
+
 ### ---------------------------------------------------------------- ###
 ### ------------------------ ANSWER GRADER ------------------------- ###
 ### ---------------------------------------------------------------- ###
@@ -73,8 +97,8 @@ document_grader = DOC_GRADE_PROMPT | llm.with_structured_output(DocumentGrade)
 ### --------------------- Hallucination Check ---------------------- ###
 ### ---------------------------------------------------------------- ###
 class HallucinationGrade(BaseModel):
-    """Evaluate whether all claims in an answer are grounded in the context."""
-    grounded:  Literal["yes", "no"] = Field(description="Are all claims supported by the context?")
+    """Evaluate whether all claims in an answer are grounded in available evidence."""
+    grounded:  Literal["yes", "no"] = Field(description="Are all claims supported by the retrieved or trusted evidence?")
     reasoning: str                  = Field(description="Brief explanation of the verdict")
 
 hallucination_grader = HALL_PROMPT | llm.with_structured_output(HallucinationGrade)

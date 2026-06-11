@@ -4,6 +4,7 @@ from typing import Any
 # local imports
 from app.airag.chains.agents.coach.coach_helpers import (
     build_crag_query,
+    build_coach_trusted_context,
     fallback_advice,
     render_coach_prompt,
 	collect_missing_information,
@@ -77,11 +78,13 @@ def make_call_crag_node(crag_graph: Any):
 				"event_log": ["coach:crag_skipped"],
 			}
 
-		try:
+		try: 
+			trusted_context = build_coach_trusted_context(state)
 			result = crag_graph.invoke(
 				{
 					"question": state.get("coach_query", ""),
 					"attempts": 0,
+					"trusted_context": trusted_context,
 				}
 			)
 		except Exception as exc:

@@ -20,6 +20,7 @@ class CRAGState(TypedDict):
     answer: NotRequired[str]
     grade: NotRequired[str]
     context: NotRequired[str]
+    trusted_context: NotRequired[str]
     hallucination_grade: NotRequired[str]
     answer_grade: NotRequired[str]
     quality_reasoning: NotRequired[str]
@@ -117,6 +118,7 @@ def make_crag_node(crag):
         crag_result = crag.invoke({
             "question": state["question"],
             "attempts": state.get("attempts", 0),
+            "trusted_context": state.get("trusted_context", ""),
         })
 
         return {

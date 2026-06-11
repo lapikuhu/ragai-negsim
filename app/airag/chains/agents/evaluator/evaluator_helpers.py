@@ -11,6 +11,7 @@ from app.airag.chains.agents.helpers import (
 	format_messages,
 	json_dumps,
 )
+from app.airag.chains.crag.helpers import format_trusted_context_sections
 from app.airag.chains.negotiation.negotiation_model import (
 	FinalEvaluation,
 	Side,
@@ -139,6 +140,30 @@ def build_evaluator_crag_query(state: EvaluatorGraphState) -> str:
 		query_parts.append(f"Previously detected risks: {json_dumps(prior_evaluation.get('detected_risks'))}")
 
 	return "\n".join(query_parts)
+
+
+def build_evaluator_trusted_context(state: EvaluatorGraphState) -> str:
+	"""
+	Build the evaluator-authorized trusted simulation evidence passed into CRAG.
+	Args:
+		state: The current evaluator graph state.
+	Returns:
+		A labeled plain-text summary of trusted simulation state.
+	"""
+	return format_trusted_context_sections(
+		[
+			("User side", state.get("user_side", "")),
+			("Negotiation phase", state.get("phase", "")),
+			("Evaluation mode", state.get("evaluation_mode", "")),
+			("Public scenario context", state.get("scenario_public_context", {})),
+			("Side A profile", state.get("side_a", {})),
+			("Side B profile", state.get("side_b", {})),
+			("Side A private context", state.get("side_a_private_context", {})),
+			("Side B private context", state.get("side_b_private_context", {})),
+			("Current offer", state.get("current_offer", {})),
+			("Offer history", state.get("offer_history", [])),
+		]
+	)
 
 
 def render_evaluator_prompt(

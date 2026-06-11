@@ -7,6 +7,7 @@ from app.airag.chains.agents.evaluator.evaluator_model import (
 	FinalEvaluatorResponseModel,
 )
 from app.airag.chains.agents.evaluator.evaluator_helpers import (
+    build_evaluator_trusted_context,
     get_existing_retrieval_context,
     collect_missing_information,
     build_evaluator_crag_query,
@@ -78,10 +79,12 @@ def make_call_crag_node(crag_graph: Any = None):
 			}
 
 		try:
+			trusted_context = build_evaluator_trusted_context(state)
 			result = crag_graph.invoke(
 				{
 					"question": state.get("evaluator_query", "negotiation evaluation"),
 					"attempts": 0,
+					"trusted_context": trusted_context,
 				}
 			)
 		except Exception as exc:

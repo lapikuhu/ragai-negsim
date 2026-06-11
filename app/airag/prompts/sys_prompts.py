@@ -18,10 +18,11 @@ REWRITE_PROMPT = ChatPromptTemplate.from_template(
 
 GEN_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
-     "You are a precise RAG assistant. Answer only from the provided context. "
-     "If the context does not contain the answer, say that the knowledge base does not contain enough information. "
+     "You are a precise RAG assistant. Answer only from the provided retrieved context and trusted simulation context. "
+     "Treat both as authoritative evidence, and do not introduce facts from outside them. "
+     "If neither source contains enough information, say that the available evidence does not contain enough information. "
      "Keep the answer concise and factual."),
-    ("human", "Question:\n{question}\n\nContext:\n{context}\n\nAnswer:"),
+    ("human", "Question:\n{question}\n\nRetrieved context:\n{context}\n\nTrusted simulation context:\n{trusted_context}\n\nAnswer:"),
 ])
 
 FAITHFULNESS_PROMPT = ChatPromptTemplate.from_template(
@@ -46,9 +47,12 @@ ANS_GRADER_PROMPT = ChatPromptTemplate.from_messages([
 
 HALL_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
-     "Check whether ALL claims in the answer are supported by the context. "
-     "If the answer contains any claim not found in the context, return 'no'."),
-    ("human", "Context:\n{context}\n\nAnswer:\n{answer}"),
+     "Check whether the answer's material factual claims are supported by the available evidence. "
+     "The retrieved context and trusted simulation context are both authoritative evidence sources. "
+     "Allow clear deductions such as arithmetic, direct comparisons, and standard negotiation conclusions when their premises are supported. "
+     "Do not require verbatim matches. "
+     "If the answer invents scenario facts, changes supported numbers, or makes material claims not supported by either evidence source, return 'no'."),
+    ("human", "Retrieved context:\n{context}\n\nTrusted simulation context:\n{trusted_context}\n\nAnswer:\n{answer}"),
 ])
 
 FALLBACK_PROMPT = ChatPromptTemplate.from_messages([
