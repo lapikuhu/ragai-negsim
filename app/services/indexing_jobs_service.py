@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -45,6 +46,9 @@ NON_TERMINAL_SIMULATION_STATUSES = {"created", "active", "paused"}
 INTERRUPTED_FAILURE_DETAIL = (
     "Indexing interrupted because the application was shut down or restarted."
 )
+CANCELLED_FAILURE_DETAIL = "Indexing job cancelled by user"
+EMBEDDING_BATCH_SIZE = 25
+_INDEXING_TASKS: dict[int, asyncio.Task[IndexingJobDetail]] = {}
 
 
 @dataclass(frozen=True)
@@ -131,6 +135,7 @@ def _job_read(job: Any) -> IndexingJobRead:
         requested_vector_namespace=getattr(job, "requested_vector_namespace", None),
         status=getattr(job, "status"),
         stage=getattr(job, "stage"),
+        cancel_requested=getattr(job, "cancel_requested", False),
         current_raw_document_id=getattr(job, "current_raw_document_id", None),
         current_document_name=getattr(job, "current_document_name", None),
         total_documents=getattr(job, "total_documents", 0),
@@ -160,6 +165,48 @@ async def _read_job_detail(job: Any, session: AsyncSession) -> IndexingJobDetail
         **_job_read(job).model_dump(),
         warnings=[_warning_read(warning) for warning in warnings],
     )
+
+
+def _cancel_live_indexing_task(job_id: int) -> bool:
+    task = _INDEXING_TASKS.get(job_id)
+    if task is None or task.done():
+        return False
+    task.cancel()
+    return True
+
+
+def _unregister_indexing_task(job_id: int, task: asyncio.Task[IndexingJobDetail]) -> None:
+    if _INDEXING_TASKS.get(job_id) is task:
+        _INDEXING_TASKS.pop(job_id, None)
+
+
+def start_indexing_job_task(job_id: int) -> asyncio.Task[IndexingJobDetail]:
+    task = asyncio.create_task(run_indexing_job_srvc(job_id))
+    _INDEXING_TASKS[job_id] = task
+    task.add_done_callback(lambda current_task, current_job_id=job_id: _unregister_indexing_task(current_job_id, current_task))
+    return task
+
+
+async def _raise_if_cancel_requested(job: IndexingJob, session: AsyncSession) -> None:
+    await session.refresh(job)
+    if job.cancel_requested:
+        raise asyncio.CancelledError(CANCELLED_FAILURE_DETAIL)
+
+
+async def _mark_job_cancelled(
+    job: IndexingJob,
+    candidate_index: CorpusIndex | None,
+    session: AsyncSession,
+    detail: str = CANCELLED_FAILURE_DETAIL,
+) -> IndexingJobDetail:
+    if candidate_index is not None and candidate_index.status == "building":
+        await corpus_indices_repo.mark_corpus_index_cancelled(candidate_index, detail, session)
+    cancelled_job = await indexing_jobs_repo.mark_indexing_job_cancelled(
+        job,
+        session,
+        detail=detail,
+    )
+    return await _read_job_detail(cancelled_job, session)
 
 
 async def _ensure_resources_exist(job_in: IndexingJobCreate, session: AsyncSession) -> None:
@@ -363,6 +410,25 @@ async def get_indexing_job_detail_srvc(job_id: int, session: AsyncSession) -> In
     return await _read_job_detail(job, session)
 
 
+async def cancel_indexing_job_srvc(job_id: int, session: AsyncSession) -> IndexingJobDetail:
+    job = await indexing_jobs_repo.get_indexing_job_by_id(job_id, session)
+    if job is None:
+        raise ValueError("Indexing job not found")
+    if job.status not in {"queued", "running"}:
+        raise ValueError("Only queued or running indexing jobs can be cancelled")
+
+    await indexing_jobs_repo.request_indexing_job_cancel(job, session)
+    _cancel_live_indexing_task(job_id)
+
+    candidate_index = None
+    if job.candidate_corpus_index_id is not None:
+        candidate_index = await corpus_indices_repo.get_corpus_index_by_id(
+            job.candidate_corpus_index_id,
+            session,
+        )
+    return await _mark_job_cancelled(job, candidate_index, session)
+
+
 async def _create_candidate_index(job: IndexingJob, session: AsyncSession) -> CorpusIndex:
     """
     Create a candidate corpus index for the given indexing job.
@@ -439,6 +505,7 @@ async def _process_documents(
     successful_documents = 0
     chunks_created = 0
     for processed_index, raw_document_id in enumerate(raw_document_ids, start=1):
+        await _raise_if_cancel_requested(job, session)
         raw_document = await raw_documents_repo.get_raw_document_by_id(raw_document_id, session)
         if raw_document is None:
             await indexing_jobs_repo.create_indexing_job_warning(
@@ -493,6 +560,7 @@ async def _process_documents(
             processed_documents=processed_index,
             chunks_created=chunks_created,
         )
+        await _raise_if_cancel_requested(job, session)
 
     return DocumentBuildResult(
         successful_documents=successful_documents,
@@ -536,26 +604,38 @@ async def _embed_candidate(
         corpus_index_id=candidate_index_id,
         chunking_profile_id=job.chunking_profile_id,
     )
-    vector_ids = [vector_ref.external_vector_id for vector_ref in vector_refs]
-    stored_vector_ids = await store_docs_to_vector_store(
-        docs=documents,
-        embedding_model=embedding_model,
-        backend=vector_store.backend,
-        ids=vector_ids,
-        embedding_dimensions=embedding_metadata["dimensionality"],
-        collection_name=vector_store.collection_name,
-        path=vector_store.path,
-        table_name=vector_store.table_name,
-    )
-    indexed_chunks_in = [
-        IndexedChunkCreate(
-            corpus_index_id=candidate_index_id,
-            document_chunk_id=vector_ref.document_chunk_id,
-            external_vector_id=stored_vector_id,
+    total_indexed = 0
+    for offset in range(0, len(documents), EMBEDDING_BATCH_SIZE):
+        await _raise_if_cancel_requested(job, session)
+        document_batch = documents[offset : offset + EMBEDDING_BATCH_SIZE]
+        vector_ref_batch = vector_refs[offset : offset + EMBEDDING_BATCH_SIZE]
+        vector_ids = [vector_ref.external_vector_id for vector_ref in vector_ref_batch]
+        stored_vector_ids = await store_docs_to_vector_store(
+            docs=document_batch,
+            embedding_model=embedding_model,
+            backend=vector_store.backend,
+            ids=vector_ids,
+            embedding_dimensions=embedding_metadata["dimensionality"],
+            collection_name=vector_store.collection_name,
+            path=vector_store.path,
+            table_name=vector_store.table_name,
         )
-        for vector_ref, stored_vector_id in zip(vector_refs, stored_vector_ids, strict=True)
-    ]
-    await bulk_create_indexed_chunks(indexed_chunks_in, session)
+        indexed_chunks_in = [
+            IndexedChunkCreate(
+                corpus_index_id=candidate_index_id,
+                document_chunk_id=vector_ref.document_chunk_id,
+                external_vector_id=stored_vector_id,
+            )
+            for vector_ref, stored_vector_id in zip(vector_ref_batch, stored_vector_ids, strict=True)
+        ]
+        await bulk_create_indexed_chunks(indexed_chunks_in, session)
+        total_indexed += len(indexed_chunks_in)
+        await indexing_jobs_repo.update_indexing_job_progress(
+            job,
+            session,
+            stage="embedding",
+            chunks_indexed=total_indexed,
+        )
     await corpus_indices_repo.mark_corpus_index_built(
         candidate_index,
         CorpusIndexBuildComplete(
@@ -573,9 +653,9 @@ async def _embed_candidate(
         job,
         session,
         stage="embedding",
-        chunks_indexed=len(indexed_chunks_in),
+        chunks_indexed=total_indexed,
     )
-    return len(indexed_chunks_in)
+    return total_indexed
 
 
 async def _activate_candidate_index(
@@ -713,11 +793,16 @@ async def run_indexing_job_srvc(job_id: int) -> IndexingJobDetail:
         job = await indexing_jobs_repo.get_indexing_job_by_id(job_id, session)
         if job is None:
             raise ValueError("Indexing job not found")
+        if job.status == "cancelled":
+            return await _read_job_detail(job, session)
 
         candidate_index: CorpusIndex | None = None
         try:
+            await _raise_if_cancel_requested(job, session)
             job = await indexing_jobs_repo.mark_indexing_job_running(job, session)
+            await _raise_if_cancel_requested(job, session)
             candidate_index = await _create_candidate_index(job, session)
+            await _raise_if_cancel_requested(job, session)
             build_result = await _process_documents(job, candidate_index, session)
             if build_result.successful_documents == 0:
                 return await _fail_job_and_candidate(
@@ -728,7 +813,9 @@ async def run_indexing_job_srvc(job_id: int) -> IndexingJobDetail:
                 )
 
             await _embed_candidate(job, candidate_index, session)
+            await _raise_if_cancel_requested(job, session)
             await indexing_jobs_repo.update_indexing_job_progress(job, session, stage="finalizing")
+            await _raise_if_cancel_requested(job, session)
             activation = await _activate_candidate_index(job, candidate_index, session)
 
             status = "completed"
@@ -756,6 +843,9 @@ async def run_indexing_job_srvc(job_id: int) -> IndexingJobDetail:
                 replaced_corpus_index_id=activation.replaced_corpus_index_id,
             )
             return await _read_job_detail(completed_job, session)
+        except asyncio.CancelledError as exc:
+            detail = str(exc).strip() or CANCELLED_FAILURE_DETAIL
+            return await _mark_job_cancelled(job, candidate_index, session, detail)
         except Exception as exc:
             return await _fail_job_and_candidate(
                 job,

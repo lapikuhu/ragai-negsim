@@ -29,6 +29,7 @@ class IndexingJob(SQLModel, table=True):
     processed_documents: int = Field(default=0, ge=0)
     chunks_created: int = Field(default=0, ge=0)
     chunks_indexed: int = Field(default=0, ge=0)
+    cancel_requested: bool = Field(default=False)
     queued_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),

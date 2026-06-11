@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 
 from app.core.dependencies import AdminDep, Page, SessionDep
 from app.schemas.indexing_jobs_schemas import IndexingJobCreate, IndexingJobDetail, IndexingJobQueued
@@ -33,7 +33,6 @@ def _raise_indexing_job_service_error(exc: ValueError) -> None:
 async def create_indexing_job(
     job_in: IndexingJobCreate,
     session: SessionDep,
-    background_tasks: BackgroundTasks,
     _admin: AdminDep,
 ) -> IndexingJobQueued:
     """
@@ -41,7 +40,6 @@ async def create_indexing_job(
         Args:
             job_in: The data to create the indexing job with.
             session: The database session.
-            background_tasks: The background tasks manager.
             _admin: The admin dependency.
         Returns:
             An IndexingJobQueued object containing the queued indexing job data.
@@ -54,7 +52,7 @@ async def create_indexing_job(
     except ValueError as exc:
         _raise_indexing_job_service_error(exc)
 
-    background_tasks.add_task(indexing_jobs_service.run_indexing_job_srvc, queued.id)
+    indexing_jobs_service.start_indexing_job_task(queued.id)
     return queued
 
 ### ---------------------- INDEXING JOB LIST ----------------------- ###
@@ -130,5 +128,20 @@ async def get_indexing_job_detail(
     """
     try:
         return await indexing_jobs_service.get_indexing_job_detail_srvc(job_id, session)
+    except ValueError as exc:
+        _raise_indexing_job_service_error(exc)
+
+
+@router.post("/{job_id}/cancel", response_model=IndexingJobDetail, status_code=status.HTTP_200_OK)
+async def cancel_indexing_job(
+    job_id: int,
+    session: SessionDep,
+    _admin: AdminDep,
+) -> IndexingJobDetail:
+    """
+    Cancel a queued or running indexing job.
+    """
+    try:
+        return await indexing_jobs_service.cancel_indexing_job_srvc(job_id, session)
     except ValueError as exc:
         _raise_indexing_job_service_error(exc)

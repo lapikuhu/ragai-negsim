@@ -42,6 +42,16 @@ async function createIndexingJob(input: IndexingJobCreate) {
   );
 }
 
+async function cancelIndexingJob(jobId: number) {
+  return jsonRequest<IndexingJobDetail>(
+    `/indexing-jobs/${jobId}/cancel`,
+    {
+      method: "POST"
+    },
+    "Unable to cancel indexing job"
+  );
+}
+
 async function listIndexingJobs() {
   const result = await apiClient.GET("/indexing-jobs/", {
     params: { query: { skip: 0, limit: 50 } }
@@ -83,8 +93,20 @@ export function useCreateIndexingJobMutation() {
   });
 }
 
+export function useCancelIndexingJobMutation() {
+  const invalidate = useInvalidateIndexing();
+  return useMutation({
+    mutationFn: cancelIndexingJob,
+    onSuccess: async () => invalidate()
+  });
+}
+
 export function useIndexingJobsQuery() {
-  return useQuery({ queryKey: indexingKeys.all, queryFn: listIndexingJobs });
+  return useQuery({
+    queryKey: indexingKeys.all,
+    queryFn: listIndexingJobs,
+    refetchInterval: 10000
+  });
 }
 
 export function useActiveIndexingJobQuery() {
@@ -102,6 +124,10 @@ export function useIndexingJobDetailQuery(jobId: number | null) {
   return useQuery({
     queryKey: jobId ? indexingKeys.detail(jobId) : [...indexingKeys.detail(0), "disabled"],
     queryFn: () => getIndexingJobDetail(jobId as number),
-    enabled: jobId !== null
+    enabled: jobId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "queued" || status === "running" ? 2000 : 10000;
+    }
   });
 }

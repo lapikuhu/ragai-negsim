@@ -10,7 +10,7 @@ from app.schemas.indexing_jobs_schemas import IndexingJobCreate
 
 
 ACTIVE_INDEXING_JOB_STATUSES = {"queued", "running"}
-TERMINAL_INDEXING_JOB_STATUSES = {"completed", "completed_with_warnings", "failed"}
+TERMINAL_INDEXING_JOB_STATUSES = {"completed", "completed_with_warnings", "failed", "cancelled"}
 
 
 async def get_indexing_job_by_id(
@@ -209,11 +209,20 @@ async def update_indexing_job_progress(
     return await commit_and_refresh(session, job)
 
 
+async def request_indexing_job_cancel(
+    job: IndexingJob,
+    session: AsyncSession,
+) -> IndexingJob:
+    job.cancel_requested = True
+    return await commit_and_refresh(session, job)
+
+
 async def mark_indexing_job_running(
     job: IndexingJob,
     session: AsyncSession,
 ) -> IndexingJob:
     job.status = "running"
+    job.cancel_requested = False
     job.started_at = utc_now()
     return await commit_and_refresh(session, job)
 
@@ -243,6 +252,7 @@ async def mark_indexing_job_completed(
     """
     job.status = status
     job.stage = stage
+    job.cancel_requested = False
     job.completed_at = completed_at or utc_now()
     job.candidate_corpus_index_id = candidate_corpus_index_id
     job.replaced_corpus_index_id = replaced_corpus_index_id
@@ -265,6 +275,23 @@ async def mark_indexing_job_failed(
     """
     job.status = "failed"
     job.stage = "finished"
+    job.cancel_requested = False
     job.failure_detail = failure_detail
+    job.completed_at = utc_now()
+    return await commit_and_refresh(session, job)
+
+
+async def mark_indexing_job_cancelled(
+    job: IndexingJob,
+    session: AsyncSession,
+    *,
+    detail: str | None = None,
+) -> IndexingJob:
+    job.status = "cancelled"
+    job.stage = "finished"
+    job.cancel_requested = True
+    job.failure_detail = detail
+    job.current_raw_document_id = None
+    job.current_document_name = None
     job.completed_at = utc_now()
     return await commit_and_refresh(session, job)

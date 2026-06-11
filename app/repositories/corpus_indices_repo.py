@@ -490,6 +490,21 @@ async def mark_corpus_index_failed(
     return await commit_and_refresh(session, index)
 
 
+async def mark_corpus_index_cancelled(
+    index: CorpusIndex,
+    build_error: str,
+    session: AsyncSession,
+) -> CorpusIndex:
+    """
+    Mark a corpus index as cancelled without deleting any partial build data.
+    """
+    ensure_status_transition(index.status, "cancelled")
+    index.status = "cancelled"
+    index.build_error = build_error
+    index.last_updated = utc_now()
+    return await commit_and_refresh(session, index)
+
+
 async def mark_corpus_index_built(
     index: CorpusIndex,
     build_in: CorpusIndexBuildComplete,

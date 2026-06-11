@@ -35,6 +35,7 @@ def test_indexing_job_schema_tracks_candidate_and_replaced_index_ids():
 
     assert job.candidate_corpus_index_id is None
     assert job.replaced_corpus_index_id is None
+    assert job.cancel_requested is False
     assert job.total_documents == 0
     assert job.processed_documents == 0
 

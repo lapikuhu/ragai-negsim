@@ -17,6 +17,7 @@ import {
 import { useCorporaQuery } from "@/features/corpora/corpusQueries";
 import {
   useActiveIndexingJobQuery,
+  useCancelIndexingJobMutation,
   useCreateIndexingJobMutation,
   useIndexingJobDetailQuery,
   useIndexingJobsQuery
@@ -43,6 +44,7 @@ export function IndexingPage() {
   const jobs = useIndexingJobsQuery();
   const activeJob = useActiveIndexingJobQuery();
   const createMutation = useCreateIndexingJobMutation();
+  const cancelMutation = useCancelIndexingJobMutation();
 
   const [corpusId, setCorpusId] = useState("");
   const [profileId, setProfileId] = useState("");
@@ -76,7 +78,7 @@ export function IndexingPage() {
     [corpusId, indices.data]
   );
   const dimensionWarning = getDimensionWarning(selectedModel, selectedVectorStore);
-  const formDisabled = Boolean(activeJob.data) || createMutation.isPending;
+  const formDisabled = Boolean(activeJob.data) || createMutation.isPending || cancelMutation.isPending;
 
   if (
     corpora.isLoading ||
@@ -122,6 +124,7 @@ export function IndexingPage() {
 
   const detail = jobDetail.data ?? activeJob.data ?? null;
   const warnings = detail?.warnings ?? [];
+  const canCancel = detail?.status === "queued" || detail?.status === "running";
 
   return (
     <div className="grid gap-6">
@@ -137,7 +140,8 @@ export function IndexingPage() {
           because FastAPI background tasks do not survive application shutdown.
         </p>
         <p className="mt-2 text-sm text-amber-900">
-          The current implementation does not support cancellation. New submissions stay disabled until the active job finishes.
+          Cancelling an indexing job stops future work and leaves any partial build artifacts in place, but cancelled candidate
+          indexes are not activated for normal use.
         </p>
       </Card>
 
@@ -257,7 +261,26 @@ export function IndexingPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
         <Card>
-          <h2 className="text-lg font-semibold text-slate-950">Current or selected job</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-950">Current or selected job</h2>
+            {canCancel && detail ? (
+              <Button
+                type="button"
+                variant="danger"
+                disabled={cancelMutation.isPending}
+                onClick={async () => {
+                  try {
+                    await cancelMutation.mutateAsync(detail.id);
+                    setMessage(`Cancelled indexing job #${detail.id}. You can queue a new job now.`);
+                  } catch (error) {
+                    setMessage(getErrorMessage(error));
+                  }
+                }}
+              >
+                {cancelMutation.isPending ? "Cancelling..." : "Cancel indexing job"}
+              </Button>
+            ) : null}
+          </div>
           {detail ? (
             <div className="mt-4 grid gap-4">
               <div className="flex items-center justify-between gap-3">

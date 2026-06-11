@@ -1,28 +1,22 @@
 from types import SimpleNamespace
 
 import pytest
-from fastapi import BackgroundTasks, Response
+from fastapi import Response
 
 from app.schemas.indexing_jobs_schemas import IndexingJobCreate
 from app.web.routes import indexing_jobs_route
 
 
 @pytest.mark.asyncio
-async def test_post_indexing_jobs_returns_202_and_schedules_background_task(monkeypatch):
-    scheduled = []
-
-    class CapturingBackgroundTasks(BackgroundTasks):
-        def add_task(self, func, *args, **kwargs):
-            scheduled.append((func, args, kwargs))
-
+async def test_post_indexing_jobs_returns_202_and_starts_managed_task(monkeypatch):
     async def fake_queue(job_in, session):
         return SimpleNamespace(id=77, status="queued")
 
-    async def fake_runner(job_id):
-        return None
+    def fake_start(job_id):
+        return f"task-{job_id}"
 
     monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "queue_indexing_job_srvc", fake_queue)
-    monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "run_indexing_job_srvc", fake_runner)
+    monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "start_indexing_job_task", fake_start)
 
     result = await indexing_jobs_route.create_indexing_job(
         job_in=IndexingJobCreate(
@@ -33,12 +27,11 @@ async def test_post_indexing_jobs_returns_202_and_schedules_background_task(monk
             requested_index_name="policy-index",
         ),
         session=object(),
-        background_tasks=CapturingBackgroundTasks(),
         _admin=SimpleNamespace(id=1),
     )
 
     assert result.status == "queued"
-    assert scheduled == [(fake_runner, (77,), {})]
+    assert result.id == 77
 
 
 @pytest.mark.asyncio
@@ -52,3 +45,20 @@ async def test_get_active_indexing_job_returns_204_when_none_running(monkeypatch
 
     assert isinstance(response, Response)
     assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_cancel_indexing_job_returns_updated_job(monkeypatch):
+    async def fake_cancel(job_id, session):
+        return SimpleNamespace(id=job_id, status="cancelled", stage="finished")
+
+    monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "cancel_indexing_job_srvc", fake_cancel)
+
+    response = await indexing_jobs_route.cancel_indexing_job(
+        job_id=44,
+        session=object(),
+        _admin=SimpleNamespace(id=1),
+    )
+
+    assert response.id == 44
+    assert response.status == "cancelled"

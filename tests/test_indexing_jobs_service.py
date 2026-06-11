@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from datetime import datetime, timezone
 
@@ -30,6 +31,7 @@ def _job(**overrides):
         "candidate_corpus_index_id": None,
         "replaced_corpus_index_id": None,
         "failure_detail": None,
+        "cancel_requested": False,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -211,3 +213,116 @@ async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypat
     assert result.status == "completed_with_warnings"
     assert result.candidate_corpus_index_id == 88
     assert len(result.warnings) == 1
+
+
+@pytest.mark.asyncio
+async def test_cancel_indexing_job_requests_cancel_and_marks_job_cancelled(monkeypatch):
+    job = _job(status="running", stage="embedding", candidate_corpus_index_id=88)
+    candidate_index = SimpleNamespace(id=88, status="building")
+    captured = []
+
+    async def fake_get_job_by_id(job_id, session):
+        return job
+
+    async def fake_request_cancel(current_job, session):
+        current_job.cancel_requested = True
+        return current_job
+
+    async def fake_get_candidate_index_by_id(index_id, session):
+        return candidate_index
+
+    async def fake_mark_cancelled(current_job, session, detail=None):
+        current_job.status = "cancelled"
+        current_job.stage = "finished"
+        current_job.failure_detail = detail
+        return current_job
+
+    async def fake_mark_index_cancelled(index, reason, session):
+        captured.append((index.id, reason))
+        index.status = "cancelled"
+        return index
+
+    async def fake_read_job_detail(current_job, session):
+        return current_job
+
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "request_indexing_job_cancel", fake_request_cancel)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_id", fake_get_candidate_index_by_id)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_cancelled", fake_mark_cancelled)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "mark_corpus_index_cancelled", fake_mark_index_cancelled)
+    monkeypatch.setattr(indexing_jobs_service, "_read_job_detail", fake_read_job_detail)
+    monkeypatch.setattr(indexing_jobs_service, "_cancel_live_indexing_task", lambda job_id: False)
+
+    result = await indexing_jobs_service.cancel_indexing_job_srvc(9, object())
+
+    assert result.status == "cancelled"
+    assert result.cancel_requested is True
+    assert captured == [(88, "Indexing job cancelled by user")]
+
+
+@pytest.mark.asyncio
+async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch):
+    job = _job(id=9, status="queued")
+    candidate_index = SimpleNamespace(id=88, status="building")
+
+    async def fake_get_job_by_id(job_id, session):
+        return job
+
+    async def fake_mark_running(current_job, session):
+        current_job.status = "running"
+        return current_job
+
+    async def fake_create_candidate(current_job, session):
+        return candidate_index
+
+    async def fake_process_documents(current_job, current_candidate, session):
+        raise asyncio.CancelledError()
+
+    async def fake_fail(*args, **kwargs):
+        raise AssertionError("failure path should not be used for cancellation")
+
+    async def fake_cancel_job(current_job, session, detail=None):
+        current_job.status = "cancelled"
+        current_job.stage = "finished"
+        current_job.failure_detail = detail
+        return current_job
+
+    async def fake_cancel_index(index, reason, session):
+        index.status = "cancelled"
+        return index
+
+    async def fake_read_job_detail(current_job, session):
+        return current_job
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def add(self, instance):
+            return None
+
+        async def commit(self):
+            return None
+
+        async def refresh(self, instance):
+            return None
+
+        async def rollback(self):
+            return None
+
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_running", fake_mark_running)
+    monkeypatch.setattr(indexing_jobs_service, "_create_candidate_index", fake_create_candidate)
+    monkeypatch.setattr(indexing_jobs_service, "_process_documents", fake_process_documents)
+    monkeypatch.setattr(indexing_jobs_service, "_fail_job_and_candidate", fake_fail)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_cancelled", fake_cancel_job)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "mark_corpus_index_cancelled", fake_cancel_index)
+    monkeypatch.setattr(indexing_jobs_service, "_read_job_detail", fake_read_job_detail)
+    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", lambda: FakeSession())
+
+    result = await indexing_jobs_service.run_indexing_job_srvc(job_id=9)
+
+    assert result.status == "cancelled"

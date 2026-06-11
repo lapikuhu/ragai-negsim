@@ -30,6 +30,7 @@ class IndexingJobRead(IndexingJobBase):
     id: int
     status: str
     stage: str
+    cancel_requested: bool = False
     current_raw_document_id: int | None = None
     current_document_name: str | None = None
     total_documents: int
