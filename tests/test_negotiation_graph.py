@@ -257,6 +257,65 @@ def test_low_confidence_end_continues():
     assert result["phase"] != "ended"
 
 
+def test_acceptance_language_does_not_end_simulation():
+    trace = []
+    state = {
+        **base_state(),
+        "messages": [
+            {
+                "role": "user",
+                "content": "OK. I agree to your terms.",
+                "side": "side_b",
+            }
+        ],
+    }
+    graph = build_stubbed_negotiation_graph(
+        trace=trace,
+        classifier={
+            "intent": "continue",
+            "confidence": "high",
+            "reasoning": "Agreement on terms is not a stop request.",
+        },
+    )
+
+    result = graph.invoke(state)
+
+    assert trace == ["classifier", "counterpart", "evaluator:rolling", "coach"]
+    assert result["phase"] != "ended"
+    assert result["terminal_reason"] is None
+
+
+def test_high_confidence_end_routes_to_final_evaluation():
+    trace = []
+    graph = build_stubbed_negotiation_graph(
+        trace=trace,
+        classifier={
+            "intent": "end",
+            "confidence": "high",
+            "reasoning": "The student explicitly asked to end the simulation.",
+        },
+    )
+
+    result = graph.invoke(
+        {
+            **base_state(),
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Please end the simulation now.",
+                    "side": "side_b",
+                }
+            ],
+        }
+    )
+
+    assert trace == ["classifier", "evaluator:final"]
+    assert result["phase"] == "ended"
+    assert result["terminal_reason"] == "classified_intent"
+    assert result["intent_classification"]["intent"] == "end"
+    assert "orchestrator:terminal reason=classified_intent" in result["event_log"]
+
+
 def test_turn_limit_runs_final_evaluator_before_another_counterpart():
     trace = []
     graph = build_stubbed_negotiation_graph(trace=trace)

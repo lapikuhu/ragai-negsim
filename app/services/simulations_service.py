@@ -65,6 +65,7 @@ PUBLIC_GRAPH_STATE_FIELDS = (
     "should_pause",
     "pause_reason",
     "terminal_reason",
+    "intent_classification",
 )
 
 

@@ -336,12 +336,22 @@ def node_prepare_final_evaluation(state: NegotiationGraphState) -> dict:
     else:
         reason = "classified_intent"
 
+    classification = state.get("intent_classification") or {}
+    base_event = f"orchestrator:terminal reason={reason}"
+    event = base_event
+    if classification:
+        event = (
+            f"{base_event} "
+            f"intent={classification.get('intent')} "
+            f"confidence={classification.get('confidence')}"
+        )
+
     return {
         "evaluation_mode": "final",
         "terminal_reason": reason,
         "should_pause": False,
         "pause_reason": "",
-        "event_log": [f"orchestrator:terminal reason={reason}"],
+        "event_log": [base_event, event] if event != base_event else [base_event],
     }
 
 

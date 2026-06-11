@@ -2,6 +2,10 @@ from app.airag.chains.agents.intent_classifier.intent_classifier import (
     make_intent_classifier_graph,
     make_intent_classifier_node,
 )
+from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
+    latest_user_message,
+    render_intent_prompt,
+)
 
 
 class StructuredModel:
@@ -56,6 +60,59 @@ def test_classifier_failure_defaults_to_continue():
         "reasoning": "Intent classification failed; continue safely.",
     }
     assert "intent_classifier:fallback_continue" in result["event_log"]
+
+
+def test_classifier_acceptance_language_stays_continue():
+    graph = make_intent_classifier_graph(
+        model=StructuredModel(
+            {
+                "intent": "continue",
+                "confidence": "high",
+                "reasoning": "The student is accepting terms, not ending the simulation.",
+            }
+        )
+    )
+
+    result = graph.invoke(
+        {
+            "messages": [
+                {"role": "user", "content": "OK. I agree to your terms."}
+            ]
+        }
+    )
+
+    assert result["intent_classification"]["intent"] == "continue"
+    assert result["intent_classification"]["confidence"] == "high"
+
+
+def test_latest_user_message_supports_message_objects():
+    class MessageObject:
+        type = "human"
+        content = "That works for me."
+
+    state = {
+        "messages": [
+            {"role": "assistant", "content": "Can you accept this package?"},
+            MessageObject(),
+        ]
+    }
+
+    assert latest_user_message(state) == "That works for me."
+
+
+def test_render_intent_prompt_uses_latest_user_message_only():
+    prompt = render_intent_prompt(
+        {
+            "messages": [
+                {"role": "user", "content": "Earlier offer."},
+                {"role": "assistant", "content": "Can you confirm?"},
+                {"role": "human", "content": "Let's do it."},
+            ]
+        }
+    )
+
+    assert "Let's do it." in prompt
+    assert "Earlier offer." not in prompt
 
 
 def test_intent_wrapper_passes_only_latest_student_message():

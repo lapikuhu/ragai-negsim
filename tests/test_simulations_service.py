@@ -154,6 +154,20 @@ def test_public_graph_state_includes_final_evaluation_only_after_end():
     assert ended["final_evaluation"]["reasoning"] == "FINAL DEBRIEF"
 
 
+def test_public_graph_state_includes_intent_classification_when_present():
+    internal = _internal_state_with_secrets()
+    internal["intent_classification"] = {
+        "intent": "continue",
+        "confidence": "high",
+        "reasoning": "Agreement language is not a stop request.",
+    }
+
+    public = simulations_service._public_graph_state(internal)
+
+    assert public["intent_classification"]["intent"] == "continue"
+    assert "event_log" not in public
+
+
 def _patch_runtime_context_repositories(
     monkeypatch,
     *,
@@ -873,6 +887,74 @@ async def test_submit_end_action_returns_final_evaluation(monkeypatch):
     assert result.status == "completed"
     assert result.should_pause is False
     assert result.final_evaluation["overall_score"] == 0.8
+
+
+@pytest.mark.asyncio
+async def test_submit_turn_without_structured_end_cannot_report_student_request(monkeypatch):
+    simulation = _simulation(
+        status="active",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+    captured_state = []
+
+    class FakeGraph:
+        def invoke(self, state):
+            captured_state.append(state)
+            return {
+                **state,
+                "phase": "ended",
+                "should_pause": False,
+                "pause_reason": "",
+                "terminal_reason": "classified_intent",
+                "intent_classification": {
+                    "intent": "end",
+                    "confidence": "high",
+                    "reasoning": "Explicit stop request.",
+                },
+                "final_evaluation": {
+                    "evaluated_side": "side_a",
+                    "overall_score": 0.5,
+                    "reasoning": "Ended on request.",
+                    "confidence": "medium",
+                },
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+
+    result = await simulations_service.submit_simulation_turn_srvc(
+        simulation,
+        SimulationTurnRequest(message="Please end the simulation now."),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert "requested_action" not in captured_state[0]
+    assert result.status == "completed"
+    assert simulation.negotiation_state["data"]["terminal_reason"] == "classified_intent"
 
 
 @pytest.mark.asyncio
