@@ -120,11 +120,14 @@ export function useActiveIndexingJobQuery() {
   });
 }
 
-export function useIndexingJobDetailQuery(jobId: number | null, isActivePolling: boolean) {
+export function useIndexingJobDetailQuery(jobId: number | null) {
   return useQuery({
     queryKey: jobId ? indexingKeys.detail(jobId) : [...indexingKeys.detail(0), "disabled"],
     queryFn: () => getIndexingJobDetail(jobId as number),
     enabled: jobId !== null,
-    refetchInterval: isActivePolling ? 2000 : false
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "queued" || status === "running" ? 2000 : false;
+    }
   });
 }

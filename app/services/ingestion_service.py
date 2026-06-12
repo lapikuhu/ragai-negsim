@@ -1,5 +1,7 @@
+import asyncio
+from inspect import isawaitable
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Protocol
 
 from app.services.helpers import _persisted_id
 from app.services.chunking_profile_runtime import resolve_ingestion_profile_options
@@ -37,51 +39,56 @@ class ResolvedIngestionOptionsLike(Protocol):
     chunker: str
 
 
-def _parse_raw_document(
+def _convert_raw_document_to_markdown(
     path: str,
     options: ResolvedIngestionOptionsLike,
-    embeddings: "Embeddings | None" = None,
-) -> tuple[str, list]:
-    """
-    Processes the raw document at the given path using the specified options. 
-    Currently supports PDF documents with recursive, semantic, or hybrid chunking.
-    Args:
-        path (str): The file path to the raw document to be ingested.
-        options (IngestionOptionsLike): An object containing ingestion 
-            options such as header depth, chunk size, and chunker type.
-    Returns:
-        List[DocumentChunkCreate]: A list of DocumentChunkCreate objects 
-        representing the parsed chunks of the document.
-    """
-    from app.airag.chunking.chunkers import (
-        chunk_document_list_hybrid,
-        chunk_document_list_recursive,
-        chunk_document_list_semantic,
-    )
-    from app.airag.ingestion.ingestion import clean_markdown, split_md_on_headers
+) -> str:
+    """Convert a supported raw document into markdown text."""
     from app.airag.ingestion.loaders import convert_to_markdown, ingest_single_pdf
 
     raw_document_path = Path(path)
     if raw_document_path.suffix.lower() != ".pdf":
         raise ValueError("Only PDF raw document ingestion is currently supported")
 
+    docling_document = ingest_single_pdf(raw_document_path)
+    return convert_to_markdown(docling_document)
+
+
+def _clean_raw_markdown(markdown: str, source_path: str) -> tuple[str, Any]:
+    """Generate stored markdown and chunking input from converted markdown."""
+    from app.airag.ingestion.ingestion import clean_markdown
+
+    cleaned_markdown = clean_markdown(
+        markdown,
+        convert_to_langDoc=False,
+        source=source_path,
+    )
+    cleaned_document = clean_markdown(
+        markdown,
+        convert_to_langDoc=True,
+        source=source_path,
+    )
+    return cleaned_markdown, cleaned_document
+
+
+def _chunk_cleaned_document(
+    cleaned_document: Any,
+    options: ResolvedIngestionOptionsLike,
+    embeddings: "Embeddings | None" = None,
+) -> list:
+    """Split cleaned content into chunks using the configured strategy."""
+    from app.airag.chunking.chunkers import (
+        chunk_document_list_hybrid,
+        chunk_document_list_recursive,
+        chunk_document_list_semantic,
+    )
+    from app.airag.ingestion.ingestion import split_md_on_headers
+
     if options.chunker == "semantic" and embeddings is None:
         raise ValueError("Semantic chunking requires an embedding model")
     if options.chunker == "hybrid" and embeddings is None:
         raise ValueError("Hybrid chunking requires an embedding model")
 
-    docling_document = ingest_single_pdf(raw_document_path)
-    markdown = convert_to_markdown(docling_document)
-    cleaned_markdown = clean_markdown(
-        markdown,
-        convert_to_langDoc=False,
-        source=str(raw_document_path),
-    )
-    cleaned_document = clean_markdown(
-        markdown,
-        convert_to_langDoc=True,
-        source=str(raw_document_path),
-    )
     sections = split_md_on_headers(
         cleaned_document,
         header_depth=options.header_depth,
@@ -116,7 +123,18 @@ def _parse_raw_document(
     else:
         raise ValueError(f"Unsupported chunking strategy: {options.chunker}")
 
-    return (cleaned_markdown, chunks)
+    return chunks
+
+
+async def _report_progress(
+    progress_callback: Callable[[str], Any] | None,
+    stage: str,
+) -> None:
+    if progress_callback is None:
+        return
+    maybe_awaitable = progress_callback(stage)
+    if isawaitable(maybe_awaitable):
+        await maybe_awaitable
 
 
 async def ingest_raw_document_srvc(
@@ -126,6 +144,7 @@ async def ingest_raw_document_srvc(
     options: IngestionExecutionOptionsLike,
     indexing_job_id: int | None = None,
     embeddings: "Embeddings | None" = None,
+    progress_callback: Callable[[str], Any] | None = None,
 ) -> RawDocumentIngestResult:
     """
     Ingests a raw document using the specified chunking profile and ingestion 
@@ -155,17 +174,25 @@ async def ingest_raw_document_srvc(
             f"Raw document source is {raw_document.source_status}. Restore or re-upload the stored file before ingesting."
         )
 
-    if embeddings is None:
-        parsed_content, parsed_chunks = _parse_raw_document(
-            raw_document.source_path,
-            resolved_options,
-        )
-    else:
-        parsed_content, parsed_chunks = _parse_raw_document(
-            raw_document.source_path,
-            resolved_options,
-            embeddings=embeddings,
-        )
+    await _report_progress(progress_callback, "converting")
+    markdown = await asyncio.to_thread(
+        _convert_raw_document_to_markdown,
+        raw_document.source_path,
+        resolved_options,
+    )
+    await _report_progress(progress_callback, "cleaning")
+    parsed_content, cleaned_document = await asyncio.to_thread(
+        _clean_raw_markdown,
+        markdown,
+        raw_document.source_path,
+    )
+    await _report_progress(progress_callback, "chunking")
+    parsed_chunks = await asyncio.to_thread(
+        _chunk_cleaned_document,
+        cleaned_document,
+        resolved_options,
+        embeddings,
+    )
     await raw_documents_repo.update_raw_document_parsed_content(
         raw_document=raw_document,
         parsed_content=parsed_content,

@@ -11,6 +11,7 @@ from app.schemas.indexing_jobs_schemas import IndexingJobCreate
 
 ACTIVE_INDEXING_JOB_STATUSES = {"queued", "running"}
 TERMINAL_INDEXING_JOB_STATUSES = {"completed", "completed_with_warnings", "failed", "cancelled"}
+_UNSET = object()
 
 
 async def get_indexing_job_by_id(
@@ -168,8 +169,8 @@ async def update_indexing_job_progress(
     session: AsyncSession,
     *,
     stage: str | None = None,
-    current_raw_document_id: int | None = None,
-    current_document_name: str | None = None,
+    current_raw_document_id: int | None | object = _UNSET,
+    current_document_name: str | None | object = _UNSET,
     total_documents: int | None = None,
     processed_documents: int | None = None,
     chunks_created: int | None = None,
@@ -194,9 +195,9 @@ async def update_indexing_job_progress(
     """
     if stage is not None:
         job.stage = stage
-    if current_raw_document_id is not None:
+    if current_raw_document_id is not _UNSET:
         job.current_raw_document_id = current_raw_document_id
-    if current_document_name is not None:
+    if current_document_name is not _UNSET:
         job.current_document_name = current_document_name
     if total_documents is not None:
         job.total_documents = total_documents

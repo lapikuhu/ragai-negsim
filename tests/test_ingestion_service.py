@@ -35,12 +35,22 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
     captured_chunks = []
     captured_parsed_content = []
 
-    def fake_parse(path, received_options):
+    def fake_convert(path, received_options):
         assert path == "sample.pdf"
         assert received_options.chunker == "recursive"
         assert received_options.chunk_size == 444
         assert received_options.chunk_overlap == 55
-        return "stored markdown", parsed_chunks
+        return "raw markdown"
+
+    def fake_clean(markdown, source_path):
+        assert markdown == "raw markdown"
+        assert source_path == "sample.pdf"
+        return "stored markdown", "cleaned document"
+
+    def fake_chunk(cleaned_document, received_options, embeddings):
+        assert cleaned_document == "cleaned document"
+        assert embeddings is None
+        return parsed_chunks
 
     async def fake_update_parsed_content(raw_document, parsed_content, session):
         captured_parsed_content.append(parsed_content)
@@ -54,7 +64,9 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
             SimpleNamespace(id=102),
         ]
 
-    monkeypatch.setattr(ingestion_service, "_parse_raw_document", fake_parse)
+    monkeypatch.setattr(ingestion_service, "_convert_raw_document_to_markdown", fake_convert)
+    monkeypatch.setattr(ingestion_service, "_clean_raw_markdown", fake_clean)
+    monkeypatch.setattr(ingestion_service, "_chunk_cleaned_document", fake_chunk)
     async def fake_verify_raw_document_source(raw_document, session):
         return raw_document
 
@@ -114,8 +126,18 @@ async def test_ingest_raw_document_sets_indexing_job_id_on_created_chunks(monkey
 
     monkeypatch.setattr(
         ingestion_service,
-        "_parse_raw_document",
-        lambda path, options: ("stored markdown", [SimpleNamespace(page_content="chunk", metadata={})]),
+        "_convert_raw_document_to_markdown",
+        lambda path, options: "raw markdown",
+    )
+    monkeypatch.setattr(
+        ingestion_service,
+        "_clean_raw_markdown",
+        lambda markdown, source_path: ("stored markdown", "cleaned document"),
+    )
+    monkeypatch.setattr(
+        ingestion_service,
+        "_chunk_cleaned_document",
+        lambda cleaned_document, options, embeddings: [SimpleNamespace(page_content="chunk", metadata={})],
     )
 
     async def fake_verify_raw_document_source(raw_document, session):
@@ -287,6 +309,16 @@ async def test_ingest_raw_document_rejects_semantic_profile():
         "verify_raw_document_source_srvc",
         fake_verify_raw_document_source,
     )
+    monkeypatch.setattr(
+        ingestion_service,
+        "_convert_raw_document_to_markdown",
+        lambda path, options: "raw markdown",
+    )
+    monkeypatch.setattr(
+        ingestion_service,
+        "_clean_raw_markdown",
+        lambda markdown, source_path: ("stored markdown", "cleaned document"),
+    )
 
     with pytest.raises(ValueError, match="requires an embedding model"):
         await ingestion_service.ingest_raw_document_srvc(
@@ -325,13 +357,18 @@ async def test_ingest_raw_document_passes_embeddings_to_semantic_chunking(monkey
     embeddings = object()
     captured_chunks = []
 
-    def fake_parse(path, received_options, embeddings=None):
-        assert path == "sample.pdf"
+    def fake_convert(path, received_options):
+        return "raw markdown"
+
+    def fake_clean(markdown, source_path):
+        return "stored markdown", "cleaned document"
+
+    def fake_chunk(cleaned_document, received_options, embeddings=None):
         assert received_options.chunker == "semantic"
         assert received_options.breakpoint_threshold_amount == 88
         assert received_options.buffer_size == 2
         assert embeddings is not None
-        return "stored markdown", [SimpleNamespace(page_content="semantic chunk", metadata={"section": "intro"})]
+        return [SimpleNamespace(page_content="semantic chunk", metadata={"section": "intro"})]
 
     async def fake_verify_raw_document_source(raw_document, session):
         return raw_document
@@ -343,7 +380,9 @@ async def test_ingest_raw_document_passes_embeddings_to_semantic_chunking(monkey
         captured_chunks.extend(chunks_in)
         return [SimpleNamespace(id=101)]
 
-    monkeypatch.setattr(ingestion_service, "_parse_raw_document", fake_parse)
+    monkeypatch.setattr(ingestion_service, "_convert_raw_document_to_markdown", fake_convert)
+    monkeypatch.setattr(ingestion_service, "_clean_raw_markdown", fake_clean)
+    monkeypatch.setattr(ingestion_service, "_chunk_cleaned_document", fake_chunk)
     monkeypatch.setattr(ingestion_service, "verify_raw_document_source_srvc", fake_verify_raw_document_source)
     monkeypatch.setattr(ingestion_service.raw_documents_repo, "update_raw_document_parsed_content", fake_update_parsed_content)
     monkeypatch.setattr(ingestion_service, "bulk_create_document_chunks", fake_bulk_create)
@@ -358,3 +397,71 @@ async def test_ingest_raw_document_passes_embeddings_to_semantic_chunking(monkey
 
     assert result.chunks_created == 1
     assert captured_chunks[0].content == "semantic chunk"
+
+
+@pytest.mark.asyncio
+async def test_ingest_raw_document_reports_progress_substages(monkeypatch):
+    raw_document = SimpleNamespace(
+        id=7,
+        name="sample",
+        source_path="sample.pdf",
+        source_hash="hash",
+        source_size=10,
+        source_mtime=None,
+        source_status="available",
+        parsed_content=None,
+        uploaded_by_user_id=1,
+    )
+    chunking_profile = SimpleNamespace(
+        id=3,
+        name="default",
+        strategy="recursive",
+        config={"chunk_size": 444, "chunk_overlap": 55, "separators": ["\n\n", "\n"]},
+    )
+    progress_events = []
+    thread_calls = []
+
+    async def fake_verify_raw_document_source(raw_document, session):
+        return raw_document
+
+    def fake_convert(path, resolved_options):
+        return "raw markdown"
+
+    def fake_clean(markdown, source_path):
+        return "stored markdown", "cleaned document"
+
+    def fake_chunk(cleaned_document, resolved_options, embeddings):
+        return [SimpleNamespace(page_content="chunk", metadata={})]
+
+    async def fake_to_thread(fn, *args, **kwargs):
+        thread_calls.append(fn.__name__)
+        return fn(*args, **kwargs)
+
+    async def fake_update_parsed_content(raw_document, parsed_content, session):
+        return raw_document
+
+    async def fake_bulk_create(chunks_in, session):
+        return [SimpleNamespace(id=101)]
+
+    monkeypatch.setattr(ingestion_service, "verify_raw_document_source_srvc", fake_verify_raw_document_source)
+    monkeypatch.setattr(ingestion_service, "_convert_raw_document_to_markdown", fake_convert, raising=False)
+    monkeypatch.setattr(ingestion_service, "_clean_raw_markdown", fake_clean, raising=False)
+    monkeypatch.setattr(ingestion_service, "_chunk_cleaned_document", fake_chunk, raising=False)
+    monkeypatch.setattr(ingestion_service, "asyncio", SimpleNamespace(to_thread=fake_to_thread), raising=False)
+    monkeypatch.setattr(ingestion_service.raw_documents_repo, "update_raw_document_parsed_content", fake_update_parsed_content)
+    monkeypatch.setattr(ingestion_service, "bulk_create_document_chunks", fake_bulk_create)
+
+    await ingestion_service.ingest_raw_document_srvc(
+        raw_document=raw_document,
+        chunking_profile=chunking_profile,
+        session=object(),
+        options=SimpleNamespace(header_depth=2, dynamic_header_depth=False),
+        progress_callback=progress_events.append,
+    )
+
+    assert progress_events == ["converting", "cleaning", "chunking"]
+    assert thread_calls == [
+        "fake_convert",
+        "fake_clean",
+        "fake_chunk",
+    ]

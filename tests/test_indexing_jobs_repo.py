@@ -110,3 +110,33 @@ async def test_list_document_chunks_for_job_filters_by_indexing_job():
     result = await document_chunks_repo.list_document_chunks_for_job(44, FakeSession())
 
     assert result == chunks
+
+
+@pytest.mark.asyncio
+async def test_update_indexing_job_progress_can_clear_current_document_fields(monkeypatch):
+    job = SimpleNamespace(
+        stage="chunking",
+        current_raw_document_id=7,
+        current_document_name="sample.pdf",
+        total_documents=2,
+        processed_documents=1,
+        chunks_created=4,
+        chunks_indexed=0,
+    )
+
+    async def fake_commit_and_refresh(session, updated_job):
+        return updated_job
+
+    monkeypatch.setattr(indexing_jobs_repo, "commit_and_refresh", fake_commit_and_refresh)
+
+    result = await indexing_jobs_repo.update_indexing_job_progress(
+        job,
+        object(),
+        stage="embedding",
+        current_raw_document_id=None,
+        current_document_name=None,
+    )
+
+    assert result.current_raw_document_id is None
+    assert result.current_document_name is None
+    assert result.stage == "embedding"

@@ -42,8 +42,8 @@ export function IndexingPage() {
   const models = useEmbeddingModelsQuery();
   const indices = useCorpusIndicesQuery();
   const activeJob = useActiveIndexingJobQuery();
-  const isActivePolling = activeJob.data?.status === "queued" || activeJob.data?.status === "running";
-  const jobs = useIndexingJobsQuery(isActivePolling);
+  const hasActiveJob = activeJob.data?.status === "queued" || activeJob.data?.status === "running";
+  const jobs = useIndexingJobsQuery(hasActiveJob);
   const createMutation = useCreateIndexingJobMutation();
   const cancelMutation = useCancelIndexingJobMutation();
 
@@ -56,8 +56,8 @@ export function IndexingPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
-  const selectedDetailId = selectedJobId ?? activeJob.data?.id ?? null;
-  const jobDetail = useIndexingJobDetailQuery(selectedDetailId, isActivePolling);
+  const selectedDetailId = activeJob.data?.id ?? selectedJobId ?? null;
+  const jobDetail = useIndexingJobDetailQuery(selectedDetailId);
 
   useEffect(() => {
     if (activeJob.data?.id) {
@@ -123,9 +123,12 @@ export function IndexingPage() {
     );
   }
 
-  const detail = jobDetail.data ?? activeJob.data ?? null;
+  const detail = activeJob.data ?? jobDetail.data ?? null;
   const warnings = detail?.warnings ?? [];
-  const canCancel = detail?.status === "queued" || detail?.status === "running";
+  const cancelRequested = detail ? getCancelRequested(detail) : false;
+  const canCancel = Boolean(detail) && (detail?.status === "queued" || detail?.status === "running") && !cancelRequested;
+  const progress = detail ? getProgressSnapshot(detail) : null;
+  const currentActivity = detail ? getCurrentActivityMessage(detail) : null;
 
   return (
     <div className="grid gap-6">
@@ -143,6 +146,10 @@ export function IndexingPage() {
         <p className="mt-2 text-sm text-amber-900">
           Cancelling an indexing job stops future work and leaves any partial build artifacts in place, but cancelled candidate
           indexes are not activated for normal use.
+        </p>
+        <p className="mt-2 text-sm text-amber-900">
+          A 100 page pdf takes about 4 to 5 minutes to index for a default recursive chunking profile with a small 
+          384-dimensional embedding model on a respectable 2024 laptop. Your mileage may vary. Be patient!
         </p>
       </Card>
 
@@ -271,8 +278,12 @@ export function IndexingPage() {
                 disabled={cancelMutation.isPending}
                 onClick={async () => {
                   try {
-                    await cancelMutation.mutateAsync(detail.id);
-                    setMessage(`Cancelled indexing job #${detail.id}. You can queue a new job now.`);
+                    const cancelled = await cancelMutation.mutateAsync(detail.id);
+                    if (cancelled.status === "cancelled") {
+                      setMessage(`Cancelled indexing job #${detail.id}. You can queue a new job now.`);
+                    } else {
+                      setMessage(`Cancellation requested for indexing job #${detail.id}. The current step will finish before the job stops.`);
+                    }
                   } catch (error) {
                     setMessage(getErrorMessage(error));
                   }
@@ -291,10 +302,15 @@ export function IndexingPage() {
                 </div>
                 <StatusBadge status={detail.status} />
               </div>
+              {cancelRequested && detail.status === "running" ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  Cancelling after the current step finishes.
+                </div>
+              ) : null}
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-xl bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stage</p>
-                  <p className="mt-2 text-lg font-semibold capitalize text-slate-950">{detail.stage.replaceAll("_", " ")}</p>
+                  <p className="mt-2 text-lg font-semibold capitalize text-slate-950">{formatStageLabel(detail.stage)}</p>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Elapsed</p>
@@ -315,9 +331,25 @@ export function IndexingPage() {
                   </p>
                 </div>
               </div>
+              {progress ? (
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-slate-900">{progress.label}</p>
+                    <p className="text-xs text-slate-500">
+                      {progress.current} / {progress.total}
+                    </p>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-slate-900 transition-[width] duration-300"
+                      style={{ width: `${Math.max(6, progress.percent)}%` }}
+                    />
+                  </div>
+                </div>
+              ) : null}
               <div className="rounded-xl border border-slate-200 p-4">
-                <p className="text-sm font-medium text-slate-900">Current document</p>
-                <p className="mt-2 text-sm text-slate-600">{detail.current_document_name ?? "No document is currently being processed."}</p>
+                <p className="text-sm font-medium text-slate-900">Current activity</p>
+                <p className="mt-2 text-sm text-slate-600">{currentActivity}</p>
               </div>
               {detail.failure_detail ? (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{detail.failure_detail}</div>
@@ -396,4 +428,72 @@ function getDimensionWarning(
     return `Embedding model dimensions (${selectedModel.dimensionality}) do not match vector store dimensions (${selectedVectorStore.embedding_dimensions}).`;
   }
   return null;
+}
+
+function formatStageLabel(stage: string) {
+  switch (stage) {
+    case "converting":
+      return "Converting to markdown";
+    case "cleaning":
+      return "Cleaning markdown";
+    case "chunking":
+      return "Chunking document";
+    case "embedding":
+      return "Embedding chunks";
+    case "finalizing":
+      return "Finalizing index";
+    default:
+      return stage.replaceAll("_", " ");
+  }
+}
+
+function getCurrentActivityMessage(detail: {
+  status: string;
+  stage: string;
+  current_document_name?: string | null;
+}) {
+  if (getCancelRequested(detail) && detail.status === "running") {
+    return "Cancellation requested. The current step will finish before the job stops.";
+  }
+  if (detail.stage === "embedding") {
+    return "All documents ingested. Embedding chunks now.";
+  }
+  if (detail.stage === "finalizing") {
+    return "Activating the candidate index and cleaning up replaced artifacts.";
+  }
+  if (detail.current_document_name) {
+    return detail.current_document_name;
+  }
+  return "Waiting for the next indexing step to start.";
+}
+
+function getCancelRequested(detail: object) {
+  return Boolean((detail as { cancel_requested?: boolean }).cancel_requested);
+}
+
+function getProgressSnapshot(detail: {
+  stage: string;
+  total_documents: number;
+  processed_documents: number;
+  chunks_created: number;
+  chunks_indexed: number;
+}) {
+  if (detail.stage === "embedding" && detail.chunks_created > 0) {
+    return buildProgressSnapshot("Chunks indexed", detail.chunks_indexed, detail.chunks_created);
+  }
+  if (detail.total_documents > 0) {
+    return buildProgressSnapshot("Documents ingested", detail.processed_documents, detail.total_documents);
+  }
+  return null;
+}
+
+function buildProgressSnapshot(label: string, current: number, total: number) {
+  const clampedCurrent = Math.min(Math.max(current, 0), total);
+  const percent = total > 0 ? Math.round((clampedCurrent / total) * 100) : 0;
+  return {
+    label,
+    current: clampedCurrent,
+    total,
+    percent,
+  };
 }

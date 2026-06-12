@@ -33,19 +33,15 @@ describe("indexingQueries polling", () => {
   });
 
   it("polls selected job detail every 2s only while an indexing job is active", () => {
-    useIndexingJobDetailQuery(12, true);
-    expect(vi.mocked(useQuery).mock.calls[0]?.[0]).toMatchObject({
-      enabled: true,
-      refetchInterval: 2000
-    });
-
-    vi.mocked(useQuery).mockClear();
-
-    useIndexingJobDetailQuery(12, false);
-    expect(vi.mocked(useQuery).mock.calls[0]?.[0]).toMatchObject({
-      enabled: true,
-      refetchInterval: false
-    });
+    useIndexingJobDetailQuery(12);
+    const options = vi.mocked(useQuery).mock.calls[0]?.[0] as {
+      enabled?: boolean;
+      refetchInterval?: (query: { state: { data: { status?: string } | null } }) => number | false;
+    };
+    expect(options.enabled).toBe(true);
+    expect(options.refetchInterval?.({ state: { data: { status: "running" } } })).toBe(2000);
+    expect(options.refetchInterval?.({ state: { data: { status: "completed" } } })).toBe(false);
+    expect(options.refetchInterval?.({ state: { data: null } })).toBe(false);
   });
 
   it("keeps the active job query self-governed by active statuses", () => {

@@ -216,8 +216,8 @@ async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_cancel_indexing_job_requests_cancel_and_marks_job_cancelled(monkeypatch):
-    job = _job(status="running", stage="embedding", candidate_corpus_index_id=88)
+async def test_cancel_queued_indexing_job_requests_cancel_and_marks_job_cancelled(monkeypatch):
+    job = _job(status="queued", stage="validating", candidate_corpus_index_id=88)
     candidate_index = SimpleNamespace(id=88, status="building")
     captured = []
 
@@ -326,3 +326,37 @@ async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch):
     result = await indexing_jobs_service.run_indexing_job_srvc(job_id=9)
 
     assert result.status == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_cancel_running_job_returns_cancellation_requested_state(monkeypatch):
+    job = _job(status="running", stage="cleaning", current_raw_document_id=12, current_document_name="policy.pdf")
+
+    async def fake_get_job_by_id(job_id, session):
+        return job
+
+    async def fake_request_cancel(current_job, session):
+        current_job.cancel_requested = True
+        return current_job
+
+    async def fake_read_job_detail(current_job, session):
+        return current_job
+
+    async def fake_mark_cancelled(*args, **kwargs):
+        raise AssertionError("running jobs should not be marked cancelled immediately")
+
+    cancel_calls = []
+
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "request_indexing_job_cancel", fake_request_cancel)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_cancelled", fake_mark_cancelled)
+    monkeypatch.setattr(indexing_jobs_service, "_read_job_detail", fake_read_job_detail)
+    monkeypatch.setattr(indexing_jobs_service, "_cancel_live_indexing_task", lambda job_id: cancel_calls.append(job_id) or True)
+
+    result = await indexing_jobs_service.cancel_indexing_job_srvc(9, object())
+
+    assert result.status == "running"
+    assert result.cancel_requested is True
+    assert result.stage == "cleaning"
+    assert result.current_document_name == "policy.pdf"
+    assert cancel_calls == []

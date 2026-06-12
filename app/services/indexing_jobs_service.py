@@ -417,7 +417,11 @@ async def cancel_indexing_job_srvc(job_id: int, session: AsyncSession) -> Indexi
     if job.status not in {"queued", "running"}:
         raise ValueError("Only queued or running indexing jobs can be cancelled")
 
-    await indexing_jobs_repo.request_indexing_job_cancel(job, session)
+    job = await indexing_jobs_repo.request_indexing_job_cancel(job, session)
+
+    if job.status == "running":
+        return await _read_job_detail(job, session)
+
     _cancel_live_indexing_task(job_id)
 
     candidate_index = None
@@ -517,14 +521,17 @@ async def _process_documents(
             )
             continue
 
-        await indexing_jobs_repo.update_indexing_job_progress(
-            job,
-            session,
-            stage="converting",
-            current_raw_document_id=raw_document_id,
-            current_document_name=raw_document.name,
-            processed_documents=processed_index - 1,
-        )
+        async def progress_callback(stage: str) -> None:
+            await _raise_if_cancel_requested(job, session)
+            await indexing_jobs_repo.update_indexing_job_progress(
+                job,
+                session,
+                stage=stage,
+                current_raw_document_id=raw_document_id,
+                current_document_name=raw_document.name,
+                processed_documents=processed_index - 1,
+            )
+
         try:
             ingest_result = await ingest_raw_document_srvc(
                 raw_document=raw_document,
@@ -537,6 +544,7 @@ async def _process_documents(
                 ),
                 indexing_job_id=job.id,
                 embeddings=chunking_embeddings,
+                progress_callback=progress_callback,
             )
         except Exception as exc:
             await indexing_jobs_repo.create_indexing_job_warning(
@@ -551,6 +559,7 @@ async def _process_documents(
             successful_documents += 1
             chunks_created += ingest_result.chunks_created
 
+        await _raise_if_cancel_requested(job, session)
         await indexing_jobs_repo.update_indexing_job_progress(
             job,
             session,
@@ -562,6 +571,15 @@ async def _process_documents(
         )
         await _raise_if_cancel_requested(job, session)
 
+    await indexing_jobs_repo.update_indexing_job_progress(
+        job,
+        session,
+        stage="embedding",
+        current_raw_document_id=None,
+        current_document_name=None,
+        processed_documents=len(raw_document_ids),
+        chunks_created=chunks_created,
+    )
     return DocumentBuildResult(
         successful_documents=successful_documents,
         chunks_created=chunks_created,
