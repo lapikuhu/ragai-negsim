@@ -18,6 +18,9 @@ from app.web.routes.simulations_route import router as simulations_router
 from app.web.routes.users_route import router as users_router
 from app.web.routes.vector_stores_route import router as vector_stores_router
 
+from app.core.logging import configure_logging
+from app.middleware.logging import RequestLoggingMiddleware
+
 @asynccontextmanager
 # async context manager for lifespan allows us to run async code during startup and shutdown
 async def lifespan(app: FastAPI):
@@ -32,9 +35,15 @@ async def lifespan(app: FastAPI):
 
     print("Shutting down application... [OK]")
 
+# Configure the logger before the app starts 
+# Handles only HTTP request logging, not the root logger.
+configure_logging()
+
 # Instantiate the FastAPI application with the lifespan handler
 app = FastAPI(title="Negotiation Simulator", lifespan=lifespan, tags=["app"])
 
+# Add middleware
+# CORS allows cross-origin requests from the frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ALLOW_ORIGINS,
@@ -42,6 +51,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# HTTP requests logging
+app.add_middleware(RequestLoggingMiddleware)
 
 # Register the routers
 app.include_router(users_router)
