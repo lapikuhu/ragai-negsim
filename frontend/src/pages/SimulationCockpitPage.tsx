@@ -19,6 +19,10 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { useAuth } from "@/app/AuthProvider";
 
+function hasVisibleEvaluation(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && Object.keys(value as Record<string, unknown>).length > 0;
+}
+
 export function SimulationCockpitPage() {
   const simulationId = Number(useParams().simulationId);
   const auth = useAuth();
@@ -29,6 +33,7 @@ export function SimulationCockpitPage() {
   const [maxTurnCount, setMaxTurnCount] = useState("12");
   const [reviewText, setReviewText] = useState("");
   const [latestTurn, setLatestTurn] = useState<SimulationTurnResponse | null>(null);
+  const [isEvaluationVisible, setIsEvaluationVisible] = useState(false);
 
   if (query.isLoading) {
     return <LoadingState label="Loading simulation..." />;
@@ -45,6 +50,17 @@ export function SimulationCockpitPage() {
   const canStart = simulation.status === "created";
   const canSendTurn = ["active", "paused"].includes(effectiveStatus) && !isTerminal;
   const canReview = auth.hasRole("teacher");
+  const persistedEvaluation = simulation.negotiation_state?.data?.final_evaluation;
+  const currentEvaluation = hasVisibleEvaluation(latestTurn?.final_evaluation)
+    ? latestTurn.final_evaluation
+    : hasVisibleEvaluation(persistedEvaluation)
+      ? persistedEvaluation
+      : null;
+  const canEvaluate = isTerminal && Boolean(currentEvaluation) && !isEvaluationVisible;
+  const evaluationUnavailableMessage =
+    isTerminal && !currentEvaluation
+      ? "Final evaluation is not available for this completed simulation."
+      : null;
 
   return (
     <div className="grid gap-6">
@@ -91,6 +107,15 @@ export function SimulationCockpitPage() {
             disabledMessage={
               isTerminal ? "This simulation has ended. No further turns can be sent." : null
             }
+            canEvaluate={canEvaluate}
+            evaluation={currentEvaluation}
+            isEvaluationVisible={isEvaluationVisible}
+            evaluationUnavailableMessage={evaluationUnavailableMessage}
+            onEvaluate={() => {
+              if (currentEvaluation) {
+                setIsEvaluationVisible(true);
+              }
+            }}
             onSubmit={async (message) => {
               const result = await turnMutation.mutateAsync({ message, current_offer: null });
               setLatestTurn(result);

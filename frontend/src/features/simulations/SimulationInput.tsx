@@ -1,15 +1,28 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field, Textarea } from "@/components/ui/Field";
+import { SimulationEvaluation } from "@/features/simulations/SimulationEvaluation";
+
+type EvaluationRecord = Record<string, unknown>;
 
 export function SimulationInput({
   disabled,
   disabledMessage,
-  onSubmit
+  onSubmit,
+  canEvaluate = false,
+  evaluation = null,
+  isEvaluationVisible = false,
+  onEvaluate,
+  evaluationUnavailableMessage
 }: {
   disabled?: boolean;
   disabledMessage?: string | null;
   onSubmit: (message: string) => Promise<void>;
+  canEvaluate?: boolean;
+  evaluation?: EvaluationRecord | null;
+  isEvaluationVisible?: boolean;
+  onEvaluate?: () => void;
+  evaluationUnavailableMessage?: string | null;
 }) {
   const [message, setMessage] = useState("");
 
@@ -34,11 +47,18 @@ export function SimulationInput({
         />
       </Field>
       {disabledMessage ? <p className="text-sm text-slate-600">{disabledMessage}</p> : null}
-      <div className="flex justify-end">
+      {evaluationUnavailableMessage ? (
+        <p className="text-sm text-slate-600">{evaluationUnavailableMessage}</p>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" disabled={!canEvaluate} onClick={onEvaluate}>
+          Evaluate
+        </Button>
         <Button type="submit" disabled={disabled || !message.trim()}>
           Send turn
         </Button>
       </div>
+      {isEvaluationVisible && evaluation ? <SimulationEvaluation evaluation={evaluation} /> : null}
     </form>
   );
 }

@@ -43,6 +43,31 @@ const completedSimulation: SimulationReadWithState = {
     current_phase: "ended",
     user_side: "side_a",
     data: {
+      phase: "ended",
+      final_evaluation: {
+        overall_score: 0.82,
+        goal_achievement: "Reached a workable agreement.",
+        strengths: ["Held firm on salary", "Kept the tone collaborative"],
+        mistakes: ["Conceded vacation days too early"],
+        concession_quality: "Measured and deliberate.",
+        communication_quality: "Clear and professional.",
+        outcome_quality: "Strong overall outcome.",
+        lessons: ["Anchor earlier next time"],
+        reasoning: "The student balanced assertiveness with flexibility.",
+        confidence: "high",
+        missing_information: ["Private reservation value was not explicit"]
+      }
+    }
+  }
+};
+
+const completedSimulationWithoutEvaluation: SimulationReadWithState = {
+  ...simulation,
+  status: "completed",
+  negotiation_state: {
+    current_phase: "ended",
+    user_side: "side_a",
+    data: {
       phase: "ended"
     }
   }
@@ -109,15 +134,38 @@ describe("SimulationCockpitPage", () => {
 
     expect(screen.getByLabelText("Your next turn")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send turn" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();
   });
 
-  it("disables the composer and shows ended messaging for completed simulations", () => {
+  it("enables evaluation for completed simulations with stored final evaluation", () => {
     queryState.simulation = completedSimulation;
     render(<SimulationCockpitPage />);
 
     expect(screen.getByLabelText("Your next turn")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send turn" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Evaluate" })).toBeEnabled();
     expect(screen.getByText("This simulation has ended. No further turns can be sent.")).toBeInTheDocument();
+  });
+
+  it("reveals the stored evaluation and disables evaluate after click", async () => {
+    queryState.simulation = completedSimulation;
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Evaluate" }));
+
+    expect(screen.getByText("Overall score: 0.82")).toBeInTheDocument();
+    expect(screen.getByText("Goal achievement: Reached a workable agreement.")).toBeInTheDocument();
+    expect(screen.getByText("Reasoning: The student balanced assertiveness with flexibility.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();
+  });
+
+  it("keeps evaluate disabled and explains when no stored evaluation exists", () => {
+    queryState.simulation = completedSimulationWithoutEvaluation;
+    render(<SimulationCockpitPage />);
+
+    expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();
+    expect(screen.getByText("Final evaluation is not available for this completed simulation.")).toBeInTheDocument();
   });
 
   it("locks the composer immediately after a terminal turn response", async () => {
@@ -146,8 +194,14 @@ describe("SimulationCockpitPage", () => {
       expect(screen.getByRole("button", { name: "Send turn" })).toBeDisabled();
     });
     expect(screen.getByLabelText("Your next turn")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Evaluate" })).toBeEnabled();
     expect(screen.getByText("This simulation has ended. No further turns can be sent.")).toBeInTheDocument();
     expect(screen.getByText("completed")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Evaluate" }));
+
+    expect(screen.getByText("Overall score: 0.9")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();
   });
 
   it("caps the inspector grid track while leaving the work area flexible", () => {
