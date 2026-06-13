@@ -17,6 +17,7 @@ import { PersonasPage } from "@/pages/PersonasPage";
 import { PromptsPage } from "@/pages/PromptsPage";
 import { ChunkingProfilesPage } from "@/pages/ChunkingProfilesPage";
 import { EvaluationsPage } from "@/pages/EvaluationsPage";
+import { EvaluationReviewPage } from "@/pages/EvaluationReviewPage";
 import { ModelsPage } from "@/pages/ModelsPage";
 import { IndexingPage } from "@/pages/IndexingPage";
 import { UsersPage } from "@/pages/UsersPage";
@@ -42,7 +43,6 @@ export const router = createBrowserRouter([
               { path: "documents/:documentId", element: <DocumentDetailPage /> },
               { path: "corpora", element: <CorporaPage /> },
               { path: "corpora/:corpusId", element: <CorpusDetailPage /> },
-              { path: "evaluations", element: <EvaluationsPage /> },
               { path: "settings", element: <SettingsPage /> }
             ]
           }
@@ -55,7 +55,9 @@ export const router = createBrowserRouter([
             element: <AppShell />,
             children: [
               { path: "scenarios", element: <ScenariosPage /> },
-              { path: "personas", element: <PersonasPage /> }
+              { path: "personas", element: <PersonasPage /> },
+              { path: "evaluations", element: <EvaluationsPage /> },
+              { path: "evaluations/:simulationId/review", element: <EvaluationReviewPage /> }
             ]
           }
         ]

@@ -138,8 +138,7 @@ vi.mock("@/features/simulations/simulationQueries", () => ({
   useStartSimulationMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useSimulationTurnMutation: () => ({ isPending: false, mutateAsync: queryState.turnMutateAsync }),
   useSimulationProxyTurnMutation: () => ({ isPending: false, mutateAsync: queryState.proxyTurnMutateAsync }),
-  useDisableSimulationProxyMutation: () => ({ isPending: false, mutateAsync: queryState.disableProxyMutateAsync }),
-  useReviewSimulationMutation: () => ({ isPending: false, mutateAsync: vi.fn() })
+  useDisableSimulationProxyMutation: () => ({ isPending: false, mutateAsync: queryState.disableProxyMutateAsync })
 }));
 
 describe("SimulationCockpitPage", () => {
@@ -340,5 +339,16 @@ describe("SimulationCockpitPage", () => {
     await waitFor(() => {
       expect(queryState.disableProxyMutateAsync).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("does not render the embedded teacher review form", () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
+    queryState.simulation = completedSimulation;
+
+    render(<SimulationCockpitPage />);
+
+    expect(screen.queryByText("Teacher review")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit review" })).not.toBeInTheDocument();
   });
 });

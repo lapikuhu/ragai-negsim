@@ -288,6 +288,116 @@ async def review_simulation(
     _set_last_updated(simulation)
     return await commit_and_refresh(session, simulation)
 
+
+async def update_review_simulation(
+    simulation: Simulation,
+    review_in: SimulationTeacherReview,
+    session: AsyncSession,
+) -> Simulation:
+    """
+    Update the review of an existing simulation.
+    Args:
+        simulation: The simulation to update.
+        review_in: The new review data.
+        session: The database session.
+    Returns:
+        The updated Simulation instance.
+    """
+    if not review_in.teacher_feedback or not review_in.teacher_feedback.strip():
+        raise ValueError("Teacher feedback is required")
+
+    simulation.teacher_feedback = review_in.teacher_feedback
+    simulation.reviewed_at = review_in.reviewed_at or utc_now()
+    _set_last_updated(simulation)
+    return await commit_and_refresh(session, simulation)
+
+
+async def delete_review_simulation(
+    simulation: Simulation,
+    session: AsyncSession,
+) -> Simulation:
+    """
+    Delete the review of an existing simulation.
+    Args:
+        simulation: The simulation to update.
+        session: The database session.
+    Returns:
+        The updated Simulation instance.
+    """
+    simulation.teacher_id = None
+    simulation.teacher_feedback = None
+    simulation.teacher_reviewed = False
+    simulation.reviewed_at = None
+    _set_last_updated(simulation)
+    return await commit_and_refresh(session, simulation)
+
+
+async def list_completed_simulations(
+    session: AsyncSession,
+    *,
+    skip: int = 0,
+    limit: int = 20,
+    teacher_id: int | None = None,
+) -> tuple[list[Simulation], bool]:
+    """
+    List completed simulations.
+    Args:
+        session: The database session.
+        skip: The number of simulations to skip.
+        limit: The maximum number of simulations to return.
+        teacher_id: The ID of the teacher to filter simulations by.
+    Returns:
+        A tuple containing a list of simulations and a boolean indicating if there are more simulations.
+    """
+    statement = (
+        select(Simulation)
+        .where(Simulation.status == "completed")
+        .order_by(Simulation.last_updated.desc(), Simulation.id.desc())
+        .offset(skip)
+        .limit(limit + 1)
+    )
+    result = await session.exec(statement)
+    rows = list(result.all())
+    has_more = len(rows) > limit
+    return rows[:limit], has_more
+
+
+async def list_reviewed_simulations(
+    session: AsyncSession,
+    *,
+    skip: int = 0,
+    limit: int = 20,
+    teacher_id: int | None = None,
+) -> tuple[list[Simulation], bool]:
+    """
+    List reviewed simulations.
+    Args:
+        session: The database session.
+        skip: The number of simulations to skip.
+        limit: The maximum number of simulations to return.
+        teacher_id: The ID of the teacher to filter simulations by.
+    Returns:
+        A tuple containing a list of simulations and a boolean indicating 
+        if there are more simulations.
+    """
+    statement = (
+        select(Simulation)
+        .where(Simulation.teacher_reviewed.is_(True))
+        .where(Simulation.teacher_feedback.is_not(None))
+    )
+    if teacher_id is not None:
+        statement = statement.where(Simulation.teacher_id == teacher_id)
+    statement = (
+        statement
+        .order_by(Simulation.reviewed_at.desc(), Simulation.id.desc())
+        .offset(skip)
+        .limit(limit + 1)
+    )
+    result = await session.exec(statement)
+    rows = list(result.all())
+    has_more = len(rows) > limit
+    return rows[:limit], has_more
+
 async def delete_simulation(
     simulation: Simulation,
     session: AsyncSession,

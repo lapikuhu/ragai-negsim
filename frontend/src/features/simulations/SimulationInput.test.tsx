@@ -131,11 +131,11 @@ describe("SimulationInput", () => {
 
   it("closes the proxy dialog immediately after confirm while the submit is still pending", async () => {
     const user = userEvent.setup();
-    let resolveSubmit: (() => void) | null = null;
+    const pendingSubmit: { resolve?: () => void } = {};
     const onProxySubmit = vi.fn(
       () =>
         new Promise<void>((resolve) => {
-          resolveSubmit = resolve;
+          pendingSubmit.resolve = resolve;
         })
     );
 
@@ -157,6 +157,6 @@ describe("SimulationInput", () => {
     expect(onProxySubmit).toHaveBeenCalledWith({ personaId: null, duration: "this_turn" });
     expect(screen.queryByRole("dialog", { name: "Use Proxy" })).not.toBeInTheDocument();
 
-    resolveSubmit?.();
+    pendingSubmit.resolve?.();
   });
 });

@@ -698,10 +698,45 @@ async def get_accessible_simulation(
 
 AccessibleSimulationDep = Annotated[Simulation, Depends(get_accessible_simulation)]
 
+
+async def get_completed_accessible_simulation(
+    simulation: SimulationDep,
+    current_user: TeacherOrAdminDep,
+) -> Simulation:
+    if simulation.status != "completed":
+        raise HTTPException(status_code=403, detail="Completed simulation access required")
+    return simulation
+
+
+CompletedAccessibleSimulationDep = Annotated[
+    Simulation,
+    Depends(get_completed_accessible_simulation),
+]
+
+
+async def get_readable_simulation(
+    simulation: SimulationDep,
+    current_user: CurrentUserDep,
+    session: SessionDep,
+) -> Simulation:
+    if simulation.status == "completed":
+        if await user_has_role(current_user, "teacher", session) or await user_has_role(current_user, "admin", session):
+            return simulation
+    return await get_accessible_simulation(simulation, current_user, session)
+
+
+ReadableSimulationDep = Annotated[
+    Simulation,
+    Depends(get_readable_simulation),
+]
+
+
 def get_teacher_review_simulation(
     simulation: SimulationDep,
-    _teacher: TeacherDep,
+    _reviewer: TeacherOrAdminDep,
 ) -> Simulation:
+    if simulation.status != "completed":
+        raise HTTPException(status_code=409, detail="Only completed simulations can be reviewed")
     return simulation
 
 

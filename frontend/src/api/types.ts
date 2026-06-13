@@ -7,6 +7,16 @@ export type UserRead = components["schemas"]["UserRead"];
 export type Token = components["schemas"]["Token"];
 export type SimulationRead = components["schemas"]["SimulationRead"];
 export type SimulationReadWithState = components["schemas"]["SimulationReadWithState"];
+export type SimulationEvaluationListItem = SimulationRead & {
+  scenario_name?: string | null;
+  participant_user_id: number;
+};
+export type SimulationEvaluationListResponse = {
+  items: SimulationEvaluationListItem[];
+  skip: number;
+  limit: number;
+  has_more: boolean;
+};
 export type SimulationTurnResponse = components["schemas"]["SimulationTurnResponse"];
 export type SimulationProxyTurnRequest = {
   persona_id: number | null;

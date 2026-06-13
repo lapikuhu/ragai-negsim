@@ -182,6 +182,18 @@ class SimulationTeacherReviewRequest(SQLModel):
     teacher_feedback: str = Field(min_length=1)
 
 
+class SimulationEvaluationListItem(SimulationRead):
+    scenario_name: str | None = None
+    participant_user_id: int
+
+
+class SimulationEvaluationListResponse(SQLModel):
+    items: list[SimulationEvaluationListItem] = Field(default_factory=list)
+    skip: int = 0
+    limit: int = 20
+    has_more: bool = False
+
+
 class SimulationReadWithIds(SimulationRead):
     # Mostly redundant because SimulationRead already exposes foreign keys,
     # but useful if you want an explicit relationship-summary convention.

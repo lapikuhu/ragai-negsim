@@ -7,7 +7,6 @@ import type {
 } from "@/api/types";
 import {
   useDisableSimulationProxyMutation,
-  useReviewSimulationMutation,
   useSimulationDetailQuery,
   useSimulationProxyTurnMutation,
   useSimulationTurnMutation,
@@ -22,8 +21,7 @@ import { SimulationInspector } from "@/features/simulations/SimulationInspector"
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Field, Input, Textarea } from "@/components/ui/Field";
-import { useAuth } from "@/app/AuthProvider";
+import { Field, Input } from "@/components/ui/Field";
 import { usePersonasQuery } from "@/features/counterpartPersonas/personaQueries";
 
 function hasVisibleEvaluation(value: unknown): value is Record<string, unknown> {
@@ -36,16 +34,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function SimulationCockpitPage() {
   const simulationId = Number(useParams().simulationId);
-  const auth = useAuth();
   const query = useSimulationDetailQuery(simulationId);
   const personasQuery = usePersonasQuery();
   const startMutation = useStartSimulationMutation(simulationId);
   const turnMutation = useSimulationTurnMutation(simulationId);
   const proxyTurnMutation = useSimulationProxyTurnMutation(simulationId);
   const disableProxyMutation = useDisableSimulationProxyMutation(simulationId);
-  const reviewMutation = useReviewSimulationMutation(simulationId);
   const [maxTurnCount, setMaxTurnCount] = useState("12");
-  const [reviewText, setReviewText] = useState("");
   const [latestTurn, setLatestTurn] = useState<SimulationTurnResponse | SimulationProxyTurnResponse | null>(null);
   const [isEvaluationVisible, setIsEvaluationVisible] = useState(false);
   const [proxyOverride, setProxyOverride] = useState<{ active: boolean; personaId: number | null; personaName: string | null } | null>(null);
@@ -70,7 +65,6 @@ export function SimulationCockpitPage() {
         : null
   };
   const canSendTurn = ["active", "paused"].includes(effectiveStatus) && !isTerminal && !effectiveProxyState.active;
-  const canReview = auth.hasRole("teacher");
   const persistedEvaluation = simulation?.negotiation_state?.data?.final_evaluation;
   const currentEvaluation = hasVisibleEvaluation(latestTurn?.final_evaluation)
     ? latestTurn.final_evaluation
@@ -234,29 +228,6 @@ export function SimulationCockpitPage() {
               setLatestTurn(result);
             }}
           />
-
-          {canReview ? (
-            <Card>
-              <h2 className="text-lg font-semibold text-slate-950">Teacher review</h2>
-              <form
-                className="mt-4 grid gap-3"
-                onSubmit={async (event) => {
-                  event.preventDefault();
-                  await reviewMutation.mutateAsync({ teacher_feedback: reviewText });
-                  setReviewText("");
-                }}
-              >
-                <Field label="Feedback">
-                  <Textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} />
-                </Field>
-                <div>
-                  <Button type="submit" disabled={reviewMutation.isPending || !reviewText.trim()}>
-                    {reviewMutation.isPending ? "Submitting..." : "Submit review"}
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          ) : null}
         </div>
 
         <SimulationInspector simulation={simulation} latestTurn={latestTurn ?? null} />

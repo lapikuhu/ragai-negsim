@@ -3,6 +3,7 @@ import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
 import type {
   ApiComponents,
+  SimulationEvaluationListResponse,
   SimulationProxyDisableResponse,
   SimulationProxyTurnRequest,
   SimulationProxyTurnResponse,
@@ -18,7 +19,9 @@ type SimulationTeacherReviewRequest = ApiComponents["schemas"]["SimulationTeache
 
 export const simulationKeys = {
   all: ["simulations"] as const,
+  completed: (skip: number, limit: number) => ["simulations", "completed", skip, limit] as const,
   detail: (simulationId: number) => ["simulations", simulationId] as const,
+  reviewed: (skip: number, limit: number) => ["simulations", "reviewed", skip, limit] as const,
   state: (simulationId: number) => ["simulations", simulationId, "state"] as const
 };
 
@@ -39,6 +42,22 @@ export async function getSimulationState(simulationId: number) {
     params: { path: { simulation_id: simulationId } }
   });
   return unwrapResult<SimulationReadWithState>(result, "Unable to load simulation state");
+}
+
+async function listReviewedSimulations(skip: number, limit: number) {
+  return jsonRequest<SimulationEvaluationListResponse>(
+    `/simulations/reviews?skip=${skip}&limit=${limit}`,
+    { method: "GET" },
+    "Unable to load reviews"
+  );
+}
+
+async function listCompletedSimulations(skip: number, limit: number) {
+  return jsonRequest<SimulationEvaluationListResponse>(
+    `/simulations/completed?skip=${skip}&limit=${limit}`,
+    { method: "GET" },
+    "Unable to load completed simulations"
+  );
 }
 
 async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
@@ -122,8 +141,43 @@ async function reviewSimulation(simulationId: number, input: SimulationTeacherRe
   );
 }
 
+async function updateReviewSimulation(simulationId: number, input: SimulationTeacherReviewRequest) {
+  return jsonRequest<SimulationRead>(
+    `/simulations/${simulationId}/review`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    "Unable to update review"
+  );
+}
+
+async function deleteReviewSimulation(simulationId: number) {
+  await jsonRequest<null>(
+    `/simulations/${simulationId}/review`,
+    {
+      method: "DELETE"
+    },
+    "Unable to delete review"
+  );
+}
+
 export function useSimulationsQuery() {
   return useQuery({ queryKey: simulationKeys.all, queryFn: listSimulations });
+}
+
+export function useReviewedSimulationsQuery(skip: number, limit: number) {
+  return useQuery({
+    queryKey: simulationKeys.reviewed(skip, limit),
+    queryFn: () => listReviewedSimulations(skip, limit)
+  });
+}
+
+export function useCompletedSimulationsQuery(skip: number, limit: number) {
+  return useQuery({
+    queryKey: simulationKeys.completed(skip, limit),
+    queryFn: () => listCompletedSimulations(skip, limit)
+  });
 }
 
 export function useSimulationDetailQuery(simulationId: number) {
@@ -146,6 +200,8 @@ function useInvalidateSimulation() {
   const queryClient = useQueryClient();
   return async (simulationId?: number) => {
     await queryClient.invalidateQueries({ queryKey: simulationKeys.all });
+    await queryClient.invalidateQueries({ queryKey: ["simulations", "completed"] });
+    await queryClient.invalidateQueries({ queryKey: ["simulations", "reviewed"] });
     if (typeof simulationId === "number") {
       await queryClient.invalidateQueries({ queryKey: simulationKeys.detail(simulationId) });
       await queryClient.invalidateQueries({ queryKey: simulationKeys.state(simulationId) });
@@ -198,5 +254,21 @@ export function useReviewSimulationMutation(simulationId: number) {
   return useMutation({
     mutationFn: (input: SimulationTeacherReviewRequest) => reviewSimulation(simulationId, input),
     onSuccess: async () => invalidate(simulationId)
+  });
+}
+
+export function useUpdateReviewSimulationMutation(simulationId: number) {
+  const invalidate = useInvalidateSimulation();
+  return useMutation({
+    mutationFn: (input: SimulationTeacherReviewRequest) => updateReviewSimulation(simulationId, input),
+    onSuccess: async () => invalidate(simulationId)
+  });
+}
+
+export function useDeleteReviewSimulationMutation() {
+  const invalidate = useInvalidateSimulation();
+  return useMutation({
+    mutationFn: (simulationId: number) => deleteReviewSimulation(simulationId),
+    onSuccess: async (_data, simulationId) => invalidate(simulationId)
   });
 }

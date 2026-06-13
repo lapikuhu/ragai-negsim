@@ -127,6 +127,35 @@ def _simulation(
     )
 
 
+def _review_row(
+    simulation_id=10,
+    *,
+    teacher_id=1,
+    teacher_feedback="Strong reflection",
+    reviewed_at=None,
+    user_id_owner=1,
+    user_id_participant=None,
+    scenario_id=100,
+    name=None,
+    last_updated=None,
+):
+    now = reviewed_at or datetime.now(timezone.utc)
+    simulation = _simulation(
+        simulation_id=simulation_id,
+        status="completed",
+        user_id_owner=user_id_owner,
+        user_id_participant=user_id_participant,
+        scenario_id=scenario_id,
+    )
+    simulation.name = name or f"simulation-{simulation_id}"
+    simulation.teacher_id = teacher_id
+    simulation.teacher_feedback = teacher_feedback
+    simulation.teacher_reviewed = True
+    simulation.reviewed_at = now
+    simulation.last_updated = last_updated or now
+    return simulation
+
+
 def test_turn_request_accepts_structured_action():
     request = SimulationTurnRequest(message="Please finish.", action="end")
     assert request.action == "end"
@@ -1652,3 +1681,164 @@ async def test_review_simulation_stamps_current_teacher(monkeypatch):
     assert result.teacher_feedback == "Strong reflection on BATNA."
     assert captured[0].teacher_id == 55
     assert captured[0].teacher_feedback == "Strong reflection on BATNA."
+
+
+@pytest.mark.asyncio
+async def test_list_completed_simulations_includes_all_completed_for_teacher(monkeypatch):
+    rows = [
+        _simulation(1, status="completed", user_id_owner=40, user_id_participant=41, scenario_id=101),
+        _simulation(2, status="completed", user_id_owner=42, user_id_participant=None, scenario_id=102),
+    ]
+    rows[0].last_updated = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    rows[1].last_updated = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    async def fake_list_completed_simulations(session, *, skip, limit, teacher_id):
+        assert skip == 0
+        assert limit == 20
+        assert teacher_id == 7
+        return rows, False
+
+    async def fake_get_scenario_name(scenario_id, session):
+        return {101: "Salary", 102: "Vendor"}[scenario_id]
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "list_completed_simulations",
+        fake_list_completed_simulations,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_get_scenario_name",
+        fake_get_scenario_name,
+    )
+
+    result = await simulations_service.list_completed_simulations_srvc(
+        object(),
+        current_user=_user(7),
+        skip=0,
+        limit=20,
+    )
+
+    assert result.skip == 0
+    assert result.limit == 20
+    assert result.has_more is False
+    assert [item.id for item in result.items] == [1, 2]
+    assert result.items[0].scenario_name == "Salary"
+    assert result.items[0].participant_user_id == 41
+    assert result.items[1].participant_user_id == 42
+
+
+@pytest.mark.asyncio
+async def test_list_reviews_scopes_to_current_teacher(monkeypatch):
+    rows = [
+        _review_row(1, teacher_id=7, scenario_id=101, teacher_feedback="First"),
+        _review_row(2, teacher_id=7, scenario_id=102, teacher_feedback="Second"),
+    ]
+
+    async def fake_list_reviewed_simulations(session, *, skip, limit, teacher_id):
+        assert skip == 5
+        assert limit == 10
+        assert teacher_id == 7
+        return rows, True
+
+    async def fake_get_scenario_name(scenario_id, session):
+        return {101: "Salary", 102: "Vendor"}[scenario_id]
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "list_reviewed_simulations",
+        fake_list_reviewed_simulations,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_get_scenario_name",
+        fake_get_scenario_name,
+    )
+
+    result = await simulations_service.list_reviewed_simulations_srvc(
+        object(),
+        current_user=_user(7),
+        skip=5,
+        limit=10,
+    )
+
+    assert result.skip == 5
+    assert result.limit == 10
+    assert result.has_more is True
+    assert [item.id for item in result.items] == [1, 2]
+    assert result.items[0].teacher_feedback == "First"
+    assert result.items[1].scenario_name == "Vendor"
+
+
+@pytest.mark.asyncio
+async def test_update_review_simulation_requires_author_or_admin(monkeypatch):
+    simulation = _review_row(10, teacher_id=11, teacher_feedback="Initial")
+
+    with pytest.raises(ValueError, match="Only the review author or an admin can modify this review"):
+        await simulations_service.update_review_simulation_srvc(
+            simulation,
+            SimulationTeacherReviewRequest(teacher_feedback="Updated"),
+            object(),
+            _user(55),
+        )
+
+
+@pytest.mark.asyncio
+async def test_update_review_simulation_allows_admin_and_refreshes_timestamp(monkeypatch):
+    captured = []
+    simulation = _review_row(10, teacher_id=11, teacher_feedback="Initial")
+
+    async def fake_update_review(simulation_obj, review_in, session):
+        captured.append(review_in)
+        simulation_obj.teacher_feedback = review_in.teacher_feedback
+        simulation_obj.reviewed_at = review_in.reviewed_at
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_review_simulation",
+        fake_update_review,
+    )
+
+    result = await simulations_service.update_review_simulation_srvc(
+        simulation,
+        SimulationTeacherReviewRequest(teacher_feedback="  Updated insight  "),
+        object(),
+        _admin(99),
+    )
+
+    assert result.teacher_feedback == "Updated insight"
+    assert captured[0].teacher_feedback == "Updated insight"
+    assert captured[0].reviewed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_review_simulation_clears_review_fields(monkeypatch):
+    captured = []
+    simulation = _review_row(10, teacher_id=11, teacher_feedback="Initial")
+
+    async def fake_delete_review(simulation_obj, session):
+        captured.append(simulation_obj.id)
+        simulation_obj.teacher_id = None
+        simulation_obj.teacher_feedback = None
+        simulation_obj.teacher_reviewed = False
+        simulation_obj.reviewed_at = None
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "delete_review_simulation",
+        fake_delete_review,
+    )
+
+    result = await simulations_service.delete_review_simulation_srvc(
+        simulation,
+        object(),
+        _admin(77),
+    )
+
+    assert result.teacher_reviewed is False
+    assert result.teacher_id is None
+    assert result.teacher_feedback is None
+    assert result.reviewed_at is None
+    assert captured == [10]

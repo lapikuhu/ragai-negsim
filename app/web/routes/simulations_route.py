@@ -4,11 +4,14 @@ from app.core.dependencies import (
     AccessibleSimulationDep,
     CurrentUserDep,
     Page,
+    ReadableSimulationDep,
     SessionDep,
+    TeacherOrAdminDep,
     TeacherReviewSimulationDep,
 )
 from app.schemas.simulations_schemas import (
     SimulationCreateRequest,
+    SimulationEvaluationListResponse,
     SimulationProxyDisableResponse,
     SimulationProxyTurnRequest,
     SimulationProxyTurnResponse,
@@ -22,6 +25,9 @@ from app.schemas.simulations_schemas import (
     SimulationUpdateRequest,
 )
 from app.services import simulations_service
+
+# TODO: Consider moving the review endpoints to a separate route file for 
+# better organization.
 
 # Declare the API router for simulations
 router = APIRouter(prefix="/simulations", tags=["simulations"])
@@ -122,6 +128,42 @@ async def list_simulations(
         current_user=current_user,
     )
 
+### -------------------- LIST REVIEWED SIMULATIONS ----------------- ###
+@router.get(
+    "/reviews",
+    response_model=SimulationEvaluationListResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def list_reviewed_simulations(
+    session: SessionDep,
+    current_user: TeacherOrAdminDep,
+    page: Page,
+) -> SimulationEvaluationListResponse:
+    return await simulations_service.list_reviewed_simulations_srvc(
+        session,
+        current_user=current_user,
+        skip=page["skip"],
+        limit=page["limit"],
+    )
+
+### -------------------- LIST COMPLETED SIMULATIONS ---------------- ###
+@router.get(
+    "/completed",
+    response_model=SimulationEvaluationListResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def list_completed_simulations(
+    session: SessionDep,
+    current_user: TeacherOrAdminDep,
+    page: Page,
+) -> SimulationEvaluationListResponse:
+    return await simulations_service.list_completed_simulations_srvc(
+        session,
+        current_user=current_user,
+        skip=page["skip"],
+        limit=page["limit"],
+    )
+
 ### --------------------- GET SIMULATION BY ID --------------------- ###
 @router.get(
     "/{simulation_id}",
@@ -129,7 +171,7 @@ async def list_simulations(
     status_code=status.HTTP_200_OK,
 )
 async def get_simulation(
-    simulation: AccessibleSimulationDep,
+    simulation: ReadableSimulationDep,
 ) -> SimulationReadWithState:
     """
     Get a simulation by its ID.
@@ -337,7 +379,7 @@ async def disable_simulation_proxy(
     status_code=status.HTTP_200_OK,
 )
 async def get_simulation_state(
-    simulation: AccessibleSimulationDep,
+    simulation: ReadableSimulationDep,
 ) -> SimulationReadWithState:
     """
     Get the current state of a simulation.
@@ -405,6 +447,47 @@ async def review_simulation(
             review_data,
             session,
             current_teacher,
+        )
+    except ValueError as exc:
+        _raise_simulation_service_error(exc)
+
+### ------------------- UPDATE TEACHER REVIEW SIMULATION ----------- ###
+@router.patch(
+    "/{simulation_id}/review",
+    response_model=SimulationRead,
+    status_code=status.HTTP_200_OK,
+)
+async def update_review_simulation(
+    review_data: SimulationTeacherReviewRequest,
+    simulation: TeacherReviewSimulationDep,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> SimulationRead:
+    try:
+        return await simulations_service.update_review_simulation_srvc(
+            simulation,
+            review_data,
+            session,
+            current_user,
+        )
+    except ValueError as exc:
+        _raise_simulation_service_error(exc)
+
+### ------------------- DELETE TEACHER REVIEW SIMULATION ----------- ###
+@router.delete(
+    "/{simulation_id}/review",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_review_simulation(
+    simulation: TeacherReviewSimulationDep,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> None:
+    try:
+        await simulations_service.delete_review_simulation_srvc(
+            simulation,
+            session,
+            current_user,
         )
     except ValueError as exc:
         _raise_simulation_service_error(exc)

@@ -36,6 +36,8 @@ from app.schemas.simulations_schemas import (
     NegotiationStateSchema,
     SimulationCreate,
     SimulationCreateRequest,
+    SimulationEvaluationListItem,
+    SimulationEvaluationListResponse,
     SimulationMessageSchema,
     SimulationRead,
     SimulationReadWithState,
@@ -54,6 +56,7 @@ from app.schemas.simulations_schemas import (
 )
 
 # TODO: This is now a god file. It should be split into multiple modules.
+# First move the review to its own domain.
 
 TERMINAL_STATUSES = {"completed", "cancelled", "failed"}
 RUNNABLE_STATUSES = {"active", "paused"}
@@ -265,7 +268,73 @@ def _safe_context_dict(value: Any) -> dict[str, Any]:
     return _json_safe(value) if isinstance(value, dict) else {}
 
 
+def _participant_user_id(simulation: Simulation) -> int:
+    """
+    Get the participant user ID for a simulation, falling back to the 
+    owner ID if the participant ID is not set.
+    """
+    return simulation.user_id_participant or simulation.user_id_owner
+
+
+async def _get_scenario_name(scenario_id: int | None, session: AsyncSession) -> str | None:
+    """
+    Get the name of a scenario by its ID.
+    Args:
+        scenario_id: The ID of the scenario.
+        session: The database session.
+    Returns:
+        The name of the scenario, or None if not found.
+    """
+    if scenario_id is None:
+        return None
+    scenario = await scenarios_repo.get_scenario_by_id(scenario_id, session)
+    return getattr(scenario, "name", None) if scenario is not None else None
+
+
+async def _build_evaluation_list_response(
+    simulations: list[Simulation],
+    *,
+    session: AsyncSession,
+    skip: int,
+    limit: int,
+    has_more: bool,
+) -> SimulationEvaluationListResponse:
+    """
+    Build a response for a list of simulation evaluations.
+    Args:
+        simulations: The list of simulations.
+        session: The database session.
+        skip: The number of simulations to skip.
+        limit: The maximum number of simulations to return.
+        has_more: Whether there are more simulations available.
+    Returns:
+        A SimulationEvaluationListResponse instance.
+    """
+    items: list[SimulationEvaluationListItem] = []
+    for simulation in simulations:
+        items.append(
+            SimulationEvaluationListItem(
+                **_read_simulation(simulation).model_dump(),
+                scenario_name=await _get_scenario_name(simulation.scenario_id, session),
+                participant_user_id=_participant_user_id(simulation),
+            )
+        )
+    return SimulationEvaluationListResponse(
+        items=items,
+        skip=skip,
+        limit=limit,
+        has_more=has_more,
+    )
+
+
 def _scenario_runtime_snapshot(scenario: Any) -> dict[str, Any]:
+    """
+    Get a snapshot of the runtime context for a scenario.
+    Args:
+        scenario: The scenario object.
+    Returns:
+        A dictionary containing the scenario's public and private contexts.
+    """
     if scenario is None:
         return {
             "scenario_public_context": {},
@@ -1105,6 +1174,72 @@ async def list_simulations_srvc(
     return [_read_simulation(simulation) for simulation in simulations]
 
 
+async def list_completed_simulations_srvc(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    skip: int = 0,
+    limit: int = 20,
+) -> SimulationEvaluationListResponse:
+    """
+    List completed simulations for the current user.
+    Args:
+        session: The database session.
+        current_user: The current user making the request.
+        skip: The number of simulations to skip.
+        limit: The maximum number of simulations to return.
+    Returns:
+        A SimulationEvaluationListResponse instance.
+    """
+    teacher_id = None if _has_role(current_user, "admin") else current_user.id
+    simulations, has_more = await simulations_repo.list_completed_simulations(
+        session,
+        skip=skip,
+        limit=limit,
+        teacher_id=teacher_id,
+    )
+    return await _build_evaluation_list_response(
+        simulations,
+        session=session,
+        skip=skip,
+        limit=limit,
+        has_more=has_more,
+    )
+
+
+async def list_reviewed_simulations_srvc(
+    session: AsyncSession,
+    *,
+    current_user: User,
+    skip: int = 0,
+    limit: int = 20,
+) -> SimulationEvaluationListResponse:
+    """
+    List reviewed simulations for the current user.
+    Args:
+        session: The database session.
+        current_user: The current user making the request.
+        skip: The number of simulations to skip.
+        limit: The maximum number of simulations to return.
+    Returns:
+        A SimulationEvaluationListResponse instance.
+    """
+    teacher_id = None if _has_role(current_user, "admin") else current_user.id
+    simulations, has_more = await simulations_repo.list_reviewed_simulations(
+        session,
+        skip=skip,
+        limit=limit,
+        teacher_id=teacher_id,
+    )
+    return await _build_evaluation_list_response(
+        simulations,
+        session=session,
+        skip=skip,
+        limit=limit,
+        has_more=has_more,
+    )
+
+
 async def get_simulation_srvc(simulation: Simulation) -> SimulationReadWithState:
     """
     Get a simulation with its state.
@@ -1476,13 +1611,91 @@ async def review_simulation_srvc(
         ValueError: If the current user is not a teacher or if the review 
         cannot be submitted due to the simulation's current status.
     """
+    feedback = review_data.teacher_feedback.strip()
+    if simulation.status != "completed":
+        raise ValueError("Only completed simulations can be reviewed")
+    if simulation.teacher_reviewed:
+        raise ValueError("A review already exists for this simulation")
+
     review_in = SimulationTeacherReview(
         teacher_id=current_teacher.id,
-        teacher_feedback=review_data.teacher_feedback,
+        teacher_feedback=feedback,
     )
     updated_simulation = await simulations_repo.review_simulation(
         simulation,
         review_in,
+        session,
+    )
+    return _read_simulation(updated_simulation)
+
+
+async def update_review_simulation_srvc(
+    simulation: Simulation,
+    review_data: SimulationTeacherReviewRequest,
+    session: AsyncSession,
+    current_user: User,
+) -> SimulationRead:
+    """
+    Update the review of a simulation.
+    Args:
+        simulation: The simulation instance to update.
+        review_data: The new data for the teacher review, including feedback.
+        session: The database session.
+        current_user: The user attempting to update the review.
+    Returns:
+        A SimulationRead containing the updated simulation with the review.
+    Raises:
+        ValueError: If the current user is not authorized to update the 
+        review or if the review cannot be updated due to the simulation's 
+        current status.
+    """
+    if simulation.status != "completed":
+        raise ValueError("Only completed simulations can be reviewed")
+    if not simulation.teacher_reviewed or simulation.teacher_id is None:
+        raise ValueError("No review exists for this simulation")
+    if not _has_role(current_user, "admin") and simulation.teacher_id != current_user.id:
+        raise ValueError("Only the review author or an admin can modify this review")
+
+    review_in = SimulationTeacherReview(
+        teacher_id=simulation.teacher_id,
+        teacher_feedback=review_data.teacher_feedback.strip(),
+        reviewed_at=datetime.now(timezone.utc),
+    )
+    updated_simulation = await simulations_repo.update_review_simulation(
+        simulation,
+        review_in,
+        session,
+    )
+    return _read_simulation(updated_simulation)
+
+
+async def delete_review_simulation_srvc(
+    simulation: Simulation,
+    session: AsyncSession,
+    current_user: User,
+) -> SimulationRead:
+    """
+    Delete the review of a simulation.
+    Args:
+        simulation: The simulation instance whose review is to be deleted.
+        session: The database session.
+        current_user: The user attempting to delete the review.
+    Returns:
+        A SimulationRead containing the updated simulation without the review.
+    Raises:
+        ValueError: If the current user is not authorized to delete the
+        review or if the review cannot be deleted due to the simulation's
+        current status.
+    """
+    if simulation.status != "completed":
+        raise ValueError("Only completed simulations can be reviewed")
+    if not simulation.teacher_reviewed or simulation.teacher_id is None:
+        raise ValueError("No review exists for this simulation")
+    if not _has_role(current_user, "admin") and simulation.teacher_id != current_user.id:
+        raise ValueError("Only the review author or an admin can modify this review")
+
+    updated_simulation = await simulations_repo.delete_review_simulation(
+        simulation,
         session,
     )
     return _read_simulation(updated_simulation)

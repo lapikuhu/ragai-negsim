@@ -17,7 +17,7 @@ export const navigationItems: NavItem[] = [
   { label: "Prompts", to: "/prompts", description: "Prompt registry", roles: ["admin"] },
   { label: "Chunking Profiles", to: "/chunking-profiles", description: "Reusable ingestion profile management", roles: ["admin"] },
   { label: "Indexing", to: "/indexing", description: "Run and monitor full corpus indexing jobs", roles: ["admin"] },
-  { label: "Evaluations", to: "/evaluations", description: "Review outputs and feedback" },
+  { label: "Evaluations", to: "/evaluations", description: "Review outputs and feedback", roles: ["teacher", "admin"] },
   { label: "Vector Stores", to: "/vector-stores", description: "Admin vector store lifecycle management", roles: ["admin"] },
   { label: "Models", to: "/models", description: "Embedding models and supporting store overview", roles: ["admin"] },
   { label: "Users", to: "/users", description: "User administration", roles: ["admin"] },
