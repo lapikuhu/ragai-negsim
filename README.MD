@@ -249,7 +249,7 @@ The repository currently includes service-level coverage as well as an API-level
 
 ## Frontend
 
-Authored by Codex.
+Authored by CODEX.
 
 A React + Vite frontend now lives in [frontend/README.md](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/README.md:1).
 
@@ -277,3 +277,28 @@ Development URLs:
 During development, open the frontend in the browser at `http://localhost:5173/`.
 The React app uses the Vite proxy to forward supported relative API requests such as `/users/me` and `/simulations/` to the FastAPI backend at `http://127.0.0.1:8000`.
 You should browse to the frontend URL, not the backend URL, for normal UI work.
+
+## Typical User Worfklow
+
+### Admin
+
+- Creates users in the Users section
+- Creates chunking profiles, where different chunkers can be defined for the ingestion process.
+- Creates configurable vector stores that will be used for indexing
+- Uploads raw documents (pdfs only). They are stored locally under /raw_docs_store
+- Defines a corpus from uploaded documents
+- With a corpus, chunking profile and a vector store, admin can create a corpus index
+- Optionally defines a counterpart persona
+- Creates a negotiation scenario
+- Creates a simulation for a user using the corpus index, the negotiation scenario, 
+
+### Teacher
+
+- Uploads raw documents (pdfs only). They are stored locally under /raw_docs_store
+- Defines a corpus from uploaded documents
+- Creates a negotiation scenario
+- Review completed negotiations
+
+### Student
+
+- Selects negotiations, and participates in them
