@@ -115,6 +115,25 @@ def project_coach_state(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def project_user_proxy_state(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Projects the state for the user proxy negotiator.
+    """
+    private_key = (
+        "side_b_private_context"
+        if state.get("user_side") == "side_b"
+        else "side_a_private_context"
+    )
+    return {
+        **_copy_fields(state, IDENTIFIER_FIELDS + NEGOTIATION_FIELDS),
+        "scenario_public_context": _copy_dict(state.get("scenario_public_context")),
+        "student_private_context": _copy_dict(state.get(private_key)),
+        "proxy_persona": _copy_dict(state.get("user_proxy_persona")),
+        "coach_advice": _copy_dict(state.get("coach_advice")),
+        "event_log": [],
+    }
+
+
 def project_evaluator_state(state: dict[str, Any]) -> dict[str, Any]:
     """
     Projects the state for the evaluator in a negotiation scenario.

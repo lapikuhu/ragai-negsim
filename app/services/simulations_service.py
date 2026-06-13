@@ -7,6 +7,9 @@ from langchain_core.documents import Document
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.airag.chains.negotiation.negotiation import make_negotiation_graph
+from app.airag.chains.agents.user_proxy_negotiator.user_proxy import (
+    invoke_user_proxy_turn,
+)
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
     is_terminal_acceptance_message,
 )
@@ -36,6 +39,9 @@ from app.schemas.simulations_schemas import (
     SimulationMessageSchema,
     SimulationRead,
     SimulationReadWithState,
+    SimulationProxyDisableResponse,
+    SimulationProxyTurnRequest,
+    SimulationProxyTurnResponse,
     SimulationStatus,
     SimulationStatusUpdate,
     SimulationTeacherReview,
@@ -69,6 +75,9 @@ PUBLIC_GRAPH_STATE_FIELDS = (
     "pause_reason",
     "terminal_reason",
     "intent_classification",
+    "auto_user_proxy_enabled",
+    "user_proxy_persona",
+    "user_proxy_persona_id",
 )
 
 
@@ -614,6 +623,16 @@ def _counterpart_persona_runtime_context(persona: Any) -> dict[str, Any]:
     return _json_safe({key: value for key, value in context.items() if value is not None})
 
 
+def _safe_public_proxy_persona(persona: Any) -> dict[str, Any]:
+    if not isinstance(persona, dict):
+        return {}
+    public = {
+        "id": persona.get("id"),
+        "name": persona.get("name"),
+    }
+    return {key: value for key, value in public.items() if value is not None}
+
+
 def _side_profiles_with_context_defaults(
     simulation: Simulation,
     start_data: SimulationStartRequest,
@@ -742,6 +761,9 @@ def _initial_graph_state(
         "active_side": simulation.user_side or "side_a",
         "offer_history": [],
         "turn_count": 0,
+        "auto_user_proxy_enabled": False,
+        "user_proxy_persona": {},
+        "user_proxy_persona_id": None,
         "event_log": ["api:simulation_started"],
         "max_turn_count": start_data.max_turn_count,
     }
@@ -774,7 +796,11 @@ def _public_graph_state(state: dict[str, Any]) -> dict[str, Any]:
         A dictionary representing the public-facing state.
     """
     public = {
-        field: _json_safe(state[field])
+        field: (
+            _safe_public_proxy_persona(state[field])
+            if field == "user_proxy_persona"
+            else _json_safe(state[field])
+        )
         for field in PUBLIC_GRAPH_STATE_FIELDS
         if field in state
     }
@@ -831,9 +857,49 @@ def _graph_state_from_simulation(simulation: Simulation) -> dict[str, Any]:
     state.setdefault("messages", [])
     state.setdefault("offer_history", [])
     state.setdefault("event_log", [])
+    state.setdefault("auto_user_proxy_enabled", False)
+    state.setdefault("user_proxy_persona", {})
+    state.setdefault("user_proxy_persona_id", None)
     if raw_state.get("current_phase"):
         state.setdefault("phase", raw_state["current_phase"])
     return state
+
+
+def _student_message(
+    content: str,
+    simulation: Simulation,
+    *,
+    origin: str,
+    current_offer: dict[str, Any] | None = None,
+    persona: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Create a student message dictionary.
+    Args:
+        content: The content of the message.
+        simulation: The simulation instance.
+        origin: The origin of the message.
+        current_offer: The current offer, if any.
+        persona: The persona information, if any.
+    Returns:
+        A dictionary representing the student message.
+    """
+    metadata: dict[str, Any] = {"user_reply_origin": origin}
+    if isinstance(persona, dict):
+        if persona.get("id") is not None:
+            metadata["persona_id"] = persona["id"]
+        if persona.get("name"):
+            metadata["persona_name"] = persona["name"]
+    message = {
+        "role": "user",
+        "content": content,
+        "timestamp": _utc_timestamp(),
+        "side": simulation.user_side or "side_a",
+        "metadata": metadata,
+    }
+    if current_offer:
+        message["current_offer"] = _json_safe(current_offer)
+    return message
 
 
 def _user_message(turn_data: SimulationTurnRequest, simulation: Simulation) -> dict[str, Any]:
@@ -845,15 +911,72 @@ def _user_message(turn_data: SimulationTurnRequest, simulation: Simulation) -> d
     Returns:
         A dictionary representing the user message.
     """
-    message = {
-        "role": "user",
-        "content": turn_data.message,
-        "timestamp": _utc_timestamp(),
-        "side": simulation.user_side or "side_a",
+    return _student_message(
+        turn_data.message,
+        simulation,
+        origin="user",
+        current_offer=turn_data.current_offer,
+    )
+
+
+def _clear_proxy_state(state: dict[str, Any]) -> None:
+    """
+    Clear the proxy state in the given graph state dictionary.
+    Args:
+        state: The graph state dictionary.
+    """
+    state["auto_user_proxy_enabled"] = False
+    state["user_proxy_persona"] = {}
+    state["user_proxy_persona_id"] = None
+
+
+def _set_proxy_state(state: dict[str, Any], enabled: bool, persona: dict[str, Any]) -> None:
+    """
+    Set the proxy state in the given graph state dictionary.
+    Args:
+        state: The graph state dictionary.
+        enabled: Whether the proxy is enabled.
+        persona: The persona information.
+    """
+    state["auto_user_proxy_enabled"] = enabled
+    state["user_proxy_persona"] = persona if isinstance(persona, dict) else {}
+    state["user_proxy_persona_id"] = persona.get("id") if isinstance(persona, dict) else None
+
+
+def _carry_forward_proxy_state(source_state: dict[str, Any], target_state: dict[str, Any]) -> None:
+    """
+    Preserve proxy state across graph invocations when the graph omits those
+    fields from its returned state.
+    """
+    if not source_state.get("auto_user_proxy_enabled"):
+        return
+    target_state.setdefault("auto_user_proxy_enabled", True)
+    if source_state.get("user_proxy_persona"):
+        target_state.setdefault("user_proxy_persona", source_state["user_proxy_persona"])
+    if source_state.get("user_proxy_persona_id") is not None:
+        target_state.setdefault("user_proxy_persona_id", source_state["user_proxy_persona_id"])
+
+
+def _base_turn_response(graph_state: dict[str, Any], user_side: str | None, simulation_id: int) -> dict[str, Any]:
+    return {
+        "simulation_id": simulation_id,
+        "status": _status_after_graph(graph_state),
+        "phase": graph_state.get("phase"),
+        "should_pause": bool(graph_state.get("should_pause", False)),
+        "pause_reason": graph_state.get("pause_reason") or None,
+        "messages": _messages_from_graph_state(graph_state),
+        "coach_advice": graph_state.get("coach_advice") or {},
+        "final_evaluation": (
+            graph_state.get("final_evaluation") or {}
+            if graph_state.get("phase") == "ended"
+            else {}
+        ),
+        "counterpart_response": (
+            None
+            if graph_state.get("phase") == "ended"
+            else _counterpart_response(graph_state, user_side)
+        ),
     }
-    if turn_data.current_offer:
-        message["current_offer"] = _json_safe(turn_data.current_offer)
-    return message
 
 
 def _status_after_graph(graph_state: dict[str, Any]) -> SimulationStatus:
@@ -1134,6 +1257,7 @@ async def submit_simulation_turn_srvc(
     state["user_id"] = str(current_user.id)
     state["user_side"] = simulation.user_side or state.get("user_side") or "side_a"
     state.setdefault("messages", [])
+    _clear_proxy_state(state)
     state["messages"] = [*state["messages"], _user_message(turn_data, simulation)]
     if turn_data.current_offer:
         state["current_offer"] = _json_safe(turn_data.current_offer)
@@ -1159,24 +1283,139 @@ async def submit_simulation_turn_srvc(
         session,
     )
 
-    return SimulationTurnResponse(
-        simulation_id=updated_simulation.id,
+    return SimulationTurnResponse(**_base_turn_response(graph_state, state.get("user_side"), updated_simulation.id))
+
+
+async def submit_simulation_proxy_turn_srvc(
+    simulation: Simulation,
+    proxy_data: SimulationProxyTurnRequest,
+    session: AsyncSession,
+    current_user: User,
+    negotiation_graph: Any | None = None,
+) -> SimulationProxyTurnResponse:
+    """
+    Submit a simulation turn using the user proxy.
+    Args:
+        simulation: The simulation instance.
+        proxy_data: The data for the proxy turn, including duration and 
+            optional persona ID.
+        session: The database session.
+        current_user: The user submitting the proxy turn.
+        negotiation_graph: An optional pre-compiled negotiation graph to 
+            use for processing the turn. If not provided, the default graph will be used.
+    Returns:
+        A SimulationProxyTurnResponse containing the updated simulation 
+        state, proxy response, and any relevant information for the next 
+        turn.
+    Raises:
+        ValueError: If the simulation is not in a state that allows 
+        submitting a proxy turn.
+    """
+    if simulation.status not in RUNNABLE_STATUSES:
+        raise ValueError("Simulation must be active or paused to submit a turn")
+
+    # Block proxy turns if the simulation is ended
+    state = _graph_state_from_simulation(simulation)
+    if state.get("phase") == "ended":
+        raise ValueError("Ended simulations cannot accept additional turns")
+
+    persona_record = None
+    if proxy_data.persona_id is not None:
+        persona_record = await counterpart_personas_repo.get_counterpart_persona_by_id(
+            proxy_data.persona_id,
+            session,
+        )
+        if persona_record is None:
+            raise ValueError("Counterpart persona not found")
+
+    persona_context = _counterpart_persona_runtime_context(persona_record) if persona_record is not None else {}
+    state["user_id"] = str(current_user.id)
+    state["user_side"] = simulation.user_side or state.get("user_side") or "side_a"
+    state.setdefault("messages", [])
+    _set_proxy_state(
+        state,
+        proxy_data.duration == "remainder",
+        persona_context,
+    )
+    proxy_result = await invoke_user_proxy_turn(state, persona_record, proxy_data.duration)
+    proxy_message = str(proxy_result.get("message") or "").strip()
+    if not proxy_message:
+        raise ValueError("Proxy response was empty")
+
+    state["messages"] = [
+        *state["messages"],
+        _student_message(
+            proxy_message,
+            simulation,
+            origin="auto_user_proxy",
+            persona=persona_context,
+        ),
+    ]
+
+    graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
+    graph_state = _json_safe(graph.invoke(state))
+    graph_state.pop("requested_action", None)
+    _carry_forward_proxy_state(state, graph_state)
+    next_status = _status_after_graph(graph_state)
+    update_in = SimulationUpdate(
         status=next_status,
-        phase=graph_state.get("phase"),
-        should_pause=bool(graph_state.get("should_pause", False)),
-        pause_reason=graph_state.get("pause_reason") or None,
+        negotiation_state=_state_schema_from_graph_state(graph_state),
         messages=_messages_from_graph_state(graph_state),
-        coach_advice=graph_state.get("coach_advice") or {},
-        final_evaluation=(
-            graph_state.get("final_evaluation") or {}
-            if graph_state.get("phase") == "ended"
-            else {}
-        ),
-        counterpart_response=(
-            None
-            if graph_state.get("phase") == "ended"
-            else _counterpart_response(graph_state, state.get("user_side"))
-        ),
+    )
+    updated_simulation = await simulations_repo.update_simulation(
+        simulation,
+        update_in,
+        session,
+    )
+
+    return SimulationProxyTurnResponse(
+        **_base_turn_response(graph_state, state.get("user_side"), updated_simulation.id),
+        proxy_response=proxy_message,
+        auto_user_proxy_enabled=bool(graph_state.get("auto_user_proxy_enabled", False)),
+        user_proxy_persona=_safe_public_proxy_persona(graph_state.get("user_proxy_persona")),
+    )
+
+
+async def disable_simulation_proxy_srvc(
+    simulation: Simulation,
+    session: AsyncSession,
+    current_user: User,
+) -> SimulationProxyDisableResponse:
+    """
+    Disable the user proxy for a simulation.
+    Args:
+        simulation: The simulation instance.
+        session: The database session.
+        current_user: The user disabling the proxy.
+    Returns:
+        A SimulationProxyDisableResponse containing the updated simulation
+        state with the proxy disabled.
+    Raises:
+        ValueError: If the simulation is not in a state that allows
+        disabling the proxy.
+    """
+    if simulation.status not in RUNNABLE_STATUSES:
+        raise ValueError("Simulation must be active or paused to change proxy mode")
+
+    state = _graph_state_from_simulation(simulation)
+    state["user_id"] = str(current_user.id)
+    _clear_proxy_state(state)
+    update_in = SimulationUpdate(
+        status=simulation.status,
+        negotiation_state=_state_schema_from_graph_state(state),
+        messages=_messages_from_graph_state(state),
+    )
+    updated_simulation = await simulations_repo.update_simulation(
+        simulation,
+        update_in,
+        session,
+    )
+    return SimulationProxyDisableResponse(
+        simulation_id=updated_simulation.id,
+        status=updated_simulation.status,
+        auto_user_proxy_enabled=False,
+        user_proxy_persona={},
+        messages=_messages_from_graph_state(state),
     )
 
 

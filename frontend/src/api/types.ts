@@ -8,6 +8,22 @@ export type Token = components["schemas"]["Token"];
 export type SimulationRead = components["schemas"]["SimulationRead"];
 export type SimulationReadWithState = components["schemas"]["SimulationReadWithState"];
 export type SimulationTurnResponse = components["schemas"]["SimulationTurnResponse"];
+export type SimulationProxyTurnRequest = {
+  persona_id: number | null;
+  duration: "this_turn" | "remainder";
+};
+export type SimulationProxyTurnResponse = SimulationTurnResponse & {
+  proxy_response: string;
+  auto_user_proxy_enabled: boolean;
+  user_proxy_persona: Record<string, unknown>;
+};
+export type SimulationProxyDisableResponse = {
+  simulation_id: number;
+  status: string;
+  auto_user_proxy_enabled: boolean;
+  user_proxy_persona: Record<string, unknown>;
+  messages: components["schemas"]["SimulationMessageSchema"][];
+};
 export type SessionRead = components["schemas"]["SessionRead"];
 export type CorpusRead = components["schemas"]["CorpusRead"];
 export type CorpusIndexRead = components["schemas"]["CorpusIndexReadWithIds"];

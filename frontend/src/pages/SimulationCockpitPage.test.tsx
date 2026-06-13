@@ -77,6 +77,15 @@ vi.mock("@/app/AuthProvider", () => ({
   useAuth: () => ({ hasRole: () => false })
 }));
 
+vi.mock("@/features/counterpartPersonas/personaQueries", () => ({
+  usePersonasQuery: () => ({
+    data: [
+      { id: 300, name: "Firm seller" },
+      { id: 301, name: "Patient buyer" }
+    ]
+  })
+}));
+
 const queryState = vi.hoisted(() => {
   const baseSimulation: SimulationReadWithState = {
     id: 1,
@@ -109,26 +118,48 @@ const queryState = vi.hoisted(() => {
   };
 
   return {
+    isLoading: false,
+    isError: false,
     simulation: baseSimulation,
-    turnMutateAsync: vi.fn()
+    turnMutateAsync: vi.fn(),
+    proxyTurnMutateAsync: vi.fn(),
+    disableProxyMutateAsync: vi.fn()
   };
 });
 
 vi.mock("@/features/simulations/simulationQueries", () => ({
   useSimulationDetailQuery: () => ({
-    isLoading: false,
-    isError: false,
+    isLoading: queryState.isLoading,
+    isError: queryState.isError,
     data: queryState.simulation,
     error: null,
     refetch: vi.fn()
   }),
   useStartSimulationMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useSimulationTurnMutation: () => ({ isPending: false, mutateAsync: queryState.turnMutateAsync }),
+  useSimulationProxyTurnMutation: () => ({ isPending: false, mutateAsync: queryState.proxyTurnMutateAsync }),
+  useDisableSimulationProxyMutation: () => ({ isPending: false, mutateAsync: queryState.disableProxyMutateAsync }),
   useReviewSimulationMutation: () => ({ isPending: false, mutateAsync: vi.fn() })
 }));
 
 describe("SimulationCockpitPage", () => {
+  it("does not change hook order when the query moves from loading to ready", () => {
+    queryState.isLoading = true;
+    queryState.isError = false;
+    queryState.simulation = simulation;
+
+    const { rerender } = render(<SimulationCockpitPage />);
+    expect(screen.getByText("Loading simulation...")).toBeInTheDocument();
+
+    queryState.isLoading = false;
+    rerender(<SimulationCockpitPage />);
+
+    expect(screen.getByText("Salary negotiation")).toBeInTheDocument();
+  });
+
   it("keeps the composer enabled for paused simulations", () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
     queryState.simulation = simulation;
     render(<SimulationCockpitPage />);
 
@@ -138,6 +169,8 @@ describe("SimulationCockpitPage", () => {
   });
 
   it("enables evaluation for completed simulations with stored final evaluation", () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
     queryState.simulation = completedSimulation;
     render(<SimulationCockpitPage />);
 
@@ -148,6 +181,8 @@ describe("SimulationCockpitPage", () => {
   });
 
   it("reveals the stored evaluation and disables evaluate after click", async () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
     queryState.simulation = completedSimulation;
     const user = userEvent.setup();
     render(<SimulationCockpitPage />);
@@ -161,6 +196,8 @@ describe("SimulationCockpitPage", () => {
   });
 
   it("keeps evaluate disabled and explains when no stored evaluation exists", () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
     queryState.simulation = completedSimulationWithoutEvaluation;
     render(<SimulationCockpitPage />);
 
@@ -169,6 +206,8 @@ describe("SimulationCockpitPage", () => {
   });
 
   it("locks the composer immediately after a terminal turn response", async () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
     queryState.simulation = simulation;
     queryState.turnMutateAsync.mockResolvedValueOnce({
       simulation_id: 1,
@@ -205,6 +244,8 @@ describe("SimulationCockpitPage", () => {
   });
 
   it("caps the inspector grid track while leaving the work area flexible", () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
     queryState.simulation = simulation;
     const { container } = render(<SimulationCockpitPage />);
     const cockpitGrid = Array.from(container.querySelectorAll("div")).find((element) =>
@@ -212,5 +253,92 @@ describe("SimulationCockpitPage", () => {
     );
 
     expect(cockpitGrid).toHaveClass("xl:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]");
+  });
+
+  it("shows persistent proxy status and a take-control action when proxy mode is enabled", () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
+    queryState.simulation = {
+      ...simulation,
+      negotiation_state: {
+        current_phase: "bargaining",
+        user_side: "side_a",
+        data: {
+          auto_user_proxy_enabled: true,
+          user_proxy_persona: { id: 300, name: "Firm seller" }
+        }
+      }
+    };
+
+    render(<SimulationCockpitPage />);
+
+    expect(screen.getByText("Proxy active: Firm seller")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Take Control" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Your next turn")).toBeDisabled();
+  });
+
+  it("submits a proxy turn from the dialog", async () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
+    queryState.simulation = simulation;
+    queryState.proxyTurnMutateAsync.mockResolvedValueOnce({
+      simulation_id: 1,
+      status: "paused",
+      phase: "bargaining",
+      should_pause: true,
+      pause_reason: "counterpart_response_ready",
+      messages: [],
+      coach_advice: {},
+      final_evaluation: {},
+      counterpart_response: "I can do 98.",
+      proxy_response: "I can move to 100 if we can settle today.",
+      auto_user_proxy_enabled: false,
+      user_proxy_persona: { id: 300, name: "Firm seller" }
+    });
+
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Use Proxy" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Proxy" }));
+
+    await waitFor(() => {
+      expect(queryState.proxyTurnMutateAsync).toHaveBeenCalledWith({
+        persona_id: null,
+        duration: "this_turn"
+      });
+    });
+  });
+
+  it("disables persistent proxy mode when take control is pressed", async () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
+    queryState.simulation = {
+      ...simulation,
+      negotiation_state: {
+        current_phase: "bargaining",
+        user_side: "side_a",
+        data: {
+          auto_user_proxy_enabled: true,
+          user_proxy_persona: { id: 300, name: "Firm seller" }
+        }
+      }
+    };
+    queryState.disableProxyMutateAsync.mockResolvedValueOnce({
+      simulation_id: 1,
+      status: "paused",
+      auto_user_proxy_enabled: false,
+      user_proxy_persona: {},
+      messages: []
+    });
+
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Take Control" }));
+
+    await waitFor(() => {
+      expect(queryState.disableProxyMutateAsync).toHaveBeenCalledTimes(1);
+    });
   });
 });

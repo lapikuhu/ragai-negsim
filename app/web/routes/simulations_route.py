@@ -9,6 +9,9 @@ from app.core.dependencies import (
 )
 from app.schemas.simulations_schemas import (
     SimulationCreateRequest,
+    SimulationProxyDisableResponse,
+    SimulationProxyTurnRequest,
+    SimulationProxyTurnResponse,
     SimulationRead,
     SimulationReadWithState,
     SimulationStartRequest,
@@ -254,6 +257,73 @@ async def submit_simulation_turn(
         return await simulations_service.submit_simulation_turn_srvc(
             simulation,
             turn_data,
+            session,
+            current_user,
+        )
+    except ValueError as exc:
+        _raise_simulation_service_error(exc)
+
+### --------------------- SIMULATION PROXY TURN -------------------- ###
+@router.post(
+    "/{simulation_id}/proxy-turn",
+    response_model=SimulationProxyTurnResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def submit_simulation_proxy_turn(
+    proxy_data: SimulationProxyTurnRequest,
+    simulation: AccessibleSimulationDep,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> SimulationProxyTurnResponse:
+    """
+    Submit a proxy turn for a simulation.
+    Args:
+        proxy_data: The data for the proxy turn.
+        simulation: The simulation instance.
+        session: The database session.
+        current_user: The user submitting the proxy turn.
+    Returns:
+        A SimulationProxyTurnResponse containing the result of the 
+        proxy turn.
+    Raises:
+        ValueError: If the proxy turn cannot be submitted.
+    """
+    try:
+        return await simulations_service.submit_simulation_proxy_turn_srvc(
+            simulation,
+            proxy_data,
+            session,
+            current_user,
+        )
+    except ValueError as exc:
+        _raise_simulation_service_error(exc)
+
+### --------------------------  PROXY DISABLE ---------------------- ###
+@router.post(
+    "/{simulation_id}/proxy/disable",
+    response_model=SimulationProxyDisableResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def disable_simulation_proxy(
+    simulation: AccessibleSimulationDep,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> SimulationProxyDisableResponse:
+    """
+    Disable the proxy for a simulation.
+    Args:
+        simulation: The simulation instance.
+        session: The database session.
+        current_user: The user disabling the proxy.
+    Returns:
+        A SimulationProxyDisableResponse containing the result of the 
+        proxy disable action.
+    Raises:
+        ValueError: If the proxy cannot be disabled.
+    """
+    try:
+        return await simulations_service.disable_simulation_proxy_srvc(
+            simulation,
             session,
             current_user,
         )

@@ -20,7 +20,14 @@ export function SimulationTranscript({ simulation }: { simulation: SimulationRea
               className="self-start rounded-2xl bg-slate-50 px-4 py-2"
             >
               <div className="flex items-center justify-between gap-3">
-                <strong className="text-sm capitalize text-slate-900">{message.role}</strong>
+                <div className="flex items-center gap-2">
+                  <strong className="text-sm capitalize text-slate-900">{message.role}</strong>
+                  {message.metadata?.user_reply_origin === "auto_user_proxy" ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+                      Proxy
+                    </span>
+                  ) : null}
+                </div>
                 <span className="text-xs text-slate-500">{formatDateTime(message.timestamp)}</span>
               </div>
               <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{message.content}</p>

@@ -81,4 +81,82 @@ describe("SimulationInput", () => {
 
     expect(onEvaluate).toHaveBeenCalledTimes(1);
   });
+
+  it("opens the proxy dialog with neutral persona and one-turn defaults", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SimulationInput
+        onSubmit={vi.fn()}
+        onProxySubmit={vi.fn()}
+        canEvaluate={false}
+        evaluation={null}
+        isEvaluationVisible={false}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Use Proxy" }));
+
+    expect(screen.getByRole("dialog", { name: "Use Proxy" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Persona")).toHaveValue("");
+    expect(screen.getByLabelText("For this turn")).toBeChecked();
+    expect(screen.getByLabelText("For the remainder of the negotiation")).not.toBeChecked();
+  });
+
+  it("submits the selected proxy persona and duration", async () => {
+    const user = userEvent.setup();
+    const onProxySubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <SimulationInput
+        onSubmit={vi.fn()}
+        onProxySubmit={onProxySubmit}
+        proxyPersonaOptions={[
+          { id: 300, name: "Firm seller" },
+          { id: 301, name: "Patient buyer" }
+        ]}
+        canEvaluate={false}
+        evaluation={null}
+        isEvaluationVisible={false}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Use Proxy" }));
+    await user.selectOptions(screen.getByLabelText("Persona"), "300");
+    await user.click(screen.getByLabelText("For the remainder of the negotiation"));
+    await user.click(screen.getByRole("button", { name: "Confirm Proxy" }));
+
+    expect(onProxySubmit).toHaveBeenCalledWith({ personaId: 300, duration: "remainder" });
+  });
+
+  it("closes the proxy dialog immediately after confirm while the submit is still pending", async () => {
+    const user = userEvent.setup();
+    let resolveSubmit: (() => void) | null = null;
+    const onProxySubmit = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSubmit = resolve;
+        })
+    );
+
+    render(
+      <SimulationInput
+        onSubmit={vi.fn()}
+        onProxySubmit={onProxySubmit}
+        canEvaluate={false}
+        evaluation={null}
+        isEvaluationVisible={false}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Use Proxy" }));
+    expect(screen.getByRole("dialog", { name: "Use Proxy" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Confirm Proxy" }));
+
+    expect(onProxySubmit).toHaveBeenCalledWith({ personaId: null, duration: "this_turn" });
+    expect(screen.queryByRole("dialog", { name: "Use Proxy" })).not.toBeInTheDocument();
+
+    resolveSubmit?.();
+  });
 });

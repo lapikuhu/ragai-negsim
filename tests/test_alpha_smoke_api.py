@@ -11,6 +11,8 @@ from app.schemas.embeddings_schemas import CorpusEmbeddingBuildQueued
 from app.schemas.raw_documents_schemas import RawDocumentRead
 from app.schemas.simulations_schemas import (
     NegotiationStateSchema,
+    SimulationProxyDisableResponse,
+    SimulationProxyTurnResponse,
     SimulationMessageSchema,
     SimulationRead,
     SimulationReadWithState,
@@ -322,5 +324,102 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
             assert turn_response.json()["counterpart_response"] == (
                 "I can move a little, but not that far."
             )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_alpha_smoke_proxy_turn_and_disable_routes(monkeypatch):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username="student", roles=[])
+
+    async def fake_get_session():
+        yield object()
+
+    simulation_record = SimpleNamespace(
+        id=31,
+        status="paused",
+        user_id_owner=1,
+        user_id_participant=None,
+        teacher_id=None,
+        user_side="side_a",
+    )
+
+    async def fake_get_accessible_simulation():
+        return simulation_record
+
+    async def fake_proxy_turn(simulation, proxy_data, session, current_user):
+        assert simulation.id == 31
+        assert proxy_data.duration == "this_turn"
+        assert proxy_data.persona_id is None
+        assert current_user.id == 1
+        return SimulationProxyTurnResponse(
+            simulation_id=31,
+            status="paused",
+            phase="bargaining",
+            should_pause=True,
+            pause_reason="counterpart_response_ready",
+            messages=[
+                SimulationMessageSchema(
+                    role="user",
+                    content="I can move to 100 if we can settle today.",
+                    metadata={"user_reply_origin": "auto_user_proxy"},
+                )
+            ],
+            coach_advice={},
+            final_evaluation={},
+            counterpart_response="I can do 98.",
+            proxy_response="I can move to 100 if we can settle today.",
+            auto_user_proxy_enabled=False,
+            user_proxy_persona={},
+        )
+
+    async def fake_disable_proxy(simulation, session, current_user):
+        assert simulation.id == 31
+        assert current_user.id == 1
+        return SimulationProxyDisableResponse(
+            simulation_id=31,
+            status="paused",
+            auto_user_proxy_enabled=False,
+            user_proxy_persona={},
+            messages=[],
+        )
+
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+
+    from app.services import simulations_service
+
+    monkeypatch.setattr(
+        simulations_service,
+        "submit_simulation_proxy_turn_srvc",
+        fake_proxy_turn,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "disable_simulation_proxy_srvc",
+        fake_disable_proxy,
+    )
+
+    app = main_module.app
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+    app.dependency_overrides[dependencies.get_accessible_simulation] = fake_get_accessible_simulation
+
+    try:
+        with TestClient(app) as client:
+            proxy_turn_response = client.post(
+                "/simulations/31/proxy-turn",
+                json={"persona_id": None, "duration": "this_turn"},
+            )
+            assert proxy_turn_response.status_code == 200
+            assert proxy_turn_response.json()["proxy_response"] == (
+                "I can move to 100 if we can settle today."
+            )
+
+            disable_response = client.post("/simulations/31/proxy/disable", json={})
+            assert disable_response.status_code == 200
+            assert disable_response.json()["auto_user_proxy_enabled"] is False
     finally:
         app.dependency_overrides.clear()

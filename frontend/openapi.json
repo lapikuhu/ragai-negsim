@@ -1843,7 +1843,7 @@
           "indexing-jobs"
         ],
         "summary": "Create Indexing Job",
-        "description": "Create an indexing job endpoint.\n    Args:\n        job_in: The data to create the indexing job with.\n        session: The database session.\n        background_tasks: The background tasks manager.\n        _admin: The admin dependency.\n    Returns:\n        An IndexingJobQueued object containing the queued indexing job data.\n    Raises:\n        HTTPException: If the indexing job cannot be created due to validation\n        errors or other constraints, with a 409 status code and error detail.",
+        "description": "Create an indexing job endpoint.\n    Args:\n        job_in: The data to create the indexing job with.\n        session: The database session.\n        _admin: The admin dependency.\n    Returns:\n        An IndexingJobQueued object containing the queued indexing job data.\n    Raises:\n        HTTPException: If the indexing job cannot be created due to validation\n        errors or other constraints, with a 409 status code and error detail.",
         "operationId": "create_indexing_job_indexing_jobs__post",
         "security": [
           {
@@ -2015,6 +2015,54 @@
         "summary": "Get Indexing Job Detail",
         "description": "Get indexing job detail endpoint.\n    Args:\n        job_id: The ID of the indexing job to retrieve.\n        session: The database session.\n        _admin: The admin dependency.\n    Returns:\n        An IndexingJobDetail object containing the indexing job data.\n    Raises:\n        HTTPException: If the indexing job is not found, with a 404 status\n        code and error detail.",
         "operationId": "get_indexing_job_detail_indexing_jobs__job_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexingJobDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/indexing-jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "indexing-jobs"
+        ],
+        "summary": "Cancel Indexing Job",
+        "description": "Cancel a queued or running indexing job.",
+        "operationId": "cancel_indexing_job_indexing_jobs__job_id__cancel_post",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -2950,7 +2998,7 @@
             "required": false,
             "schema": {
               "type": "number",
-              "default": 0,
+              "default": 0.0,
               "title": "Temperature"
             }
           }
@@ -4133,6 +4181,110 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SimulationTurnResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulations/{simulation_id}/proxy-turn": {
+      "post": {
+        "tags": [
+          "simulations"
+        ],
+        "summary": "Submit Simulation Proxy Turn",
+        "operationId": "submit_simulation_proxy_turn_simulations__simulation_id__proxy_turn_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Simulation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationProxyTurnRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationProxyTurnResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulations/{simulation_id}/proxy/disable": {
+      "post": {
+        "tags": [
+          "simulations"
+        ],
+        "summary": "Disable Simulation Proxy",
+        "operationId": "disable_simulation_proxy_simulations__simulation_id__proxy_disable_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Simulation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationProxyDisableResponse"
                 }
               }
             }
@@ -5722,7 +5874,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5804,7 +5956,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5846,7 +5998,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5954,7 +6106,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5993,7 +6145,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -6103,7 +6255,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -6606,6 +6758,11 @@
             "type": "string",
             "title": "Stage"
           },
+          "cancel_requested": {
+            "type": "boolean",
+            "title": "Cancel Requested",
+            "default": false
+          },
           "current_raw_document_id": {
             "anyOf": [
               {
@@ -6778,6 +6935,11 @@
           "stage": {
             "type": "string",
             "title": "Stage"
+          },
+          "cancel_requested": {
+            "type": "boolean",
+            "title": "Cancel Requested",
+            "default": false
           },
           "current_raw_document_id": {
             "anyOf": [
@@ -7270,7 +7432,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -8023,6 +8185,173 @@
         ],
         "title": "SimulationMessageSchema"
       },
+      "SimulationProxyDisableResponse": {
+        "properties": {
+          "simulation_id": {
+            "type": "integer",
+            "title": "Simulation Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "active",
+              "paused",
+              "completed",
+              "cancelled",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "auto_user_proxy_enabled": {
+            "type": "boolean",
+            "title": "Auto User Proxy Enabled",
+            "default": false
+          },
+          "user_proxy_persona": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "User Proxy Persona"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationMessageSchema"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "simulation_id",
+          "status"
+        ],
+        "title": "SimulationProxyDisableResponse"
+      },
+      "SimulationProxyTurnRequest": {
+        "properties": {
+          "persona_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Id"
+          },
+          "duration": {
+            "type": "string",
+            "enum": [
+              "this_turn",
+              "remainder"
+            ],
+            "title": "Duration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "duration"
+        ],
+        "title": "SimulationProxyTurnRequest"
+      },
+      "SimulationProxyTurnResponse": {
+        "properties": {
+          "simulation_id": {
+            "type": "integer",
+            "title": "Simulation Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "active",
+              "paused",
+              "completed",
+              "cancelled",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "should_pause": {
+            "type": "boolean",
+            "title": "Should Pause",
+            "default": false
+          },
+          "pause_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Reason"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationMessageSchema"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "coach_advice": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Coach Advice"
+          },
+          "final_evaluation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Final Evaluation"
+          },
+          "counterpart_response": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterpart Response"
+          },
+          "proxy_response": {
+            "type": "string",
+            "title": "Proxy Response"
+          },
+          "auto_user_proxy_enabled": {
+            "type": "boolean",
+            "title": "Auto User Proxy Enabled",
+            "default": false
+          },
+          "user_proxy_persona": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "User Proxy Persona"
+          }
+        },
+        "type": "object",
+        "required": [
+          "simulation_id",
+          "status",
+          "proxy_response"
+        ],
+        "title": "SimulationProxyTurnResponse"
+      },
       "SimulationRead": {
         "properties": {
           "name": {
@@ -8425,8 +8754,8 @@
           },
           "max_turn_count": {
             "type": "integer",
-            "maximum": 100,
-            "minimum": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
             "title": "Max Turn Count",
             "default": 12
           }
@@ -9152,7 +9481,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1.0
               },
               {
                 "type": "null"

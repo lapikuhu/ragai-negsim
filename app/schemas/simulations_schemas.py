@@ -152,6 +152,25 @@ class SimulationTurnResponse(SQLModel):
     counterpart_response: str | None = None
 
 
+class SimulationProxyTurnRequest(SQLModel):
+    persona_id: int | None = None
+    duration: Literal["this_turn", "remainder"]
+
+
+class SimulationProxyTurnResponse(SimulationTurnResponse):
+    proxy_response: str
+    auto_user_proxy_enabled: bool = False
+    user_proxy_persona: dict[str, Any] = Field(default_factory=dict)
+
+
+class SimulationProxyDisableResponse(SQLModel):
+    simulation_id: int
+    status: SimulationStatus
+    auto_user_proxy_enabled: bool = False
+    user_proxy_persona: dict[str, Any] = Field(default_factory=dict)
+    messages: list[SimulationMessageSchema] = Field(default_factory=list)
+
+
 class SimulationTeacherReview(SQLModel):
     teacher_id: int
     teacher_feedback: str | None = None

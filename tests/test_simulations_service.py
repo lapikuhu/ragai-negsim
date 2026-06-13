@@ -6,6 +6,9 @@ import pytest
 from app.schemas.simulations_schemas import (
     SimulationCreate,
     SimulationCreateRequest,
+    SimulationProxyDisableResponse,
+    SimulationProxyTurnRequest,
+    SimulationProxyTurnResponse,
     SimulationReadWithState,
     SimulationStartRequest,
     SimulationTeacherReviewRequest,
@@ -129,6 +132,12 @@ def test_turn_request_accepts_structured_action():
     assert request.action == "end"
 
 
+def test_proxy_turn_request_accepts_duration_and_nullable_persona():
+    request = SimulationProxyTurnRequest(persona_id=None, duration="this_turn")
+    assert request.persona_id is None
+    assert request.duration == "this_turn"
+
+
 def test_public_graph_state_is_positive_allow_list():
     public = simulations_service._public_graph_state(_internal_state_with_secrets())
     serialized = repr(public)
@@ -166,6 +175,24 @@ def test_public_graph_state_includes_intent_classification_when_present():
 
     assert public["intent_classification"]["intent"] == "continue"
     assert "event_log" not in public
+
+
+def test_public_graph_state_exposes_safe_proxy_status_only():
+    internal = _internal_state_with_secrets()
+    internal["auto_user_proxy_enabled"] = True
+    internal["user_proxy_persona"] = {
+        "id": 300,
+        "name": "Firm seller",
+        "description": "Persona context",
+    }
+    internal["user_proxy_persona_id"] = 300
+
+    public = simulations_service._public_graph_state(internal)
+
+    assert public["auto_user_proxy_enabled"] is True
+    assert public["user_proxy_persona"]["name"] == "Firm seller"
+    assert public["user_proxy_persona_id"] == 300
+    assert "description" not in public["user_proxy_persona"]
 
 
 def _patch_runtime_context_repositories(
@@ -776,6 +803,329 @@ async def test_submit_turn_invokes_graph_and_persists_json_safe_response(monkeyp
     assert "event_log" not in result.model_dump()
     assert simulation.negotiation_state["data"]["counterpart_persona_context"]["name"] == "Firm seller"
     assert simulation.negotiation_state["data"]["phase"] == "bargaining"
+
+
+@pytest.mark.asyncio
+async def test_submit_turn_tags_human_provenance_and_disables_proxy_mode(monkeypatch):
+    captured_state = []
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "auto_user_proxy_enabled": True,
+                "user_proxy_persona_id": 300,
+                "user_proxy_persona": {"id": 300, "name": "Firm seller"},
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state):
+            captured_state.append(state)
+            return {
+                **state,
+                "phase": "bargaining",
+                "should_pause": True,
+                "pause_reason": "counterpart_response_ready",
+                "messages": state["messages"],
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+
+    await simulations_service.submit_simulation_turn_srvc(
+        simulation,
+        SimulationTurnRequest(message="I want to revise the terms."),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert captured_state[0]["messages"][0]["metadata"]["user_reply_origin"] == "user"
+    assert captured_state[0]["auto_user_proxy_enabled"] is False
+    assert captured_state[0]["user_proxy_persona"] == {}
+    assert captured_state[0]["user_proxy_persona_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_submit_proxy_turn_generates_message_and_persists_remainder_mode(monkeypatch):
+    captured_state = []
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "scenario_public_context": {"id": 100, "name": "Salary scenario"},
+                "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
+                "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
+                "coach_advice": {"suggested_response": "Ask for 100 and hold firm."},
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state):
+            captured_state.append(state)
+            return {
+                **state,
+                "phase": "bargaining",
+                "should_pause": True,
+                "pause_reason": "counterpart_response_ready",
+                "side_b_response": "I can do 98.",
+                "messages": [
+                    *state["messages"],
+                    {
+                        "role": "assistant",
+                        "content": "I can do 98.",
+                        "side": "side_b",
+                    },
+                ],
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    async def fake_invoke_proxy_turn(state, persona, duration):
+        assert state["coach_advice"]["suggested_response"] == "Ask for 100 and hold firm."
+        assert persona.id == 300
+        assert duration == "remainder"
+        return {
+            "message": "I can move to 100 if we can settle today.",
+            "event_log": ["proxy:completed"],
+        }
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "invoke_user_proxy_turn",
+        fake_invoke_proxy_turn,
+    )
+    _patch_runtime_context_repositories(monkeypatch)
+
+    result = await simulations_service.submit_simulation_proxy_turn_srvc(
+        simulation,
+        SimulationProxyTurnRequest(persona_id=300, duration="remainder"),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert isinstance(result, SimulationProxyTurnResponse)
+    assert result.proxy_response == "I can move to 100 if we can settle today."
+    assert result.auto_user_proxy_enabled is True
+    assert result.user_proxy_persona["name"] == "Firm seller"
+    assert captured_state[0]["messages"][0]["content"] == "I can move to 100 if we can settle today."
+    assert captured_state[0]["messages"][0]["metadata"]["user_reply_origin"] == "auto_user_proxy"
+    assert captured_state[0]["messages"][0]["metadata"]["persona_id"] == 300
+    assert simulation.negotiation_state["data"]["auto_user_proxy_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_submit_proxy_turn_preserves_remainder_mode_when_graph_omits_proxy_fields(monkeypatch):
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "scenario_public_context": {"id": 100, "name": "Salary scenario"},
+                "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
+                "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
+                "coach_advice": {"suggested_response": "Ask for 100 and hold firm."},
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state):
+            return {
+                "simulation_id": state["simulation_id"],
+                "session_id": state["session_id"],
+                "user_id": state["user_id"],
+                "user_side": state["user_side"],
+                "phase": "bargaining",
+                "should_pause": True,
+                "pause_reason": "counterpart_response_ready",
+                "side_b_response": "I can do 98.",
+                "messages": [
+                    *state["messages"],
+                    {
+                        "role": "assistant",
+                        "content": "I can do 98.",
+                        "side": "side_b",
+                    },
+                ],
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    async def fake_invoke_proxy_turn(state, persona, duration):
+        assert duration == "remainder"
+        return {
+            "message": "I can move to 100 if we can settle today.",
+            "event_log": ["proxy:completed"],
+        }
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "invoke_user_proxy_turn",
+        fake_invoke_proxy_turn,
+    )
+    _patch_runtime_context_repositories(monkeypatch)
+
+    result = await simulations_service.submit_simulation_proxy_turn_srvc(
+        simulation,
+        SimulationProxyTurnRequest(persona_id=300, duration="remainder"),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert result.auto_user_proxy_enabled is True
+    assert result.user_proxy_persona["name"] == "Firm seller"
+    assert simulation.negotiation_state["data"]["auto_user_proxy_enabled"] is True
+    assert simulation.negotiation_state["data"]["user_proxy_persona"]["name"] == "Firm seller"
+    assert simulation.negotiation_state["data"]["user_proxy_persona_id"] == 300
+
+
+@pytest.mark.asyncio
+async def test_submit_proxy_turn_rejects_missing_persona(monkeypatch):
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+    _patch_runtime_context_repositories(monkeypatch)
+
+    async def fake_get_counterpart_persona_by_id(persona_id, session):
+        return None
+
+    monkeypatch.setattr(
+        simulations_service.counterpart_personas_repo,
+        "get_counterpart_persona_by_id",
+        fake_get_counterpart_persona_by_id,
+    )
+
+    with pytest.raises(ValueError, match="Counterpart persona not found"):
+        await simulations_service.submit_simulation_proxy_turn_srvc(
+            simulation,
+            SimulationProxyTurnRequest(persona_id=999, duration="this_turn"),
+            object(),
+            _user(7),
+            object(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_disable_proxy_mode_clears_state_without_adding_turn(monkeypatch):
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "auto_user_proxy_enabled": True,
+                "user_proxy_persona_id": 300,
+                "user_proxy_persona": {"id": 300, "name": "Firm seller"},
+                "messages": [{"role": "user", "content": "Existing", "metadata": {}}],
+                "event_log": [],
+            },
+        },
+        messages=[{"role": "user", "content": "Existing", "metadata": {}}],
+    )
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+
+    result = await simulations_service.disable_simulation_proxy_srvc(
+        simulation,
+        object(),
+        _user(7),
+    )
+
+    assert isinstance(result, SimulationProxyDisableResponse)
+    assert result.auto_user_proxy_enabled is False
+    assert result.messages[0].content == "Existing"
+    assert simulation.negotiation_state["data"]["auto_user_proxy_enabled"] is False
 
 
 @pytest.mark.asyncio

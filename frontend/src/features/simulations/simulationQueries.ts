@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
-import type { ApiComponents, SimulationRead, SimulationReadWithState, SimulationTurnResponse } from "@/api/types";
+import type {
+  ApiComponents,
+  SimulationProxyDisableResponse,
+  SimulationProxyTurnRequest,
+  SimulationProxyTurnResponse,
+  SimulationRead,
+  SimulationReadWithState,
+  SimulationTurnResponse
+} from "@/api/types";
 
 type SimulationCreateRequest = ApiComponents["schemas"]["SimulationCreateRequest"];
 type SimulationStartRequest = ApiComponents["schemas"]["SimulationStartRequest"];
@@ -81,6 +89,28 @@ async function submitTurn(simulationId: number, input: SimulationTurnRequest) {
   );
 }
 
+async function submitProxyTurn(simulationId: number, input: SimulationProxyTurnRequest) {
+  return jsonRequest<SimulationProxyTurnResponse>(
+    `/simulations/${simulationId}/proxy-turn`,
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    "Unable to submit proxy turn"
+  );
+}
+
+async function disableProxy(simulationId: number) {
+  return jsonRequest<SimulationProxyDisableResponse>(
+    `/simulations/${simulationId}/proxy/disable`,
+    {
+      method: "POST",
+      body: JSON.stringify({})
+    },
+    "Unable to disable proxy"
+  );
+}
+
 async function reviewSimulation(simulationId: number, input: SimulationTeacherReviewRequest) {
   return jsonRequest<SimulationRead>(
     `/simulations/${simulationId}/review`,
@@ -143,6 +173,22 @@ export function useSimulationTurnMutation(simulationId: number) {
   const invalidate = useInvalidateSimulation();
   return useMutation({
     mutationFn: (input: SimulationTurnRequest) => submitTurn(simulationId, input),
+    onSuccess: async () => invalidate(simulationId)
+  });
+}
+
+export function useSimulationProxyTurnMutation(simulationId: number) {
+  const invalidate = useInvalidateSimulation();
+  return useMutation({
+    mutationFn: (input: SimulationProxyTurnRequest) => submitProxyTurn(simulationId, input),
+    onSuccess: async () => invalidate(simulationId)
+  });
+}
+
+export function useDisableSimulationProxyMutation(simulationId: number) {
+  const invalidate = useInvalidateSimulation();
+  return useMutation({
+    mutationFn: () => disableProxy(simulationId),
     onSuccess: async () => invalidate(simulationId)
   });
 }

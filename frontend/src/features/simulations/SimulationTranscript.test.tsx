@@ -52,4 +52,24 @@ describe("SimulationTranscript", () => {
     expect(responseCard).not.toHaveClass("w-fit");
     expect(responseCard?.className).not.toMatch(/\bmax-w-/);
   });
+
+  it("shows a proxy badge on proxy-authored student turns", () => {
+    render(
+      <SimulationTranscript
+        simulation={{
+          ...simulationWithMessage,
+          messages: [
+            {
+              role: "user",
+              content: "I can move to 100 if we can settle today.",
+              timestamp: "2026-06-10T09:00:00Z",
+              metadata: { user_reply_origin: "auto_user_proxy" }
+            }
+          ]
+        }}
+      />
+    );
+
+    expect(screen.getByText("Proxy")).toBeInTheDocument();
+  });
 });
