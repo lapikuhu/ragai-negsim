@@ -9,7 +9,9 @@ except ImportError:
 # local imports
 from app.airag.chains.crag.crag_nodes import node_grade, make_crag_retrieve_node, node_rewrite
 from app.airag.chains.crag.crag_nodes import node_generate, node_fallback, node_quality_check
+from app.airag.chains.crag.crag_nodes import make_crag_rerank_node
 from app.airag.chains.crag.crag_routers import make_decide_after_grade, make_decide_after_quality
+from app.airag.reranking.reranking import choose_reranker
 
 # Define the CRAGState TypedDict to represent the state of the CRAG process
 class CRAGState(TypedDict):
@@ -30,6 +32,7 @@ class CRAGState(TypedDict):
 def make_crag(retriever_obj,
               state_schema: type[CRAGState] = CRAGState,
               make_retriever_node: callable = make_crag_retrieve_node,
+              make_rerank_node: callable = make_crag_rerank_node,
               grader: callable = node_grade,
               rewriter: callable = node_rewrite,
               generator: callable = node_generate,
@@ -37,7 +40,10 @@ def make_crag(retriever_obj,
               fallback: callable = node_fallback,
               make_decider_after_grade: callable = make_decide_after_grade,
               make_decider_after_quality: callable = make_decide_after_quality,
-              max_rewrite_attempts: int = 2) -> StateGraph:
+              max_rewrite_attempts: int = 2,
+              reranker_name: str = "cross_encoder",
+              reranker=None,
+              rerank_top_k: int = 3) -> StateGraph:
     """
     Construct the Corrective RAG graph using provided node functions and
     routing logic.
@@ -45,6 +51,7 @@ def make_crag(retriever_obj,
         state_schema: The TypedDict representing the state of the RAG process.
         retriever_obj: The retriever instance to use for the retrieve node.
         make_retriever_node: The function to use for creating the retrieve node.
+        make_rerank_node: The function to use for creating the rerank node.
         grader: The function to use for the grade node.
         rewriter: The function to use for the rewrite node.
         generator: The function to use for the generate node.
@@ -55,11 +62,19 @@ def make_crag(retriever_obj,
             after quality node.
         max_rewrite_attempts: The maximum number of rewrite attempts before 
             falling back. Default is 2.
+        reranker_name: The configured reranker backend when no callable is injected.
+        reranker: Optional injected reranker callable for tests or custom backends.
+        rerank_top_k: The maximum number of reranked documents to keep.
     Returns:
         A compiled StateGraph representing the CRAG flow.
     """
+    if rerank_top_k < 1:
+        raise ValueError("rerank_top_k must be at least 1")
+
     # Create the retrieve node with access to the retriever instance
     retriever_node = make_retriever_node(retriever_obj)
+    selected_reranker = reranker or choose_reranker(reranker_name)
+    rerank_node = make_rerank_node(selected_reranker, top_k=rerank_top_k)
     # Create the decider function for routing after grading with the max attempts bound
     decider_after_grade = make_decider_after_grade(max_rewrite_attempts)
     # Create the after_quality decider function
@@ -68,6 +83,7 @@ def make_crag(retriever_obj,
     crag_flow = StateGraph(state_schema)
     # Add nodes
     crag_flow.add_node("retrieve",  retriever_node)
+    crag_flow.add_node("rerank",    rerank_node)
     crag_flow.add_node("grade",     grader)
     crag_flow.add_node("rewrite",   rewriter)
     crag_flow.add_node("generate",  generator)
@@ -75,7 +91,8 @@ def make_crag(retriever_obj,
     crag_flow.add_node("fallback",  fallback)
     # Add edges
     crag_flow.add_edge(START, "retrieve")
-    crag_flow.add_edge("retrieve", "grade")
+    crag_flow.add_edge("retrieve", "rerank")
+    crag_flow.add_edge("rerank", "grade")
     crag_flow.add_conditional_edges(
     "grade",
     decider_after_grade,

@@ -36,6 +36,27 @@ def make_crag_retrieve_node(retriever):
             return {"documents": docs}
     return node_retrieve
 
+
+def make_crag_rerank_node(reranker, top_k: int = 3):
+    """
+    Rerank retrieved documents before grading and generation.
+    """
+
+    def node_rerank(state) -> dict:
+        docs = state.get("documents", [])
+        if not docs:
+            return {"documents": docs}
+
+        question = state.get("rewritten") or state["question"]
+        try:
+            reranked_docs = reranker(question, docs, top_k)
+        except Exception as exc:
+            print(f"[rerank] failed, preserving retrieval order: {exc}")
+            return {"documents": docs}
+        return {"documents": reranked_docs}
+
+    return node_rerank
+
 ### --------------------- DOCUMENT GRADER NODE---------------------- ###
 def node_grade(state) -> dict:
     """
