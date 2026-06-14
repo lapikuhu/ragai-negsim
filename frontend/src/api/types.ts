@@ -38,7 +38,9 @@ export type SessionRead = components["schemas"]["SessionRead"];
 export type CorpusRead = components["schemas"]["CorpusRead"];
 export type CorpusIndexRead = components["schemas"]["CorpusIndexReadWithIds"];
 export type ChunkingProfileRead = components["schemas"]["ChunkingProfileReadWithIds"];
-export type RagProfileRead = components["schemas"]["RagProfileReadWithIds"];
+export type RagProfileRead = components["schemas"]["RagProfileReadWithIds"] & {
+  knowledge_graph_index_id?: number | null;
+};
 export type VectorStoreRead = components["schemas"]["VectorStoreReadWithIds"];
 export type PromptRead = components["schemas"]["PromptRead"];
 export type ScenarioPublicRead = components["schemas"]["ScenarioPublicReadWithIds"];
@@ -93,18 +95,66 @@ export type RagProfileCreateRequest = {
   name: string;
   strategy: string;
   config: Record<string, unknown>;
+  knowledge_graph_index_id?: number | null;
 };
 
 export type RagProfileUpdateRequest = {
   name?: string | null;
   strategy?: string | null;
   config?: Record<string, unknown> | null;
+  knowledge_graph_index_id?: number | null;
 };
 
 export type RagProfileCopy = {
   name: string;
   strategy?: string | null;
   config?: Record<string, unknown> | null;
+  knowledge_graph_index_id?: number | null;
+};
+
+export type KnowledgeGraphBuildConfig = {
+  llm_provider: "openai" | "ollama";
+  llm_model: string;
+  embedding_provider: "openai" | "ollama";
+  embedding_model: string;
+  extractors: Array<"simple" | "implicit" | "schema">;
+  strict_schema?: boolean;
+  max_paths_per_chunk?: number;
+  ollama_base_url?: string;
+};
+
+export type KnowledgeGraphIndexRead = {
+  id: number;
+  name: string;
+  corpus_index_id: number;
+  build_config: KnowledgeGraphBuildConfig;
+  status: string;
+  active_generation?: string | null;
+  latest_build_error?: string | null;
+  locked_at?: string | null;
+  built_at?: string | null;
+  created_at: string;
+  last_updated: string;
+  rag_profile_ids: number[];
+  simulation_ids: number[];
+  active_job_id?: number | null;
+};
+
+export type KnowledgeGraphIndexCreate = {
+  name: string;
+  corpus_index_id: number;
+  build_config: KnowledgeGraphBuildConfig;
+};
+
+export type KnowledgeGraphBuildJobRead = {
+  id: number;
+  knowledge_graph_index_id: number;
+  status: string;
+  stage: string;
+  total_chunks: number;
+  processed_chunks: number;
+  candidate_generation: string;
+  failure_detail?: string | null;
 };
 
 export type RawDocumentSourceStatus = "available" | "missing" | "changed" | "unverified" | "error";

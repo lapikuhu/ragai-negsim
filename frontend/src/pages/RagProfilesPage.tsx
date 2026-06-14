@@ -23,11 +23,13 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { formatDateTime } from "@/utils/format";
+import { useKnowledgeGraphsQuery } from "@/features/knowledgeGraphs/knowledgeGraphQueries";
 
 type ProfileCreateState = {
   name: string;
   strategy: string;
   fieldValues: Record<string, string>;
+  knowledgeGraphIndexId: string;
 };
 
 type ActiveAction =
@@ -40,10 +42,12 @@ export function RagProfilesPage() {
   const query = useRagProfilesQuery();
   const definitionsQuery = useRagProfileDefinitionsQuery();
   const createMutation = useCreateRagProfileMutation();
+  const knowledgeGraphsQuery = useKnowledgeGraphsQuery();
   const [createForm, setCreateForm] = useState<ProfileCreateState>({
     name: "",
     strategy: "crag",
     fieldValues: {},
+    knowledgeGraphIndexId: "",
   });
   const [message, setMessage] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
@@ -76,11 +80,17 @@ export function RagProfilesPage() {
     });
   }, [definitions]);
 
-  if (query.isLoading || definitionsQuery.isLoading) {
+  if (query.isLoading || definitionsQuery.isLoading || knowledgeGraphsQuery.isLoading) {
     return <LoadingState label="Loading RAG profiles..." />;
   }
 
-  const error = query.isError ? query.error : definitionsQuery.isError ? definitionsQuery.error : null;
+  const error = query.isError
+    ? query.error
+    : definitionsQuery.isError
+      ? definitionsQuery.error
+      : knowledgeGraphsQuery.isError
+        ? knowledgeGraphsQuery.error
+        : null;
   if (error) {
     return (
       <ErrorState
@@ -88,12 +98,14 @@ export function RagProfilesPage() {
         onRetry={() => {
           void query.refetch();
           void definitionsQuery.refetch();
+          void knowledgeGraphsQuery.refetch();
         }}
       />
     );
   }
 
   const profiles = query.data ?? [];
+  const builtGraphs = (knowledgeGraphsQuery.data ?? []).filter((graph) => graph.status === "built");
 
   return (
     <div className="grid gap-6">
@@ -127,11 +139,16 @@ export function RagProfilesPage() {
                 name: createForm.name.trim(),
                 strategy: definition.strategy,
                 config: packProfileConfig(definition, createForm.fieldValues),
+                knowledge_graph_index_id:
+                  definition.strategy === "graphrag"
+                    ? Number(createForm.knowledgeGraphIndexId)
+                    : null,
               });
               setCreateForm({
                 name: "",
                 strategy: definition.strategy,
                 fieldValues: buildFieldValues(definition),
+                knowledgeGraphIndexId: "",
               });
               setMessage("RAG profile created.");
             } catch (error) {
@@ -156,6 +173,7 @@ export function RagProfilesPage() {
                     ...current,
                     strategy: event.target.value,
                     fieldValues: nextDefinition ? buildFieldValues(nextDefinition) : {},
+                    knowledgeGraphIndexId: "",
                   }));
                 }}
                 required
@@ -169,16 +187,37 @@ export function RagProfilesPage() {
             </Field>
           </div>
           {createDefinition ? (
-            <DefinitionFields
-              definition={createDefinition}
-              fieldValues={createForm.fieldValues}
-              onChange={(fieldName, value) =>
-                setCreateForm((current) => ({
-                  ...current,
-                  fieldValues: { ...current.fieldValues, [fieldName]: value },
-                }))
-              }
-            />
+            <>
+              {createDefinition.strategy === "graphrag" ? (
+                <Field label="Knowledge graph" hint="Only built graphs can be selected.">
+                  <Select
+                    value={createForm.knowledgeGraphIndexId}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({
+                        ...current,
+                        knowledgeGraphIndexId: event.target.value,
+                      }))
+                    }
+                    required
+                  >
+                    <option value="">Select built graph</option>
+                    {builtGraphs.map((graph) => (
+                      <option key={graph.id} value={graph.id}>{graph.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+              ) : null}
+              <DefinitionFields
+                definition={createDefinition}
+                fieldValues={createForm.fieldValues}
+                onChange={(fieldName, value) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    fieldValues: { ...current.fieldValues, [fieldName]: value },
+                  }))
+                }
+              />
+            </>
           ) : null}
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={createMutation.isPending}>
@@ -228,6 +267,9 @@ export function RagProfilesPage() {
                       <span>reranker {getConfigValue(profile, "reranker")}</span>
                       <span>top_n {getConfigValue(profile, "top_n")}</span>
                       <span>rewrite attempts {getConfigValue(profile, "max_rewrite_attempts")}</span>
+                      {profile.knowledge_graph_index_id ? (
+                        <span>graph #{profile.knowledge_graph_index_id}</span>
+                      ) : null}
                     </div>
                   ),
                 },
@@ -282,6 +324,7 @@ export function RagProfilesPage() {
                 action={activeAction}
                 profile={activeProfile}
                 definitions={definitions}
+                knowledgeGraphs={builtGraphs}
                 onClose={() => setActiveAction(null)}
               />
             ) : null}
@@ -303,18 +346,20 @@ function ActionPanel({
   action,
   profile,
   definitions,
+  knowledgeGraphs,
   onClose,
 }: {
   action: Exclude<ActiveAction, null>;
   profile: RagProfileRead;
   definitions: RagProfileDefinitionRead[];
+  knowledgeGraphs: Array<{ id: number; name: string }>;
   onClose: () => void;
 }) {
   if (action.type === "edit") {
-    return <EditProfilePanel profile={profile} definitions={definitions} onClose={onClose} />;
+    return <EditProfilePanel profile={profile} definitions={definitions} knowledgeGraphs={knowledgeGraphs} onClose={onClose} />;
   }
   if (action.type === "copy") {
-    return <CopyProfilePanel profile={profile} definitions={definitions} onClose={onClose} />;
+    return <CopyProfilePanel profile={profile} definitions={definitions} knowledgeGraphs={knowledgeGraphs} onClose={onClose} />;
   }
   return <DeleteProfilePanel profile={profile} onClose={onClose} />;
 }
@@ -322,10 +367,12 @@ function ActionPanel({
 function EditProfilePanel({
   profile,
   definitions,
+  knowledgeGraphs,
   onClose,
 }: {
   profile: RagProfileRead;
   definitions: RagProfileDefinitionRead[];
+  knowledgeGraphs: Array<{ id: number; name: string }>;
   onClose: () => void;
 }) {
   const updateMutation = useUpdateRagProfileMutation(profile.id);
@@ -334,6 +381,7 @@ function EditProfilePanel({
     name: profile.name,
     strategy: profile.strategy,
     fieldValues: buildFieldValues(definition, profile.config),
+    knowledgeGraphIndexId: profile.knowledge_graph_index_id ? String(profile.knowledge_graph_index_id) : "",
   });
   const [message, setMessage] = useState<string | null>(null);
   const used = hasSimulations(profile);
@@ -356,6 +404,8 @@ function EditProfilePanel({
               name: form.name.trim(),
               strategy: definition.strategy,
               config: packProfileConfig(definition, form.fieldValues),
+              knowledge_graph_index_id:
+                definition.strategy === "graphrag" ? Number(form.knowledgeGraphIndexId) : null,
             });
             onClose();
           } catch (error) {
@@ -371,6 +421,19 @@ function EditProfilePanel({
             <Input value={form.strategy} disabled required />
           </Field>
         </div>
+        {definition.strategy === "graphrag" ? (
+          <Field label="Knowledge graph">
+            <Select
+              value={form.knowledgeGraphIndexId}
+              disabled={used}
+              onChange={(event) => setForm((current) => ({ ...current, knowledgeGraphIndexId: event.target.value }))}
+              required
+            >
+              <option value="">Select built graph</option>
+              {knowledgeGraphs.map((graph) => <option key={graph.id} value={graph.id}>{graph.name}</option>)}
+            </Select>
+          </Field>
+        ) : null}
         <DefinitionFields
           definition={definition}
           fieldValues={form.fieldValues}
@@ -399,10 +462,12 @@ function EditProfilePanel({
 function CopyProfilePanel({
   profile,
   definitions,
+  knowledgeGraphs,
   onClose,
 }: {
   profile: RagProfileRead;
   definitions: RagProfileDefinitionRead[];
+  knowledgeGraphs: Array<{ id: number; name: string }>;
   onClose: () => void;
 }) {
   const copyMutation = useCopyRagProfileMutation(profile.id);
@@ -411,6 +476,7 @@ function CopyProfilePanel({
     name: `${profile.name} Copy`,
     strategy: profile.strategy,
     fieldValues: buildFieldValues(definition, profile.config),
+    knowledgeGraphIndexId: profile.knowledge_graph_index_id ? String(profile.knowledge_graph_index_id) : "",
   });
   const [message, setMessage] = useState<string | null>(null);
 
@@ -428,6 +494,8 @@ function CopyProfilePanel({
               name: form.name.trim(),
               strategy: definition.strategy,
               config: packProfileConfig(definition, form.fieldValues),
+              knowledge_graph_index_id:
+                definition.strategy === "graphrag" ? Number(form.knowledgeGraphIndexId) : null,
             } satisfies RagProfileCopy);
             onClose();
           } catch (error) {
@@ -438,6 +506,18 @@ function CopyProfilePanel({
         <Field label="New name">
           <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required />
         </Field>
+        {definition.strategy === "graphrag" ? (
+          <Field label="Knowledge graph">
+            <Select
+              value={form.knowledgeGraphIndexId}
+              onChange={(event) => setForm((current) => ({ ...current, knowledgeGraphIndexId: event.target.value }))}
+              required
+            >
+              <option value="">Select built graph</option>
+              {knowledgeGraphs.map((graph) => <option key={graph.id} value={graph.id}>{graph.name}</option>)}
+            </Select>
+          </Field>
+        ) : null}
         <DefinitionFields
           definition={definition}
           fieldValues={form.fieldValues}

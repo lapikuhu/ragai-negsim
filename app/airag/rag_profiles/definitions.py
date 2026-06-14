@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from app.airag.reranking.reranking import list_available_reranker_names
 
-RagStrategy = Literal["crag"]
+RagStrategy = Literal["crag", "graphrag"]
 RagFieldKind = Literal["int", "enum"]
 
 
@@ -82,13 +82,63 @@ def _crag_definition() -> RagProfileDefinition:
     )
 
 
+def _graphrag_definition() -> RagProfileDefinition:
+    """
+    Create the GraphRAG (Knowledge Graph RAG) profile definition.
+    Returns:
+        RagProfileDefinition: The GraphRAG profile definition.
+    """
+    return RagProfileDefinition(
+        strategy="graphrag",
+        label="Knowledge Graph RAG",
+        fields=(
+            RagProfileFieldDefinition(
+                name="retrieval_mode",
+                kind="enum",
+                label="Retrieval mode",
+                required=True,
+                default="semantic",
+                help_text="Use semantic graph context, text-to-Cypher, or both.",
+                options=("semantic", "cypher", "hybrid"),
+            ),
+            RagProfileFieldDefinition(
+                name="evidence_limit",
+                kind="int",
+                label="Evidence chunks",
+                required=True,
+                default=6,
+                minimum=1,
+                maximum=30,
+            ),
+            RagProfileFieldDefinition(
+                name="traversal_depth",
+                kind="int",
+                label="Traversal depth",
+                required=True,
+                default=2,
+                minimum=1,
+                maximum=5,
+            ),
+            RagProfileFieldDefinition(
+                name="rrf_k",
+                kind="int",
+                label="Hybrid RRF constant",
+                required=True,
+                default=60,
+                minimum=1,
+                maximum=200,
+            ),
+        ),
+    )
+
+
 def list_rag_profile_definitions() -> list[RagProfileDefinition]:
     """
     List all available RAG profile definitions.
     Returns:
         list[RagProfileDefinition]: A list of RAG profile definitions.
     """
-    return [_crag_definition()]
+    return [_crag_definition(), _graphrag_definition()]
 
 
 def get_rag_profile_definition(strategy: str) -> RagProfileDefinition:
@@ -102,9 +152,11 @@ def get_rag_profile_definition(strategy: str) -> RagProfileDefinition:
         ValueError: If the strategy is not supported.
     """
     normalized = strategy.strip().lower()
-    if normalized != "crag":
-        raise ValueError(f"Unsupported RAG strategy: {strategy}")
-    return _crag_definition()
+    if normalized == "crag":
+        return _crag_definition()
+    if normalized == "graphrag":
+        return _graphrag_definition()
+    raise ValueError(f"Unsupported RAG strategy: {strategy}")
 
 
 def normalize_rag_profile_config(
@@ -154,10 +206,11 @@ def normalize_rag_profile_config(
                 )
         normalized[field.name] = value
 
-    if normalized["top_n"] > normalized["top_k"]:
-        raise ValueError("top_n must be <= top_k")
+    if definition.strategy == "crag":
+        if normalized["top_n"] > normalized["top_k"]:
+            raise ValueError("top_n must be <= top_k")
 
-    if normalized["reranker"] == "none":
-        normalized["top_n"] = normalized["top_k"]
+        if normalized["reranker"] == "none":
+            normalized["top_n"] = normalized["top_k"]
 
     return normalized

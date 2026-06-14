@@ -49,6 +49,15 @@ vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
   useDeleteRagProfileMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
 
+vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
+  useKnowledgeGraphsQuery: () => ({
+    isLoading: false,
+    isError: false,
+    data: [],
+    refetch: vi.fn(),
+  }),
+}));
+
 describe("RagProfilesPage", () => {
   it("shows used profiles as locked for deletion", () => {
     render(<RagProfilesPage />);

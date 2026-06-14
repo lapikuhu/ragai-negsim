@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -68,12 +68,47 @@ vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
         id: 500,
         name: "Default CRAG",
         strategy: "crag",
+        knowledge_graph_index_id: null,
         config: { top_k: 4, reranker: "cross_encoder", top_n: 3, max_rewrite_attempts: 2 },
         created_by_user_id: 1,
         last_edit_by_user_id: null,
         created_at: "2026-06-14T12:00:00Z",
         last_updated: "2026-06-14T12:00:00Z",
         simulation_ids: [],
+      },
+      {
+        id: 501,
+        name: "Contracts GraphRAG",
+        strategy: "graphrag",
+        knowledge_graph_index_id: 91,
+        config: {
+          retrieval_mode: "hybrid",
+          top_k: 4,
+          evidence_limit: 8,
+          traversal_depth: 2,
+          rrf_k: 60,
+        },
+        created_by_user_id: 1,
+        last_edit_by_user_id: null,
+        created_at: "2026-06-14T12:00:00Z",
+        last_updated: "2026-06-14T12:00:00Z",
+        simulation_ids: [],
+      },
+    ],
+    refetch: vi.fn(),
+  }),
+}));
+
+vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
+  useKnowledgeGraphsQuery: () => ({
+    isLoading: false,
+    isError: false,
+    data: [
+      {
+        id: 91,
+        name: "Contracts graph",
+        corpus_index_id: 77,
+        status: "built",
       },
     ],
     refetch: vi.fn(),
@@ -106,5 +141,20 @@ describe("SimulationsPage", () => {
 
     expect(screen.getByRole("combobox", { name: /RAG profile/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Default CRAG" })).toBeInTheDocument();
+  });
+
+  it("locks the corpus and index to the graph bound to a GraphRAG profile", () => {
+    render(<SimulationsPage />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: /RAG profile/ }), {
+      target: { value: "501" },
+    });
+
+    const corpus = screen.getByRole("combobox", { name: "Corpus" });
+    const corpusIndex = screen.getByRole("combobox", { name: "Corpus index" });
+    expect(corpus).toHaveValue("11");
+    expect(corpusIndex).toHaveValue("77");
+    expect(corpus).toBeDisabled();
+    expect(corpusIndex).toBeDisabled();
   });
 });

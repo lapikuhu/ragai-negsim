@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from .indexed_chunks import IndexedChunk
     from .simulations import Simulation
     from .vector_stores import VectorStore
+    from .knowledge_graph_indices import KnowledgeGraphIndex
 
 
 class CorpusIndex(SQLModel, table=True):
@@ -32,6 +33,9 @@ class CorpusIndex(SQLModel, table=True):
     chunking_profile: "ChunkingProfile" = Relationship(back_populates="corpus_indices")
     indexed_chunks: list["IndexedChunk"] = Relationship(back_populates="corpus_index")
     simulations: list["Simulation"] = Relationship(back_populates="corpus_index")
+    knowledge_graph_indices: list["KnowledgeGraphIndex"] = Relationship(
+        back_populates="corpus_index"
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),

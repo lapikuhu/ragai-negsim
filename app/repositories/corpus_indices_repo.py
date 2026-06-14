@@ -1,5 +1,6 @@
 from app.models.corpus_indices import CorpusIndex
 from app.models.indexed_chunks import IndexedChunk
+from app.models.knowledge_graph_indices import KnowledgeGraphIndex
 from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
 from app.schemas.corpus_indices_schemas import (
     CorpusIndexBuildComplete,
@@ -217,6 +218,27 @@ async def has_indexed_chunks(
     return result.first() is not None
 
 
+async def has_knowledge_graphs(
+    corpus_index_id: int,
+    session: AsyncSession,
+) -> bool:
+    """
+    Check if a corpus index has any associated knowledge graphs.
+    Args:
+        corpus_index_id: The ID of the corpus index.
+        session: The database session.
+    Returns:
+        True if the corpus index has associated knowledge graphs, 
+        False otherwise.
+    """
+    result = await session.exec(
+        select(KnowledgeGraphIndex.id)
+        .where(KnowledgeGraphIndex.corpus_index_id == corpus_index_id)
+        .limit(1)
+    )
+    return result.first() is not None
+
+
 async def get_corpus_index_document_chunk_ids(
     corpus_index_id: int,
     session: AsyncSession,
@@ -333,6 +355,9 @@ async def ensure_corpus_index_deletable(
     """
     if index.id is None:
         raise ValueError("Corpus index must be persisted before it can be deleted")
+
+    if await has_knowledge_graphs(index.id, session):
+        raise ValueError("Cannot delete corpus index used by a knowledge graph")
 
     if await has_indexed_chunks(index.id, session):
         raise ValueError("Cannot delete corpus index with indexed chunks")

@@ -24,6 +24,7 @@ import { IndexingPage } from "@/pages/IndexingPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { VectorStoresPage } from "@/pages/VectorStoresPage";
+import { KnowledgeGraphsPage } from "@/pages/KnowledgeGraphsPage";
 
 export const router = createBrowserRouter([
   {
@@ -74,6 +75,7 @@ export const router = createBrowserRouter([
               { path: "prompts", element: <PromptsPage /> },
               { path: "chunking-profiles", element: <ChunkingProfilesPage /> },
               { path: "rag-profiles", element: <RagProfilesPage /> },
+              { path: "knowledge-graphs", element: <KnowledgeGraphsPage /> },
               { path: "indexing", element: <IndexingPage /> },
               { path: "vector-stores", element: <VectorStoresPage /> },
               { path: "models", element: <ModelsPage /> },

@@ -82,6 +82,58 @@ async def test_queue_job_rejects_when_non_terminal_simulation_uses_replaceable_i
 
 
 @pytest.mark.asyncio
+async def test_queue_job_rejects_when_knowledge_graph_uses_replaceable_index(monkeypatch):
+    async def fake_get_corpus_by_id(corpus_id, session):
+        return SimpleNamespace(id=corpus_id)
+
+    async def fake_get_profile(profile_id, session):
+        return SimpleNamespace(
+            id=profile_id,
+            strategy="recursive",
+            config={"chunk_size": 100, "chunk_overlap": 10},
+        )
+
+    async def fake_get_store(store_id, session):
+        return SimpleNamespace(id=store_id, embedding_dimensions=384)
+
+    async def fake_get_corpus_raw_document_ids(corpus_id, session):
+        return [7]
+
+    async def fake_get_replaceable_built_index(**kwargs):
+        return SimpleNamespace(id=77)
+
+    async def fake_get_corpus_index_by_name(name, session):
+        return None
+
+    async def fake_has_non_terminal(index_id, session):
+        return False
+
+    async def fake_has_knowledge_graphs(index_id, session):
+        return True
+
+    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_replaceable_built_index", fake_get_replaceable_built_index)
+    monkeypatch.setattr(indexing_jobs_service, "_has_non_terminal_simulations_for_index", fake_has_non_terminal)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "has_knowledge_graphs", fake_has_knowledge_graphs)
+
+    with pytest.raises(ValueError, match="Cannot replace corpus index used by a knowledge graph"):
+        await indexing_jobs_service.queue_indexing_job_srvc(
+            IndexingJobCreate(
+                corpus_id=1,
+                chunking_profile_id=2,
+                vector_store_id=3,
+                embedding_model="mini-l6-v2",
+                requested_index_name="policy-index",
+            ),
+            object(),
+        )
+
+
+@pytest.mark.asyncio
 async def test_queue_job_rejects_when_vector_store_dimensions_are_unset(monkeypatch):
     async def fake_get_corpus_by_id(corpus_id, session):
         return SimpleNamespace(id=corpus_id)

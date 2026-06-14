@@ -29,11 +29,20 @@ from app.repositories import (
     corpus_repo,
     prompts_repo,
     rag_profiles_repo,
+    knowledge_graph_indices_repo,
+    document_chunks_repo,
     scenarios_repo,
     sessions_repo,
     simulations_repo,
     vector_stores_repo,
 )
+from app.airag.knowledge_graph.k_graph import (
+    create_graph_embedding_model,
+    create_graph_llm,
+)
+from app.airag.knowledge_graph.retrieval import ScopedGraphRetriever
+from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
+from app.core.config import settings
 from app.schemas.simulations_schemas import (
     NegotiationStateSchema,
     SimulationCreate,
@@ -392,6 +401,47 @@ async def _get_valid_built_corpus_index(
     return corpus_index
 
 
+async def _validate_graphrag_profile_for_index(
+    rag_profile: Any,
+    *,
+    corpus_index_id: int,
+    session: AsyncSession,
+) -> Any | None:
+    """
+    Validate that a GraphRAG profile is compatible with a given corpus index.
+    Args:
+        rag_profile: The RAG profile to validate.
+        corpus_index_id: The ID of the corpus index.
+        session: The database session.
+    Returns:
+        The knowledge graph index associated with the RAG profile if valid,
+        or None if the profile is not a GraphRAG profile.
+    Raises:
+        ValueError: If the GraphRAG profile requires a knowledge graph but 
+        none is found.
+    """
+    if getattr(rag_profile, "strategy", None) != "graphrag":
+        return None
+    graph_id = getattr(rag_profile, "knowledge_graph_index_id", None)
+    if graph_id is None:
+        raise ValueError("GraphRAG profile requires a knowledge graph")
+    graph = await knowledge_graph_indices_repo.get_knowledge_graph_index_by_id(
+        graph_id,
+        session,
+    )
+    if (
+        graph is None
+        or graph.status != "built"
+        or graph.active_generation is None
+    ):
+        raise ValueError("GraphRAG profile requires a built knowledge graph")
+    if graph.corpus_index_id != corpus_index_id:
+        raise ValueError(
+            "GraphRAG profile and simulation must use the same corpus index"
+        )
+    return graph
+
+
 def _prompt_template(prompt: Any, prompt_role: str) -> str:
     """
     Extract the prompt template from a prompt object.
@@ -515,6 +565,7 @@ def _graph_cache_key(
         getattr(rag_profile, "id", None),
         getattr(rag_profile, "strategy", None),
         json.dumps(getattr(rag_profile, "config", {}), sort_keys=True),
+        getattr(rag_profile, "knowledge_graph_index_id", None),
         prompt_templates.get("coach"),
         prompt_templates.get("counterpart"),
         prompt_templates.get("evaluator"),
@@ -578,6 +629,67 @@ def _make_crag_graph(retriever: Any, rag_profile: Any) -> Any:
     )
 
 
+def _make_graphrag_graph(retriever: Any, rag_profile: Any) -> Any:
+    """
+    Create a GraphRAG graph using the provided retriever.
+    Args:
+        retriever: The retriever object.
+        rag_profile: The RAG profile object.
+    Returns:
+        The GraphRAG graph.
+    """
+    from app.airag.chains.crag.crag import CRAGState, make_crag
+
+    return make_crag(
+        retriever_obj=retriever,
+        state_schema=CRAGState,
+        max_rewrite_attempts=1,
+        reranker_name="none",
+        rerank_top_k=rag_profile.config.get("evidence_limit", 6),
+    )
+
+
+async def _make_scoped_graph_retriever(
+    graph: Any,
+    rag_profile: Any,
+    session: AsyncSession,
+) -> ScopedGraphRetriever:
+    """
+    Create a scoped graph retriever for a given knowledge graph and RAG profile.
+    Args:
+        graph: The knowledge graph object.
+        rag_profile: The RAG profile object.
+        session: The database session.
+    Returns:
+        A ScopedGraphRetriever instance.
+    """
+    chunks = await document_chunks_repo.list_document_chunks_for_corpus_index(
+        graph.corpus_index_id,
+        session,
+    )
+    chunks_by_id = {chunk.id: chunk for chunk in chunks if chunk.id is not None}
+    config = graph.build_config
+    graph_store = ScopedNeo4jPropertyGraphStore(
+        graph_id=graph.id,
+        generation=graph.active_generation,
+        username=settings.NEO4J_READ_USERNAME or settings.NEO4J_USERNAME,
+        password=settings.NEO4J_READ_PASSWORD or settings.NEO4J_PASSWORD,
+        url=settings.NEO4J_URI,
+    )
+    return ScopedGraphRetriever(
+        graph_store=graph_store,
+        graph_id=graph.id,
+        generation=graph.active_generation,
+        embedding_model=create_graph_embedding_model(config),
+        llm=create_graph_llm(config),
+        chunks_by_id=chunks_by_id,
+        mode=rag_profile.config.get("retrieval_mode", "semantic"),
+        evidence_limit=rag_profile.config.get("evidence_limit", 6),
+        traversal_depth=rag_profile.config.get("traversal_depth", 2),
+        rrf_k=rag_profile.config.get("rrf_k", 60),
+    )
+
+
 async def _get_negotiation_graph_for_simulation(
     simulation: Simulation,
     session: AsyncSession,
@@ -612,21 +724,34 @@ async def _get_negotiation_graph_for_simulation(
     )
     if rag_profile is None:
         raise ValueError("RAG profile not found")
+    knowledge_graph = await _validate_graphrag_profile_for_index(
+        rag_profile,
+        corpus_index_id=corpus_index.id,
+        session=session,
+    )
     cache_key = _graph_cache_key(corpus_index, vector_store, prompt_templates, rag_profile)
     cached_graph = NEGOTIATION_GRAPH_CACHE.get(cache_key)
     if cached_graph is not None:
         return cached_graph
 
-    vector_store_runtime = await _instantiate_vector_store_for_index(
-        corpus_index,
-        vector_store,
-    )
-    retriever = make_dense_retriever(
-        vector_store_runtime,
-        k=rag_profile.config.get("top_k", 4),
-        metadata_filter={"corpus_index_id": corpus_index.id},
-    )
-    crag_graph = _make_crag_graph(retriever, rag_profile)
+    if rag_profile.strategy == "graphrag":
+        retriever = await _make_scoped_graph_retriever(
+            knowledge_graph,
+            rag_profile,
+            session,
+        )
+        crag_graph = _make_graphrag_graph(retriever, rag_profile)
+    else:
+        vector_store_runtime = await _instantiate_vector_store_for_index(
+            corpus_index,
+            vector_store,
+        )
+        retriever = make_dense_retriever(
+            vector_store_runtime,
+            k=rag_profile.config.get("top_k", 4),
+            metadata_filter={"corpus_index_id": corpus_index.id},
+        )
+        crag_graph = _make_crag_graph(retriever, rag_profile)
     graph = make_negotiation_graph(
         crag_graph=crag_graph,
         coach_prompt_template=prompt_templates["coach"],
@@ -1122,6 +1247,11 @@ async def create_simulation_srvc(
     )
     if rag_profile is None:
         raise ValueError("RAG profile not found")
+    knowledge_graph = await _validate_graphrag_profile_for_index(
+        rag_profile,
+        corpus_index_id=simulation_data.corpus_index_id,
+        session=session,
+    )
     await _get_prompt_template(simulation_data.coach_prompt_id, "coach", session)
     await _get_prompt_template(
         simulation_data.counterpart_prompt_id,
@@ -1134,6 +1264,11 @@ async def create_simulation_srvc(
         user_id_owner=current_user.id,
     )
     simulation = await simulations_repo.create_simulation(simulation_in, session)
+    if knowledge_graph is not None:
+        await knowledge_graph_indices_repo.lock_knowledge_graph(
+            knowledge_graph,
+            session,
+        )
     return _read_simulation(simulation)
 
 

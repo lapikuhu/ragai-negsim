@@ -224,6 +224,44 @@ AdminRagProfileDep: TypeAlias = Annotated[
 
 # -------------------------------------------------------------------- #
 
+# ---------- KNOWLEDGE GRAPH-RELATED DEPENDENCIES ---------- #
+from app.models.knowledge_graph_indices import KnowledgeGraphIndex
+from app.repositories import knowledge_graph_indices_repo
+
+
+async def get_knowledge_graph_index_or_404(
+    graph_id: int,
+    session: SessionDep,
+) -> KnowledgeGraphIndex:
+    graph = await knowledge_graph_indices_repo.get_knowledge_graph_index_by_id(
+        graph_id,
+        session,
+    )
+    if graph is None:
+        raise HTTPException(status_code=404, detail="Knowledge graph not found")
+    return graph
+
+
+KnowledgeGraphIndexDep: TypeAlias = Annotated[
+    KnowledgeGraphIndex,
+    Depends(get_knowledge_graph_index_or_404),
+]
+
+
+def get_admin_knowledge_graph_index(
+    graph: KnowledgeGraphIndexDep,
+    _admin: AdminDep,
+) -> KnowledgeGraphIndex:
+    return graph
+
+
+AdminKnowledgeGraphIndexDep: TypeAlias = Annotated[
+    KnowledgeGraphIndex,
+    Depends(get_admin_knowledge_graph_index),
+]
+
+# -------------------------------------------------------------------- #
+
 # ---------- CHUNKING PROFILE-RELATED DEPENDENCIES ---------- #
 from app.models.chunking_profiles import ChunkingProfile
 from app.repositories import chunking_profiles_repo

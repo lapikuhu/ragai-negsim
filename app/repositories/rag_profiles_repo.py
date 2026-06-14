@@ -8,6 +8,7 @@ from app.airag.rag_profiles import normalize_rag_profile_config
 from app.models.rag_profiles import RagProfile
 from app.models.simulations import Simulation
 from app.repositories.helpers import commit_and_refresh, commit_delete, utc_now
+from app.repositories import knowledge_graph_indices_repo
 from app.schemas.rag_profiles_schemas import (
     RagProfileCopy,
     RagProfileCreate,
@@ -53,6 +54,48 @@ def normalize_rag_profile_payload(
     ensure_rag_profile_strategy(strategy)
     ensure_rag_profile_config_dict(config)
     return normalize_rag_profile_config(strategy, config)
+
+
+async def validate_rag_profile_graph_binding(
+    *,
+    strategy: str,
+    knowledge_graph_index_id: int | None,
+    session: AsyncSession,
+) -> None:
+    """
+    Validate the binding of a RAG profile to a knowledge graph based on 
+    the strategy.
+    Args:
+        strategy (str): The RAG strategy name.
+        knowledge_graph_index_id (int | None): The ID of the knowledge 
+            graph index.
+        session (AsyncSession): The database session.
+    Raises:
+        ValueError: If the strategy is not supported or if the knowledge 
+        graph binding is invalid.
+    """
+    if strategy == "crag":
+        if knowledge_graph_index_id is not None:
+            raise ValueError(
+                "Knowledge graph reference is only valid for GraphRAG profiles"
+            )
+        return
+    if strategy != "graphrag":
+        return
+    if knowledge_graph_index_id is None:
+        raise ValueError("GraphRAG profile requires a knowledge graph")
+    graph = (
+        await knowledge_graph_indices_repo.get_knowledge_graph_index_by_id(
+            knowledge_graph_index_id,
+            session,
+        )
+    )
+    if (
+        graph is None
+        or graph.status != "built"
+        or graph.active_generation is None
+    ):
+        raise ValueError("GraphRAG profile requires a built knowledge graph")
 
 
 async def get_rag_profile_by_id(
@@ -253,10 +296,16 @@ async def create_rag_profile(
         profile_in.strategy,
         profile_in.config,
     )
+    await validate_rag_profile_graph_binding(
+        strategy=profile_in.strategy,
+        knowledge_graph_index_id=profile_in.knowledge_graph_index_id,
+        session=session,
+    )
     profile = RagProfile(
         name=profile_in.name,
         strategy=profile_in.strategy,
         config=normalized_config,
+        knowledge_graph_index_id=profile_in.knowledge_graph_index_id,
         created_by_user_id=profile_in.created_by_user_id,
     )
     return await commit_and_refresh(session, profile)
@@ -284,9 +333,18 @@ async def update_rag_profile(
 
     next_strategy = update_data.get("strategy", profile.strategy)
     next_config = update_data.get("config", profile.config)
+    next_graph_id = update_data.get(
+        "knowledge_graph_index_id",
+        profile.knowledge_graph_index_id,
+    )
     if "strategy" in update_data or "config" in update_data:
         update_data["strategy"] = next_strategy
         update_data["config"] = normalize_rag_profile_payload(next_strategy, next_config)
+    await validate_rag_profile_graph_binding(
+        strategy=next_strategy,
+        knowledge_graph_index_id=next_graph_id,
+        session=session,
+    )
 
     for field_name, value in update_data.items():
         setattr(profile, field_name, value)
@@ -315,10 +373,21 @@ async def copy_rag_profile(
     strategy = copy_in.strategy if copy_in.strategy is not None else source_profile.strategy
     config = copy_in.config if copy_in.config is not None else deepcopy(source_profile.config)
     normalized_config = normalize_rag_profile_payload(strategy, config)
+    graph_id = (
+        copy_in.knowledge_graph_index_id
+        if copy_in.knowledge_graph_index_id is not None
+        else source_profile.knowledge_graph_index_id
+    )
+    await validate_rag_profile_graph_binding(
+        strategy=strategy,
+        knowledge_graph_index_id=graph_id,
+        session=session,
+    )
     profile = RagProfile(
         name=copy_in.name,
         strategy=strategy,
         config=normalized_config,
+        knowledge_graph_index_id=graph_id,
         created_by_user_id=created_by_user_id,
     )
     return await commit_and_refresh(session, profile)

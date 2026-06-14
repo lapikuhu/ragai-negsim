@@ -327,6 +327,31 @@ async def list_corpus_document_chunks_for_profile(
     return list(result.all())
 
 
+async def list_document_chunks_for_corpus_index(
+    corpus_index_id: int,
+    session: AsyncSession,
+) -> list[DocumentChunk]:
+    """
+    Return the exact persisted chunks associated with a corpus index.
+    Args:
+        corpus_index_id (int): The ID of the corpus index.
+        session (AsyncSession): The database session.
+    Returns:
+        list[DocumentChunk]: A list of DocumentChunk instances associated 
+        with the corpus index.
+    """
+    result = await session.exec(
+        select(DocumentChunk)
+        .join(
+            IndexedChunk,
+            IndexedChunk.document_chunk_id == DocumentChunk.id,
+        )
+        .where(IndexedChunk.corpus_index_id == corpus_index_id)
+        .order_by(DocumentChunk.raw_document_id, DocumentChunk.chunk_index)
+    )
+    return list(result.all())
+
+
 async def to_document_chunk_read_with_ids(
     chunk: DocumentChunk,
     session: AsyncSession,

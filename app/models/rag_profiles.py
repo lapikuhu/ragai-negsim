@@ -5,6 +5,7 @@ from sqlalchemy import Column, DateTime as SQLAlchemyDateTime, JSON
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
+    from .knowledge_graph_indices import KnowledgeGraphIndex
     from .simulations import Simulation
     from .users import User
 
@@ -14,6 +15,14 @@ class RagProfile(SQLModel, table=True):
     name: str = Field(index=True, unique=True, min_length=3, title="RAG profile name")
     strategy: str = Field(min_length=1, title="RAG strategy")
     config: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    knowledge_graph_index_id: int | None = Field(
+        default=None,
+        foreign_key="knowledgegraphindex.id",
+        index=True,
+    )
+    knowledge_graph_index: Optional["KnowledgeGraphIndex"] = Relationship(
+        back_populates="rag_profiles"
+    )
     created_by_user_id: int = Field(foreign_key="user.id")
     created_by_user: "User" = Relationship(
         back_populates="rag_profiles_created",

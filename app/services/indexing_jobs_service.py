@@ -338,6 +338,11 @@ async def queue_indexing_job_srvc(
         session,
     ):
         raise ValueError("Cannot replace corpus index while simulations are still using it")
+    if replaceable_index is not None and await corpus_indices_repo.has_knowledge_graphs(
+        replaceable_index.id,
+        session,
+    ):
+        raise ValueError("Cannot replace corpus index used by a knowledge graph")
 
     raw_document_ids = await corpus_repo.get_corpus_raw_document_ids(job_in.corpus_id, session)
     job = await indexing_jobs_repo.create_indexing_job(job_in, session)
@@ -700,6 +705,11 @@ async def _activate_candidate_index(
     )
     if replaced_index is not None and replaced_index.id == candidate_index.id:
         replaced_index = None
+    if replaced_index is not None and await corpus_indices_repo.has_knowledge_graphs(
+        replaced_index.id,
+        session,
+    ):
+        raise ValueError("Cannot replace corpus index used by a knowledge graph")
 
     candidate_index, replaced_index = await corpus_indices_repo.activate_candidate_index(
         candidate_index=candidate_index,

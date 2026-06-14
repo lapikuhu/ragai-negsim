@@ -2103,6 +2103,572 @@
         }
       }
     },
+    "/knowledge-graph-indexes/": {
+      "post": {
+        "tags": [
+          "knowledge-graph-indexes"
+        ],
+        "summary": "Create Knowledge Graph Index",
+        "operationId": "create_knowledge_graph_index_knowledge_graph_indexes__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeGraphIndexCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraphIndexReadWithUsage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph-indexes"
+        ],
+        "summary": "List Knowledge Graph Indices",
+        "operationId": "list_knowledge_graph_indices_knowledge_graph_indexes__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "corpus_index_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Corpus Index Id"
+            }
+          },
+          {
+            "name": "status_filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status Filter"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeGraphIndexReadWithUsage"
+                  },
+                  "title": "Response List Knowledge Graph Indices Knowledge Graph Indexes  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph-indexes/{graph_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph-indexes"
+        ],
+        "summary": "Get Knowledge Graph Index",
+        "operationId": "get_knowledge_graph_index_knowledge_graph_indexes__graph_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "graph_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Graph Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraphIndexReadWithUsage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "knowledge-graph-indexes"
+        ],
+        "summary": "Update Knowledge Graph Index",
+        "operationId": "update_knowledge_graph_index_knowledge_graph_indexes__graph_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "graph_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Graph Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeGraphIndexUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraphIndexReadWithUsage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge-graph-indexes"
+        ],
+        "summary": "Delete Knowledge Graph Index",
+        "operationId": "delete_knowledge_graph_index_knowledge_graph_indexes__graph_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "graph_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Graph Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph-indexes/{graph_id}/build": {
+      "post": {
+        "tags": [
+          "knowledge-graph-indexes"
+        ],
+        "summary": "Build Knowledge Graph",
+        "operationId": "build_knowledge_graph_knowledge_graph_indexes__graph_id__build_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "graph_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Graph Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraphBuildJobRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph-indexes/{graph_id}/rebuild": {
+      "post": {
+        "tags": [
+          "knowledge-graph-indexes"
+        ],
+        "summary": "Rebuild Knowledge Graph",
+        "operationId": "rebuild_knowledge_graph_knowledge_graph_indexes__graph_id__rebuild_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "graph_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Graph Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraphBuildJobRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph-build-jobs/": {
+      "get": {
+        "tags": [
+          "knowledge-graph-build-jobs"
+        ],
+        "summary": "List Knowledge Graph Build Jobs",
+        "operationId": "list_knowledge_graph_build_jobs_knowledge_graph_build_jobs__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "graph_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Graph Id"
+            }
+          },
+          {
+            "name": "status_filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status Filter"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeGraphBuildJobRead"
+                  },
+                  "title": "Response List Knowledge Graph Build Jobs Knowledge Graph Build Jobs  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph-build-jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "knowledge-graph-build-jobs"
+        ],
+        "summary": "Get Knowledge Graph Build Job",
+        "operationId": "get_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraphBuildJobRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph-build-jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "knowledge-graph-build-jobs"
+        ],
+        "summary": "Cancel Knowledge Graph Build Job",
+        "operationId": "cancel_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__cancel_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraphBuildJobRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/prompts/": {
       "post": {
         "tags": [
@@ -2469,6 +3035,7 @@
           "rag-profiles"
         ],
         "summary": "Create Rag Profile",
+        "description": "Create a new RAG profile route.\nArgs:\n    profile_data (RagProfileCreateRequest): The data for the new RAG \n        profile.\n    session (SessionDep): The database session.\n    current_user (RagProfileAdminDep): The current user performing \n        the creation.\nReturns:\n    RagProfileReadWithIds: The created RAG profile read model with \n    associated simulation IDs.",
         "operationId": "create_rag_profile_rag_profiles__post",
         "security": [
           {
@@ -2513,6 +3080,7 @@
           "rag-profiles"
         ],
         "summary": "List Rag Profiles",
+        "description": "List all RAG profiles route with optional filters.\nArgs:\n    session (SessionDep): The database session.\n    _current_user (CurrentUserDep): The current user.\n    page (Page): Pagination information.\n    strategy (str | None): Filter by strategy.\n    name_contains (str | None): Filter by name substring.\n    used (bool | None): Filter by usage status.\n    created_by_user_id (int | None): Filter by creator user ID.\nReturns:\n    list[RagProfileReadWithIds]: A list of RAG profiles.",
         "operationId": "list_rag_profiles_rag_profiles__get",
         "security": [
           {
@@ -2642,6 +3210,7 @@
           "rag-profiles"
         ],
         "summary": "List Rag Profile Definitions",
+        "description": "List all RAG profile definitions route.\nArgs:\n    _current_user (CurrentUserDep): The current user.\nReturns:\n    list[RagProfileDefinitionRead]: A list of RAG profile definitions.",
         "operationId": "list_rag_profile_definitions_rag_profiles_definitions_get",
         "responses": {
           "200": {
@@ -2672,6 +3241,7 @@
           "rag-profiles"
         ],
         "summary": "Get Rag Profile",
+        "description": "Get a RAG profile by ID route.\nArgs:\n    profile (ReadableRagProfileDep): The RAG profile dependency.\n    session (SessionDep): The database session.\nReturns:\n    RagProfileReadWithIds: The RAG profile read model with associated \n    simulation IDs.",
         "operationId": "get_rag_profile_rag_profiles__profile_id__get",
         "security": [
           {
@@ -2717,6 +3287,7 @@
           "rag-profiles"
         ],
         "summary": "Update Rag Profile",
+        "description": "Update a RAG profile route.\nArgs:\n    profile_data (RagProfileUpdateRequest): The data to update the \n        RAG profile.\n    profile (AdminRagProfileDep): The RAG profile dependency.\n    session (SessionDep): The database session.\n    current_user (RagProfileAdminDep): The current user performing \n        the update.\nReturns:\n    RagProfileReadWithIds: The updated RAG profile read model with \n    associated simulation IDs.\nRaises:\n    HTTPException: If the update fails due to validation or other issues.",
         "operationId": "update_rag_profile_rag_profiles__profile_id__patch",
         "security": [
           {
@@ -2772,6 +3343,7 @@
           "rag-profiles"
         ],
         "summary": "Delete Rag Profile",
+        "description": "Delete a RAG profile route if it has not been used in any simulations.\nArgs:\n    profile (AdminRagProfileDep): The RAG profile dependency.\n    session (SessionDep): The database session.\nReturns:\n    None\nRaises:\n    HTTPException: If the deletion fails due to validation or other issues.",
         "operationId": "delete_rag_profile_rag_profiles__profile_id__delete",
         "security": [
           {
@@ -2812,6 +3384,7 @@
           "rag-profiles"
         ],
         "summary": "Copy Rag Profile",
+        "description": "Copy a RAG profile route.\nArgs:\n    copy_data (RagProfileCopy): The data for the new RAG profile copy.\n    source_profile (AdminRagProfileDep): The source RAG profile to copy.\n    session (SessionDep): The database session.\n    current_user (RagProfileAdminDep): The current user performing\n        the copy.\nReturns:\n    RagProfileReadWithIds: The newly created RAG profile copy read model\n    with associated simulation IDs.\nRaises:\n    HTTPException: If the copy fails due to validation or other issues.",
         "operationId": "copy_rag_profile_rag_profiles__profile_id__copy_post",
         "security": [
           {
@@ -4422,6 +4995,7 @@
           "simulations"
         ],
         "summary": "List Completed Simulations",
+        "description": "List all completed simulations for the current user route.\nArgs:\n    session (SessionDep): The database session.\n    current_user (TeacherOrAdminDep): The current user.\n    page (Page): Pagination information.\nReturns:\n    SimulationEvaluationListResponse: A list of completed simulations\n    with pagination details.",
         "operationId": "list_completed_simulations_simulations_completed_get",
         "security": [
           {
@@ -5055,6 +5629,7 @@
           "simulations"
         ],
         "summary": "Delete Review Simulation",
+        "description": "Delete a teacher review for a simulation route.\nArgs:\n    simulation: The simulation instance.\n    session: The database session.\n    current_user: The teacher submitting the review.\nReturns:\n    None\nRaises:\n    ValueError: If the current user is not a teacher or if the review \n    cannot be deleted due to the simulation's current status.",
         "operationId": "delete_review_simulation_simulations__simulation_id__review_delete",
         "security": [
           {
@@ -7744,6 +8319,280 @@
         ],
         "title": "IndexingJobWarningRead"
       },
+      "KnowledgeGraphBuildJobRead": {
+        "properties": {
+          "knowledge_graph_index_id": {
+            "type": "integer",
+            "title": "Knowledge Graph Index Id"
+          },
+          "build_config_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Build Config Snapshot"
+          },
+          "chunk_ids_snapshot": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Chunk Ids Snapshot"
+          },
+          "candidate_generation": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Candidate Generation"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "queued"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "default": "validating"
+          },
+          "total_chunks": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Total Chunks",
+            "default": 0
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "processed_chunks": {
+            "type": "integer",
+            "title": "Processed Chunks"
+          },
+          "cancel_requested": {
+            "type": "boolean",
+            "title": "Cancel Requested"
+          },
+          "failure_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Detail"
+          },
+          "queued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Queued At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "knowledge_graph_index_id",
+          "candidate_generation",
+          "id",
+          "processed_chunks",
+          "cancel_requested",
+          "queued_at"
+        ],
+        "title": "KnowledgeGraphBuildJobRead"
+      },
+      "KnowledgeGraphIndexCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Name"
+          },
+          "corpus_index_id": {
+            "type": "integer",
+            "title": "Corpus Index Id"
+          },
+          "build_config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Build Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "corpus_index_id"
+        ],
+        "title": "KnowledgeGraphIndexCreate"
+      },
+      "KnowledgeGraphIndexReadWithUsage": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Name"
+          },
+          "corpus_index_id": {
+            "type": "integer",
+            "title": "Corpus Index Id"
+          },
+          "build_config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Build Config"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "active_generation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Generation"
+          },
+          "latest_build_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Build Error"
+          },
+          "locked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked At"
+          },
+          "built_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Built At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Updated"
+          },
+          "rag_profile_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Rag Profile Ids"
+          },
+          "simulation_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Simulation Ids"
+          },
+          "active_job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "corpus_index_id",
+          "id",
+          "status",
+          "created_at",
+          "last_updated"
+        ],
+        "title": "KnowledgeGraphIndexReadWithUsage"
+      },
+      "KnowledgeGraphIndexUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "build_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Config"
+          }
+        },
+        "type": "object",
+        "title": "KnowledgeGraphIndexUpdate"
+      },
       "NegotiationStateSchema": {
         "properties": {
           "current_phase": {
@@ -8001,6 +8850,17 @@
               }
             ],
             "title": "Config"
+          },
+          "knowledge_graph_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Graph Index Id"
           }
         },
         "type": "object",
@@ -8025,6 +8885,17 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Config"
+          },
+          "knowledge_graph_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Graph Index Id"
           }
         },
         "type": "object",
@@ -8160,6 +9031,17 @@
             "type": "object",
             "title": "Config"
           },
+          "knowledge_graph_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Graph Index Id"
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -8245,6 +9127,17 @@
               }
             ],
             "title": "Config"
+          },
+          "knowledge_graph_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Graph Index Id"
           }
         },
         "type": "object",

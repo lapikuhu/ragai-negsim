@@ -38,6 +38,7 @@ def _simulation_read(simulation_id: int, *, teacher_id: int | None = None, teach
         scenario_id=100,
         corpus_id=11,
         corpus_index_id=77,
+        rag_profile_id=500,
         coach_prompt_id=None,
         counterpart_prompt_id=None,
         evaluator_prompt_id=None,

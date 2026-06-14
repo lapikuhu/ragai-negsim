@@ -1,229 +1,233 @@
-from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-import networkx as nx
-from langchain_experimental.graph_transformers import LLMGraphTransformer
-from val_schema import ENTITIES, RELATIONS, VALIDATION_SCHEMA
+from collections import defaultdict
+from typing import Any, Sequence
 
-# local imports
+from llama_index.core import PropertyGraphIndex
+from llama_index.core.indices.property_graph import (
+    ImplicitPathExtractor,
+    SchemaLLMPathExtractor,
+    SimpleLLMPathExtractor,
+)
+from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
+
+from app.airag.knowledge_graph.val_schema import (
+    ENTITIES,
+    RELATIONS,
+    VALIDATION_SCHEMA,
+)
 from app.core.config import settings
-### ---------------------------------------------------------------- ###
 
-### Using the LLMGraphTransformer to build a knowledge graph from documents
-# Get the OpenAI API key from the settings
-OPENAI_API_KEY = settings.OPENAI_API_KEY
 
-LLM_MODEL   = "gpt-4o-mini"
-graph_llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
-embedding_model = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=OPENAI_API_KEY)
-
-graph_transformer = LLMGraphTransformer(llm=graph_llm)
-
-def create_graph_transformer(llm_model: str = LLM_MODEL, 
-                            temperature: float = 0) -> LLMGraphTransformer:
+def create_graph_llm(config: dict[str, Any]):
     """
-    Create an instance of LLMGraphTransformer with the specified language model and temperature.
+    Create a LLM instance based on the provided configuration.
     Args:
-        llm_model (str): The language model to use for the graph transformer.
-        temperature (float): The temperature setting for the language model.
+        config (dict): Configuration dictionary containing LLM provider 
+            and model information.
     Returns:
-        An instance of LLMGraphTransformer configured with the specified parameters.
+        An instance of the specified LLM.
+    Raises:
+        ValueError: If the LLM provider is unsupported or if required 
+        API keys are not configured
     """
-    graph_llm = ChatOpenAI(model=llm_model, temperature=temperature)
-    graph_transformer = LLMGraphTransformer(llm=graph_llm)
-    return graph_transformer
+    provider = config["llm_provider"]
+    model = config["llm_model"]
+    if provider == "openai":
+        from llama_index.llms.openai import OpenAI
 
-def build_knowledge_graph(graph_transformer: LLMGraphTransformer, 
-                          documents: list[Document]) -> nx.Graph:
-    """
-    Build a knowledge graph from a list of langchain Documents using the 
-    LLMGraphTransformer.
-    Args:
-        graph_transformer (LLMGraphTransformer): An instance of 
-            LLMGraphTransformer to use for building the knowledge graph.
-        documents (list[Document]): A list of langchain Document objects to
-            use for building the knowledge graph.
-    Returns:
-        An nx.Graph object representing the knowledge graph constructed from 
-            the input documents.
-    """
-    graph = graph_transformer.transform(documents)
-    return graph
-### ---------------------------------------------------------------- ###
-
-
-### ---------------------------------------------------------------- ###
-## -------------------- Neo4j Graph Database Setup ------------------ ##
-
-from app.db.db import create_neo4j_graph_store
-from llama_index.core import SimpleDirectoryReader, PropertyGraphIndex
-from llama_index.core.indices.property_graph import SimpleLLMPathExtractor
-from llama_index.core.indices.property_graph import ImplicitPathExtractor
-from llama_index.core.indices.property_graph import SchemaLLMPathExtractor
-from llama_index.core.schema import TextNode
-from llama_index.core import Document as LlamaDocument
-
-
-
-def get_llama_docs_from_langchain_docs(langchain_documents: list[Document]) -> list[LlamaDocument]:
-    """
-    Convert a list of langchain Documents into a list of llama-index 
-    Documents for use in building a property graph index.
-    Args:
-        langchain_documents (list[Document]): A list of langchain Document objects to 
-            convert.
-    Returns:
-        A list of llama-index Document objects converted from the input 
-            langchain Documents.
-    """
-    llama_docs = []
-    for doc in langchain_documents:
-        llama_doc = LlamaDocument.from_langchain_format(doc)
-        llama_docs.append(llama_doc)
-    return llama_docs
-
-def get_nodes_from_documents(documents: list[Document]) -> list[dict]:
-    """Extract nodes from a list of langchain Documents and format them 
-    for insertion into a Neo4j graph store.
-    Args:
-        documents (list[Document]): A list of langchain Document objects to extract nodes from.
-    Returns:
-        list[dict]: A list of dictionaries representing the nodes extracted from the documents.
-    """
-    nodes = [
-        TextNode(
-            text=doc.page_content,
-            metadata=doc.metadata,
-            id_=f"{doc.metadata.get('source', 'unknown')}::chunk::{doc.metadata.get('chunk_index', i)}",
+        if not settings.OPENAI_API_KEY:
+            raise ValueError("OpenAI API key is not configured")
+        return OpenAI(
+            model=model,
+            temperature=0,
+            api_key=settings.OPENAI_API_KEY,
         )
-        for i, doc in enumerate(documents)
-    ]
+    if provider == "ollama":
+        from llama_index.llms.ollama import Ollama
+
+        return Ollama(
+            model=model,
+            temperature=0,
+            base_url=config.get("ollama_base_url", "http://localhost:11434"),
+            request_timeout=120,
+        )
+    raise ValueError(f"Unsupported LLM provider: {provider}")
+
+
+def create_graph_embedding_model(config: dict[str, Any]):
+    """
+    Create an embedding model instance based on the provided configuration.
+    Args:
+        config (dict): Configuration dictionary containing embedding provider
+            and model information.
+    Returns:
+        An instance of the specified embedding model.
+    Raises:
+        ValueError: If the embedding provider is unsupported or if required
+        API keys are not configured.
+    """
+    provider = config["embedding_provider"]
+    model = config["embedding_model"]
+    if provider == "openai":
+        from llama_index.embeddings.openai import OpenAIEmbedding
+
+        if not settings.OPENAI_API_KEY:
+            raise ValueError("OpenAI API key is not configured")
+        return OpenAIEmbedding(
+            model=model,
+            api_key=settings.OPENAI_API_KEY,
+        )
+    if provider == "ollama":
+        from llama_index.embeddings.ollama import OllamaEmbedding
+
+        return OllamaEmbedding(
+            model_name=model,
+            base_url=config.get("ollama_base_url", "http://localhost:11434"),
+        )
+    raise ValueError(f"Unsupported embedding provider: {provider}")
+
+
+def create_kg_extractors(
+    config: dict[str, Any],
+    *,
+    llm,
+) -> list:
+    """
+    Create a list of knowledge graph extractors based on the provided 
+    configuration.
+    Args:
+        config (dict): Configuration dictionary containing extractor 
+            names and settings.
+        llm: An instance of the LLM to be used by the extractors.
+    Returns:
+        A list of knowledge graph extractor instances.
+    Raises:
+        ValueError: If an unsupported extractor name is provided.
+    """
+    max_paths = int(config.get("max_paths_per_chunk", 10))
+    extractors = []
+    for name in config.get("extractors", ["schema"]):
+        if name == "implicit":
+            extractors.append(ImplicitPathExtractor())
+        elif name == "simple":
+            extractors.append(
+                SimpleLLMPathExtractor(
+                    llm=llm,
+                    max_paths_per_chunk=max_paths,
+                )
+            )
+        elif name == "schema":
+            extractors.append(
+                SchemaLLMPathExtractor(
+                    llm=llm,
+                    possible_entities=ENTITIES,
+                    possible_relations=RELATIONS,
+                    kg_validation_schema=VALIDATION_SCHEMA,
+                    strict=bool(config.get("strict_schema", True)),
+                    max_triplets_per_chunk=max_paths,
+                    allow_additional_properties=False,
+                )
+            )
+        else:
+            raise ValueError(f"Unsupported knowledge graph extractor: {name}")
+    return extractors
+
+
+def _node_id(graph_id: int, generation: str, chunk_id: int) -> str:
+    """
+    Generate a unique node ID for a text node in the knowledge graph.
+    Args:
+        graph_id (int): The ID of the knowledge graph.
+        generation (str): The generation identifier for the graph.
+        chunk_id (int): The ID of the document chunk.
+    Returns:
+        A unique string representing the node ID."""
+    return f"kg:{graph_id}:{generation}:chunk:{chunk_id}"
+
+
+def build_graph_text_nodes(
+    chunks: Sequence[Any],
+    *,
+    graph_id: int,
+    generation: str,
+    corpus_index_id: int,
+) -> list[TextNode]:
+    """
+    Build a list of TextNode instances from document chunks for the 
+    knowledge graph.
+    Args:
+        chunks (Sequence[Any]): A sequence of document chunks.
+        graph_id (int): The ID of the knowledge graph.
+        generation (str): The generation identifier for the graph.
+        corpus_index_id (int): The ID of the corpus index.
+    Returns:
+        A list of TextNode instances representing the document chunks in 
+        the knowledge graph.
+    """
+    nodes: list[TextNode] = []
+    by_document: dict[int, list[TextNode]] = defaultdict(list)
+
+    for chunk in chunks:
+        if chunk.id is None:
+            raise ValueError("Document chunk must be persisted before graph indexing")
+        metadata = {
+            **dict(chunk.chunk_metadata),
+            "document_chunk_id": chunk.id,
+            "raw_document_id": chunk.raw_document_id,
+            "chunking_profile_id": chunk.chunking_profile_id,
+            "chunk_index": chunk.chunk_index,
+            "corpus_index_id": corpus_index_id,
+            "knowledge_graph_index_id": graph_id,
+            "graph_generation": generation,
+        }
+        node = TextNode(
+            id_=_node_id(graph_id, generation, chunk.id),
+            text=chunk.content,
+            metadata=metadata,
+        )
+        nodes.append(node)
+        by_document[chunk.raw_document_id].append(node)
+
+    for document_nodes in by_document.values():
+        document_nodes.sort(key=lambda node: int(node.metadata["chunk_index"]))
+        for index, node in enumerate(document_nodes):
+            if index > 0:
+                previous = document_nodes[index - 1]
+                node.relationships[NodeRelationship.PREVIOUS] = RelatedNodeInfo(
+                    node_id=previous.id_
+                )
+            if index + 1 < len(document_nodes):
+                following = document_nodes[index + 1]
+                node.relationships[NodeRelationship.NEXT] = RelatedNodeInfo(
+                    node_id=following.id_
+                )
     return nodes
 
-neo4j_graph_store = create_neo4j_graph_store()
 
-def build_graph_index_from_nodes(nodes: list[TextNode],
-                      graph_store,
-                      graph_llm,
-                      embedding_model,
-                      kg_extractors) -> PropertyGraphIndex:
+def build_property_graph_index(
+    *,
+    nodes: list[TextNode],
+    graph_store,
+    llm,
+    embedding_model,
+    kg_extractors: list,
+) -> PropertyGraphIndex:
     """
-    Build a PropertyGraphIndex from a list of TextNode objects and
-    store it in the specified graph store. This prevents the llama-index
-    from re-chunking and re-processing the documents. Make sure your nodes
-    are created with get_nodes_from_documents func. Only useful when we
-    can isolate and the chunks on a db.
+    Build a PropertyGraphIndex instance for the knowledge graph.
     Args:
-        nodes: list of TextNode objects representing the nodes to be included 
-        in the graph index.
-        graph_store: The graph store where the property graph index will be 
-            stored.
-        graph_llm: The language model to use for processing the documents.
-            embedding_model: The embedding model to use for generating document 
-            embeddings.
-        kg_extractors: The knowledge graph extractors to use for extracting 
-            information from the documents.
+        nodes (list[TextNode]): A list of TextNode instances representing
+            the document chunks in the knowledge graph.
+        graph_store: The property graph store to be used for indexing.
+        llm: An instance of the LLM to be used for knowledge graph extraction.
+        embedding_model: An instance of the embedding model to be used for
+            generating embeddings for the nodes.
+        kg_extractors (list): A list of knowledge graph extractor instances.
     Returns:
-        PropertyGraphIndex: The constructed property graph index.
+        A PropertyGraphIndex instance representing the knowledge graph.
     """
-    index = PropertyGraphIndex(
+    return PropertyGraphIndex(
         nodes=nodes,
         property_graph_store=graph_store,
-        llm=graph_llm,
+        llm=llm,
         embed_model=embedding_model,
-        kg_extractors=kg_extractors)
-    return index
-
-def build_graph_index_from_documents(documents: list[Document],
-                    graph_store,
-                    graph_llm,
-                    embedding_model,
-                    kg_extractors,
-                    graphchunk: bool = False) -> PropertyGraphIndex:
-    """
-    Build a PropertyGraphIndex from a list of langchain Documents. 
-    If graphchunk is False, the function will extract nodes from the documents 
-    and build the graph index directly from those nodes. If graphchunk 
-    is True, the function will convert the langchain Documents into 
-    llama-index Documents and let the PropertyGraphIndex handle the chunking 
-    and node creation internally.
-    Args:
-        documents: A list of langchain Document objects to be included in the 
-            graph index.
-        graph_store: The graph store where the property graph index will be 
-            stored.
-        graph_llm: The language model to use for processing the documents.
-        embedding_model: The embedding model to use for generating document 
-            embeddings.
-        kg_extractors: The knowledge graph extractors to use for extracting 
-            information from the documents.
-        graphchunk: A boolean flag indicating whether to let the PropertyGraphIndex
-            handle chunking and node creation internally (True) or to extract nodes
-            from the documents and build the graph index directly from those nodes (False).
-    Returns:
-        PropertyGraphIndex: The constructed property graph index. 
-    """
-    if not graphchunk:
-        nodes = get_nodes_from_documents(documents)
-        index = build_graph_index_from_nodes(nodes, graph_store, graph_llm, embedding_model, kg_extractors)
-    else:
-        llama_docs = get_llama_docs_from_langchain_docs(documents)
-        index = PropertyGraphIndex.from_documents(
-        documents=llama_docs,
-        property_graph_store=graph_store,
-        llm=graph_llm,
-        embed_model=embedding_model,
-        kg_extractors=kg_extractors)
-    return index
-
-def get_free_form_kg(graph_llm) -> SimpleLLMPathExtractor:
-    """
-    Create a SimpleLLMPathExtractor instance for extracting knowledge graph
-    paths from documents using a language model.
-    Args:
-        graph_llm: The language model to use for extracting knowledge graph paths.
-    Returns:
-        SimpleLLMPathExtractor: An instance of SimpleLLMPathExtractor.
-    """
-    kg_extractor = SimpleLLMPathExtractor(llm=graph_llm)
-    return kg_extractor
-
-def get_implicit_kg() -> ImplicitPathExtractor:
-    """
-    Create an ImplicitPathExtractor instance for extracting knowledge graph
-    paths from documents using implicit methods.
-    Args:
-        None
-    Returns:
-        ImplicitPathExtractor: An instance of ImplicitPathExtractor.
-    """
-    kg_extractor = ImplicitPathExtractor()
-    return kg_extractor
-
-def get_schema_kg(
-    graph_llm, 
-    entities: list[str], 
-    relations: list[str], 
-    schema: dict,
-    strict: bool = True
-) -> SchemaLLMPathExtractor:
-    """
-    Create a SchemaLLMPathExtractor instance for extracting knowledge graph
-    paths from documents using a language model and a specified schema.
-    Args:
-        graph_llm: The language model to use for extracting knowledge graph paths.
-        entities (list[str]): A list of possible entities in the knowledge graph.
-        relations (list[str]): A list of possible relations in the knowledge graph.
-        schema (dict): The schema for validating the knowledge graph paths.
-        strict (bool): If True, enforces strict validation against the schema.
-    Returns:
-        SchemaLLMPathExtractor: An instance of SchemaLLMPathExtractor.
-    """
-    kg_extractor = SchemaLLMPathExtractor(
-        llm=graph_llm, 
-        possible_entities=entities, 
-        possible_relations=relations, 
-        kg_validation_schema=schema,
-        strict=strict,  # if false, allows values outside of spec
+        kg_extractors=kg_extractors,
     )
-    return kg_extractor
-### ---------------------------------------------------------------- ###

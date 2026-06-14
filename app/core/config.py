@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     NEO4J_URI: str
     NEO4J_USERNAME: str
     NEO4J_PASSWORD: str
+    NEO4J_READ_USERNAME: str | None = None
+    NEO4J_READ_PASSWORD: str | None = None
     SECRET_KEY: str
     ALGORITHM: str
     OPENAI_API_KEY: str

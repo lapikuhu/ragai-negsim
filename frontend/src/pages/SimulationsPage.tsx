@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSimulationsQuery, useCreateSimulationMutation } from "@/features/simulations/simulationQueries";
 import { useCorporaQuery } from "@/features/corpora/corpusQueries";
@@ -8,6 +8,7 @@ import {
   useVectorStoresQuery
 } from "@/features/corpusIndices/corpusIndexQueries";
 import { useRagProfilesQuery } from "@/features/ragProfiles/ragProfileQueries";
+import { useKnowledgeGraphsQuery } from "@/features/knowledgeGraphs/knowledgeGraphQueries";
 import { useScenariosQuery } from "@/features/scenarios/scenarioQueries";
 import { usePersonasQuery } from "@/features/counterpartPersonas/personaQueries";
 import { usePromptsQuery } from "@/features/prompts/promptQueries";
@@ -32,6 +33,7 @@ export function SimulationsPage() {
   useChunkingProfilesQuery();
   useVectorStoresQuery();
   const ragProfiles = useRagProfilesQuery();
+  const knowledgeGraphs = useKnowledgeGraphsQuery();
   const scenarios = useScenariosQuery();
   const personas = usePersonasQuery();
   const prompts = usePromptsQuery();
@@ -59,10 +61,32 @@ export function SimulationsPage() {
 
   const corpusOptions = corpora.data ?? [];
   const ragProfileOptions = ragProfiles.data ?? [];
+  const selectedRagProfile = ragProfileOptions.find((profile) => String(profile.id) === form.ragProfileId);
+  const selectedKnowledgeGraph = (knowledgeGraphs.data ?? []).find(
+    (graph) => graph.id === selectedRagProfile?.knowledge_graph_index_id,
+  );
+  const graphCorpusIndex = (indices.data ?? []).find(
+    (index) => index.id === selectedKnowledgeGraph?.corpus_index_id,
+  );
+  const graphSelectionLocked = selectedRagProfile?.strategy === "graphrag" && Boolean(graphCorpusIndex);
   const indexOptions = useMemo(
     () => (indices.data ?? []).filter((index) => String(index.corpus_id) === form.corpusId || !form.corpusId),
     [form.corpusId, indices.data]
   );
+
+  useEffect(() => {
+    if (!graphCorpusIndex) {
+      return;
+    }
+    setForm((current) => {
+      const corpusId = String(graphCorpusIndex.corpus_id);
+      const corpusIndexId = String(graphCorpusIndex.id);
+      if (current.corpusId === corpusId && current.corpusIndexId === corpusIndexId) {
+        return current;
+      }
+      return { ...current, corpusId, corpusIndexId };
+    });
+  }, [graphCorpusIndex]);
 
   return (
     <div className="grid gap-6">
@@ -108,6 +132,7 @@ export function SimulationsPage() {
             <Select
               value={form.corpusId}
               onChange={(event) => setForm((current) => ({ ...current, corpusId: event.target.value }))}
+              disabled={graphSelectionLocked}
               required
             >
               <option value="">Select corpus</option>
@@ -128,6 +153,7 @@ export function SimulationsPage() {
             <Select
               value={form.corpusIndexId}
               onChange={(event) => setForm((current) => ({ ...current, corpusIndexId: event.target.value }))}
+              disabled={graphSelectionLocked}
               required
             >
               <option value="">Select corpus index</option>

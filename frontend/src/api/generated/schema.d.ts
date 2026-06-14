@@ -777,6 +777,128 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/knowledge-graph-build-jobs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Knowledge Graph Build Jobs */
+        get: operations["list_knowledge_graph_build_jobs_knowledge_graph_build_jobs__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge-graph-build-jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Knowledge Graph Build Job */
+        get: operations["get_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge-graph-build-jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Knowledge Graph Build Job */
+        post: operations["cancel_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge-graph-indexes/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Knowledge Graph Indices */
+        get: operations["list_knowledge_graph_indices_knowledge_graph_indexes__get"];
+        put?: never;
+        /** Create Knowledge Graph Index */
+        post: operations["create_knowledge_graph_index_knowledge_graph_indexes__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge-graph-indexes/{graph_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Knowledge Graph Index */
+        get: operations["get_knowledge_graph_index_knowledge_graph_indexes__graph_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Knowledge Graph Index */
+        delete: operations["delete_knowledge_graph_index_knowledge_graph_indexes__graph_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Knowledge Graph Index */
+        patch: operations["update_knowledge_graph_index_knowledge_graph_indexes__graph_id__patch"];
+        trace?: never;
+    };
+    "/knowledge-graph-indexes/{graph_id}/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build Knowledge Graph */
+        post: operations["build_knowledge_graph_knowledge_graph_indexes__graph_id__build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge-graph-indexes/{graph_id}/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebuild Knowledge Graph */
+        post: operations["rebuild_knowledge_graph_knowledge_graph_indexes__graph_id__rebuild_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/prompts/": {
         parameters: {
             query?: never;
@@ -892,10 +1014,35 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List Rag Profiles */
+        /**
+         * List Rag Profiles
+         * @description List all RAG profiles route with optional filters.
+         *     Args:
+         *         session (SessionDep): The database session.
+         *         _current_user (CurrentUserDep): The current user.
+         *         page (Page): Pagination information.
+         *         strategy (str | None): Filter by strategy.
+         *         name_contains (str | None): Filter by name substring.
+         *         used (bool | None): Filter by usage status.
+         *         created_by_user_id (int | None): Filter by creator user ID.
+         *     Returns:
+         *         list[RagProfileReadWithIds]: A list of RAG profiles.
+         */
         get: operations["list_rag_profiles_rag_profiles__get"];
         put?: never;
-        /** Create Rag Profile */
+        /**
+         * Create Rag Profile
+         * @description Create a new RAG profile route.
+         *     Args:
+         *         profile_data (RagProfileCreateRequest): The data for the new RAG
+         *             profile.
+         *         session (SessionDep): The database session.
+         *         current_user (RagProfileAdminDep): The current user performing
+         *             the creation.
+         *     Returns:
+         *         RagProfileReadWithIds: The created RAG profile read model with
+         *         associated simulation IDs.
+         */
         post: operations["create_rag_profile_rag_profiles__post"];
         delete?: never;
         options?: never;
@@ -910,15 +1057,49 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get Rag Profile */
+        /**
+         * Get Rag Profile
+         * @description Get a RAG profile by ID route.
+         *     Args:
+         *         profile (ReadableRagProfileDep): The RAG profile dependency.
+         *         session (SessionDep): The database session.
+         *     Returns:
+         *         RagProfileReadWithIds: The RAG profile read model with associated
+         *         simulation IDs.
+         */
         get: operations["get_rag_profile_rag_profiles__profile_id__get"];
         put?: never;
         post?: never;
-        /** Delete Rag Profile */
+        /**
+         * Delete Rag Profile
+         * @description Delete a RAG profile route if it has not been used in any simulations.
+         *     Args:
+         *         profile (AdminRagProfileDep): The RAG profile dependency.
+         *         session (SessionDep): The database session.
+         *     Returns:
+         *         None
+         *     Raises:
+         *         HTTPException: If the deletion fails due to validation or other issues.
+         */
         delete: operations["delete_rag_profile_rag_profiles__profile_id__delete"];
         options?: never;
         head?: never;
-        /** Update Rag Profile */
+        /**
+         * Update Rag Profile
+         * @description Update a RAG profile route.
+         *     Args:
+         *         profile_data (RagProfileUpdateRequest): The data to update the
+         *             RAG profile.
+         *         profile (AdminRagProfileDep): The RAG profile dependency.
+         *         session (SessionDep): The database session.
+         *         current_user (RagProfileAdminDep): The current user performing
+         *             the update.
+         *     Returns:
+         *         RagProfileReadWithIds: The updated RAG profile read model with
+         *         associated simulation IDs.
+         *     Raises:
+         *         HTTPException: If the update fails due to validation or other issues.
+         */
         patch: operations["update_rag_profile_rag_profiles__profile_id__patch"];
         trace?: never;
     };
@@ -931,7 +1112,21 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Copy Rag Profile */
+        /**
+         * Copy Rag Profile
+         * @description Copy a RAG profile route.
+         *     Args:
+         *         copy_data (RagProfileCopy): The data for the new RAG profile copy.
+         *         source_profile (AdminRagProfileDep): The source RAG profile to copy.
+         *         session (SessionDep): The database session.
+         *         current_user (RagProfileAdminDep): The current user performing
+         *             the copy.
+         *     Returns:
+         *         RagProfileReadWithIds: The newly created RAG profile copy read model
+         *         with associated simulation IDs.
+         *     Raises:
+         *         HTTPException: If the copy fails due to validation or other issues.
+         */
         post: operations["copy_rag_profile_rag_profiles__profile_id__copy_post"];
         delete?: never;
         options?: never;
@@ -946,7 +1141,14 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List Rag Profile Definitions */
+        /**
+         * List Rag Profile Definitions
+         * @description List all RAG profile definitions route.
+         *     Args:
+         *         _current_user (CurrentUserDep): The current user.
+         *     Returns:
+         *         list[RagProfileDefinitionRead]: A list of RAG profile definitions.
+         */
         get: operations["list_rag_profile_definitions_rag_profiles_definitions_get"];
         put?: never;
         post?: never;
@@ -1551,7 +1753,19 @@ export type paths = {
          *         cannot be submitted due to the simulation's current status.
          */
         post: operations["review_simulation_simulations__simulation_id__review_post"];
-        /** Delete Review Simulation */
+        /**
+         * Delete Review Simulation
+         * @description Delete a teacher review for a simulation route.
+         *     Args:
+         *         simulation: The simulation instance.
+         *         session: The database session.
+         *         current_user: The teacher submitting the review.
+         *     Returns:
+         *         None
+         *     Raises:
+         *         ValueError: If the current user is not a teacher or if the review
+         *         cannot be deleted due to the simulation's current status.
+         */
         delete: operations["delete_review_simulation_simulations__simulation_id__review_delete"];
         options?: never;
         head?: never;
@@ -1650,7 +1864,17 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List Completed Simulations */
+        /**
+         * List Completed Simulations
+         * @description List all completed simulations for the current user route.
+         *     Args:
+         *         session (SessionDep): The database session.
+         *         current_user (TeacherOrAdminDep): The current user.
+         *         page (Page): Pagination information.
+         *     Returns:
+         *         SimulationEvaluationListResponse: A list of completed simulations
+         *         with pagination details.
+         */
         get: operations["list_completed_simulations_simulations_completed_get"];
         put?: never;
         post?: never;
@@ -2669,6 +2893,110 @@ export type components = {
             /** Stage */
             stage: string;
         };
+        /** KnowledgeGraphBuildJobRead */
+        KnowledgeGraphBuildJobRead: {
+            /** Build Config Snapshot */
+            build_config_snapshot?: {
+                [key: string]: unknown;
+            };
+            /** Cancel Requested */
+            cancel_requested: boolean;
+            /** Candidate Generation */
+            candidate_generation: string;
+            /** Chunk Ids Snapshot */
+            chunk_ids_snapshot?: number[];
+            /** Completed At */
+            completed_at?: string | null;
+            /** Failure Detail */
+            failure_detail?: string | null;
+            /** Id */
+            id: number;
+            /** Knowledge Graph Index Id */
+            knowledge_graph_index_id: number;
+            /** Processed Chunks */
+            processed_chunks: number;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /**
+             * Stage
+             * @default validating
+             */
+            stage: string;
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * Status
+             * @default queued
+             */
+            status: string;
+            /**
+             * Total Chunks
+             * @default 0
+             */
+            total_chunks: number;
+        };
+        /** KnowledgeGraphIndexCreate */
+        KnowledgeGraphIndexCreate: {
+            /** Build Config */
+            build_config?: {
+                [key: string]: unknown;
+            };
+            /** Corpus Index Id */
+            corpus_index_id: number;
+            /** Name */
+            name: string;
+        };
+        /** KnowledgeGraphIndexReadWithUsage */
+        KnowledgeGraphIndexReadWithUsage: {
+            /** Active Generation */
+            active_generation?: string | null;
+            /** Active Job Id */
+            active_job_id?: number | null;
+            /** Build Config */
+            build_config?: {
+                [key: string]: unknown;
+            };
+            /** Built At */
+            built_at?: string | null;
+            /** Corpus Index Id */
+            corpus_index_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /**
+             * Last Updated
+             * Format: date-time
+             */
+            last_updated: string;
+            /** Latest Build Error */
+            latest_build_error?: string | null;
+            /** Locked At */
+            locked_at?: string | null;
+            /** Name */
+            name: string;
+            /** Rag Profile Ids */
+            rag_profile_ids?: number[];
+            /** Simulation Ids */
+            simulation_ids?: number[];
+            /** Status */
+            status: string;
+        };
+        /** KnowledgeGraphIndexUpdate */
+        KnowledgeGraphIndexUpdate: {
+            /** Build Config */
+            build_config?: {
+                [key: string]: unknown;
+            } | null;
+            /** Name */
+            name?: string | null;
+        };
         /** NegotiationStateSchema */
         NegotiationStateSchema: {
             /** Current Phase */
@@ -2745,6 +3073,8 @@ export type components = {
             config?: {
                 [key: string]: unknown;
             } | null;
+            /** Knowledge Graph Index Id */
+            knowledge_graph_index_id?: number | null;
             /** RAG profile name */
             name: string;
             /** RAG strategy */
@@ -2756,6 +3086,8 @@ export type components = {
             config?: {
                 [key: string]: unknown;
             };
+            /** Knowledge Graph Index Id */
+            knowledge_graph_index_id?: number | null;
             /** RAG profile name */
             name: string;
             /** RAG strategy */
@@ -2809,6 +3141,8 @@ export type components = {
             created_by_user_id: number;
             /** Id */
             id: number;
+            /** Knowledge Graph Index Id */
+            knowledge_graph_index_id?: number | null;
             /** Last Edit By User Id */
             last_edit_by_user_id?: number | null;
             /**
@@ -2829,6 +3163,8 @@ export type components = {
             config?: {
                 [key: string]: unknown;
             } | null;
+            /** Knowledge Graph Index Id */
+            knowledge_graph_index_id?: number | null;
             /** RAG profile name */
             name?: string | null;
             /** RAG strategy */
@@ -4741,6 +5077,326 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IndexingJobDetail"];
+                };
+            };
+        };
+    };
+    list_knowledge_graph_build_jobs_knowledge_graph_build_jobs__get: {
+        parameters: {
+            query?: {
+                graph_id?: number | null;
+                limit?: number;
+                skip?: number;
+                status_filter?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphBuildJobRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphBuildJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphBuildJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_knowledge_graph_indices_knowledge_graph_indexes__get: {
+        parameters: {
+            query?: {
+                corpus_index_id?: number | null;
+                limit?: number;
+                skip?: number;
+                status_filter?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphIndexReadWithUsage"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_knowledge_graph_index_knowledge_graph_indexes__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeGraphIndexCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphIndexReadWithUsage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_knowledge_graph_index_knowledge_graph_indexes__graph_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                graph_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphIndexReadWithUsage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_knowledge_graph_index_knowledge_graph_indexes__graph_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                graph_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_knowledge_graph_index_knowledge_graph_indexes__graph_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                graph_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeGraphIndexUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphIndexReadWithUsage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    build_knowledge_graph_knowledge_graph_indexes__graph_id__build_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                graph_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphBuildJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rebuild_knowledge_graph_knowledge_graph_indexes__graph_id__rebuild_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                graph_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraphBuildJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
