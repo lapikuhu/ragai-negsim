@@ -7,6 +7,7 @@ import {
   useChunkingProfilesQuery,
   useVectorStoresQuery
 } from "@/features/corpusIndices/corpusIndexQueries";
+import { useRagProfilesQuery } from "@/features/ragProfiles/ragProfileQueries";
 import { useScenariosQuery } from "@/features/scenarios/scenarioQueries";
 import { usePersonasQuery } from "@/features/counterpartPersonas/personaQueries";
 import { usePromptsQuery } from "@/features/prompts/promptQueries";
@@ -30,6 +31,7 @@ export function SimulationsPage() {
   const indices = useCorpusIndicesQuery();
   useChunkingProfilesQuery();
   useVectorStoresQuery();
+  const ragProfiles = useRagProfilesQuery();
   const scenarios = useScenariosQuery();
   const personas = usePersonasQuery();
   const prompts = usePromptsQuery();
@@ -43,6 +45,7 @@ export function SimulationsPage() {
     description: "",
     corpusId: "",
     corpusIndexId: "",
+    ragProfileId: "",
     scenarioId: "",
     personaId: "",
     coachPromptId: "",
@@ -55,6 +58,7 @@ export function SimulationsPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   const corpusOptions = corpora.data ?? [];
+  const ragProfileOptions = ragProfiles.data ?? [];
   const indexOptions = useMemo(
     () => (indices.data ?? []).filter((index) => String(index.corpus_id) === form.corpusId || !form.corpusId),
     [form.corpusId, indices.data]
@@ -77,6 +81,7 @@ export function SimulationsPage() {
                 description: form.description || null,
                 corpus_id: Number(form.corpusId),
                 corpus_index_id: Number(form.corpusIndexId),
+                rag_profile_id: Number(form.ragProfileId),
                 coach_prompt_id: form.coachPromptId ? Number(form.coachPromptId) : null,
                 counterpart_prompt_id: form.counterpartPromptId ? Number(form.counterpartPromptId) : null,
                 evaluator_prompt_id: form.evaluatorPromptId ? Number(form.evaluatorPromptId) : null,
@@ -129,6 +134,20 @@ export function SimulationsPage() {
               {indexOptions.map((index) => (
                 <option key={index.id} value={index.id}>
                   {index.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="RAG profile" hint={ragProfileOptions.length ? "Required" : "Create one from the admin RAG Profiles page first."}>
+            <Select
+              value={form.ragProfileId}
+              onChange={(event) => setForm((current) => ({ ...current, ragProfileId: event.target.value }))}
+              required
+            >
+              <option value="">{ragProfileOptions.length ? "Select RAG profile" : "No RAG profiles available"}</option>
+              {ragProfileOptions.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name}
                 </option>
               ))}
             </Select>
@@ -239,10 +258,11 @@ export function SimulationsPage() {
           </Field>
 
           <div className="md:col-span-2 flex items-center gap-3">
-            <Button type="submit" disabled={createMutation.isPending}>
+            <Button type="submit" disabled={createMutation.isPending || !ragProfileOptions.length}>
               {createMutation.isPending ? "Creating..." : "Create simulation"}
             </Button>
             {message ? <span className="text-sm text-red-700">{message}</span> : null}
+            {!ragProfileOptions.length ? <span className="text-sm text-amber-700">An admin must create a RAG profile before simulations can be started.</span> : null}
           </div>
         </form>
       </Card>

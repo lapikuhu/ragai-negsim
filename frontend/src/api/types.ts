@@ -38,6 +38,7 @@ export type SessionRead = components["schemas"]["SessionRead"];
 export type CorpusRead = components["schemas"]["CorpusRead"];
 export type CorpusIndexRead = components["schemas"]["CorpusIndexReadWithIds"];
 export type ChunkingProfileRead = components["schemas"]["ChunkingProfileReadWithIds"];
+export type RagProfileRead = components["schemas"]["RagProfileReadWithIds"];
 export type VectorStoreRead = components["schemas"]["VectorStoreReadWithIds"];
 export type PromptRead = components["schemas"]["PromptRead"];
 export type ScenarioPublicRead = components["schemas"]["ScenarioPublicReadWithIds"];
@@ -68,6 +69,42 @@ export type ChunkerDefinitionRead = {
   label: string;
   supports_ingestion: boolean;
   fields: ChunkerFieldDefinitionRead[];
+};
+
+export type RagProfileFieldDefinitionRead = {
+  name: string;
+  kind: "int" | "enum";
+  label: string;
+  required: boolean;
+  default: unknown;
+  minimum?: number | null;
+  maximum?: number | null;
+  help_text?: string | null;
+  options: string[];
+};
+
+export type RagProfileDefinitionRead = {
+  strategy: string;
+  label: string;
+  fields: RagProfileFieldDefinitionRead[];
+};
+
+export type RagProfileCreateRequest = {
+  name: string;
+  strategy: string;
+  config: Record<string, unknown>;
+};
+
+export type RagProfileUpdateRequest = {
+  name?: string | null;
+  strategy?: string | null;
+  config?: Record<string, unknown> | null;
+};
+
+export type RagProfileCopy = {
+  name: string;
+  strategy?: string | null;
+  config?: Record<string, unknown> | null;
 };
 
 export type RawDocumentSourceStatus = "available" | "missing" | "changed" | "unverified" | "error";

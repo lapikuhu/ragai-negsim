@@ -16,6 +16,7 @@ const simulationWithMessage: SimulationReadWithState = {
   scenario_id: 10,
   corpus_id: 20,
   corpus_index_id: 30,
+  rag_profile_id: 40,
   coach_prompt_id: null,
   counterpart_prompt_id: null,
   evaluator_prompt_id: null,

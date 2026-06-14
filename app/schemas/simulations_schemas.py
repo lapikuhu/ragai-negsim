@@ -29,6 +29,7 @@ class SimulationBase(SQLModel):
 class SimulationCreateRequest(SimulationBase):
     corpus_id: int
     corpus_index_id: int
+    rag_profile_id: int
     coach_prompt_id: int | None = None
     counterpart_prompt_id: int | None = None
     evaluator_prompt_id: int | None = None
@@ -43,6 +44,7 @@ class SimulationCreate(SimulationBase):
     user_id_owner: int
     corpus_id: int
     corpus_index_id: int
+    rag_profile_id: int
     coach_prompt_id: int | None = None
     counterpart_prompt_id: int | None = None
     evaluator_prompt_id: int | None = None
@@ -62,6 +64,7 @@ class SimulationRead(SimulationBase):
     scenario_id: int | None = None
     corpus_id: int
     corpus_index_id: int
+    rag_profile_id: int
     coach_prompt_id: int | None = None
     counterpart_prompt_id: int | None = None
     evaluator_prompt_id: int | None = None

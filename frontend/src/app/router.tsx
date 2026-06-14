@@ -16,6 +16,7 @@ import { ScenariosPage } from "@/pages/ScenariosPage";
 import { PersonasPage } from "@/pages/PersonasPage";
 import { PromptsPage } from "@/pages/PromptsPage";
 import { ChunkingProfilesPage } from "@/pages/ChunkingProfilesPage";
+import { RagProfilesPage } from "@/pages/RagProfilesPage";
 import { EvaluationsPage } from "@/pages/EvaluationsPage";
 import { EvaluationReviewPage } from "@/pages/EvaluationReviewPage";
 import { ModelsPage } from "@/pages/ModelsPage";
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
               { path: "sessions/:sessionId", element: <SessionDetailPage /> },
               { path: "prompts", element: <PromptsPage /> },
               { path: "chunking-profiles", element: <ChunkingProfilesPage /> },
+              { path: "rag-profiles", element: <RagProfilesPage /> },
               { path: "indexing", element: <IndexingPage /> },
               { path: "vector-stores", element: <VectorStoresPage /> },
               { path: "models", element: <ModelsPage /> },

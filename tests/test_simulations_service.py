@@ -69,6 +69,7 @@ def _simulation(
     coach_prompt_id=None,
     counterpart_prompt_id=None,
     evaluator_prompt_id=None,
+    rag_profile_id=500,
     counter_part_side_persona_id=300,
     user_side="side_a",
     negotiation_state=None,
@@ -89,6 +90,7 @@ def _simulation(
         coach_prompt_id=coach_prompt_id,
         counterpart_prompt_id=counterpart_prompt_id,
         evaluator_prompt_id=evaluator_prompt_id,
+        rag_profile_id=rag_profile_id,
         counter_part_side_persona_id=counter_part_side_persona_id,
         user_side=user_side,
         teacher_reviewed=False,
@@ -113,6 +115,7 @@ def _simulation(
             "coach_prompt_id": coach_prompt_id,
             "counterpart_prompt_id": counterpart_prompt_id,
             "evaluator_prompt_id": evaluator_prompt_id,
+            "rag_profile_id": rag_profile_id,
             "counter_part_side_persona_id": counter_part_side_persona_id,
             "user_side": user_side,
             "teacher_reviewed": False,
@@ -317,6 +320,18 @@ async def test_create_simulation_stamps_current_user(monkeypatch):
         }
         return prompts.get(prompt_id)
 
+    async def fake_get_rag_profile_by_id(profile_id, session):
+        return SimpleNamespace(
+            id=profile_id,
+            strategy="crag",
+            config={
+                "top_k": 4,
+                "reranker": "cross_encoder",
+                "top_n": 3,
+                "max_rewrite_attempts": 2,
+            },
+        )
+
     async def fake_create_simulation(simulation_in, session):
         captured.append(simulation_in)
         return created
@@ -332,6 +347,11 @@ async def test_create_simulation_stamps_current_user(monkeypatch):
         fake_get_prompt_by_id,
     )
     monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
+    )
+    monkeypatch.setattr(
         simulations_service.simulations_repo,
         "create_simulation",
         fake_create_simulation,
@@ -343,6 +363,7 @@ async def test_create_simulation_stamps_current_user(monkeypatch):
             description="Practice pay discussions",
             corpus_id=200,
             corpus_index_id=77,
+            rag_profile_id=500,
             coach_prompt_id=11,
             counterpart_prompt_id=12,
             evaluator_prompt_id=13,
@@ -364,6 +385,7 @@ async def test_create_simulation_stamps_current_user(monkeypatch):
             user_id_owner=7,
             corpus_id=200,
             corpus_index_id=77,
+            rag_profile_id=500,
             coach_prompt_id=11,
             counterpart_prompt_id=12,
             evaluator_prompt_id=13,
@@ -393,6 +415,7 @@ async def test_create_simulation_requires_matching_built_corpus_index(monkeypatc
                 name="Salary negotiation",
                 corpus_id=200,
                 corpus_index_id=77,
+                rag_profile_id=500,
             ),
             object(),
             _user(7),
@@ -407,6 +430,18 @@ async def test_create_simulation_requires_existing_prompt(monkeypatch):
     async def fake_get_prompt_by_id(prompt_id, session):
         return None
 
+    async def fake_get_rag_profile_by_id(profile_id, session):
+        return SimpleNamespace(
+            id=profile_id,
+            strategy="crag",
+            config={
+                "top_k": 4,
+                "reranker": "cross_encoder",
+                "top_n": 3,
+                "max_rewrite_attempts": 2,
+            },
+        )
+
     monkeypatch.setattr(
         simulations_service.corpus_indices_repo,
         "get_corpus_index_by_id",
@@ -417,6 +452,11 @@ async def test_create_simulation_requires_existing_prompt(monkeypatch):
         "get_prompt_by_id",
         fake_get_prompt_by_id,
     )
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
+    )
 
     with pytest.raises(ValueError, match="Coach prompt not found"):
         await simulations_service.create_simulation_srvc(
@@ -424,7 +464,40 @@ async def test_create_simulation_requires_existing_prompt(monkeypatch):
                 name="Salary negotiation",
                 corpus_id=200,
                 corpus_index_id=77,
+                rag_profile_id=500,
                 coach_prompt_id=11,
+            ),
+            object(),
+            _user(7),
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_simulation_requires_existing_rag_profile(monkeypatch):
+    async def fake_get_corpus_index_by_id(corpus_index_id, session):
+        return SimpleNamespace(id=corpus_index_id, corpus_id=200, status="built")
+
+    async def fake_get_rag_profile_by_id(profile_id, session):
+        return None
+
+    monkeypatch.setattr(
+        simulations_service.corpus_indices_repo,
+        "get_corpus_index_by_id",
+        fake_get_corpus_index_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
+    )
+
+    with pytest.raises(ValueError, match="RAG profile not found"):
+        await simulations_service.create_simulation_srvc(
+            SimulationCreateRequest(
+                name="Salary negotiation",
+                corpus_id=200,
+                corpus_index_id=77,
+                rag_profile_id=500,
             ),
             object(),
             _user(7),
@@ -446,6 +519,7 @@ async def test_list_simulations_passes_filters_and_converts(monkeypatch):
         teacher_id=None,
         corpus_id=None,
         corpus_index_id=None,
+        rag_profile_id=None,
         coach_prompt_id=None,
         counterpart_prompt_id=None,
         evaluator_prompt_id=None,
@@ -462,6 +536,7 @@ async def test_list_simulations_passes_filters_and_converts(monkeypatch):
                 teacher_id,
                 corpus_id,
                 corpus_index_id,
+                rag_profile_id,
                 coach_prompt_id,
                 counterpart_prompt_id,
                 evaluator_prompt_id,
@@ -493,7 +568,7 @@ async def test_list_simulations_passes_filters_and_converts(monkeypatch):
         scenario_id=100,
     )
 
-    assert captured == [(5, 10, "active", 3, 4, None, 200, 77, 11, 12, 13, 8, 100)]
+    assert captured == [(5, 10, "active", 3, 4, None, 200, 77, None, 11, 12, 13, 8, 100)]
     assert [simulation.id for simulation in result] == [1, 2]
 
 
@@ -1561,12 +1636,25 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
     def fake_instantiate_chroma_vector_store(**kwargs):
         return SimpleNamespace(as_retriever=lambda search_kwargs: ("retriever", search_kwargs))
 
+    async def fake_get_rag_profile_by_id(profile_id, session):
+        return SimpleNamespace(
+            id=profile_id,
+            strategy="crag",
+            config={
+                "top_k": 6,
+                "reranker": "none",
+                "top_n": 6,
+                "max_rewrite_attempts": 0,
+            },
+        )
+
     def fake_make_dense_retriever(vector_store, k=4, metadata_filter=None):
+        assert k == 6
         assert metadata_filter == {"corpus_index_id": 77}
         return ("dense", metadata_filter)
 
-    def fake_make_crag_graph(retriever):
-        return ("crag", retriever)
+    def fake_make_crag_graph(retriever, rag_profile):
+        return ("crag", retriever, rag_profile.id, rag_profile.config["reranker"])
 
     def fake_make_negotiation_graph(
         crag_graph=None,
@@ -1601,6 +1689,11 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         "get_prompt_by_id",
         fake_get_prompt_by_id,
     )
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
+    )
     monkeypatch.setattr(simulations_service, "choose_embedding_model", fake_choose_embedding_model)
     monkeypatch.setattr(
         simulations_service,
@@ -1620,6 +1713,7 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
 
     assert first is second
     assert len(build_calls) == 1
+    assert build_calls[0][0] == ("crag", ("dense", {"corpus_index_id": 77}), 500, "none")
     assert build_calls[0][1:] == (
         "DB coach {phase}",
         "DB counterpart {phase}",

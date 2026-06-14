@@ -46,6 +46,7 @@ def _raise_simulation_service_error(exc: ValueError) -> None:
         "Scenario not found",
         "Counterpart persona not found",
         "Session not found",
+        "RAG profile not found",
         "Coach prompt not found",
         "Counterpart prompt not found",
         "Evaluator prompt not found",
@@ -88,7 +89,7 @@ async def create_simulation(
     except ValueError as exc:
         _raise_simulation_service_error(exc)
 
-
+### ------------------------ SIMULATION LIST ----------------------- ###
 @router.get(
     "/",
     response_model=list[SimulationRead],
@@ -104,6 +105,7 @@ async def list_simulations(
     teacher_id: int | None = None,
     corpus_id: int | None = None,
     corpus_index_id: int | None = None,
+    rag_profile_id: int | None = None,
     coach_prompt_id: int | None = None,
     counterpart_prompt_id: int | None = None,
     evaluator_prompt_id: int | None = None,
@@ -120,6 +122,7 @@ async def list_simulations(
         teacher_id=teacher_id,
         corpus_id=corpus_id,
         corpus_index_id=corpus_index_id,
+        rag_profile_id=rag_profile_id,
         coach_prompt_id=coach_prompt_id,
         counterpart_prompt_id=counterpart_prompt_id,
         evaluator_prompt_id=evaluator_prompt_id,
@@ -157,6 +160,16 @@ async def list_completed_simulations(
     current_user: TeacherOrAdminDep,
     page: Page,
 ) -> SimulationEvaluationListResponse:
+    """
+    List all completed simulations for the current user route.
+    Args:
+        session (SessionDep): The database session.
+        current_user (TeacherOrAdminDep): The current user.
+        page (Page): Pagination information.
+    Returns:
+        SimulationEvaluationListResponse: A list of completed simulations
+        with pagination details.
+    """
     return await simulations_service.list_completed_simulations_srvc(
         session,
         current_user=current_user,
@@ -483,6 +496,18 @@ async def delete_review_simulation(
     session: SessionDep,
     current_user: CurrentUserDep,
 ) -> None:
+    """
+    Delete a teacher review for a simulation route.
+    Args:
+        simulation: The simulation instance.
+        session: The database session.
+        current_user: The teacher submitting the review.
+    Returns:
+        None
+    Raises:
+        ValueError: If the current user is not a teacher or if the review 
+        cannot be deleted due to the simulation's current status.
+    """
     try:
         await simulations_service.delete_review_simulation_srvc(
             simulation,

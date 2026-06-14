@@ -81,6 +81,7 @@ async def list_simulations(
     teacher_id: int | None = None,
     corpus_id: int | None = None,
     corpus_index_id: int | None = None,
+    rag_profile_id: int | None = None,
     coach_prompt_id: int | None = None,
     counterpart_prompt_id: int | None = None,
     evaluator_prompt_id: int | None = None,
@@ -121,6 +122,8 @@ async def list_simulations(
         statement = statement.where(Simulation.corpus_id == corpus_id)
     if corpus_index_id is not None:
         statement = statement.where(Simulation.corpus_index_id == corpus_index_id)
+    if rag_profile_id is not None:
+        statement = statement.where(Simulation.rag_profile_id == rag_profile_id)
     if coach_prompt_id is not None:
         statement = statement.where(Simulation.coach_prompt_id == coach_prompt_id)
     if counterpart_prompt_id is not None:

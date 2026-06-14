@@ -15,6 +15,7 @@ if TYPE_CHECKING: # Avoid circular imports by only importing Role for type check
     from .corpus import Corpus
     from .scenarios import Scenario
     from .counterpart_personas import CounterPartPersonas
+    from .rag_profiles import RagProfile
 
 class User(SQLModel, table=True):
     id : int | None = Field(default=None, primary_key=True)
@@ -62,4 +63,12 @@ class User(SQLModel, table=True):
     counterpart_personas_last_edited: list["CounterPartPersonas"] = Relationship(
         back_populates="last_edit_by_user",
         sa_relationship_kwargs={"foreign_keys": "[CounterPartPersonas.last_edit_by_user_id]"},
+    )
+    rag_profiles_created: list["RagProfile"] = Relationship(
+        back_populates="created_by_user",
+        sa_relationship_kwargs={"foreign_keys": "[RagProfile.created_by_user_id]"},
+    )
+    rag_profiles_last_edited: list["RagProfile"] = Relationship(
+        back_populates="last_edit_by_user",
+        sa_relationship_kwargs={"foreign_keys": "[RagProfile.last_edit_by_user_id]"},
     )

@@ -2463,6 +2463,406 @@
         }
       }
     },
+    "/rag-profiles/": {
+      "post": {
+        "tags": [
+          "rag-profiles"
+        ],
+        "summary": "Create Rag Profile",
+        "operationId": "create_rag_profile_rag_profiles__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagProfileCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagProfileReadWithIds"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "rag-profiles"
+        ],
+        "summary": "List Rag Profiles",
+        "operationId": "list_rag_profiles_rag_profiles__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "strategy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Strategy"
+            }
+          },
+          {
+            "name": "name_contains",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Name Contains"
+            }
+          },
+          {
+            "name": "used",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Used"
+            }
+          },
+          {
+            "name": "created_by_user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created By User Id"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RagProfileReadWithIds"
+                  },
+                  "title": "Response List Rag Profiles Rag Profiles  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rag-profiles/definitions": {
+      "get": {
+        "tags": [
+          "rag-profiles"
+        ],
+        "summary": "List Rag Profile Definitions",
+        "operationId": "list_rag_profile_definitions_rag_profiles_definitions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RagProfileDefinitionRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Rag Profile Definitions Rag Profiles Definitions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/rag-profiles/{profile_id}": {
+      "get": {
+        "tags": [
+          "rag-profiles"
+        ],
+        "summary": "Get Rag Profile",
+        "operationId": "get_rag_profile_rag_profiles__profile_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagProfileReadWithIds"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "rag-profiles"
+        ],
+        "summary": "Update Rag Profile",
+        "operationId": "update_rag_profile_rag_profiles__profile_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagProfileUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagProfileReadWithIds"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "rag-profiles"
+        ],
+        "summary": "Delete Rag Profile",
+        "operationId": "delete_rag_profile_rag_profiles__profile_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rag-profiles/{profile_id}/copy": {
+      "post": {
+        "tags": [
+          "rag-profiles"
+        ],
+        "summary": "Copy Rag Profile",
+        "operationId": "copy_rag_profile_rag_profiles__profile_id__copy_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagProfileCopy"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagProfileReadWithIds"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/raw-documents/": {
       "post": {
         "tags": [
@@ -3805,6 +4205,22 @@
                 }
               ],
               "title": "Corpus Index Id"
+            }
+          },
+          {
+            "name": "rag_profile_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rag Profile Id"
             }
           },
           {
@@ -7555,6 +7971,285 @@
         ],
         "title": "PromptRead"
       },
+      "RagProfileCopy": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "RAG profile name"
+          },
+          "strategy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "RAG strategy"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RagProfileCopy"
+      },
+      "RagProfileCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "RAG profile name"
+          },
+          "strategy": {
+            "type": "string",
+            "minLength": 1,
+            "title": "RAG strategy"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "strategy"
+        ],
+        "title": "RagProfileCreateRequest"
+      },
+      "RagProfileDefinitionRead": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "title": "Strategy"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/RagProfileFieldDefinitionRead"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy",
+          "label"
+        ],
+        "title": "RagProfileDefinitionRead"
+      },
+      "RagProfileFieldDefinitionRead": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "int",
+              "enum"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "default": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Default"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "help_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Help Text"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "label",
+          "required",
+          "default"
+        ],
+        "title": "RagProfileFieldDefinitionRead"
+      },
+      "RagProfileReadWithIds": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "RAG profile name"
+          },
+          "strategy": {
+            "type": "string",
+            "minLength": 1,
+            "title": "RAG strategy"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_by_user_id": {
+            "type": "integer",
+            "title": "Created By User Id"
+          },
+          "last_edit_by_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Edit By User Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Updated"
+          },
+          "simulation_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Simulation Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "strategy",
+          "id",
+          "created_by_user_id",
+          "created_at",
+          "last_updated"
+        ],
+        "title": "RagProfileReadWithIds"
+      },
+      "RagProfileUpdateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "RAG profile name"
+          },
+          "strategy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "RAG strategy"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          }
+        },
+        "type": "object",
+        "title": "RagProfileUpdateRequest"
+      },
       "RawDocumentChunkResult": {
         "properties": {
           "raw_document_id": {
@@ -8265,6 +8960,10 @@
             "type": "integer",
             "title": "Corpus Index Id"
           },
+          "rag_profile_id": {
+            "type": "integer",
+            "title": "Rag Profile Id"
+          },
           "coach_prompt_id": {
             "anyOf": [
               {
@@ -8362,7 +9061,8 @@
         "required": [
           "name",
           "corpus_id",
-          "corpus_index_id"
+          "corpus_index_id",
+          "rag_profile_id"
         ],
         "title": "SimulationCreateRequest"
       },
@@ -8436,6 +9136,10 @@
           "corpus_index_id": {
             "type": "integer",
             "title": "Corpus Index Id"
+          },
+          "rag_profile_id": {
+            "type": "integer",
+            "title": "Rag Profile Id"
           },
           "coach_prompt_id": {
             "anyOf": [
@@ -8564,6 +9268,7 @@
           "user_id_owner",
           "corpus_id",
           "corpus_index_id",
+          "rag_profile_id",
           "teacher_reviewed",
           "created_at",
           "last_updated",
@@ -8873,6 +9578,10 @@
             "type": "integer",
             "title": "Corpus Index Id"
           },
+          "rag_profile_id": {
+            "type": "integer",
+            "title": "Rag Profile Id"
+          },
           "coach_prompt_id": {
             "anyOf": [
               {
@@ -8985,6 +9694,7 @@
           "user_id_owner",
           "corpus_id",
           "corpus_index_id",
+          "rag_profile_id",
           "teacher_reviewed",
           "created_at",
           "last_updated"
@@ -9061,6 +9771,10 @@
           "corpus_index_id": {
             "type": "integer",
             "title": "Corpus Index Id"
+          },
+          "rag_profile_id": {
+            "type": "integer",
+            "title": "Rag Profile Id"
           },
           "coach_prompt_id": {
             "anyOf": [
@@ -9184,6 +9898,7 @@
           "user_id_owner",
           "corpus_id",
           "corpus_index_id",
+          "rag_profile_id",
           "teacher_reviewed",
           "created_at",
           "last_updated"

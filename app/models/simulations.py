@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from .sessions import Session
     from .counterpart_personas import CounterPartPersonas
     from .corpus import Corpus
+    from .rag_profiles import RagProfile
 
 class NegotiationState(TypedDict, total=False):
     current_phase: str
@@ -53,6 +54,8 @@ class Simulation(SQLModel, table=True):
     corpus: "Corpus" = Relationship(back_populates="simulations")
     corpus_index_id: int = Field(foreign_key="corpusindex.id")
     corpus_index: "CorpusIndex" = Relationship(back_populates="simulations")
+    rag_profile_id: int = Field(foreign_key="ragprofile.id")
+    rag_profile: "RagProfile" = Relationship(back_populates="simulations")
     coach_prompt_id: int | None = Field(default=None, foreign_key="prompt.id")
     counterpart_prompt_id: int | None = Field(default=None, foreign_key="prompt.id")
     evaluator_prompt_id: int | None = Field(default=None, foreign_key="prompt.id")

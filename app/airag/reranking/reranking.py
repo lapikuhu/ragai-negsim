@@ -16,6 +16,23 @@ DEFAULT_CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 DEFAULT_COHERE_MODEL = "rerank-english-v3.0"
 
 
+def is_reranker_available(name: str) -> bool:
+    normalized_name = name.strip().lower()
+    if normalized_name in {"cross_encoder", "none"}:
+        return True
+    if normalized_name == "cohere":
+        return bool(getattr(settings, "COHERE_API_KEY", None))
+    return False
+
+
+def list_available_reranker_names() -> list[str]:
+    names = ["cross_encoder"]
+    if is_reranker_available("cohere"):
+        names.append("cohere")
+    names.append("none")
+    return names
+
+
 @lru_cache
 def get_cross_encoder(cross_encoder_model_name: str = DEFAULT_CROSS_ENCODER_MODEL) -> CrossEncoder:
     """
@@ -145,6 +162,12 @@ def choose_reranker(
         ValueError: If an unknown reranker name is provided.
     """
     normalized_name = name.strip().lower()
+    if not is_reranker_available(normalized_name):
+        if normalized_name == "cohere":
+            raise ValueError(
+                "Cohere reranker is unavailable because COHERE_API_KEY is not configured"
+            )
+        raise ValueError(f"Unknown reranker: {name}")
     if normalized_name == "cross_encoder":
         return cross_encoder_rerank
     if normalized_name == "cohere":

@@ -175,6 +175,55 @@ ReadableUserDep: TypeAlias = Annotated[User, Depends(get_readable_user)]
 
 # -------------------------------------------------------------------- #
 
+# ---------- RAG PROFILE-RELATED DEPENDENCIES ---------- #
+from app.models.rag_profiles import RagProfile
+from app.repositories import rag_profiles_repo
+
+
+async def get_rag_profile_or_404(
+    profile_id: int,
+    session: SessionDep,
+) -> RagProfile:
+    profile = await rag_profiles_repo.get_rag_profile_by_id(profile_id, session)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="RAG profile not found")
+    return profile
+
+
+RagProfileDep: TypeAlias = Annotated[
+    RagProfile,
+    Depends(get_rag_profile_or_404),
+]
+RagProfileAdminDep: TypeAlias = AdminDep
+
+
+def get_readable_rag_profile(
+    profile: RagProfileDep,
+    _current_user: CurrentUserDep,
+) -> RagProfile:
+    return profile
+
+
+ReadableRagProfileDep: TypeAlias = Annotated[
+    RagProfile,
+    Depends(get_readable_rag_profile),
+]
+
+
+def get_admin_rag_profile(
+    profile: RagProfileDep,
+    _admin: AdminDep,
+) -> RagProfile:
+    return profile
+
+
+AdminRagProfileDep: TypeAlias = Annotated[
+    RagProfile,
+    Depends(get_admin_rag_profile),
+]
+
+# -------------------------------------------------------------------- #
+
 # ---------- CHUNKING PROFILE-RELATED DEPENDENCIES ---------- #
 from app.models.chunking_profiles import ChunkingProfile
 from app.repositories import chunking_profiles_repo

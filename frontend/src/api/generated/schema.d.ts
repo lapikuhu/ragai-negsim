@@ -885,6 +885,77 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/rag-profiles/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rag Profiles */
+        get: operations["list_rag_profiles_rag_profiles__get"];
+        put?: never;
+        /** Create Rag Profile */
+        post: operations["create_rag_profile_rag_profiles__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag-profiles/{profile_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rag Profile */
+        get: operations["get_rag_profile_rag_profiles__profile_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Rag Profile */
+        delete: operations["delete_rag_profile_rag_profiles__profile_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Rag Profile */
+        patch: operations["update_rag_profile_rag_profiles__profile_id__patch"];
+        trace?: never;
+    };
+    "/rag-profiles/{profile_id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy Rag Profile */
+        post: operations["copy_rag_profile_rag_profiles__profile_id__copy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag-profiles/definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rag Profile Definitions */
+        get: operations["list_rag_profile_definitions_rag_profiles_definitions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/raw-documents/": {
         parameters: {
             query?: never;
@@ -2668,6 +2739,101 @@ export type components = {
             /** Owner Id */
             owner_id?: number | null;
         };
+        /** RagProfileCopy */
+        RagProfileCopy: {
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            } | null;
+            /** RAG profile name */
+            name: string;
+            /** RAG strategy */
+            strategy?: string | null;
+        };
+        /** RagProfileCreateRequest */
+        RagProfileCreateRequest: {
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** RAG profile name */
+            name: string;
+            /** RAG strategy */
+            strategy: string;
+        };
+        /** RagProfileDefinitionRead */
+        RagProfileDefinitionRead: {
+            /** Fields */
+            fields?: components["schemas"]["RagProfileFieldDefinitionRead"][];
+            /** Label */
+            label: string;
+            /** Strategy */
+            strategy: string;
+        };
+        /** RagProfileFieldDefinitionRead */
+        RagProfileFieldDefinitionRead: {
+            /** Default */
+            default: number | string;
+            /** Help Text */
+            help_text?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "int" | "enum";
+            /** Label */
+            label: string;
+            /** Maximum */
+            maximum?: number | null;
+            /** Minimum */
+            minimum?: number | null;
+            /** Name */
+            name: string;
+            /** Options */
+            options?: string[];
+            /** Required */
+            required: boolean;
+        };
+        /** RagProfileReadWithIds */
+        RagProfileReadWithIds: {
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By User Id */
+            created_by_user_id: number;
+            /** Id */
+            id: number;
+            /** Last Edit By User Id */
+            last_edit_by_user_id?: number | null;
+            /**
+             * Last Updated
+             * Format: date-time
+             */
+            last_updated: string;
+            /** RAG profile name */
+            name: string;
+            /** Simulation Ids */
+            simulation_ids?: number[];
+            /** RAG strategy */
+            strategy: string;
+        };
+        /** RagProfileUpdateRequest */
+        RagProfileUpdateRequest: {
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            } | null;
+            /** RAG profile name */
+            name?: string | null;
+            /** RAG strategy */
+            strategy?: string | null;
+        };
         /** RawDocumentChunkResult */
         RawDocumentChunkResult: {
             /** Chunk Ids */
@@ -2934,6 +3100,8 @@ export type components = {
             evaluator_prompt_id?: number | null;
             /** Simulation name */
             name: string;
+            /** Rag Profile Id */
+            rag_profile_id: number;
             /** Scenario Id */
             scenario_id?: number | null;
             /** Session Id */
@@ -2975,6 +3143,8 @@ export type components = {
             name: string;
             /** Participant User Id */
             participant_user_id: number;
+            /** Rag Profile Id */
+            rag_profile_id: number;
             /** Reviewed At */
             reviewed_at?: string | null;
             /** Scenario Id */
@@ -3134,6 +3304,8 @@ export type components = {
             last_updated: string;
             /** Simulation name */
             name: string;
+            /** Rag Profile Id */
+            rag_profile_id: number;
             /** Reviewed At */
             reviewed_at?: string | null;
             /** Scenario Id */
@@ -3188,6 +3360,8 @@ export type components = {
             /** Simulation name */
             name: string;
             negotiation_state?: components["schemas"]["NegotiationStateSchema"];
+            /** Rag Profile Id */
+            rag_profile_id: number;
             /** Reviewed At */
             reviewed_at?: string | null;
             /** Scenario Id */
@@ -4769,6 +4943,225 @@ export interface operations {
             };
         };
     };
+    list_rag_profiles_rag_profiles__get: {
+        parameters: {
+            query?: {
+                created_by_user_id?: number | null;
+                limit?: number;
+                name_contains?: string | null;
+                skip?: number;
+                strategy?: string | null;
+                used?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagProfileReadWithIds"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_rag_profile_rag_profiles__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RagProfileCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagProfileReadWithIds"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rag_profile_rag_profiles__profile_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagProfileReadWithIds"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_rag_profile_rag_profiles__profile_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_rag_profile_rag_profiles__profile_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RagProfileUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagProfileReadWithIds"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copy_rag_profile_rag_profiles__profile_id__copy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RagProfileCopy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagProfileReadWithIds"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rag_profile_definitions_rag_profiles_definitions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagProfileDefinitionRead"][];
+                };
+            };
+        };
+    };
     list_raw_documents_raw_documents__get: {
         parameters: {
             query?: {
@@ -5447,6 +5840,7 @@ export interface operations {
                 limit?: number;
                 owner_id?: number | null;
                 participant_id?: number | null;
+                rag_profile_id?: number | null;
                 scenario_id?: number | null;
                 session_id?: number | null;
                 skip?: number;

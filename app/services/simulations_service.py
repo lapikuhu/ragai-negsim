@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from dataclasses import dataclass
+import json
 from typing import Any
 
 from langchain_core.messages import BaseMessage
@@ -27,6 +28,7 @@ from app.repositories import (
     corpus_indices_repo,
     corpus_repo,
     prompts_repo,
+    rag_profiles_repo,
     scenarios_repo,
     sessions_repo,
     simulations_repo,
@@ -185,6 +187,7 @@ def _read_simulation(simulation: Simulation) -> SimulationRead:
         scenario_id=simulation.scenario_id,
         corpus_id=simulation.corpus_id,
         corpus_index_id=simulation.corpus_index_id,
+        rag_profile_id=simulation.rag_profile_id,
         coach_prompt_id=simulation.coach_prompt_id,
         counterpart_prompt_id=simulation.counterpart_prompt_id,
         evaluator_prompt_id=simulation.evaluator_prompt_id,
@@ -487,6 +490,7 @@ def _graph_cache_key(
     corpus_index: Any,
     vector_store: Any,
     prompt_templates: dict[str, str | None],
+    rag_profile: Any,
 ) -> tuple[Any, ...]:
     """
     Generate a cache key for the negotiation graph based on the corpus index,
@@ -508,6 +512,9 @@ def _graph_cache_key(
         getattr(vector_store, "collection_name", None),
         getattr(vector_store, "path", None),
         getattr(vector_store, "table_name", None),
+        getattr(rag_profile, "id", None),
+        getattr(rag_profile, "strategy", None),
+        json.dumps(getattr(rag_profile, "config", {}), sort_keys=True),
         prompt_templates.get("coach"),
         prompt_templates.get("counterpart"),
         prompt_templates.get("evaluator"),
@@ -551,7 +558,7 @@ async def _instantiate_vector_store_for_index(corpus_index: Any, vector_store: A
     raise ValueError(f"Unsupported vector store backend: {vector_store.backend}")
 
 
-def _make_crag_graph(retriever: Any) -> Any:
+def _make_crag_graph(retriever: Any, rag_profile: Any) -> Any:
     """
     Create a CRAG graph using the provided retriever.
     Args:
@@ -561,7 +568,14 @@ def _make_crag_graph(retriever: Any) -> Any:
     """
     from app.airag.chains.crag.crag import CRAGState, make_crag
 
-    return make_crag(retriever_obj=retriever, state_schema=CRAGState)
+    config = getattr(rag_profile, "config", {})
+    return make_crag(
+        retriever_obj=retriever,
+        state_schema=CRAGState,
+        max_rewrite_attempts=config.get("max_rewrite_attempts", 2),
+        reranker_name=config.get("reranker", "cross_encoder"),
+        rerank_top_k=config.get("top_n", 3),
+    )
 
 
 async def _get_negotiation_graph_for_simulation(
@@ -592,7 +606,13 @@ async def _get_negotiation_graph_for_simulation(
         simulation,
         session,
     )
-    cache_key = _graph_cache_key(corpus_index, vector_store, prompt_templates)
+    rag_profile = await rag_profiles_repo.get_rag_profile_by_id(
+        simulation.rag_profile_id,
+        session,
+    )
+    if rag_profile is None:
+        raise ValueError("RAG profile not found")
+    cache_key = _graph_cache_key(corpus_index, vector_store, prompt_templates, rag_profile)
     cached_graph = NEGOTIATION_GRAPH_CACHE.get(cache_key)
     if cached_graph is not None:
         return cached_graph
@@ -603,9 +623,10 @@ async def _get_negotiation_graph_for_simulation(
     )
     retriever = make_dense_retriever(
         vector_store_runtime,
+        k=rag_profile.config.get("top_k", 4),
         metadata_filter={"corpus_index_id": corpus_index.id},
     )
-    crag_graph = _make_crag_graph(retriever)
+    crag_graph = _make_crag_graph(retriever, rag_profile)
     graph = make_negotiation_graph(
         crag_graph=crag_graph,
         coach_prompt_template=prompt_templates["coach"],
@@ -1095,6 +1116,12 @@ async def create_simulation_srvc(
         simulation_data.corpus_index_id,
         session,
     )
+    rag_profile = await rag_profiles_repo.get_rag_profile_by_id(
+        simulation_data.rag_profile_id,
+        session,
+    )
+    if rag_profile is None:
+        raise ValueError("RAG profile not found")
     await _get_prompt_template(simulation_data.coach_prompt_id, "coach", session)
     await _get_prompt_template(
         simulation_data.counterpart_prompt_id,
@@ -1120,6 +1147,7 @@ async def list_simulations_srvc(
     teacher_id: int | None = None,
     corpus_id: int | None = None,
     corpus_index_id: int | None = None,
+    rag_profile_id: int | None = None,
     coach_prompt_id: int | None = None,
     counterpart_prompt_id: int | None = None,
     evaluator_prompt_id: int | None = None,
@@ -1139,6 +1167,7 @@ async def list_simulations_srvc(
         teacher_id: The ID of the teacher to filter by.
         corpus_id: The ID of the corpus to filter by.
         corpus_index_id: The ID of the corpus index to filter by.
+        rag_profile_id: The ID of the RAG profile to filter by.
         coach_prompt_id: The ID of the coach prompt to filter by.
         counterpart_prompt_id: The ID of the counterpart prompt to filter by.
         evaluator_prompt_id: The ID of the evaluator prompt to filter by.
@@ -1158,6 +1187,7 @@ async def list_simulations_srvc(
         teacher_id=teacher_id,
         corpus_id=corpus_id,
         corpus_index_id=corpus_index_id,
+        rag_profile_id=rag_profile_id,
         coach_prompt_id=coach_prompt_id,
         counterpart_prompt_id=counterpart_prompt_id,
         evaluator_prompt_id=evaluator_prompt_id,
