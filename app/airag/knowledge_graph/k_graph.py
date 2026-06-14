@@ -7,6 +7,7 @@ from val_schema import ENTITIES, RELATIONS, VALIDATION_SCHEMA
 # local imports
 from app.core.config import settings
 ### ---------------------------------------------------------------- ###
+
 ### Using the LLMGraphTransformer to build a knowledge graph from documents
 # Get the OpenAI API key from the settings
 OPENAI_API_KEY = settings.OPENAI_API_KEY
@@ -17,11 +18,28 @@ embedding_model = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_ke
 
 graph_transformer = LLMGraphTransformer(llm=graph_llm)
 
-def build_knowledge_graph(documents: list[Document]) -> nx.Graph:
+def create_graph_transformer(llm_model: str = LLM_MODEL, 
+                            temperature: float = 0) -> LLMGraphTransformer:
+    """
+    Create an instance of LLMGraphTransformer with the specified language model and temperature.
+    Args:
+        llm_model (str): The language model to use for the graph transformer.
+        temperature (float): The temperature setting for the language model.
+    Returns:
+        An instance of LLMGraphTransformer configured with the specified parameters.
+    """
+    graph_llm = ChatOpenAI(model=llm_model, temperature=temperature)
+    graph_transformer = LLMGraphTransformer(llm=graph_llm)
+    return graph_transformer
+
+def build_knowledge_graph(graph_transformer: LLMGraphTransformer, 
+                          documents: list[Document]) -> nx.Graph:
     """
     Build a knowledge graph from a list of langchain Documents using the 
     LLMGraphTransformer.
     Args:
+        graph_transformer (LLMGraphTransformer): An instance of 
+            LLMGraphTransformer to use for building the knowledge graph.
         documents (list[Document]): A list of langchain Document objects to
             use for building the knowledge graph.
     Returns:
@@ -64,8 +82,8 @@ def get_llama_docs_from_langchain_docs(langchain_documents: list[Document]) -> l
     return llama_docs
 
 def get_nodes_from_documents(documents: list[Document]) -> list[dict]:
-    """Extract nodes from a list of langchain Documents and format them for insertion
-    into a Neo4j graph store.
+    """Extract nodes from a list of langchain Documents and format them 
+    for insertion into a Neo4j graph store.
     Args:
         documents (list[Document]): A list of langchain Document objects to extract nodes from.
     Returns:
@@ -92,7 +110,8 @@ def build_graph_index_from_nodes(nodes: list[TextNode],
     Build a PropertyGraphIndex from a list of TextNode objects and
     store it in the specified graph store. This prevents the llama-index
     from re-chunking and re-processing the documents. Make sure your nodes
-    are created with get_nodes_from_documents func.
+    are created with get_nodes_from_documents func. Only useful when we
+    can isolate and the chunks on a db.
     Args:
         nodes: list of TextNode objects representing the nodes to be included 
         in the graph index.
