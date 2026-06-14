@@ -54,3 +54,21 @@ def test_final_evaluator_prompt_includes_structured_contexts():
     assert "The guest wants a free late checkout." in rendered
     assert "SIDE-A-SECRET" in rendered
     assert "SIDE-B-SECRET" in rendered
+
+
+def test_custom_rolling_evaluator_prompt_does_not_auto_append_proxy_policy():
+    rendered = render_evaluator_prompt(
+        {
+            "user_side": "side_b",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Proxy turn",
+                    "metadata": {"user_reply_origin": "auto_user_proxy"},
+                }
+            ],
+        },
+        prompt_template="Evaluate the turn.",
+    )
+
+    assert rendered == "Evaluate the turn."

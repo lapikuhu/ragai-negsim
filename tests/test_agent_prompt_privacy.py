@@ -197,7 +197,18 @@ def test_evaluator_prompt_contains_all_structured_contexts():
         "scenario_public_context": {"sentinel": "PUBLIC"},
         "side_a_private_context": {"sentinel": "SIDE_A_SECRET"},
         "side_b_private_context": {"sentinel": "SIDE_B_SECRET"},
-        "messages": [],
+        "messages": [
+            {
+                "role": "user",
+                "content": "Student offer",
+                "metadata": {"user_reply_origin": "user"},
+            },
+            {
+                "role": "user",
+                "content": "Proxy offer",
+                "metadata": {"user_reply_origin": "auto_user_proxy"},
+            },
+        ],
         "offer_history": [],
         "coach_advice": {"sentinel": "COACH"},
         "evaluation": {"sentinel": "PRIOR_EVALUATION"},
@@ -209,6 +220,36 @@ def test_evaluator_prompt_contains_all_structured_contexts():
     for sentinel in ("PUBLIC", "SIDE_A_SECRET", "SIDE_B_SECRET"):
         assert sentinel in rolling
         assert sentinel in final
+
+    assert "auto_user_proxy" in rolling
+    assert "auto_user_proxy" in final
+
+
+def test_evaluator_prompts_define_proxy_authorship_and_student_attribution_rules():
+    state = {
+        "user_side": "side_b",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Legacy student turn",
+            },
+            {
+                "role": "user",
+                "content": "Proxy turn",
+                "metadata": {"user_reply_origin": "auto_user_proxy"},
+            },
+        ],
+    }
+
+    rolling = render_evaluator_prompt(state)
+    final = render_final_evaluator_prompt(state)
+
+    for rendered in (rolling, final):
+        assert 'metadata.user_reply_origin == "auto_user_proxy"' in rendered
+        assert "Missing provenance means the message should be treated as student-authored." in rendered
+        assert "Do not count proxy-authored tactics as evidence of the student's own negotiation skill." in rendered
+
+    assert 'If every student-side turn was proxy-authored, set "overall_score" to 0.0.' in final
 
 
 def test_evaluator_wrapper_invokes_graph_with_full_context():

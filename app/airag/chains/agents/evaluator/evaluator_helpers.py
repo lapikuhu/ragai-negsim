@@ -19,6 +19,18 @@ from app.airag.chains.negotiation.negotiation_model import (
 )
 from app.airag.prompts.neg_prompts.md_loader import EVALUATOR_PROMPT
 
+
+PROXY_EVALUATION_GUIDANCE = [
+	"Proxy authorship rules:",
+	'- If `metadata.user_reply_origin == "auto_user_proxy"`, treat that user-role message as proxy-authored.',
+	'- If `metadata.user_reply_origin == "user"`, treat that message as student-authored.',
+	"- Missing provenance means the message should be treated as student-authored.",
+	"- Distinguish student-authored tactics from proxy-authored tactics in your analysis.",
+	"- Do not count proxy-authored tactics as evidence of the student's own negotiation skill.",
+	"- Evaluate the proxy's tactics when present and explain their effect on the negotiation.",
+	"- A small amount of proxy use is a limited negative signal for the student; sustained proxy reliance is a serious negative signal.",
+]
+
 # Helper candidate
 def get_counterpart_side(state: EvaluatorGraphState) -> Side:
 	"""
@@ -248,6 +260,10 @@ def render_final_evaluator_prompt(state: EvaluatorGraphState) -> str:
 			f"Rolling evaluation: {json_dumps(state.get('evaluation', {}))}",
 			f"Latest coach advice: {json_dumps(state.get('coach_advice', {}))}",
 			f"Grounding context: {state.get('retrieval_context', '')}",
+			"",
+			*PROXY_EVALUATION_GUIDANCE,
+			"If every student-side turn was proxy-authored, set \"overall_score\" to 0.0.",
+			"You should still evaluate the proxy's tactics and their effect on the negotiation in the narrative fields.",
 			"",
 			"TASK",
 			"Assess the student's overall performance over the whole negotiation.",
