@@ -17,7 +17,25 @@ import {
   useKnowledgeGraphsQuery,
 } from "@/features/knowledgeGraphs/knowledgeGraphQueries";
 
-const graphExtractors = ["simple", "implicit", "schema"] as const;
+const semanticExtractors = ["schema", "simple"] as const;
+type SemanticExtractor = (typeof semanticExtractors)[number];
+type GraphExtractor = SemanticExtractor | "implicit";
+
+const semanticExtractorCopy: Record<
+  SemanticExtractor,
+  { title: string; description: string }
+> = {
+  schema: {
+    title: "Schema",
+    description:
+      "Extracts typed negotiation concepts and relationships constrained by the ontology. Recommended for consistent GraphRAG behavior.",
+  },
+  simple: {
+    title: "Simple",
+    description:
+      "Uses the LLM to extract unrestricted subject-relation-object triples. More flexible, but less predictable.",
+  },
+};
 
 export function KnowledgeGraphsPage() {
   const graphs = useKnowledgeGraphsQuery();
@@ -33,7 +51,8 @@ export function KnowledgeGraphsPage() {
     llmModel: "gpt-4o-mini",
     embeddingProvider: "openai",
     embeddingModel: "text-embedding-3-small",
-    extractors: ["schema"] as Array<(typeof graphExtractors)[number]>,
+    semanticExtractor: "schema" as SemanticExtractor,
+    includeImplicit: true,
   });
 
   if (graphs.isLoading) {
@@ -45,12 +64,15 @@ export function KnowledgeGraphsPage() {
 
   const items = graphs.data ?? [];
   const builtIndices = (indices.data ?? []).filter((index) => index.status === "built");
+  const selectedExtractors: GraphExtractor[] = form.includeImplicit
+    ? [form.semanticExtractor, "implicit"]
+    : [form.semanticExtractor];
 
   return (
     <div className="grid gap-6">
       <PageHeader
         title="Knowledge Graphs"
-        description="Build reusable Neo4j GraphRAG indexes from the exact chunks in an existing corpus index."
+        description="Build reusable Neo4j GraphRAG indexes from the exact chunks in an existing corpus index. Careful, token expensive."
       />
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">Create graph definition</h2>
@@ -68,12 +90,18 @@ export function KnowledgeGraphsPage() {
                   llm_model: form.llmModel.trim(),
                   embedding_provider: form.embeddingProvider as "openai" | "ollama",
                   embedding_model: form.embeddingModel.trim(),
-                  extractors: form.extractors,
+                  extractors: selectedExtractors,
                   strict_schema: true,
                   max_paths_per_chunk: 10,
                 },
               });
-              setForm((current) => ({ ...current, name: "", corpusIndexId: "" }));
+              setForm((current) => ({
+                ...current,
+                name: "",
+                corpusIndexId: "",
+                semanticExtractor: "schema",
+                includeImplicit: true,
+              }));
               setMessage("Knowledge graph definition created.");
             } catch (error) {
               setMessage(getErrorMessage(error, "Unable to create knowledge graph"));
@@ -124,29 +152,62 @@ export function KnowledgeGraphsPage() {
             />
           </Field>
           <fieldset className="md:col-span-2">
-            <legend className="text-sm font-medium text-slate-700">Extractors</legend>
-            <div className="mt-2 flex flex-wrap gap-4">
-              {graphExtractors.map((extractor) => (
-                <label key={extractor} className="flex items-center gap-2 text-sm text-slate-700">
+            <legend className="text-sm font-medium text-slate-700">Semantic extraction</legend>
+            <p className="mt-1 text-xs text-slate-500">
+              Pick one semantic strategy. Chunk structure can be layered on separately below.
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {semanticExtractors.map((extractor) => (
+                <label
+                  key={extractor}
+                  className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-700"
+                >
                   <input
-                    type="checkbox"
-                    checked={form.extractors.includes(extractor)}
-                    onChange={(event) => {
-                      setForm((current) => ({
-                        ...current,
-                        extractors: event.target.checked
-                          ? [...current.extractors, extractor]
-                          : current.extractors.filter((value) => value !== extractor),
-                      }));
-                    }}
+                    type="radio"
+                    name="semantic-extractor"
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    checked={form.semanticExtractor === extractor}
+                    onChange={() => setForm((current) => ({ ...current, semanticExtractor: extractor }))}
                   />
-                  {extractor[0].toUpperCase() + extractor.slice(1)}
+                  <span className="grid gap-2">
+                    <span className="font-medium text-slate-950">
+                      {semanticExtractorCopy[extractor].title}
+                    </span>
+                    <span className="text-xs leading-5 text-slate-600">
+                      {semanticExtractorCopy[extractor].description}
+                    </span>
+                  </span>
                 </label>
               ))}
             </div>
           </fieldset>
+          <fieldset className="md:col-span-2">
+            <legend className="text-sm font-medium text-slate-700">Structure</legend>
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <label className="flex items-start gap-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  checked={form.includeImplicit}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      includeImplicit: event.target.checked,
+                    }))
+                  }
+                />
+                <span>
+                  <span className="font-medium text-slate-950">Include chunk structure</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-600">
+                    Adds existing document relationships such as previous and next chunks. This
+                    does not extract semantic entities or add more LLM calls.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
           <div className="md:col-span-2 flex items-center gap-3">
-            <Button type="submit" disabled={createMutation.isPending || !form.extractors.length}>Create graph</Button>
+            <Button type="submit" disabled={createMutation.isPending}>Create graph</Button>
             {message ? <span className="text-sm text-slate-600">{message}</span> : null}
           </div>
         </form>

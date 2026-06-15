@@ -1,15 +1,17 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
 
-const { useKnowledgeGraphsQuery } = vi.hoisted(() => ({
+const { useKnowledgeGraphsQuery, mutateAsync } = vi.hoisted(() => ({
   useKnowledgeGraphsQuery: vi.fn(),
+  mutateAsync: vi.fn(),
 }));
 
 vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
   useKnowledgeGraphsQuery,
-  useCreateKnowledgeGraphMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useCreateKnowledgeGraphMutation: () => ({ isPending: false, mutateAsync }),
   useBuildKnowledgeGraphMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useDeleteKnowledgeGraphMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
@@ -22,6 +24,7 @@ vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
 
 describe("KnowledgeGraphsPage", () => {
   beforeEach(() => {
+    mutateAsync.mockReset();
     useKnowledgeGraphsQuery.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -54,12 +57,62 @@ describe("KnowledgeGraphsPage", () => {
     });
   });
 
-  it("exposes each supported knowledge graph extractor", () => {
+  it("defaults to schema with chunk structure enabled", () => {
     render(<KnowledgeGraphsPage />);
 
-    expect(screen.getByRole("checkbox", { name: "Simple" })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Implicit" })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Schema" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Schema/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Simple/ })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Include chunk structure/ })).toBeChecked();
+  });
+
+  it("shows short explanations for each extractor option", () => {
+    render(<KnowledgeGraphsPage />);
+
+    expect(screen.getByText(/typed negotiation concepts and relationships/i)).toBeInTheDocument();
+    expect(screen.getByText(/unrestricted subject-relation-object triples/i)).toBeInTheDocument();
+    expect(screen.getByText(/document relationships such as previous and next chunks/i)).toBeInTheDocument();
+  });
+
+  it("submits schema plus implicit by default", async () => {
+    const user = userEvent.setup();
+    mutateAsync.mockResolvedValue({});
+    render(<KnowledgeGraphsPage />);
+
+    await user.type(screen.getByLabelText("Name"), "Graph with structure");
+    await user.selectOptions(screen.getByLabelText("Built corpus index"), "77");
+    await user.click(screen.getByRole("button", { name: "Create graph" }));
+
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Graph with structure",
+        corpus_index_id: 77,
+        build_config: expect.objectContaining({
+          extractors: ["schema", "implicit"],
+        }),
+      }),
+    );
+  });
+
+  it("submits simple without implicit when structure is disabled", async () => {
+    const user = userEvent.setup();
+    mutateAsync.mockResolvedValue({});
+    render(<KnowledgeGraphsPage />);
+
+    await user.click(screen.getByRole("radio", { name: /Simple/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Include chunk structure/ }));
+    await user.type(screen.getByLabelText("Name"), "Simple graph");
+    await user.selectOptions(screen.getByLabelText("Built corpus index"), "77");
+    await user.click(screen.getByRole("button", { name: "Create graph" }));
+
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Simple graph",
+        corpus_index_id: 77,
+        build_config: expect.objectContaining({
+          extractors: ["simple"],
+        }),
+      }),
+    );
   });
 
   it("shows a used graph as permanently locked", () => {

@@ -5,6 +5,8 @@ import pytest
 
 from app.schemas.knowledge_graph_indices_schemas import (
     KnowledgeGraphIndexCreate,
+    KnowledgeGraphIndexReadWithUsage,
+    KnowledgeGraphIndexUpdate,
     normalize_knowledge_graph_build_config,
 )
 from app.repositories import knowledge_graph_indices_repo
@@ -37,6 +39,64 @@ def test_graph_create_rejects_duplicate_extractors_and_unknown_provider():
             corpus_index_id=7,
             build_config={"llm_provider": "other"},
         )
+
+
+@pytest.mark.parametrize(
+    "extractors",
+    [
+        ["schema"],
+        ["schema", "implicit"],
+        ["simple"],
+        ["simple", "implicit"],
+    ],
+)
+def test_graph_write_accepts_supported_extractor_combinations(extractors):
+    created = KnowledgeGraphIndexCreate(
+        name="Negotiation graph",
+        corpus_index_id=7,
+        build_config={"extractors": extractors},
+    )
+
+    assert created.build_config["extractors"] == extractors
+
+
+@pytest.mark.parametrize(
+    ("extractors", "message"),
+    [
+        (["implicit"], "exactly one semantic extractor"),
+        (["schema", "simple"], "exactly one semantic extractor"),
+        (["schema", "simple", "implicit"], "exactly one semantic extractor"),
+    ],
+)
+def test_graph_write_rejects_incompatible_extractor_combinations(
+    extractors,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        KnowledgeGraphIndexCreate(
+            name="Negotiation graph",
+            corpus_index_id=7,
+            build_config={"extractors": extractors},
+        )
+
+    with pytest.raises(ValueError, match=message):
+        KnowledgeGraphIndexUpdate(
+            build_config={"extractors": extractors},
+        )
+
+
+def test_graph_read_allows_legacy_implicit_only_configuration():
+    graph = KnowledgeGraphIndexReadWithUsage(
+        id=3,
+        name="Legacy graph",
+        corpus_index_id=7,
+        build_config={"extractors": ["implicit"]},
+        status="built",
+        created_at=datetime.now(timezone.utc),
+        last_updated=datetime.now(timezone.utc),
+    )
+
+    assert graph.build_config["extractors"] == ["implicit"]
 
 
 @pytest.mark.asyncio

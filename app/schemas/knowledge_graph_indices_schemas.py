@@ -7,10 +7,44 @@ from sqlmodel import Field, SQLModel
 
 GRAPH_EXTRACTORS = {"simple", "implicit", "schema"}
 GRAPH_PROVIDERS = {"openai", "ollama"}
+SEMANTIC_GRAPH_EXTRACTORS = {"simple", "schema"}
+
+
+def _normalize_graph_extractors(
+    extractors: list[str],
+    *,
+    require_supported_combination: bool,
+) -> list[str]:
+    if not extractors:
+        raise ValueError("Knowledge graph requires at least one extractor")
+    if len(extractors) != len(set(extractors)):
+        raise ValueError("Knowledge graph extractors contain duplicate values")
+
+    unsupported = sorted(set(extractors) - GRAPH_EXTRACTORS)
+    if unsupported:
+        raise ValueError(
+            f"Unsupported knowledge graph extractors: {', '.join(unsupported)}"
+        )
+
+    if require_supported_combination:
+        semantic_extractors = [
+            extractor
+            for extractor in extractors
+            if extractor in SEMANTIC_GRAPH_EXTRACTORS
+        ]
+        if len(semantic_extractors) != 1:
+            raise ValueError(
+                "Knowledge graph requires exactly one semantic extractor: "
+                "`schema` or `simple`"
+            )
+
+    return extractors
 
 
 def normalize_knowledge_graph_build_config(
     config: dict[str, Any] | None,
+    *,
+    require_supported_combination: bool = False,
 ) -> dict[str, Any]:
     values = dict(config or {})
     llm_provider = values.get("llm_provider", "openai")
@@ -20,16 +54,10 @@ def normalize_knowledge_graph_build_config(
     if embedding_provider not in GRAPH_PROVIDERS:
         raise ValueError(f"Unsupported embedding provider: {embedding_provider}")
 
-    extractors = list(values.get("extractors", ["schema"]))
-    if not extractors:
-        raise ValueError("Knowledge graph requires at least one extractor")
-    if len(extractors) != len(set(extractors)):
-        raise ValueError("Knowledge graph extractors contain duplicate values")
-    unsupported = sorted(set(extractors) - GRAPH_EXTRACTORS)
-    if unsupported:
-        raise ValueError(
-            f"Unsupported knowledge graph extractors: {', '.join(unsupported)}"
-        )
+    extractors = _normalize_graph_extractors(
+        list(values.get("extractors", ["schema"])),
+        require_supported_combination=require_supported_combination,
+    )
 
     normalized = {
         "llm_provider": llm_provider,
@@ -70,7 +98,16 @@ class KnowledgeGraphIndexBase(SQLModel):
 
 
 class KnowledgeGraphIndexCreate(KnowledgeGraphIndexBase):
-    pass
+    @field_validator("build_config")
+    @classmethod
+    def validate_build_config_for_create(
+        cls,
+        value: dict[str, Any],
+    ) -> dict[str, Any]:
+        return normalize_knowledge_graph_build_config(
+            value,
+            require_supported_combination=True,
+        )
 
 
 class KnowledgeGraphIndexUpdate(SQLModel):
@@ -85,7 +122,10 @@ class KnowledgeGraphIndexUpdate(SQLModel):
     ) -> dict[str, Any] | None:
         if value is None:
             return None
-        return normalize_knowledge_graph_build_config(value)
+        return normalize_knowledge_graph_build_config(
+            value,
+            require_supported_combination=True,
+        )
 
 
 class KnowledgeGraphIndexRead(KnowledgeGraphIndexBase):
@@ -103,4 +143,3 @@ class KnowledgeGraphIndexReadWithUsage(KnowledgeGraphIndexRead):
     rag_profile_ids: list[int] = Field(default_factory=list)
     simulation_ids: list[int] = Field(default_factory=list)
     active_job_id: int | None = None
-
