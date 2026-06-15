@@ -1,6 +1,9 @@
 from urllib.parse import urlparse
 
 
+DEFAULT_NEO4J_DATABASE = "neo4j"
+
+
 def resolve_neo4j_uri(uri: str) -> str:
     """
     Convert local routing URIs to direct Bolt URIs for standalone Neo4j.
@@ -30,3 +33,11 @@ def describe_neo4j_error(exc: Exception, uri: str) -> str:
             f"connection URI. Try `NEO4J_URI={suggested_uri}`."
         )
     return detail
+
+
+def resolve_neo4j_database(database: str | None) -> str:
+    """
+    Normalize the configured Neo4j database name.
+    """
+    value = (database or "").strip()
+    return value or DEFAULT_NEO4J_DATABASE

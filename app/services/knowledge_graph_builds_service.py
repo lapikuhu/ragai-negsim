@@ -13,6 +13,7 @@ from app.airag.knowledge_graph.k_graph import (
 )
 from app.airag.knowledge_graph.connection import (
     describe_neo4j_error,
+    resolve_neo4j_database,
     resolve_neo4j_uri,
 )
 from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
@@ -100,6 +101,7 @@ def _create_scoped_store(graph_id: int, generation: str):
         username=settings.NEO4J_USERNAME,
         password=settings.NEO4J_PASSWORD,
         url=resolve_neo4j_uri(settings.NEO4J_URI),
+        database=resolve_neo4j_database(settings.NEO4J_DATABASE),
     )
 
 
@@ -253,6 +255,9 @@ async def run_knowledge_graph_build_srvc(
                     "embedding_model"
                 ),
                 "extractors": job.build_config_snapshot.get("extractors"),
+                "neo4j_database": resolve_neo4j_database(
+                    settings.NEO4J_DATABASE
+                ),
             },
         )
         try:

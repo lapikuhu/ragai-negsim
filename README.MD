@@ -7,6 +7,7 @@ The current codebase focuses on the backend foundation for:
 - User authentication, roles, and sessions
 - Uploading and managing raw PDF source documents
 - Corpus creation, ingestion, chunking, and vector indexing
+- Reusable retrieval strategies with both CRAG and GraphRAG flows
 - Prompt, scenario, and counterpart persona management
 - Simulation lifecycle management
 - Agentic negotiation turns with coaching, counterpart response, and evaluation layers
@@ -23,6 +24,11 @@ At a high level, the backend supports a workflow like this:
 6. The learner submits turns and the system returns counterpart responses, coach advice, and updated simulation state.
 
 The system is designed around educational negotiation practice rather than a generic chat product. The RAG and agent graph layers are there to ground simulations in real course or domain material and to keep the negotiation flow structured.
+
+Two retrieval strategies are currently available:
+
+- `CRAG` for corrective retrieval over the configured vector store
+- `GraphRAG` for knowledge-graph retrieval backed by Neo4j
 
 ## Folder Structure
 
@@ -68,6 +74,7 @@ ragai-negsim/
 - Imports use package-qualified paths such as `app.services...` and `app.web.routes...`.
 - The backend assumes PostgreSQL is the system of record for application data.
 - The backend also expects Neo4j connection settings to be available, even if a given local flow does not actively use graph features.
+- Any Neo4j instance used for knowledge graph builds must have the APOC plugin enabled because the graph-store integration depends on APOC procedures during schema refresh and persistence.
 - Raw document upload currently assumes PDF input.
 - Uploaded raw documents are stored on disk under `RAW_DOCS_DIR`, configured in `.env`.
 - Local frontend development is expected to run from `localhost` or `127.0.0.1` on ports `3000`, `4173`, `5173`, or `8000`; those origins are enabled in CORS.
@@ -121,6 +128,8 @@ Create or replace `.env` with your own local values. At minimum, configure:
 - `ADMIN_PASSWORD`
 - `RAW_DOCS_DIR`
 - `HF_TOKEN`
+
+If you plan to use knowledge graph features, make sure the target Neo4j DBMS has the APOC plugin enabled before running a build.
 
 Example shape:
 
@@ -240,8 +249,10 @@ http://127.0.0.1:8000/redoc
 - `/raw-documents` for PDF upload and source document management
 - `/corpora` for corpus creation, ingestion, chunking, and embedding jobs
 - `/corpus-indices` for index metadata and build status
+- `/knowledge-graph-indexes` for GraphRAG graph definitions and build jobs
 - `/chunking-profiles` for chunking presets
 - `/vector-stores` for vector backend configuration
+- `/rag-profiles` for reusable CRAG and GraphRAG retrieval strategies
 - `/prompts` for coach, counterpart, and evaluator prompt management
 - `/scenarios` for negotiation scenarios
 - `/counterpart-personas` for counterpart configuration
@@ -305,6 +316,8 @@ You should browse to the frontend URL, not the backend URL, for normal UI work.
 - Uploads raw documents (pdfs only). They are stored locally under /raw_docs_store
 - Defines a corpus from uploaded documents
 - With a corpus, chunking profile and a vector store, admin can create a corpus index
+- Optionally creates a knowledge graph from a built corpus index for GraphRAG
+- Creates RAG profiles using either `CRAG` or `GraphRAG`
 - Optionally defines a counterpart persona
 - Creates a negotiation scenario
 - Creates a simulation for a user using the corpus index, the negotiation scenario, 

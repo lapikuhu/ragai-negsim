@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str
     ADMIN_PASSWORD: str
     NEO4J_URI: str
+    NEO4J_DATABASE: str = "neo4j"
     NEO4J_USERNAME: str
     NEO4J_PASSWORD: str
     NEO4J_READ_USERNAME: str | None = None

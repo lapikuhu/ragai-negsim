@@ -40,7 +40,10 @@ from app.airag.knowledge_graph.k_graph import (
     create_graph_embedding_model,
     create_graph_llm,
 )
-from app.airag.knowledge_graph.connection import resolve_neo4j_uri
+from app.airag.knowledge_graph.connection import (
+    resolve_neo4j_database,
+    resolve_neo4j_uri,
+)
 from app.airag.knowledge_graph.retrieval import ScopedGraphRetriever
 from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
 from app.core.config import settings
@@ -676,6 +679,7 @@ async def _make_scoped_graph_retriever(
         username=settings.NEO4J_READ_USERNAME or settings.NEO4J_USERNAME,
         password=settings.NEO4J_READ_PASSWORD or settings.NEO4J_PASSWORD,
         url=resolve_neo4j_uri(settings.NEO4J_URI),
+        database=resolve_neo4j_database(settings.NEO4J_DATABASE),
     )
     return ScopedGraphRetriever(
         graph_store=graph_store,

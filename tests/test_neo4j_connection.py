@@ -1,5 +1,6 @@
 from app.airag.knowledge_graph.connection import (
     describe_neo4j_error,
+    resolve_neo4j_database,
     resolve_neo4j_uri,
 )
 
@@ -34,3 +35,9 @@ def test_describe_neo4j_error_adds_local_routing_hint():
 
     assert "Unable to retrieve routing information" in detail
     assert "bolt://127.0.0.1:7687" in detail
+
+
+def test_resolve_neo4j_database_defaults_to_neo4j():
+    assert resolve_neo4j_database(None) == "neo4j"
+    assert resolve_neo4j_database("") == "neo4j"
+    assert resolve_neo4j_database("analytics") == "analytics"
