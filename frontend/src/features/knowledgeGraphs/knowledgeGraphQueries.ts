@@ -12,6 +12,15 @@ export const knowledgeGraphKeys = {
   jobs: ["knowledge-graph-build-jobs"] as const,
 };
 
+export function getKnowledgeGraphRefetchInterval(
+  graphs: Array<{ active_job_id?: number | null; status: string }>,
+) {
+  const hasActiveJob = graphs.some(
+    (graph) => Boolean(graph.active_job_id) || graph.status === "building",
+  );
+  return hasActiveJob ? 2000 : false;
+}
+
 async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
   const response = await apiFetch(`${getApiBaseUrl()}${path}`, {
     ...init,
@@ -60,7 +69,12 @@ async function deleteKnowledgeGraph(graphId: number) {
 }
 
 export function useKnowledgeGraphsQuery() {
-  return useQuery({ queryKey: knowledgeGraphKeys.all, queryFn: listKnowledgeGraphs });
+  return useQuery({
+    queryKey: knowledgeGraphKeys.all,
+    queryFn: listKnowledgeGraphs,
+    refetchInterval: (query) =>
+      getKnowledgeGraphRefetchInterval(query.state.data ?? []),
+  });
 }
 
 function useInvalidateKnowledgeGraphs() {
