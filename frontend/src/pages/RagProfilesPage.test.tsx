@@ -40,6 +40,20 @@ vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
           },
         ],
       },
+      {
+        strategy: "graphrag",
+        label: "Knowledge Graph RAG",
+        fields: [
+          {
+            name: "retrieval_mode",
+            kind: "enum",
+            label: "Retrieval mode",
+            required: true,
+            default: "semantic",
+            options: ["semantic", "cypher", "hybrid"],
+          },
+        ],
+      },
     ],
     refetch: vi.fn(),
   }),
@@ -59,6 +73,13 @@ vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
 }));
 
 describe("RagProfilesPage", () => {
+  it("renders both available strategies in the create selector", () => {
+    render(<RagProfilesPage />);
+
+    expect(screen.getByRole("option", { name: "Corrective RAG" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Knowledge Graph RAG" })).toBeInTheDocument();
+  });
+
   it("shows used profiles as locked for deletion", () => {
     render(<RagProfilesPage />);
 

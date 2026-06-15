@@ -24,7 +24,9 @@ export default defineConfig({
       "/counterpart-personas": "http://127.0.0.1:8000",
       "/embeddings": "http://127.0.0.1:8000",
       "/vector-stores": "http://127.0.0.1:8000",
-      "/chunking-profiles": "http://127.0.0.1:8000"
+      "/chunking-profiles": "http://127.0.0.1:8000",
+      "/rag-profiles": "http://127.0.0.1:8000",
+      "/knowledge-graph-indexes": "http://127.0.0.1:8000"
     }
   }
 });
