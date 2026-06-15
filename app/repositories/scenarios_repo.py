@@ -209,6 +209,7 @@ async def to_scenario_public_read_with_ids(
     return ScenarioPublicReadWithIds(
         id=scenario.id,
         name=scenario.name,
+        description=scenario.description,
         public_context=scenario.public_context,
         created_by_user_id=scenario.created_by_user_id,
         last_edit_by_user_id=scenario.last_edit_by_user_id,

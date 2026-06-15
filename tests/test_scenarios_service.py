@@ -50,6 +50,7 @@ def test_public_scenario_schema_excludes_authoring_and_private_fields():
     public = ScenarioPublicReadWithIds(
         id=10,
         name="Late checkout",
+        description="Practice checkout negotiation.",
         public_context={"issue": "checkout time and fee"},
         created_by_user_id=1,
         last_edit_by_user_id=None,
@@ -60,7 +61,7 @@ def test_public_scenario_schema_excludes_authoring_and_private_fields():
 
     payload = public.model_dump()
 
-    assert "description" not in payload
+    assert payload["description"] == "Practice checkout negotiation."
     assert "side_a_private_context" not in payload
     assert "side_b_private_context" not in payload
 
@@ -178,6 +179,7 @@ async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
         return ScenarioPublicReadWithIds(
             id=scenario.id,
             name=scenario.name,
+            description=scenario.description,
             public_context=scenario.public_context,
             created_by_user_id=scenario.created_by_user_id,
             last_edit_by_user_id=scenario.last_edit_by_user_id,
@@ -205,7 +207,7 @@ async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
     assert captured == [(5, 10, 3, "salary", False)]
     assert [scenario.simulation_ids for scenario in result] == [[101], [102]]
     assert result[0].public_context["public_fact"] == "PUBLIC-1"
-    assert "description" not in result[0].model_dump()
+    assert result[0].description == "AUTHORING-DESCRIPTION"
 
 
 @pytest.mark.asyncio
@@ -216,6 +218,7 @@ async def test_get_scenario_returns_public_view(monkeypatch):
         return ScenarioPublicReadWithIds(
             id=scenario_obj.id,
             name=scenario_obj.name,
+            description=scenario_obj.description,
             public_context=scenario_obj.public_context,
             created_by_user_id=scenario_obj.created_by_user_id,
             last_edit_by_user_id=scenario_obj.last_edit_by_user_id,
@@ -233,7 +236,7 @@ async def test_get_scenario_returns_public_view(monkeypatch):
     result = await scenarios_service.get_scenario_srvc(scenario, object())
 
     assert result.public_context["public_fact"] == "PUBLIC-10"
-    assert "description" not in result.model_dump()
+    assert result.description == "AUTHORING-DESCRIPTION"
     assert "side_a_private_context" not in result.model_dump()
 
 

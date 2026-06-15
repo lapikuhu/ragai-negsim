@@ -15,6 +15,7 @@ class ScenarioAuthoringBase(SQLModel):
 
 class ScenarioPublicBase(SQLModel):
     name: str = Field(min_length=3, title="Scenario name")
+    description: str | None = None
     public_context: dict[str, Any] = Field(default_factory=dict)
 
 

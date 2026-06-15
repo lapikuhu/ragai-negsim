@@ -158,4 +158,81 @@ describe("ScenariosPage", () => {
     });
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
+
+  it("shows the first five lines of the scenario description in list view", () => {
+    vi.spyOn(scenarioQueries, "useScenariosQuery").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        {
+          id: 11,
+          name: "Dense context",
+          description: "line 1\nline 2\nline 3\nline 4\nline 5\nline 6",
+          public_context: { issue: "should not be shown" },
+          created_by_user_id: 1,
+          last_edit_by_user_id: null,
+          created_at: "2026-06-15T00:00:00Z",
+          last_updated: "2026-06-15T00:00:00Z",
+          simulation_ids: []
+        }
+      ],
+      refetch: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useCreateScenarioMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useGenerateScenarioContextMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+
+    renderPage();
+
+    const preview = screen.getByTestId("scenario-description-preview");
+    const label = preview.previousElementSibling;
+
+    expect(label).toHaveTextContent("Description");
+    expect(preview).toHaveTextContent("line 1");
+    expect(preview).toHaveTextContent("line 5");
+    expect(preview).toHaveClass("max-h-[7.5rem]");
+    expect(preview).toHaveClass("overflow-hidden");
+    expect(preview).not.toHaveClass("line-clamp-5");
+    expect(preview).not.toHaveTextContent('"issue": "should not be shown"');
+  });
+
+  it("shows a fallback message when a scenario description is missing", () => {
+    vi.spyOn(scenarioQueries, "useScenariosQuery").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        {
+          id: 12,
+          name: "No description",
+          description: null,
+          public_context: { issue: "still hidden" },
+          created_by_user_id: 1,
+          last_edit_by_user_id: null,
+          created_at: "2026-06-15T00:00:00Z",
+          last_updated: "2026-06-15T00:00:00Z",
+          simulation_ids: []
+        }
+      ],
+      refetch: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useCreateScenarioMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useGenerateScenarioContextMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+
+    renderPage();
+
+    expect(screen.getByTestId("scenario-description-preview")).toHaveTextContent(
+      "No description provided."
+    );
+  });
 });

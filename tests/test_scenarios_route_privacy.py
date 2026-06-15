@@ -21,6 +21,7 @@ def _public_scenario() -> ScenarioPublicReadWithIds:
     return ScenarioPublicReadWithIds(
         id=10,
         name="Late checkout fee negotiation",
+        description="PUBLIC-DESCRIPTION",
         public_context={"issue": "late checkout fee"},
         created_by_user_id=1,
         last_edit_by_user_id=None,
@@ -98,12 +99,12 @@ def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
             list_response = client.get("/scenarios/")
             assert list_response.status_code == 200
             assert list_response.json()[0]["public_context"]["issue"] == "late checkout fee"
-            assert "description" not in list_response.json()[0]
+            assert list_response.json()[0]["description"] == "PUBLIC-DESCRIPTION"
             assert "side_a_private_context" not in list_response.json()[0]
 
             get_response = client.get("/scenarios/10")
             assert get_response.status_code == 200
-            assert "description" not in get_response.json()
+            assert get_response.json()["description"] == "PUBLIC-DESCRIPTION"
             assert "side_b_private_context" not in get_response.json()
 
             authoring_response = client.get("/scenarios/10/authoring")

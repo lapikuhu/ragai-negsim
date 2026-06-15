@@ -128,11 +128,12 @@ function ScenarioCard({
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold text-slate-950">{scenario.name}</h3>
             <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-              Public context
+              Description
             </p>
-            <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">
-              {stringifyJson(scenario.public_context)}
-            </pre>
+            <ScenarioDescriptionPreview
+              testId="scenario-description-preview"
+              value={scenario.description}
+            />
             <p className="mt-3 text-xs text-slate-500">Updated {formatDateTime(scenario.last_updated)}</p>
           </div>
           <Button type="button" variant="secondary" onClick={() => onEdit(scenario.id)}>
@@ -141,6 +142,25 @@ function ScenarioCard({
         </div>
       )}
     </Card>
+  );
+}
+
+function ScenarioDescriptionPreview({
+  value,
+  testId
+}: {
+  value?: string | null;
+  testId?: string;
+}) {
+  const preview = value?.trim() || "No description provided.";
+
+  return (
+    <p
+      data-testid={testId}
+      className="mt-2 max-h-[7.5rem] overflow-hidden whitespace-pre-line rounded-xl bg-slate-100 px-3 py-3 text-sm leading-6 text-slate-700"
+    >
+      {preview}
+    </p>
   );
 }
 
