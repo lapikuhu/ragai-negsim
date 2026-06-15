@@ -21,6 +21,14 @@ def _role(role_id: int, name: str):
     return SimpleNamespace(id=role_id, name=name)
 
 
+def _scenario_names():
+    return [item["name"] for item in seeder.PLACEHOLDER_SCENARIOS]
+
+
+def _persona_names():
+    return [item["name"] for item in seeder.PLACEHOLDER_PERSONAS]
+
+
 @pytest.mark.asyncio
 async def test_ensure_admin_user_uses_settings_username(monkeypatch):
     calls = []
@@ -49,6 +57,32 @@ async def test_ensure_admin_user_uses_settings_username(monkeypatch):
         "admin",
         ("lookup", seeder.settings.ADMIN_USERNAME, session),
     ]
+
+
+@pytest.mark.asyncio
+async def test_ensure_admin_user_logs_success(monkeypatch, capsys):
+    admin_user = _admin_user()
+
+    async def fake_seed_roles():
+        return None
+
+    async def fake_create_admin():
+        return None
+
+    async def fake_get_user_by_username(username, session):
+        return admin_user
+
+    monkeypatch.setattr(seeder, "seed_roles_if_not_exist", fake_seed_roles)
+    monkeypatch.setattr(seeder, "create_admin_if_not_exists", fake_create_admin)
+    monkeypatch.setattr(seeder.users_repo, "get_user_by_username", fake_get_user_by_username)
+
+    session = FakeSession()
+    result = await seeder.ensure_admin_user(session)
+
+    captured = capsys.readouterr()
+
+    assert result is admin_user
+    assert "[ready] admin user admin" in captured.out
 
 
 @pytest.mark.asyncio
@@ -159,33 +193,21 @@ async def test_seed_all_creates_requested_records(monkeypatch):
     assert [payload.role_ids for payload, _ in created_users] == [[2], [3]]
     assert all(current_user is admin_user for _, current_user in created_users)
 
-    assert [payload.name for payload, _ in created_scenarios] == [
-        "Scenario1",
-        "Scenario2",
-        "Scenario3",
-        "Scenario4",
-        "Scenario5",
-    ]
+    assert [payload.name for payload, _ in created_scenarios] == _scenario_names()
     assert created_scenarios[0][0].public_context == {
-        "name": "Scenario1",
-        "description": "Scenario1Description",
+        "name": seeder.PLACEHOLDER_SCENARIOS[0]["name"],
+        "description": seeder.PLACEHOLDER_SCENARIOS[0]["description"],
     }
     assert created_scenarios[0][0].side_a_private_context == {
         "side": "A",
-        "scenario": "Scenario1",
+        "scenario": seeder.PLACEHOLDER_SCENARIOS[0]["name"],
     }
     assert created_scenarios[0][0].side_b_private_context == {
         "side": "B",
-        "scenario": "Scenario1",
+        "scenario": seeder.PLACEHOLDER_SCENARIOS[0]["name"],
     }
 
-    assert [payload.name for payload, _ in created_personas] == [
-        "Persona1",
-        "Persona2",
-        "Persona3",
-        "Persona4",
-        "Persona5",
-    ]
+    assert [payload.name for payload, _ in created_personas] == _persona_names()
     assert [payload.name for payload in created_profiles] == ["Recursive", "Semantic", "Hybrid"]
     assert [payload.strategy for payload in created_profiles] == ["recursive", "semantic", "hybrid"]
     assert all(payload.config == {} for payload in created_profiles)
@@ -222,7 +244,7 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
         return SimpleNamespace(id=50, username=username) if username in {"student1", "teacher1"} else None
 
     async def fake_get_scenario_by_name(name, current_session):
-        if name == "Scenario1":
+        if name == seeder.PLACEHOLDER_SCENARIOS[0]["name"]:
             return SimpleNamespace(id=99, name=name)
         return None
 
@@ -270,8 +292,8 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
 
     await seeder.seed_all(session)
 
-    assert created_scenarios == ["Scenario2", "Scenario3", "Scenario4", "Scenario5"]
-    assert generated == ["Scenario2", "Scenario3", "Scenario4", "Scenario5"]
+    assert created_scenarios == _scenario_names()[1:]
+    assert generated == _scenario_names()[1:]
 
 
 @pytest.mark.asyncio
@@ -337,4 +359,4 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
 
     assert session.rollback_calls == 1
     assert created_users == ["teacher1"]
-    assert created_personas == ["Persona1", "Persona2", "Persona3", "Persona4", "Persona5"]
+    assert created_personas == _persona_names()

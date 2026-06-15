@@ -18,6 +18,7 @@ from app.models import indexing_jobs  # noqa: F401
 from app.models import knowledge_graph_build_jobs  # noqa: F401
 from app.models import knowledge_graph_indices  # noqa: F401
 from app.models import prompts  # noqa: F401
+from app.models import rag_profiles  # noqa: F401
 from app.models import raw_documents  # noqa: F401
 from app.models import scenarios  # noqa: F401
 from app.models import sessions  # noqa: F401

@@ -2,6 +2,13 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+try:
+    from scripts.bootstrap import ensure_project_root_on_path
+except ModuleNotFoundError:
+    from bootstrap import ensure_project_root_on_path
+
+ensure_project_root_on_path(__file__)
+
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -26,23 +33,8 @@ from app.services import (
     users_service,
     vector_stores_service,
 )
-
-
-PLACEHOLDER_SCENARIOS = [
-    {
-        "name": f"Scenario{index}",
-        "description": f"Scenario{index}Description",
-    }
-    for index in range(1, 6)
-]
-
-PLACEHOLDER_PERSONAS = [
-    {
-        "name": f"Persona{index}",
-        "description": f"Persona{index}Description",
-    }
-    for index in range(1, 6)
-]
+from personas import PLACEHOLDER_PERSONAS
+from scenarios import PLACEHOLDER_SCENARIOS
 
 CHUNKING_PROFILES = [
     {"name": "Recursive", "strategy": "recursive"},
@@ -113,6 +105,7 @@ async def ensure_admin_user(session: AsyncSession):
         raise RuntimeError(
             f"Configured admin user '{settings.ADMIN_USERNAME}' was not found after setup"
         )
+    log_step("ready", f"admin user {admin_user.username}")
     return admin_user
 
 
@@ -318,6 +311,7 @@ async def run_seed_steps(
 
 
 async def seed_all(session: AsyncSession) -> None:
+    log_step("started", "seed run")
     admin_user = await ensure_admin_user(session)
 
     await run_seed_steps(
@@ -374,6 +368,7 @@ async def seed_all(session: AsyncSession) -> None:
             ],
         ]
     )
+    log_step("completed", "seed run")
 
 
 async def main() -> None:

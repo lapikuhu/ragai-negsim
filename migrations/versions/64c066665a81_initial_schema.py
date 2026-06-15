@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 165f7ed30e76
+Revision ID: 64c066665a81
 Revises: 
-Create Date: 2026-06-11 12:52:21.106247
+Create Date: 2026-06-14 20:43:01.253531
 """
 
 from alembic import op
@@ -12,7 +12,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision = '165f7ed30e76'
+revision = '64c066665a81'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -210,45 +210,25 @@ def upgrade() -> None:
     op.create_index(op.f('ix_indexingjob_corpus_id'), 'indexingjob', ['corpus_id'], unique=False)
     op.create_index(op.f('ix_indexingjob_stage'), 'indexingjob', ['stage'], unique=False)
     op.create_index(op.f('ix_indexingjob_status'), 'indexingjob', ['status'], unique=False)
-    op.create_table('simulation',
+    op.create_table('knowledgegraphindex',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('session_id', sa.Integer(), nullable=True),
-    sa.Column('user_id_owner', sa.Integer(), nullable=False),
-    sa.Column('user_id_participant', sa.Integer(), nullable=True),
-    sa.Column('scenario_id', sa.Integer(), nullable=True),
-    sa.Column('corpus_id', sa.Integer(), nullable=False),
     sa.Column('corpus_index_id', sa.Integer(), nullable=False),
-    sa.Column('coach_prompt_id', sa.Integer(), nullable=True),
-    sa.Column('counterpart_prompt_id', sa.Integer(), nullable=True),
-    sa.Column('evaluator_prompt_id', sa.Integer(), nullable=True),
-    sa.Column('counter_part_side_persona_id', sa.Integer(), nullable=True),
-    sa.Column('user_side', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('negotiation_state', sa.JSON(), nullable=True),
-    sa.Column('messages', sa.JSON(), nullable=True),
-    sa.Column('teacher_reviewed', sa.Boolean(), nullable=False),
-    sa.Column('teacher_id', sa.Integer(), nullable=True),
-    sa.Column('teacher_feedback', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('reviewed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('build_config', sa.JSON(), nullable=True),
+    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('active_generation', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('latest_build_error', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('locked_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('built_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['coach_prompt_id'], ['prompt.id'], ),
-    sa.ForeignKeyConstraint(['corpus_id'], ['corpus.id'], ),
     sa.ForeignKeyConstraint(['corpus_index_id'], ['corpusindex.id'], ),
-    sa.ForeignKeyConstraint(['counter_part_side_persona_id'], ['counterpartpersonas.id'], ),
-    sa.ForeignKeyConstraint(['counterpart_prompt_id'], ['prompt.id'], ),
-    sa.ForeignKeyConstraint(['evaluator_prompt_id'], ['prompt.id'], ),
-    sa.ForeignKeyConstraint(['scenario_id'], ['scenario.id'], ),
-    sa.ForeignKeyConstraint(['session_id'], ['session.id'], ),
-    sa.ForeignKeyConstraint(['teacher_id'], ['user.id'], ),
-    sa.ForeignKeyConstraint(['user_id_owner'], ['user.id'], ),
-    sa.ForeignKeyConstraint(['user_id_participant'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_simulation_name'), 'simulation', ['name'], unique=True)
-    op.create_index(op.f('ix_simulation_status'), 'simulation', ['status'], unique=False)
+    op.create_index(op.f('ix_knowledgegraphindex_active_generation'), 'knowledgegraphindex', ['active_generation'], unique=False)
+    op.create_index(op.f('ix_knowledgegraphindex_corpus_index_id'), 'knowledgegraphindex', ['corpus_index_id'], unique=False)
+    op.create_index(op.f('ix_knowledgegraphindex_name'), 'knowledgegraphindex', ['name'], unique=True)
+    op.create_index(op.f('ix_knowledgegraphindex_status'), 'knowledgegraphindex', ['status'], unique=False)
     op.create_table('documentchunk',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('raw_document_id', sa.Integer(), nullable=False),
@@ -277,6 +257,45 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_indexingjobwarning_indexing_job_id'), 'indexingjobwarning', ['indexing_job_id'], unique=False)
+    op.create_table('knowledgegraphbuildjob',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('knowledge_graph_index_id', sa.Integer(), nullable=False),
+    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('stage', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('build_config_snapshot', sa.JSON(), nullable=True),
+    sa.Column('chunk_ids_snapshot', sa.JSON(), nullable=True),
+    sa.Column('candidate_generation', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('total_chunks', sa.Integer(), nullable=False),
+    sa.Column('processed_chunks', sa.Integer(), nullable=False),
+    sa.Column('cancel_requested', sa.Boolean(), nullable=False),
+    sa.Column('failure_detail', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('queued_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['knowledge_graph_index_id'], ['knowledgegraphindex.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_knowledgegraphbuildjob_candidate_generation'), 'knowledgegraphbuildjob', ['candidate_generation'], unique=False)
+    op.create_index(op.f('ix_knowledgegraphbuildjob_knowledge_graph_index_id'), 'knowledgegraphbuildjob', ['knowledge_graph_index_id'], unique=False)
+    op.create_index(op.f('ix_knowledgegraphbuildjob_stage'), 'knowledgegraphbuildjob', ['stage'], unique=False)
+    op.create_index(op.f('ix_knowledgegraphbuildjob_status'), 'knowledgegraphbuildjob', ['status'], unique=False)
+    op.create_table('ragprofile',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('strategy', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('config', sa.JSON(), nullable=True),
+    sa.Column('knowledge_graph_index_id', sa.Integer(), nullable=True),
+    sa.Column('created_by_user_id', sa.Integer(), nullable=False),
+    sa.Column('last_edit_by_user_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['created_by_user_id'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['knowledge_graph_index_id'], ['knowledgegraphindex.id'], ),
+    sa.ForeignKeyConstraint(['last_edit_by_user_id'], ['user.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_ragprofile_knowledge_graph_index_id'), 'ragprofile', ['knowledge_graph_index_id'], unique=False)
+    op.create_index(op.f('ix_ragprofile_name'), 'ragprofile', ['name'], unique=True)
     op.create_table('indexedchunk',
     sa.Column('corpus_index_id', sa.Integer(), nullable=False),
     sa.Column('document_chunk_id', sa.Integer(), nullable=False),
@@ -286,18 +305,72 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['document_chunk_id'], ['documentchunk.id'], ),
     sa.PrimaryKeyConstraint('corpus_index_id', 'document_chunk_id')
     )
+    op.create_table('simulation',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('status', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('session_id', sa.Integer(), nullable=True),
+    sa.Column('user_id_owner', sa.Integer(), nullable=False),
+    sa.Column('user_id_participant', sa.Integer(), nullable=True),
+    sa.Column('scenario_id', sa.Integer(), nullable=True),
+    sa.Column('corpus_id', sa.Integer(), nullable=False),
+    sa.Column('corpus_index_id', sa.Integer(), nullable=False),
+    sa.Column('rag_profile_id', sa.Integer(), nullable=False),
+    sa.Column('coach_prompt_id', sa.Integer(), nullable=True),
+    sa.Column('counterpart_prompt_id', sa.Integer(), nullable=True),
+    sa.Column('evaluator_prompt_id', sa.Integer(), nullable=True),
+    sa.Column('counter_part_side_persona_id', sa.Integer(), nullable=True),
+    sa.Column('user_side', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('negotiation_state', sa.JSON(), nullable=True),
+    sa.Column('messages', sa.JSON(), nullable=True),
+    sa.Column('teacher_reviewed', sa.Boolean(), nullable=False),
+    sa.Column('teacher_id', sa.Integer(), nullable=True),
+    sa.Column('teacher_feedback', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('reviewed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_updated', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['coach_prompt_id'], ['prompt.id'], ),
+    sa.ForeignKeyConstraint(['corpus_id'], ['corpus.id'], ),
+    sa.ForeignKeyConstraint(['corpus_index_id'], ['corpusindex.id'], ),
+    sa.ForeignKeyConstraint(['counter_part_side_persona_id'], ['counterpartpersonas.id'], ),
+    sa.ForeignKeyConstraint(['counterpart_prompt_id'], ['prompt.id'], ),
+    sa.ForeignKeyConstraint(['evaluator_prompt_id'], ['prompt.id'], ),
+    sa.ForeignKeyConstraint(['rag_profile_id'], ['ragprofile.id'], ),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenario.id'], ),
+    sa.ForeignKeyConstraint(['session_id'], ['session.id'], ),
+    sa.ForeignKeyConstraint(['teacher_id'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['user_id_owner'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['user_id_participant'], ['user.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_simulation_name'), 'simulation', ['name'], unique=True)
+    op.create_index(op.f('ix_simulation_status'), 'simulation', ['status'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table('indexedchunk')
-    op.drop_index(op.f('ix_indexingjobwarning_indexing_job_id'), table_name='indexingjobwarning')
-    op.drop_table('indexingjobwarning')
-    op.drop_table('documentchunk')
     op.drop_index(op.f('ix_simulation_status'), table_name='simulation')
     op.drop_index(op.f('ix_simulation_name'), table_name='simulation')
     op.drop_table('simulation')
+    op.drop_table('indexedchunk')
+    op.drop_index(op.f('ix_ragprofile_name'), table_name='ragprofile')
+    op.drop_index(op.f('ix_ragprofile_knowledge_graph_index_id'), table_name='ragprofile')
+    op.drop_table('ragprofile')
+    op.drop_index(op.f('ix_knowledgegraphbuildjob_status'), table_name='knowledgegraphbuildjob')
+    op.drop_index(op.f('ix_knowledgegraphbuildjob_stage'), table_name='knowledgegraphbuildjob')
+    op.drop_index(op.f('ix_knowledgegraphbuildjob_knowledge_graph_index_id'), table_name='knowledgegraphbuildjob')
+    op.drop_index(op.f('ix_knowledgegraphbuildjob_candidate_generation'), table_name='knowledgegraphbuildjob')
+    op.drop_table('knowledgegraphbuildjob')
+    op.drop_index(op.f('ix_indexingjobwarning_indexing_job_id'), table_name='indexingjobwarning')
+    op.drop_table('indexingjobwarning')
+    op.drop_table('documentchunk')
+    op.drop_index(op.f('ix_knowledgegraphindex_status'), table_name='knowledgegraphindex')
+    op.drop_index(op.f('ix_knowledgegraphindex_name'), table_name='knowledgegraphindex')
+    op.drop_index(op.f('ix_knowledgegraphindex_corpus_index_id'), table_name='knowledgegraphindex')
+    op.drop_index(op.f('ix_knowledgegraphindex_active_generation'), table_name='knowledgegraphindex')
+    op.drop_table('knowledgegraphindex')
     op.drop_index(op.f('ix_indexingjob_status'), table_name='indexingjob')
     op.drop_index(op.f('ix_indexingjob_stage'), table_name='indexingjob')
     op.drop_index(op.f('ix_indexingjob_corpus_id'), table_name='indexingjob')

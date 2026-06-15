@@ -1,3 +1,10 @@
+try:
+    from scripts.bootstrap import ensure_project_root_on_path
+except ModuleNotFoundError:
+    from bootstrap import ensure_project_root_on_path
+
+ensure_project_root_on_path(__file__)
+
 from app.core.config import settings
 DATABASE_URL = settings.DATABASE_URL
 

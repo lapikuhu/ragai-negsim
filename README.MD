@@ -182,6 +182,23 @@ alembic current
 
 The backend startup code in [app/db/db.py](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/app/db/db.py:73) assumes the schema has already been created and migrated before the app starts.
 
+### Seed starter data
+
+After applying the migrations, newcomers can populate the database with useful
+starter records by running the seeder from the repository root:
+
+```powershell
+uv run python scripts/seeder.py
+```
+
+The seeder creates the configured admin account and fixed roles, sample student
+and teacher users, negotiation scenarios, counterpart personas, chunking
+profiles, and vector-store configurations. Scenario creation uses the configured
+OpenAI model, so `OPENAI_API_KEY` must be valid.
+
+The script is safe to run again: existing records are reported as `skipped`,
+while newly created records and failures are printed in the terminal.
+
 ## Starting FastAPI
 
 Day-0 alembic versioning:
