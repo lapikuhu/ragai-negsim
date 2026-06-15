@@ -126,7 +126,7 @@ Example shape:
 
 ```env
 ASYNC_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/negotiation_sim
-NEO4J_URI=neo4j://127.0.0.1:7687
+NEO4J_URI=bolt://127.0.0.1:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your-neo4j-password
 SECRET_KEY=replace-this

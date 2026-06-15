@@ -136,3 +136,26 @@ class ScopedNeo4jPropertyGraphStore(Neo4jPropertyGraphStore):
             },
         )
 
+    def generation_stats(self) -> dict[str, int]:
+        """
+        Return persisted node and relationship counts for this generation.
+        """
+        rows = self.structured_query(
+            """
+            MATCH (n)
+            WHERE n.knowledge_graph_index_id = $graph_id
+              AND n.graph_generation = $generation
+            OPTIONAL MATCH (n)-[r]-()
+            RETURN count(DISTINCT n) AS node_count,
+                   count(DISTINCT r) AS relationship_count
+            """,
+            param_map={
+                "graph_id": self.graph_id,
+                "generation": self.generation,
+            },
+        )
+        row = rows[0] if rows else {}
+        return {
+            "node_count": int(row.get("node_count", 0)),
+            "relationship_count": int(row.get("relationship_count", 0)),
+        }

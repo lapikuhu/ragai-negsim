@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from uuid import uuid4
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -9,6 +10,10 @@ from app.airag.knowledge_graph.k_graph import (
     create_graph_embedding_model,
     create_graph_llm,
     create_kg_extractors,
+)
+from app.airag.knowledge_graph.connection import (
+    describe_neo4j_error,
+    resolve_neo4j_uri,
 )
 from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
 from app.core.config import settings
@@ -27,10 +32,20 @@ from app.schemas.knowledge_graph_build_jobs_schemas import (
 
 
 _GRAPH_BUILD_TASKS: dict[int, asyncio.Task[KnowledgeGraphBuildJobRead]] = {}
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeGraphBuildCancelled(Exception):
     pass
+
+
+def _require_persisted_graph(stats: dict[str, int]) -> None:
+    if stats["node_count"] == 0:
+        raise ValueError(
+            "Neo4j persistence produced an empty graph "
+            f"(nodes={stats['node_count']}, "
+            f"relationships={stats['relationship_count']})"
+        )
 
 
 async def _raise_if_cancel_requested(job, session: AsyncSession) -> None:
@@ -84,7 +99,7 @@ def _create_scoped_store(graph_id: int, generation: str):
         generation=generation,
         username=settings.NEO4J_USERNAME,
         password=settings.NEO4J_PASSWORD,
-        url=settings.NEO4J_URI,
+        url=resolve_neo4j_uri(settings.NEO4J_URI),
     )
 
 
@@ -214,10 +229,32 @@ async def run_knowledge_graph_build_srvc(
         or if the build job is not queued.
     """
     candidate_store = None
+    persistence_stats: dict[str, int] | None = None
     async with AsyncSessionLocal() as session:
         job, graph = await _load_build_records(job_id, session)
         if job.status != "queued":
             raise ValueError("Knowledge graph build job is not queued")
+        log_context = {
+            "job_id": job.id,
+            "graph_id": graph.id,
+            "generation": job.candidate_generation,
+        }
+        logger.info(
+            "Knowledge graph build starting | %s | chunks=%d | config=%s",
+            log_context,
+            len(job.chunk_ids_snapshot),
+            {
+                "llm_provider": job.build_config_snapshot.get("llm_provider"),
+                "llm_model": job.build_config_snapshot.get("llm_model"),
+                "embedding_provider": job.build_config_snapshot.get(
+                    "embedding_provider"
+                ),
+                "embedding_model": job.build_config_snapshot.get(
+                    "embedding_model"
+                ),
+                "extractors": job.build_config_snapshot.get("extractors"),
+            },
+        )
         try:
             await _raise_if_cancel_requested(job, session)
             await knowledge_graph_indices_repo.ensure_knowledge_graph_mutable(
@@ -247,12 +284,32 @@ async def run_knowledge_graph_build_srvc(
                 raise ValueError(
                     "Corpus index chunks changed after the graph build was queued"
                 )
+            logger.info(
+                "Knowledge graph chunks loaded | %s | loaded=%d",
+                log_context,
+                len(chunks_by_id),
+            )
 
             nodes = build_graph_text_nodes(
                 [chunks_by_id[chunk_id] for chunk_id in job.chunk_ids_snapshot],
                 graph_id=graph.id,
                 generation=job.candidate_generation,
                 corpus_index_id=graph.corpus_index_id,
+            )
+            job = (
+                await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
+                    job,
+                    session,
+                    stage="extracting",
+                    processed_chunks=len(nodes),
+                )
+            )
+            logger.info(
+                "Knowledge graph text nodes prepared | %s | nodes=%d | "
+                "characters=%d",
+                log_context,
+                len(nodes),
+                sum(len(node.text) for node in nodes),
             )
             llm = create_graph_llm(job.build_config_snapshot)
             embedding_model = create_graph_embedding_model(
@@ -266,6 +323,19 @@ async def run_knowledge_graph_build_srvc(
                 graph.id,
                 job.candidate_generation,
             )
+            job = (
+                await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
+                    job,
+                    session,
+                    stage="indexing",
+                )
+            )
+            logger.info(
+                "Knowledge graph extraction and persistence started | %s | "
+                "extractors=%s",
+                log_context,
+                [extractor.class_name() for extractor in extractors],
+            )
             await asyncio.to_thread(
                 build_property_graph_index,
                 nodes=nodes,
@@ -274,6 +344,22 @@ async def run_knowledge_graph_build_srvc(
                 embedding_model=embedding_model,
                 kg_extractors=extractors,
             )
+            job = (
+                await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
+                    job,
+                    session,
+                    stage="verifying",
+                )
+            )
+            persistence_stats = await asyncio.to_thread(
+                candidate_store.generation_stats
+            )
+            logger.info(
+                "Knowledge graph Neo4j write verified | %s | stats=%s",
+                log_context,
+                persistence_stats,
+            )
+            _require_persisted_graph(persistence_stats)
 
             await _raise_if_cancel_requested(job, session)
             await session.refresh(graph)
@@ -301,8 +387,18 @@ async def run_knowledge_graph_build_srvc(
                 await asyncio.to_thread(old_store.delete_generation)
                 old_store.close()
             candidate_store.close()
+            logger.info(
+                "Knowledge graph build completed | %s | stats=%s",
+                log_context,
+                persistence_stats,
+            )
             return _job_read(job)
         except KnowledgeGraphBuildCancelled:
+            logger.info(
+                "Knowledge graph build cancelled | %s | stats=%s",
+                log_context,
+                persistence_stats,
+            )
             if candidate_store is not None:
                 await asyncio.to_thread(candidate_store.delete_generation)
                 candidate_store.close()
@@ -318,17 +414,34 @@ async def run_knowledge_graph_build_srvc(
             )
             return _job_read(job)
         except Exception as exc:
+            if candidate_store is not None and persistence_stats is None:
+                try:
+                    persistence_stats = await asyncio.to_thread(
+                        candidate_store.generation_stats
+                    )
+                except Exception:
+                    logger.exception(
+                        "Unable to inspect failed Neo4j generation | %s",
+                        log_context,
+                    )
+            logger.exception(
+                "Knowledge graph build failed | %s | stage=%s | stats=%s",
+                log_context,
+                job.stage,
+                persistence_stats,
+            )
             if candidate_store is not None:
                 await asyncio.to_thread(candidate_store.delete_generation)
                 candidate_store.close()
             graph.status = "built" if graph.active_generation else "failed"
-            graph.latest_build_error = str(exc)
+            detail = describe_neo4j_error(exc, settings.NEO4J_URI)
+            graph.latest_build_error = detail
             graph.last_updated = utc_now()
             await commit_and_refresh(session, graph)
             job = (
                 await knowledge_graph_build_jobs_repo.mark_knowledge_graph_build_job_failed(
                     job,
-                    str(exc),
+                    detail,
                     session,
                 )
             )

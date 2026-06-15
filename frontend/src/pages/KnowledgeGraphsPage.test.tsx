@@ -19,8 +19,10 @@ vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
           embedding_model: "text-embedding-3-small",
           extractors: ["schema"],
         },
-        status: "built",
+        status: "failed",
         active_generation: "g1",
+        latest_build_error:
+          "Neo4j persistence produced an empty graph (nodes=0, relationships=0)",
         locked_at: "2026-06-14T12:00:00Z",
         built_at: "2026-06-14T11:00:00Z",
         created_at: "2026-06-14T10:00:00Z",
@@ -59,5 +61,15 @@ describe("KnowledgeGraphsPage", () => {
     expect(screen.getByText("Permanently locked")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rebuild" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+
+  it("shows the latest build error in the graph list", () => {
+    render(<KnowledgeGraphsPage />);
+
+    expect(
+      screen.getByText(
+        "Neo4j persistence produced an empty graph (nodes=0, relationships=0)",
+      ),
+    ).toBeInTheDocument();
   });
 });

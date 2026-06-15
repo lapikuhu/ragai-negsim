@@ -169,7 +169,20 @@ export function KnowledgeGraphsPage() {
                     </div>
                   ),
                 },
-                { key: "status", header: "Status", render: (graph) => graph.status },
+                {
+                  key: "status",
+                  header: "Status",
+                  render: (graph) => (
+                    <div>
+                      <div className="capitalize">{graph.status}</div>
+                      {graph.latest_build_error ? (
+                        <div className="mt-1 max-w-sm text-xs text-red-700">
+                          {graph.latest_build_error}
+                        </div>
+                      ) : null}
+                    </div>
+                  ),
+                },
                 {
                   key: "models",
                   header: "Models",

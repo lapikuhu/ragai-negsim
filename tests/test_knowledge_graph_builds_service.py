@@ -112,3 +112,22 @@ async def test_cancel_check_raises_for_requested_job():
             job,
             FakeSession(),
         )
+
+
+def test_require_persisted_graph_rejects_empty_generation():
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Neo4j persistence produced an empty graph "
+            r"\(nodes=0, relationships=0\)"
+        ),
+    ):
+        knowledge_graph_builds_service._require_persisted_graph(
+            {"node_count": 0, "relationship_count": 0}
+        )
+
+
+def test_require_persisted_graph_accepts_generation_with_nodes():
+    knowledge_graph_builds_service._require_persisted_graph(
+        {"node_count": 1, "relationship_count": 0}
+    )

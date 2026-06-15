@@ -7,6 +7,9 @@ from app.airag.knowledge_graph.k_graph import (
     build_graph_text_nodes,
     create_kg_extractors,
 )
+from app.airag.knowledge_graph.scoped_store import (
+    ScopedNeo4jPropertyGraphStore,
+)
 
 
 def _chunk(chunk_id: int, raw_document_id: int, chunk_index: int, content: str):
@@ -65,3 +68,26 @@ def test_create_extractors_respects_order_and_schema_options():
     assert extractors[1].max_paths_per_chunk == 4
     assert extractors[2].max_triplets_per_chunk == 4
     assert extractors[2].strict is True
+
+
+def test_generation_stats_reports_scoped_neo4j_counts():
+    store = object.__new__(ScopedNeo4jPropertyGraphStore)
+    store.graph_id = 3
+    store.generation = "generation-b"
+    captured = {}
+
+    def fake_structured_query(query, param_map):
+        captured["query"] = query
+        captured["param_map"] = param_map
+        return [{"node_count": 4, "relationship_count": 3}]
+
+    store.structured_query = fake_structured_query
+
+    stats = store.generation_stats()
+
+    assert stats == {"node_count": 4, "relationship_count": 3}
+    assert captured["param_map"] == {
+        "graph_id": 3,
+        "generation": "generation-b",
+    }
+    assert "OPTIONAL MATCH (n)-[r]-()" in captured["query"]

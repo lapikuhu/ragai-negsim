@@ -9,6 +9,7 @@ from app.models.user_roles import Role, UserRoleLink
 from app.models.users import User
 from app.core.security import get_password_hash
 from app.core.config import settings
+from app.airag.knowledge_graph.connection import resolve_neo4j_uri
 
 ### ---------------------------------------------------------------- ###
 ## ------------------- PostgreSQL Database Setup ------------------- ###
@@ -111,7 +112,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 ## ------------------- Neo4j Graph Database Setup ------------------- ##
 
 # Get Neo4j connection parameters from settings
-NEO4J_URI = settings.NEO4J_URI
+NEO4J_URI = resolve_neo4j_uri(settings.NEO4J_URI)
 NEO4J_USERNAME = settings.NEO4J_USERNAME
 NEO4J_PASSWORD = settings.NEO4J_PASSWORD
 
