@@ -1,5 +1,6 @@
 from langchain_core.documents import Document
 from typing import TypedDict
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 from langsmith import traceable
 try:
@@ -13,6 +14,7 @@ from app.airag.chains.crag.crag_nodes import node_generate, node_fallback, node_
 from app.airag.chains.crag.crag_nodes import make_crag_rerank_node
 from app.airag.chains.crag.crag_routers import make_decide_after_grade, make_decide_after_quality
 from app.airag.reranking.reranking import choose_reranker
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 # Define the CRAGState TypedDict to represent the state of the CRAG process
 class CRAGState(TypedDict):
@@ -124,7 +126,10 @@ def make_crag_node(crag):
     
     """
     @traceable
-    def crag_node(state: CRAGState) -> dict:
+    def crag_node(
+        state: CRAGState,
+        config: RunnableConfig | None = None,
+    ) -> dict:
         """Execute the CRAG graph with the given initial state and return 
         the final answer and documents.
         Args:
@@ -134,11 +139,21 @@ def make_crag_node(crag):
             A dictionary containing the final answer and the documents used for
                 generation.        
         """
-        crag_result = crag.invoke({
-            "question": state["question"],
-            "attempts": state.get("attempts", 0),
-            "trusted_context": state.get("trusted_context", ""),
-        })
+        node_config = extend_runnable_config(
+            config,
+            tags=["graph:crag"],
+            metadata={"graph": "crag"},
+            run_name="crag.graph",
+        )
+        crag_result = invoke_with_config(
+            crag,
+            {
+                "question": state["question"],
+                "attempts": state.get("attempts", 0),
+                "trusted_context": state.get("trusted_context", ""),
+            },
+            node_config,
+        )
 
         return {
             "answer": crag_result["answer"],

@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.messages import BaseMessage
 from langchain_core.documents import Document
+from langchain_core.runnables.config import RunnableConfig
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.airag.chains.negotiation.negotiation import (
@@ -14,6 +15,10 @@ from app.airag.chains.negotiation.negotiation import (
 from app.airag.chains.agents.helpers import flatten_message_metadata
 from app.airag.chains.agents.user_proxy_negotiator.user_proxy import (
     invoke_user_proxy_turn,
+)
+from app.airag.observability.llm_usage import (
+    create_usage_tracking_context,
+    summarize_usage_handler,
 )
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
     is_terminal_acceptance_message,
@@ -289,6 +294,15 @@ def _record_context(record: Any) -> dict[str, Any]:
 
 
 def _safe_context_dict(value: Any) -> dict[str, Any]:
+    """
+    Safely convert a value to a dictionary if it is a dictionary, 
+    otherwise return an empty dictionary.
+    Args:
+        value: The value to convert.
+    Returns:
+        A dictionary if the value is a dictionary, otherwise an empty 
+        dictionary.
+    """
     return _json_safe(value) if isinstance(value, dict) else {}
 
 
@@ -296,6 +310,10 @@ def _participant_user_id(simulation: Simulation) -> int:
     """
     Get the participant user ID for a simulation, falling back to the 
     owner ID if the participant ID is not set.
+    Args:
+        simulation: The simulation object.
+    Returns:
+        The participant user ID, or the owner ID if the participant ID is not set.
     """
     return simulation.user_id_participant or simulation.user_id_owner
 
@@ -1015,6 +1033,37 @@ def _state_schema_from_graph_state(state: dict[str, Any]) -> NegotiationStateSch
     )
 
 
+def _usage_metadata_for_state(state: dict[str, Any]) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    for key in ("simulation_id", "session_id", "app_session_id", "user_id"):
+        value = state.get(key)
+        if value not in (None, ""):
+            metadata[key] = value
+    return metadata
+
+
+async def _invoke_user_proxy_turn_with_optional_config(
+    state: dict[str, Any],
+    persona: Any | None,
+    duration: str,
+    *,
+    config: RunnableConfig | None = None,
+) -> dict[str, Any]:
+    if config is None:
+        return await invoke_user_proxy_turn(state, persona, duration)
+    try:
+        return await invoke_user_proxy_turn(
+            state,
+            persona,
+            duration,
+            config=config,
+        )
+    except TypeError as exc:
+        if "config" not in str(exc):
+            raise
+        return await invoke_user_proxy_turn(state, persona, duration)
+
+
 def _public_graph_state(state: dict[str, Any]) -> dict[str, Any]:
     """
     Convert a graph state dictionary to a public-facing dictionary.
@@ -1582,7 +1631,13 @@ async def submit_simulation_turn_srvc(
         state["requested_action"] = turn_data.action
 
     graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
-    graph_state = _json_safe(invoke_negotiation_turn(graph, state))
+    usage_handler, usage_config = create_usage_tracking_context(
+        tags=["service:simulation_turn"],
+        metadata=_usage_metadata_for_state(state),
+        run_name="simulation.turn",
+    )
+    graph_state = _json_safe(invoke_negotiation_turn(graph, state, config=usage_config))
+    graph_state["llm_usage"] = summarize_usage_handler(usage_handler)
     graph_state.pop("requested_action", None)
     next_status = _status_after_graph(graph_state)
     update_in = SimulationUpdate(
@@ -1650,7 +1705,17 @@ async def submit_simulation_proxy_turn_srvc(
         proxy_data.duration == "remainder",
         persona_context,
     )
-    proxy_result = await invoke_user_proxy_turn(state, persona_record, proxy_data.duration)
+    usage_handler, usage_config = create_usage_tracking_context(
+        tags=["service:simulation_proxy_turn"],
+        metadata=_usage_metadata_for_state(state),
+        run_name="simulation.proxy_turn",
+    )
+    proxy_result = await _invoke_user_proxy_turn_with_optional_config(
+        state,
+        persona_record,
+        proxy_data.duration,
+        config=usage_config,
+    )
     proxy_message = str(proxy_result.get("message") or "").strip()
     if not proxy_message:
         raise ValueError("Proxy response was empty")
@@ -1666,7 +1731,8 @@ async def submit_simulation_proxy_turn_srvc(
     ]
 
     graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
-    graph_state = _json_safe(invoke_negotiation_turn(graph, state))
+    graph_state = _json_safe(invoke_negotiation_turn(graph, state, config=usage_config))
+    graph_state["llm_usage"] = summarize_usage_handler(usage_handler)
     graph_state.pop("requested_action", None)
     _carry_forward_proxy_state(state, graph_state)
     next_status = _status_after_graph(graph_state)

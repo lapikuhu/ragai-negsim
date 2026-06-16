@@ -228,6 +228,17 @@ def test_public_graph_state_exposes_safe_proxy_status_only():
     assert "description" not in public["user_proxy_persona"]
 
 
+def test_public_graph_state_excludes_hidden_llm_usage():
+    internal = _internal_state_with_secrets()
+    internal["llm_usage"] = {
+        "totals": {"input_tokens": 12, "output_tokens": 5, "total_tokens": 17}
+    }
+
+    public = simulations_service._public_graph_state(internal)
+
+    assert "llm_usage" not in public
+
+
 def test_message_to_schema_flattens_recursively_nested_metadata():
     message = HumanMessage(
         content="Proxy turn",
@@ -932,6 +943,63 @@ async def test_submit_turn_invokes_graph_and_persists_json_safe_response(monkeyp
     assert simulation.negotiation_state["data"]["counterpart_persona_context"]["name"] == "Firm seller"
     assert simulation.negotiation_state["data"]["phase"] == "bargaining"
 
+
+@pytest.mark.asyncio
+async def test_submit_turn_persists_hidden_llm_usage_summary(monkeypatch):
+    simulation = _simulation(
+        status="active",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "opening",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "opening",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state, config=None):
+            return {
+                **state,
+                "phase": "bargaining",
+                "should_pause": True,
+                "pause_reason": "counterpart_response_ready",
+                "messages": state["messages"],
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+
+    result = await simulations_service.submit_simulation_turn_srvc(
+        simulation,
+        SimulationTurnRequest(message="Could you do 95?"),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert result.status == "paused"
+    assert simulation.negotiation_state["data"]["llm_usage"]["totals"]["total_tokens"] >= 0
+    assert "llm_usage" not in result.model_dump()
+    assert "llm_usage" not in simulations_service._public_graph_state(
+        simulation.negotiation_state["data"]
+    )
 
 @pytest.mark.asyncio
 async def test_submit_turn_tags_human_provenance_and_disables_proxy_mode(monkeypatch):

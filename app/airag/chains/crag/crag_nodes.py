@@ -1,11 +1,13 @@
 
 # local imports
+from langchain_core.runnables.config import RunnableConfig
 from langsmith import traceable
 
 from app.airag.chains.crag.helpers import format_docs
 from app.airag.chains.crag.helpers import document_grader, rewrite_chain, generation_chain
 from app.airag.chains.crag.helpers import detect_injection, fallback_chain
 from app.airag.chains.crag.helpers import hallucination_grader, answer_grader
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 def make_crag_retrieve_node(retriever):
     """
@@ -18,7 +20,7 @@ def make_crag_retrieve_node(retriever):
         A function that takes a CRAGState and returns the retrieved documents.
     """
     @traceable
-    def node_retrieve(state) -> dict:
+    def node_retrieve(state, config: RunnableConfig | None = None) -> dict:
         """
         Define the retrieve node which takes the current question (original or 
             rewritten) and retrieves relevant documents from the vector store 
@@ -62,7 +64,7 @@ def make_crag_rerank_node(reranker, top_k: int = 3):
 
 ### --------------------- DOCUMENT GRADER NODE---------------------- ###
 @traceable
-def node_grade(state) -> dict:
+def node_grade(state, config: RunnableConfig | None = None) -> dict:
     """
     Define the grade node which evaluates the relevance of the retrieved 
     documents to the question.
@@ -73,13 +75,23 @@ def node_grade(state) -> dict:
         return {"grade": "not_relevant"}
     question = state.get("rewritten") or state["question"]
     context = format_docs(docs)
-    verdict = document_grader.invoke({"question": question, "context": context})
+    invoke_config = extend_runnable_config(
+        config,
+        tags=["graph:crag", "node:grade_documents", "prompt:document_grader"],
+        metadata={"graph": "crag", "node": "grade_documents", "prompt": "document_grader"},
+        run_name="crag.grade_documents",
+    )
+    verdict = invoke_with_config(
+        document_grader,
+        {"question": question, "context": context},
+        invoke_config,
+    )
     print(f"[grade] {verdict.relevance} | {verdict.reasoning}")
     return {"grade": verdict.relevance}
 
 ### --------------------------- REWRITE ---------------------------- ###
 @traceable
-def node_rewrite(state) -> dict:
+def node_rewrite(state, config: RunnableConfig | None = None) -> dict:
     """
     Define the rewrite node which attempts to reformulate the question if 
     the retrieved documents were not relevant.
@@ -90,7 +102,17 @@ def node_rewrite(state) -> dict:
         A dictionary containing the rewritten question and the number of
             rewrite attempts.
     """
-    rewritten = rewrite_chain.invoke({"question": state["question"]}).strip()
+    invoke_config = extend_runnable_config(
+        config,
+        tags=["graph:crag", "node:rewrite", "prompt:rewrite"],
+        metadata={"graph": "crag", "node": "rewrite", "prompt": "rewrite"},
+        run_name="crag.rewrite",
+    )
+    rewritten = invoke_with_config(
+        rewrite_chain,
+        {"question": state["question"]},
+        invoke_config,
+    ).strip()
     attempts = state.get("attempts", 0) + 1
     print(f"[rewrite] attempt={attempts} | rewritten={rewritten!r}")
     return {"rewritten": rewritten, "attempts": attempts}
@@ -98,7 +120,7 @@ def node_rewrite(state) -> dict:
 ### -------------------------- QUALITY NODE ------------------------ ###
 # Combines hallucination check and answer grading to determine overall quality#
 @traceable
-def node_quality_check(state) -> dict:
+def node_quality_check(state, config: RunnableConfig | None = None) -> dict:
     """Define the quality check node which evaluates the generated answer for
     hallucinations and relevance to the question.
     Args:
@@ -119,14 +141,36 @@ def node_quality_check(state) -> dict:
             "quality_reasoning": "Missing context or answer.",
         }
 
-    hall = hallucination_grader.invoke(
+    hall_config = extend_runnable_config(
+        config,
+        tags=["graph:crag", "node:hallucination_check", "prompt:hallucination_grader"],
+        metadata={
+            "graph": "crag",
+            "node": "hallucination_check",
+            "prompt": "hallucination_grader",
+        },
+        run_name="crag.hallucination_check",
+    )
+    hall = invoke_with_config(
+        hallucination_grader,
         {
             "context": context,
             "trusted_context": trusted_context,
             "answer": answer,
-        }
+        },
+        hall_config,
     )
-    ans = answer_grader.invoke({"question": state["question"], "answer": answer})
+    answer_config = extend_runnable_config(
+        config,
+        tags=["graph:crag", "node:answer_grade", "prompt:answer_grader"],
+        metadata={"graph": "crag", "node": "answer_grade", "prompt": "answer_grader"},
+        run_name="crag.answer_grade",
+    )
+    ans = invoke_with_config(
+        answer_grader,
+        {"question": state["question"], "answer": answer},
+        answer_config,
+    )
     reasoning = (
         f"grounded={hall.grounded}; addresses={ans.addresses}; "
         f"trusted_context={'yes' if trusted_context else 'no'}; "
@@ -142,7 +186,7 @@ def node_quality_check(state) -> dict:
 
 ### --------------------------- GENERATE --------------------------- ###
 @traceable
-def node_generate(state) -> dict:
+def node_generate(state, config: RunnableConfig | None = None) -> dict:
     """
     Define the generate node which produces an answer based on the 
     retrieved documents.
@@ -156,16 +200,26 @@ def node_generate(state) -> dict:
     docs = state.get("documents", [])
     context = format_docs(docs)
     trusted_context = state.get("trusted_context", "")
-    answer = generation_chain.invoke({
-        "question": state["question"],
-        "context": context,
-        "trusted_context": trusted_context,
-    }).strip()
+    invoke_config = extend_runnable_config(
+        config,
+        tags=["graph:crag", "node:generate", "prompt:generation"],
+        metadata={"graph": "crag", "node": "generate", "prompt": "generation"},
+        run_name="crag.generate",
+    )
+    answer = invoke_with_config(
+        generation_chain,
+        {
+            "question": state["question"],
+            "context": context,
+            "trusted_context": trusted_context,
+        },
+        invoke_config,
+    ).strip()
     return {"answer": answer, "context": context}
 
 ### --------------------------- FALLBACK --------------------------- ###
 @traceable
-def node_fallback(state) -> dict:
+def node_fallback(state, config: RunnableConfig | None = None) -> dict:
     """
     Generate a fallback answer when the knowledge base retrieval and rewrite
     attempts did not produce relevant usable context.
@@ -173,10 +227,20 @@ def node_fallback(state) -> dict:
     question = state["question"]
     rewritten = state.get("rewritten", "")
 
-    answer = fallback_chain.invoke({
-        "question": question,
-        "rewritten": rewritten,
-    }).strip()
+    invoke_config = extend_runnable_config(
+        config,
+        tags=["graph:crag", "node:fallback", "prompt:fallback"],
+        metadata={"graph": "crag", "node": "fallback", "prompt": "fallback"},
+        run_name="crag.fallback",
+    )
+    answer = invoke_with_config(
+        fallback_chain,
+        {
+            "question": question,
+            "rewritten": rewritten,
+        },
+        invoke_config,
+    ).strip()
 
     return {
         "answer": answer,

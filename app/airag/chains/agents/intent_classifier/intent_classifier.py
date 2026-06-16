@@ -1,5 +1,6 @@
 from typing import Any
 
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langsmith import traceable
 
@@ -14,6 +15,7 @@ from app.airag.chains.agents.intent_classifier.intent_classifier_nodes import (
     make_classify_intent_node,
     node_finalize_intent,
 )
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 def make_intent_classifier_graph(
@@ -55,8 +57,21 @@ def make_intent_classifier_node(intent_classifier_graph: Any):
         intent classifier graph.
     """
     @traceable
-    def intent_classifier_node(state: dict[str, Any]) -> dict[str, Any]:
-        result = intent_classifier_graph.invoke(project_intent_classifier_state(state))
+    def intent_classifier_node(
+        state: dict[str, Any],
+        config: RunnableConfig | None = None,
+    ) -> dict[str, Any]:
+        node_config = extend_runnable_config(
+            config,
+            tags=["agent:intent_classifier", "graph:intent_classifier"],
+            metadata={"agent": "intent_classifier", "graph": "intent_classifier"},
+            run_name="intent_classifier.graph",
+        )
+        result = invoke_with_config(
+            intent_classifier_graph,
+            project_intent_classifier_state(state),
+            node_config,
+        )
         updates = {
             "intent_classification": result.get("intent_classification", {}),
         }

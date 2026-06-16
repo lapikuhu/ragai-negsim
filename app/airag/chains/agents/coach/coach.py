@@ -1,5 +1,6 @@
 from typing import Annotated, Any, Literal
 from langchain_core.messages import BaseMessage
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 from langsmith import traceable
 from app.airag.chains.negotiation.negotiation_model import ParentNegotiationState, CoachAdvice
@@ -17,6 +18,7 @@ from app.airag.chains.agents.coach.coach_nodes import (
 	node_finalize_coach,
 )
 from app.airag.chains.agents.coach.coach_helpers import get_default_coach_model
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 ### -------------- END OF NODE AND ROUTER FUNCTIONS ---------------- ###
@@ -76,8 +78,17 @@ def make_coach_graph(
 def make_coach_node(coach_graph: Any):
 	"""Wrap the coach graph as a parent negotiation graph node."""
 	@traceable
-	def coach_node(state: ParentNegotiationState) -> dict:
-		result = coach_graph.invoke(project_coach_state(state))
+	def coach_node(
+		state: ParentNegotiationState,
+		config: RunnableConfig | None = None,
+	) -> dict:
+		node_config = extend_runnable_config(
+			config,
+			tags=["agent:coach", "graph:coach"],
+			metadata={"agent": "coach", "graph": "coach"},
+			run_name="coach.graph",
+		)
+		result = invoke_with_config(coach_graph, project_coach_state(state), node_config)
 		updates = {"coach_advice": result.get("coach_advice", {})}
 		if result.get("event_log"):
 			updates["event_log"] = result["event_log"]
@@ -87,8 +98,18 @@ def make_coach_node(coach_graph: Any):
 
 
 @traceable
-def invoke_coach_advice(coach_graph: Any, state: ParentNegotiationState) -> CoachAdvice:
+def invoke_coach_advice(
+	coach_graph: Any,
+	state: ParentNegotiationState,
+	config: RunnableConfig | None = None,
+) -> CoachAdvice:
 	"""Invoke the coach graph and return only the generated advice."""
-	result = coach_graph.invoke(state)
+	graph_config = extend_runnable_config(
+		config,
+		tags=["agent:coach", "graph:coach"],
+		metadata={"agent": "coach", "graph": "coach"},
+		run_name="coach.invoke_advice",
+	)
+	result = invoke_with_config(coach_graph, state, graph_config)
 	return result.get("coach_advice", {})
 

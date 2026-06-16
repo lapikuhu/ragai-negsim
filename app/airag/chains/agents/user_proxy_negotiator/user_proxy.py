@@ -1,5 +1,6 @@
 from typing import Any
 
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langsmith import traceable
 
@@ -20,6 +21,7 @@ from app.airag.chains.agents.user_proxy_negotiator.user_proxy_nodes import (
     node_prepare_user_proxy_context,
 )
 from app.airag.chains.negotiation.negotiation_model import ParentNegotiationState
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 def make_user_proxy_graph(
@@ -78,8 +80,29 @@ def make_user_proxy_graph(
 
 def make_user_proxy_node(user_proxy_graph: Any):
     @traceable
-    def user_proxy_node(state: ParentNegotiationState) -> dict:
-        result = user_proxy_graph.invoke(project_user_proxy_state(state))
+    def user_proxy_node(
+        state: ParentNegotiationState,
+        config: RunnableConfig | None = None,
+    ) -> dict:
+        """
+        Execute the user proxy node.
+        Args:
+            state: The parent negotiation state.
+            config: Optional runnable configuration.
+        Returns:
+            A dictionary containing the proxy response and event log.
+        """
+        node_config = extend_runnable_config(
+            config,
+            tags=["agent:user_proxy", "graph:user_proxy"],
+            metadata={"agent": "user_proxy", "graph": "user_proxy"},
+            run_name="user_proxy.graph",
+        )
+        result = invoke_with_config(
+            user_proxy_graph,
+            project_user_proxy_state(state),
+            node_config,
+        )
         return {
             "proxy_response": result.get("proxy_response", {}),
             "event_log": result.get("event_log", []),
@@ -94,6 +117,7 @@ async def invoke_user_proxy_turn(
     persona: Any | None,
     duration: str,
     user_proxy_graph: Any | None = None,
+    config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """
     Invoke a user proxy turn.
@@ -102,6 +126,7 @@ async def invoke_user_proxy_turn(
         persona: The user proxy persona.
         duration: The duration of the proxy turn.
         user_proxy_graph: The user proxy graph.
+        config: Optional runnable configuration.
     Returns:
         A dictionary containing the user proxy response.
     """
@@ -121,5 +146,11 @@ async def invoke_user_proxy_turn(
             "proxy_duration": duration,
         }
     )
-    result = graph.invoke(proxy_state)
+    graph_config = extend_runnable_config(
+        config,
+        tags=["agent:user_proxy", "graph:user_proxy"],
+        metadata={"agent": "user_proxy", "graph": "user_proxy"},
+        run_name="user_proxy.invoke_turn",
+    )
+    result = invoke_with_config(graph, proxy_state, graph_config)
     return result.get("proxy_response", {})

@@ -1,4 +1,5 @@
 from typing import Any
+from langchain_core.runnables.config import RunnableConfig
 from langsmith import traceable
 # local imports
 from app.airag.chains.agents.helpers import json_dumps
@@ -14,6 +15,7 @@ from app.airag.chains.agents.counterpart.counterpart_helpers import (
     coerce_counterpart_response,
     fallback_counterpart_response,
 )
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 def node_prepare_counterpart_context(state: CounterpartGraphState) -> dict:
@@ -48,7 +50,10 @@ def make_generate_counterpart_response_node(
 	prompt_template: str | None = None,
 ):
 	@traceable
-	def node_generate_counterpart_response(state: CounterpartGraphState) -> dict:
+	def node_generate_counterpart_response(
+		state: CounterpartGraphState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		"""
 		Generate a counterpart response using the provided model and prompt 
 		template.
@@ -70,7 +75,19 @@ def make_generate_counterpart_response_node(
 				CounterpartResponseModel,
 				method="function_calling",
 			)
-			response = coerce_counterpart_response(structured_model.invoke(prompt))
+			invoke_config = extend_runnable_config(
+				config,
+				tags=["agent:counterpart", "node:generate", "prompt:counterpart"],
+				metadata={
+					"agent": "counterpart",
+					"node": "generate",
+					"prompt": "counterpart",
+				},
+				run_name="counterpart.generate",
+			)
+			response = coerce_counterpart_response(
+				invoke_with_config(structured_model, prompt, invoke_config)
+			)
 		except Exception as exc:
 			return {
 				"counterpart_prompt": prompt,
@@ -93,7 +110,10 @@ def make_repair_counterpart_response_node(
 	prompt_template: str | None = None,
 ):
 	@traceable
-	def node_repair_counterpart_response(state: CounterpartGraphState) -> dict:
+	def node_repair_counterpart_response(
+		state: CounterpartGraphState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		"""
 		Repair the counterpart response using the provided model and 
 		prompt template.
@@ -125,7 +145,19 @@ def make_repair_counterpart_response_node(
 				CounterpartResponseModel,
 				method="function_calling",
 			)
-			response = coerce_counterpart_response(structured_model.invoke(repair_prompt))
+			invoke_config = extend_runnable_config(
+				config,
+				tags=["agent:counterpart", "node:repair", "prompt:counterpart"],
+				metadata={
+					"agent": "counterpart",
+					"node": "repair",
+					"prompt": "counterpart",
+				},
+				run_name="counterpart.repair",
+			)
+			response = coerce_counterpart_response(
+				invoke_with_config(structured_model, repair_prompt, invoke_config)
+			)
 		except Exception as exc:
 			return {
 				"counterpart_retry_count": retry_count,

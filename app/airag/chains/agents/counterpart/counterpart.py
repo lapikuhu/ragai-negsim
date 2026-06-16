@@ -1,5 +1,6 @@
 from typing import Annotated, Any
 from langgraph.graph import StateGraph, START, END
+from langchain_core.runnables.config import RunnableConfig
 from langsmith import traceable
 
 # local imports
@@ -25,6 +26,7 @@ from app.airag.chains.agents.counterpart.counterpart_nodes import (
     decide_after_generate,
     decide_after_repair,
 )
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 def make_counterpart_graph(
@@ -96,7 +98,10 @@ def make_counterpart_node(counterpart_graph: Any):
 		the parent graph state.
 	"""
 	@traceable
-	def counterpart_node(state: ParentNegotiationState) -> dict:
+	def counterpart_node(
+		state: ParentNegotiationState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		"""
 		Invoke the counterpart graph with the projected state and return 
 		updates to the parent graph state.
@@ -107,7 +112,17 @@ def make_counterpart_node(counterpart_graph: Any):
 			counterpart graph response, including the current offer, event log,
 			and any messages from the counterpart.
 		"""
-		result = counterpart_graph.invoke(project_counterpart_state(state))
+		node_config = extend_runnable_config(
+			config,
+			tags=["agent:counterpart", "graph:counterpart"],
+			metadata={"agent": "counterpart", "graph": "counterpart"},
+			run_name="counterpart.graph",
+		)
+		result = invoke_with_config(
+			counterpart_graph,
+			project_counterpart_state(state),
+			node_config,
+		)
 		response = result.get("counterpart_response", {})
 		side = response.get("side", result.get("counterpart_side"))
 		offer = response.get("offer", {})
@@ -141,6 +156,7 @@ def make_counterpart_node(counterpart_graph: Any):
 def invoke_counterpart_response(
 	counterpart_graph: Any,
 	state: ParentNegotiationState,
+	config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
 	"""
 	Invoke the counterpart graph and return only the validated response.
@@ -150,5 +166,11 @@ def invoke_counterpart_response(
 	Returns:
 		A dictionary with the validated counterpart response.
 	"""
-	result = counterpart_graph.invoke(state)
+	graph_config = extend_runnable_config(
+		config,
+		tags=["agent:counterpart", "graph:counterpart"],
+		metadata={"agent": "counterpart", "graph": "counterpart"},
+		run_name="counterpart.invoke_response",
+	)
+	result = invoke_with_config(counterpart_graph, state, graph_config)
 	return result.get("counterpart_response", {})

@@ -1,4 +1,5 @@
 from typing import Any
+from langchain_core.runnables.config import RunnableConfig
 ### --------------------- COACH SPECIFIC NODES --------------------- ###
 from langsmith import traceable
 
@@ -12,6 +13,7 @@ from app.airag.chains.agents.coach.coach_helpers import (
 )
 from app.airag.chains.agents.helpers import json_dumps, format_messages
 from app.airag.chains.agents.coach.coach_model import CoachGraphState, CoachAdviceModel
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 def node_prepare_coach_context(state: CoachGraphState) -> dict:
@@ -62,7 +64,10 @@ def make_call_crag_node(crag_graph: Any):
 	with the constructed query and updates the retrieval context based on 
 	the results."""
 	@traceable
-	def node_call_crag(state: CoachGraphState) -> dict:
+	def node_call_crag(
+		state: CoachGraphState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		"""
 		Node function to call the CRAG graph with the constructed query
 		and update the retrieval context based on the results.
@@ -82,12 +87,24 @@ def make_call_crag_node(crag_graph: Any):
 
 		try: 
 			trusted_context = build_coach_trusted_context(state)
-			result = crag_graph.invoke(
+			invoke_config = extend_runnable_config(
+				config,
+				tags=["agent:coach", "graph:crag", "node:retrieve_context"],
+				metadata={
+					"agent": "coach",
+					"graph": "crag",
+					"node": "retrieve_context",
+				},
+				run_name="coach.crag",
+			)
+			result = invoke_with_config(
+				crag_graph,
 				{
 					"question": state.get("coach_query", ""),
 					"attempts": 0,
 					"trusted_context": trusted_context,
-				}
+				},
+				invoke_config,
 			)
 		except Exception as exc:
 			return {
@@ -130,7 +147,10 @@ def make_generate_coach_advice_node(
 			entries describing the generation step.
 	"""
 	@traceable
-	def node_generate_coach_advice(state: CoachGraphState) -> dict:
+	def node_generate_coach_advice(
+		state: CoachGraphState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		"""
 		Node function to generate coach advice using the specified LLM model, 
 		with structured output validation and error handling.
@@ -159,7 +179,13 @@ def make_generate_coach_advice_node(
 		prompt = render_coach_prompt(state, prompt_template)
 		try:
 			structured_model = model.with_structured_output(CoachAdviceModel)
-			advice = structured_model.invoke(prompt)
+			invoke_config = extend_runnable_config(
+				config,
+				tags=["agent:coach", "node:generate", "prompt:coach"],
+				metadata={"agent": "coach", "node": "generate", "prompt": "coach"},
+				run_name="coach.generate",
+			)
+			advice = invoke_with_config(structured_model, prompt, invoke_config)
 			return {
 				"coach_prompt": prompt,
 				"coach_advice": advice.model_dump(),
@@ -186,7 +212,10 @@ def make_repair_coach_advice_node(
 	that includes validation errors and emphasizes the
 	"""
 	@traceable
-	def node_repair_coach_advice(state: CoachGraphState) -> dict:
+	def node_repair_coach_advice(
+		state: CoachGraphState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		"""
 		Node function to attempt to repair coach advice generation failures by 
 		re-invoking the model with a focused prompt that includes validation 
@@ -223,7 +252,13 @@ def make_repair_coach_advice_node(
 
 		try:
 			structured_model = model.with_structured_output(CoachAdviceModel)
-			advice = structured_model.invoke(repair_prompt)
+			invoke_config = extend_runnable_config(
+				config,
+				tags=["agent:coach", "node:repair", "prompt:coach"],
+				metadata={"agent": "coach", "node": "repair", "prompt": "coach"},
+				run_name="coach.repair",
+			)
+			advice = invoke_with_config(structured_model, repair_prompt, invoke_config)
 			return {
 				"coach_advice": advice.model_dump(),
 				"coach_validation_error": "",

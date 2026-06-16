@@ -1,7 +1,9 @@
 from textwrap import dedent
 
 from sqlmodel.ext.asyncio.session import AsyncSession
+from langchain_core.runnables.config import RunnableConfig
 
+from app.airag.observability.llm_usage import invoke_with_config
 from app.models.scenarios import Scenario
 from app.models.users import User
 from app.repositories import scenarios_repo
@@ -46,6 +48,7 @@ def _build_scenario_context_generation_prompt(
 async def generate_scenario_context_srvc(
     scenario_data: ScenarioContextGenerateRequest,
     model,
+    config: RunnableConfig | None = None,
 ) -> ScenarioContextGenerateResponse:
     """
     Generate structured context for a negotiation scenario using the 
@@ -62,8 +65,10 @@ async def generate_scenario_context_srvc(
             ScenarioContextGenerationModel,
             method="function_calling",
         )
-        result = structured_model.invoke(
-            _build_scenario_context_generation_prompt(scenario_data)
+        result = invoke_with_config(
+            structured_model,
+            _build_scenario_context_generation_prompt(scenario_data),
+            config,
         )
         if hasattr(result, "model_dump"):
             payload = result.model_dump()

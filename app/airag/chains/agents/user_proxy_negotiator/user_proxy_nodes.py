@@ -1,4 +1,5 @@
 from typing import Any
+from langchain_core.runnables.config import RunnableConfig
 from langsmith import traceable
 
 from app.airag.chains.agents.user_proxy_negotiator.user_proxy_helpers import (
@@ -11,6 +12,7 @@ from app.airag.chains.agents.user_proxy_negotiator.user_proxy_model import (
     UserProxyGraphState,
     UserProxyResponseModel,
 )
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 def node_prepare_user_proxy_context(state: UserProxyGraphState) -> dict:
@@ -36,7 +38,10 @@ def node_prepare_user_proxy_context(state: UserProxyGraphState) -> dict:
 
 def make_generate_user_proxy_response_node(model: Any, prompt_template: str | None = None):
     @traceable
-    def node_generate_user_proxy_response(state: UserProxyGraphState) -> dict:
+    def node_generate_user_proxy_response(
+        state: UserProxyGraphState,
+        config: RunnableConfig | None = None,
+    ) -> dict:
         """
         Generate a user proxy response.
         Args:
@@ -56,7 +61,16 @@ def make_generate_user_proxy_response_node(model: Any, prompt_template: str | No
                 UserProxyResponseModel,
                 method="function_calling",
             )
-            response = coerce_user_proxy_response(structured_model.invoke(prompt), state)
+            invoke_config = extend_runnable_config(
+                config,
+                tags=["agent:user_proxy", "node:generate", "prompt:user_proxy"],
+                metadata={"agent": "user_proxy", "node": "generate", "prompt": "user_proxy"},
+                run_name="user_proxy.generate",
+            )
+            response = coerce_user_proxy_response(
+                invoke_with_config(structured_model, prompt, invoke_config),
+                state,
+            )
         except Exception as exc:
             return {
                 "proxy_prompt": prompt,
@@ -76,7 +90,10 @@ def make_generate_user_proxy_response_node(model: Any, prompt_template: str | No
 
 def make_repair_user_proxy_response_node(model: Any, prompt_template: str | None = None):
     @traceable
-    def node_repair_user_proxy_response(state: UserProxyGraphState) -> dict:
+    def node_repair_user_proxy_response(
+        state: UserProxyGraphState,
+        config: RunnableConfig | None = None,
+    ) -> dict:
         """
         Repair a user proxy response.
         Args:
@@ -106,7 +123,16 @@ def make_repair_user_proxy_response_node(model: Any, prompt_template: str | None
                 UserProxyResponseModel,
                 method="function_calling",
             )
-            response = coerce_user_proxy_response(structured_model.invoke(repair_prompt), state)
+            invoke_config = extend_runnable_config(
+                config,
+                tags=["agent:user_proxy", "node:repair", "prompt:user_proxy"],
+                metadata={"agent": "user_proxy", "node": "repair", "prompt": "user_proxy"},
+                run_name="user_proxy.repair",
+            )
+            response = coerce_user_proxy_response(
+                invoke_with_config(structured_model, repair_prompt, invoke_config),
+                state,
+            )
         except Exception as exc:
             return {
                 "proxy_retry_count": retry_count,

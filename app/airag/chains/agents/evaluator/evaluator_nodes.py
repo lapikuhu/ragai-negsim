@@ -1,4 +1,5 @@
 from typing import Any
+from langchain_core.runnables.config import RunnableConfig
 from langsmith import traceable
 # local imports
 from app.airag.chains.agents.helpers import json_dumps
@@ -20,6 +21,7 @@ from app.airag.chains.agents.evaluator.evaluator_helpers import (
 	fallback_final_evaluator_response,
 	final_evaluation_from_response,
 )
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 def node_prepare_evaluator_context(state: EvaluatorGraphState) -> dict:
 	"""
@@ -64,7 +66,10 @@ def node_build_evaluator_crag_query(state: EvaluatorGraphState) -> dict:
 
 def make_call_crag_node(crag_graph: Any = None):
 	@traceable
-	def node_call_crag(state: EvaluatorGraphState) -> dict:
+	def node_call_crag(
+		state: EvaluatorGraphState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		"""
 		Call the CRAG graph to retrieve additional context for the evaluator.
 		Args:
@@ -82,12 +87,24 @@ def make_call_crag_node(crag_graph: Any = None):
 
 		try:
 			trusted_context = build_evaluator_trusted_context(state)
-			result = crag_graph.invoke(
+			invoke_config = extend_runnable_config(
+				config,
+				tags=["agent:evaluator", "graph:crag", "node:retrieve_context"],
+				metadata={
+					"agent": "evaluator",
+					"graph": "crag",
+					"node": "retrieve_context",
+				},
+				run_name="evaluator.crag",
+			)
+			result = invoke_with_config(
+				crag_graph,
 				{
 					"question": state.get("evaluator_query", "negotiation evaluation"),
 					"attempts": 0,
 					"trusted_context": trusted_context,
-				}
+				},
+				invoke_config,
 			)
 		except Exception as exc:
 			return {
@@ -126,7 +143,10 @@ def make_generate_evaluator_response_node(
 		generating evaluator responses.
 	"""
 	@traceable
-	def node_generate_evaluator_response(state: EvaluatorGraphState) -> dict:
+	def node_generate_evaluator_response(
+		state: EvaluatorGraphState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		if model is None:
 			return {
 				"evaluator_validation_error": "Evaluator model is not configured.",
@@ -142,8 +162,14 @@ def make_generate_evaluator_response_node(
 		try:
 			schema = FinalEvaluatorResponseModel if final_mode else EvaluatorResponseModel
 			structured_model = model.with_structured_output(schema)
+			invoke_config = extend_runnable_config(
+				config,
+				tags=["agent:evaluator", "node:generate", "prompt:evaluator"],
+				metadata={"agent": "evaluator", "node": "generate", "prompt": "evaluator"},
+				run_name="evaluator.generate",
+			)
 			response = coerce_evaluator_response(
-				structured_model.invoke(prompt),
+				invoke_with_config(structured_model, prompt, invoke_config),
 				final_mode=final_mode,
 			)
 		except Exception as exc:
@@ -168,7 +194,10 @@ def make_repair_evaluator_response_node(
 	prompt_template: str | None = None,
 ):
 	@traceable
-	def node_repair_evaluator_response(state: EvaluatorGraphState) -> dict:
+	def node_repair_evaluator_response(
+		state: EvaluatorGraphState,
+		config: RunnableConfig | None = None,
+	) -> dict:
 		"""
 		Repair the evaluator response node for failure paths.
 		Args:
@@ -199,8 +228,14 @@ def make_repair_evaluator_response_node(
 		try:
 			schema = FinalEvaluatorResponseModel if final_mode else EvaluatorResponseModel
 			structured_model = model.with_structured_output(schema)
+			invoke_config = extend_runnable_config(
+				config,
+				tags=["agent:evaluator", "node:repair", "prompt:evaluator"],
+				metadata={"agent": "evaluator", "node": "repair", "prompt": "evaluator"},
+				run_name="evaluator.repair",
+			)
 			response = coerce_evaluator_response(
-				structured_model.invoke(repair_prompt),
+				invoke_with_config(structured_model, repair_prompt, invoke_config),
 				final_mode=final_mode,
 			)
 		except Exception as exc:

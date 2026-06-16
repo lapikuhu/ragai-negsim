@@ -306,8 +306,9 @@ async def test_generate_scenario_context_uses_prompt_string_and_function_calling
     captured = {}
 
     class FakeStructuredModel:
-        def invoke(self, payload):
+        def invoke(self, payload, config=None):
             captured["payload"] = payload
+            captured["config"] = config
             return SimpleNamespace(
                 public_context={"issue": "late checkout"},
                 side_a_private_context={"goal": "avoid paying a fee"},
@@ -326,9 +327,15 @@ async def test_generate_scenario_context_uses_prompt_string_and_function_calling
             description="A guest negotiates with a front desk manager.",
         ),
         FakeModel(),
+        config={
+            "tags": ["service:scenario_context"],
+            "metadata": {"user_id": "7"},
+        },
     )
 
     assert captured["schema"] == "ScenarioContextGenerationModel"
     assert captured["kwargs"] == {"method": "function_calling"}
     assert isinstance(captured["payload"], str)
     assert "Split the scenario into exactly three sections" in captured["payload"]
+    assert captured["config"]["tags"] == ["service:scenario_context"]
+    assert captured["config"]["metadata"] == {"user_id": "7"}

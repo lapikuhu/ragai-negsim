@@ -1,4 +1,5 @@
 from typing import Any
+from langchain_core.runnables.config import RunnableConfig
 from langsmith import traceable
 
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
@@ -12,6 +13,7 @@ from app.airag.chains.agents.intent_classifier.intent_classifier_model import (
     IntentClassificationModel,
     IntentClassifierGraphState,
 )
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 def make_classify_intent_node(model: Any):
@@ -25,7 +27,10 @@ def make_classify_intent_node(model: Any):
         containing the intent classification result, any validation errors, and
         an event log."""
     @traceable
-    def node_classify_intent(state: IntentClassifierGraphState) -> dict:
+    def node_classify_intent(
+        state: IntentClassifierGraphState,
+        config: RunnableConfig | None = None,
+    ) -> dict:
         prompt = render_intent_prompt(state)
         if model is None:
             return {
@@ -35,8 +40,20 @@ def make_classify_intent_node(model: Any):
             }
 
         try:
-            result = model.with_structured_output(IntentClassificationModel).invoke(
-                prompt
+            invoke_config = extend_runnable_config(
+                config,
+                tags=["agent:intent_classifier", "node:classify", "prompt:intent_classifier"],
+                metadata={
+                    "agent": "intent_classifier",
+                    "node": "classify",
+                    "prompt": "intent_classifier",
+                },
+                run_name="intent_classifier.classify",
+            )
+            result = invoke_with_config(
+                model.with_structured_output(IntentClassificationModel),
+                prompt,
+                invoke_config,
             )
             classification = coerce_intent_classification(result)
             user_message = latest_user_message(state)

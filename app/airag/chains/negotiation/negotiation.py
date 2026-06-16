@@ -2,6 +2,7 @@ import operator
 from typing import Annotated, Any, Literal
 
 from langchain_core.messages import BaseMessage
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langsmith import traceable
@@ -37,6 +38,7 @@ from app.airag.chains.negotiation.negotiation_model import (
     SideProfile,
     TerminalReason,
 )
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
 class SideProfileRuntimeModel(BaseModel):
@@ -561,13 +563,21 @@ def make_negotiation_graph(
 def invoke_negotiation_turn(
     negotiation_graph: Any,
     state: ParentNegotiationState,
+    config: RunnableConfig | None = None,
 ) -> ParentNegotiationState:
     """
     Invoke one orchestrated negotiation turn and return updated parent state.
     Args:
 		negotiation_graph: The compiled parent negotiation graph to invoke.
 		state: The current parent negotiation state to pass into the graph.
+        config: Optional runnable configuration to customize the invocation.
     Returns:
 		The updated parent negotiation state after invoking the graph.
     """
-    return negotiation_graph.invoke(state)
+    graph_config = extend_runnable_config(
+        config,
+        tags=["graph:negotiation"],
+        metadata={"graph": "negotiation"},
+        run_name="negotiation.invoke_turn",
+    )
+    return invoke_with_config(negotiation_graph, state, graph_config)

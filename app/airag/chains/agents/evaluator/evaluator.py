@@ -1,4 +1,5 @@
 from typing import Any
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 from langsmith import traceable
 
@@ -27,6 +28,7 @@ from app.airag.chains.agents.evaluator.evaluator_nodes import (
 from app.airag.chains.agents.evaluator.evaluator_model import (
     EvaluatorGraphState
 )
+from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 def make_evaluator_graph(
 	crag_graph: Any = None,
@@ -98,8 +100,21 @@ def make_evaluator_node(evaluator_graph: Any):
 		A function that can be used as a node in the parent negotiation graph.
 	"""
 	@traceable
-	def evaluator_node(state: ParentNegotiationState) -> dict:
-		result = evaluator_graph.invoke(project_evaluator_state(state))
+	def evaluator_node(
+		state: ParentNegotiationState,
+		config: RunnableConfig | None = None,
+	) -> dict:
+		node_config = extend_runnable_config(
+			config,
+			tags=["agent:evaluator", "graph:evaluator"],
+			metadata={"agent": "evaluator", "graph": "evaluator"},
+			run_name="evaluator.graph",
+		)
+		result = invoke_with_config(
+			evaluator_graph,
+			project_evaluator_state(state),
+			node_config,
+		)
 		updates = {
 			"event_log": result.get("event_log", []),
 		}
@@ -116,6 +131,7 @@ def make_evaluator_node(evaluator_graph: Any):
 def invoke_evaluator_response(
 	evaluator_graph: Any,
 	state: ParentNegotiationState,
+	config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
 	"""
 	Invoke the evaluator graph and return the full validated response.
@@ -125,7 +141,13 @@ def invoke_evaluator_response(
 	Returns:
 		A dictionary representing the full validated evaluator response.
 	"""
-	result = evaluator_graph.invoke(state)
+	graph_config = extend_runnable_config(
+		config,
+		tags=["agent:evaluator", "graph:evaluator"],
+		metadata={"agent": "evaluator", "graph": "evaluator"},
+		run_name="evaluator.invoke_response",
+	)
+	result = invoke_with_config(evaluator_graph, state, graph_config)
 	return result.get("evaluator_response", {})
 
 
@@ -133,6 +155,7 @@ def invoke_evaluator_response(
 def invoke_compact_evaluation(
 	evaluator_graph: Any,
 	state: ParentNegotiationState,
+	config: RunnableConfig | None = None,
 ) -> Evaluation:
 	"""
 	Invoke the evaluator graph and return only compact Evaluation.
@@ -142,5 +165,11 @@ def invoke_compact_evaluation(
 	Returns:
 		A compact Evaluation dictionary.
 	"""
-	result = evaluator_graph.invoke(state)
+	graph_config = extend_runnable_config(
+		config,
+		tags=["agent:evaluator", "graph:evaluator"],
+		metadata={"agent": "evaluator", "graph": "evaluator"},
+		run_name="evaluator.invoke_compact",
+	)
+	result = invoke_with_config(evaluator_graph, state, graph_config)
 	return result.get("evaluation", {})
