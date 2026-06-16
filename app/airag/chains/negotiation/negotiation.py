@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 from langchain_core.messages import BaseMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
+from langsmith import traceable
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing_extensions import TypedDict
 
@@ -556,6 +557,7 @@ def make_negotiation_graph(
     return negotiation_flow.compile()
 
 
+@traceable
 def invoke_negotiation_turn(
     negotiation_graph: Any,
     state: ParentNegotiationState,

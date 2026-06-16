@@ -1,6 +1,7 @@
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
+from langsmith import traceable
 
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
     get_default_intent_classifier_model,
@@ -53,7 +54,7 @@ def make_intent_classifier_node(intent_classifier_graph: Any):
         A function that takes the current state and returns updates from the
         intent classifier graph.
     """
-
+    @traceable
     def intent_classifier_node(state: dict[str, Any]) -> dict[str, Any]:
         result = intent_classifier_graph.invoke(project_intent_classifier_state(state))
         updates = {

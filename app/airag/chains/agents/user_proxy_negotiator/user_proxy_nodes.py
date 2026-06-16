@@ -1,4 +1,5 @@
 from typing import Any
+from langsmith import traceable
 
 from app.airag.chains.agents.user_proxy_negotiator.user_proxy_helpers import (
     coerce_user_proxy_response,
@@ -34,6 +35,7 @@ def node_prepare_user_proxy_context(state: UserProxyGraphState) -> dict:
 
 
 def make_generate_user_proxy_response_node(model: Any, prompt_template: str | None = None):
+    @traceable
     def node_generate_user_proxy_response(state: UserProxyGraphState) -> dict:
         """
         Generate a user proxy response.
@@ -73,6 +75,7 @@ def make_generate_user_proxy_response_node(model: Any, prompt_template: str | No
 
 
 def make_repair_user_proxy_response_node(model: Any, prompt_template: str | None = None):
+    @traceable
     def node_repair_user_proxy_response(state: UserProxyGraphState) -> dict:
         """
         Repair a user proxy response.

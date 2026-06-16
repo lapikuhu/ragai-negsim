@@ -7,7 +7,10 @@ from langchain_core.messages import BaseMessage
 from langchain_core.documents import Document
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.airag.chains.negotiation.negotiation import make_negotiation_graph
+from app.airag.chains.negotiation.negotiation import (
+    invoke_negotiation_turn,
+    make_negotiation_graph,
+)
 from app.airag.chains.agents.user_proxy_negotiator.user_proxy import (
     invoke_user_proxy_turn,
 )
@@ -1574,7 +1577,7 @@ async def submit_simulation_turn_srvc(
         state["requested_action"] = turn_data.action
 
     graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
-    graph_state = _json_safe(graph.invoke(state))
+    graph_state = _json_safe(invoke_negotiation_turn(graph, state))
     graph_state.pop("requested_action", None)
     next_status = _status_after_graph(graph_state)
     update_in = SimulationUpdate(
@@ -1658,7 +1661,7 @@ async def submit_simulation_proxy_turn_srvc(
     ]
 
     graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
-    graph_state = _json_safe(graph.invoke(state))
+    graph_state = _json_safe(invoke_negotiation_turn(graph, state))
     graph_state.pop("requested_action", None)
     _carry_forward_proxy_state(state, graph_state)
     next_status = _status_after_graph(graph_state)

@@ -1,6 +1,7 @@
 from typing import Annotated, Any, Literal
 from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph, START, END
+from langsmith import traceable
 from app.airag.chains.negotiation.negotiation_model import ParentNegotiationState, CoachAdvice
 from app.airag.chains.agents.context_projections import project_coach_state
 from app.airag.chains.agents.coach.coach_model import CoachGraphState
@@ -74,6 +75,7 @@ def make_coach_graph(
 
 def make_coach_node(coach_graph: Any):
 	"""Wrap the coach graph as a parent negotiation graph node."""
+	@traceable
 	def coach_node(state: ParentNegotiationState) -> dict:
 		result = coach_graph.invoke(project_coach_state(state))
 		updates = {"coach_advice": result.get("coach_advice", {})}
@@ -84,6 +86,7 @@ def make_coach_node(coach_graph: Any):
 	return coach_node
 
 
+@traceable
 def invoke_coach_advice(coach_graph: Any, state: ParentNegotiationState) -> CoachAdvice:
 	"""Invoke the coach graph and return only the generated advice."""
 	result = coach_graph.invoke(state)

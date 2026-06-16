@@ -63,6 +63,7 @@ ragai-negsim/
 - JWT auth with `python-jose`
 - LangChain
 - LangGraph
+- LangSmith for tracing
 - Chroma, FAISS, and PGVector integration points for vector storage
 - Docling and PyPDF-based PDF ingestion/parsing
 - Neo4j integration hooks for graph-store work
@@ -131,21 +132,7 @@ Create or replace `.env` with your own local values. At minimum, configure:
 
 If you plan to use knowledge graph features, make sure the target Neo4j DBMS has the APOC plugin enabled before running a build.
 
-Example shape:
-
-```env
-ASYNC_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/negotiation_sim
-NEO4J_URI=bolt://127.0.0.1:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your-neo4j-password
-SECRET_KEY=replace-this
-ALGORITHM=HS256
-OPENAI_API_KEY=replace-this
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=replace-this
-RAW_DOCS_DIR=app/airag/raw_docs
-HF_TOKEN=replace-this
-```
+Example full shape in the .env.example file.
 
 ## Database Setup
 
@@ -332,3 +319,10 @@ You should browse to the frontend URL, not the backend URL, for normal UI work.
 ### Student
 
 - Selects negotiations, and participates in them
+
+
+## TODOs:
+
+- Refactor god files
+- For completeness implement the BM25 retriever, even though it is not appropriate for the nature of the project.
+- Decouple chunking from indexing, keep complete pipeline as a feature

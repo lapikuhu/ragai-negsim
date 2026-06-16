@@ -1,5 +1,6 @@
 from typing import Any
 from langgraph.graph import StateGraph, START, END
+from langsmith import traceable
 
 # local imports
 from app.airag.chains.agents.evaluator.evaluator_helpers import (
@@ -96,6 +97,7 @@ def make_evaluator_node(evaluator_graph: Any):
 	Returns:
 		A function that can be used as a node in the parent negotiation graph.
 	"""
+	@traceable
 	def evaluator_node(state: ParentNegotiationState) -> dict:
 		result = evaluator_graph.invoke(project_evaluator_state(state))
 		updates = {
@@ -110,6 +112,7 @@ def make_evaluator_node(evaluator_graph: Any):
 	return evaluator_node
 
 
+@traceable
 def invoke_evaluator_response(
 	evaluator_graph: Any,
 	state: ParentNegotiationState,
@@ -126,6 +129,7 @@ def invoke_evaluator_response(
 	return result.get("evaluator_response", {})
 
 
+@traceable
 def invoke_compact_evaluation(
 	evaluator_graph: Any,
 	state: ParentNegotiationState,

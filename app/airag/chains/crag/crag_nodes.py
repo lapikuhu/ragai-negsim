@@ -1,5 +1,7 @@
 
 # local imports
+from langsmith import traceable
+
 from app.airag.chains.crag.helpers import format_docs
 from app.airag.chains.crag.helpers import document_grader, rewrite_chain, generation_chain
 from app.airag.chains.crag.helpers import detect_injection, fallback_chain
@@ -15,6 +17,7 @@ def make_crag_retrieve_node(retriever):
     Returns:
         A function that takes a CRAGState and returns the retrieved documents.
     """
+    @traceable
     def node_retrieve(state) -> dict:
         """
         Define the retrieve node which takes the current question (original or 
@@ -58,6 +61,7 @@ def make_crag_rerank_node(reranker, top_k: int = 3):
     return node_rerank
 
 ### --------------------- DOCUMENT GRADER NODE---------------------- ###
+@traceable
 def node_grade(state) -> dict:
     """
     Define the grade node which evaluates the relevance of the retrieved 
@@ -74,6 +78,7 @@ def node_grade(state) -> dict:
     return {"grade": verdict.relevance}
 
 ### --------------------------- REWRITE ---------------------------- ###
+@traceable
 def node_rewrite(state) -> dict:
     """
     Define the rewrite node which attempts to reformulate the question if 
@@ -92,6 +97,7 @@ def node_rewrite(state) -> dict:
 
 ### -------------------------- QUALITY NODE ------------------------ ###
 # Combines hallucination check and answer grading to determine overall quality#
+@traceable
 def node_quality_check(state) -> dict:
     """Define the quality check node which evaluates the generated answer for
     hallucinations and relevance to the question.
@@ -135,6 +141,7 @@ def node_quality_check(state) -> dict:
     }
 
 ### --------------------------- GENERATE --------------------------- ###
+@traceable
 def node_generate(state) -> dict:
     """
     Define the generate node which produces an answer based on the 
@@ -157,6 +164,7 @@ def node_generate(state) -> dict:
     return {"answer": answer, "context": context}
 
 ### --------------------------- FALLBACK --------------------------- ###
+@traceable
 def node_fallback(state) -> dict:
     """
     Generate a fallback answer when the knowledge base retrieval and rewrite

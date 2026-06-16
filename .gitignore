@@ -58,3 +58,6 @@ AGENTS.md
 .gitnexus/*
 .gitnexus/**
 
+# log files
+*.log
+*.log.*

@@ -1,6 +1,7 @@
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
+from langsmith import traceable
 
 from app.airag.chains.agents.context_projections import project_user_proxy_state
 from app.airag.chains.agents.user_proxy_negotiator.user_proxy_helpers import (
@@ -76,6 +77,7 @@ def make_user_proxy_graph(
 
 
 def make_user_proxy_node(user_proxy_graph: Any):
+    @traceable
     def user_proxy_node(state: ParentNegotiationState) -> dict:
         result = user_proxy_graph.invoke(project_user_proxy_state(state))
         return {
@@ -86,6 +88,7 @@ def make_user_proxy_node(user_proxy_graph: Any):
     return user_proxy_node
 
 
+@traceable
 async def invoke_user_proxy_turn(
     state: ParentNegotiationState,
     persona: Any | None,

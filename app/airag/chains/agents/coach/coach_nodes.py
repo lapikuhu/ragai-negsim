@@ -1,5 +1,6 @@
 from typing import Any
 ### --------------------- COACH SPECIFIC NODES --------------------- ###
+from langsmith import traceable
 
 # local imports
 from app.airag.chains.agents.coach.coach_helpers import (
@@ -60,6 +61,7 @@ def make_call_crag_node(crag_graph: Any):
 	Factory function to create a node function that calls the CRAG graph 
 	with the constructed query and updates the retrieval context based on 
 	the results."""
+	@traceable
 	def node_call_crag(state: CoachGraphState) -> dict:
 		"""
 		Node function to call the CRAG graph with the constructed query
@@ -127,6 +129,7 @@ def make_generate_coach_advice_node(
 			generated advice along with any validation errors and event log 
 			entries describing the generation step.
 	"""
+	@traceable
 	def node_generate_coach_advice(state: CoachGraphState) -> dict:
 		"""
 		Node function to generate coach advice using the specified LLM model, 
@@ -182,6 +185,7 @@ def make_repair_coach_advice_node(
 	advice generation failures by re-invoking the model with a focused prompt 
 	that includes validation errors and emphasizes the
 	"""
+	@traceable
 	def node_repair_coach_advice(state: CoachGraphState) -> dict:
 		"""
 		Node function to attempt to repair coach advice generation failures by 

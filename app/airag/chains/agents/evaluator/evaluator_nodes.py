@@ -1,4 +1,5 @@
 from typing import Any
+from langsmith import traceable
 # local imports
 from app.airag.chains.agents.helpers import json_dumps
 from app.airag.chains.agents.evaluator.evaluator_model import (
@@ -62,6 +63,7 @@ def node_build_evaluator_crag_query(state: EvaluatorGraphState) -> dict:
 
 
 def make_call_crag_node(crag_graph: Any = None):
+	@traceable
 	def node_call_crag(state: EvaluatorGraphState) -> dict:
 		"""
 		Call the CRAG graph to retrieve additional context for the evaluator.
@@ -123,6 +125,7 @@ def make_generate_evaluator_response_node(
 		A function that can be used as a node in the evaluator graph for
 		generating evaluator responses.
 	"""
+	@traceable
 	def node_generate_evaluator_response(state: EvaluatorGraphState) -> dict:
 		if model is None:
 			return {
@@ -164,6 +167,7 @@ def make_repair_evaluator_response_node(
 	model: Any,
 	prompt_template: str | None = None,
 ):
+	@traceable
 	def node_repair_evaluator_response(state: EvaluatorGraphState) -> dict:
 		"""
 		Repair the evaluator response node for failure paths.

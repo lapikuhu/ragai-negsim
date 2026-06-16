@@ -1,5 +1,7 @@
 ### FastAPI application configuration file
 
+import os
+import warnings
 from pathlib import Path
 from pydantic_settings import SettingsConfigDict, BaseSettings
 
@@ -38,5 +40,42 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
     ]
     HF_TOKEN: str
+    LANGSMITH_API_KEY: str | None = None
+    LANGSMITH_TRACING: bool = False
+    LANGSMITH_PROJECT: str | None = None
+    LANGSMITH_ENDPOINT: str | None = None
+
+
+def _set_or_clear_env(name: str, value: str | None) -> None:
+    if value:
+        os.environ[name] = value
+    else:
+        os.environ.pop(name, None)
+
+
+def configure_langsmith_environment(settings: Settings) -> None:
+    """
+    Configure the environment variables for LangSmith based on the provided 
+    settings. LangSmith reads its configuration from environment variables, 
+    so this function sets or clears the relevant environment variables 
+    accordingly. It bridges the gap between the application's settings and 
+    LangSmith's expected environment configuration.
+    """
+    _set_or_clear_env("LANGSMITH_API_KEY", settings.LANGSMITH_API_KEY)
+    _set_or_clear_env("LANGSMITH_PROJECT", settings.LANGSMITH_PROJECT)
+    _set_or_clear_env("LANGSMITH_ENDPOINT", settings.LANGSMITH_ENDPOINT)
+
+    tracing_enabled = "true" if settings.LANGSMITH_TRACING else "false"
+    os.environ["LANGSMITH_TRACING"] = tracing_enabled
+    os.environ["LANGSMITH_TRACING_V2"] = tracing_enabled
+
+    if settings.LANGSMITH_TRACING and not settings.LANGSMITH_API_KEY:
+        warnings.warn(
+            "LangSmith tracing is enabled but LANGSMITH_API_KEY is missing.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
 settings = Settings()
+# Give LangSmith the environment variables it expects, based on our settings
+configure_langsmith_environment(settings)

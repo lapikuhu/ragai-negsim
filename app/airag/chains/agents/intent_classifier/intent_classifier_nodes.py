@@ -1,4 +1,5 @@
 from typing import Any
+from langsmith import traceable
 
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
     coerce_intent_classification,
@@ -23,7 +24,7 @@ def make_classify_intent_node(model: Any):
         A function that takes the current graph state and returns a dictionary
         containing the intent classification result, any validation errors, and
         an event log."""
-
+    @traceable
     def node_classify_intent(state: IntentClassifierGraphState) -> dict:
         prompt = render_intent_prompt(state)
         if model is None:

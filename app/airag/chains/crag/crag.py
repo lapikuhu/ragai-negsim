@@ -1,6 +1,7 @@
 from langchain_core.documents import Document
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
+from langsmith import traceable
 try:
     from typing import NotRequired
 except ImportError:
@@ -122,6 +123,7 @@ def make_crag_node(crag):
             documents after executing the graph.
     
     """
+    @traceable
     def crag_node(state: CRAGState) -> dict:
         """Execute the CRAG graph with the given initial state and return 
         the final answer and documents.

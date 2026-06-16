@@ -1,5 +1,6 @@
 from typing import Annotated, Any
 from langgraph.graph import StateGraph, START, END
+from langsmith import traceable
 
 # local imports
 from app.airag.chains.agents.helpers import json_dumps, format_messages
@@ -94,6 +95,7 @@ def make_counterpart_node(counterpart_graph: Any):
 		invoking the counterpart graph and returning the relevant updates to
 		the parent graph state.
 	"""
+	@traceable
 	def counterpart_node(state: ParentNegotiationState) -> dict:
 		"""
 		Invoke the counterpart graph with the projected state and return 
@@ -135,6 +137,7 @@ def make_counterpart_node(counterpart_graph: Any):
 	return counterpart_node
 
 
+@traceable
 def invoke_counterpart_response(
 	counterpart_graph: Any,
 	state: ParentNegotiationState,

@@ -1,4 +1,5 @@
 from typing import Any
+from langsmith import traceable
 # local imports
 from app.airag.chains.agents.helpers import json_dumps
 
@@ -46,6 +47,7 @@ def make_generate_counterpart_response_node(
 	model: Any,
 	prompt_template: str | None = None,
 ):
+	@traceable
 	def node_generate_counterpart_response(state: CounterpartGraphState) -> dict:
 		"""
 		Generate a counterpart response using the provided model and prompt 
@@ -90,6 +92,7 @@ def make_repair_counterpart_response_node(
 	model: Any,
 	prompt_template: str | None = None,
 ):
+	@traceable
 	def node_repair_counterpart_response(state: CounterpartGraphState) -> dict:
 		"""
 		Repair the counterpart response using the provided model and 
