@@ -16,6 +16,7 @@ ValuePreference = Literal["higher_is_better", "lower_is_better"]
 
 # Confidence levels used by structured agent outputs.
 Confidence = Literal["low", "medium", "high"]
+ProxyExtent = Literal["none", "limited", "extensive"]
 
 # Phases of the negotiation, which can be used to track overall progress.
 NegotiationPhase = Literal[
@@ -102,6 +103,7 @@ class Evaluation(TypedDict, total=False):
     score: float
     reasoning: str
     detected_risks: list[str]
+    proxy_usage_assessment: dict[str, object]
     next_best_action: EvaluatorStrategy
     confidence: Confidence
     missing_information: list[str]
@@ -117,6 +119,7 @@ class FinalEvaluation(TypedDict, total=False):
     concession_quality: str
     communication_quality: str
     outcome_quality: str
+    proxy_usage_assessment: dict[str, object]
     lessons: list[str]
     reasoning: str
     confidence: Confidence

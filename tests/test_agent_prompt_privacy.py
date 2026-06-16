@@ -1,14 +1,17 @@
 from app.airag.chains.agents.coach.coach import make_coach_node
+from app.airag.chains.agents.helpers import format_messages
 from app.airag.chains.agents.coach.coach_helpers import render_coach_prompt
 from app.airag.chains.agents.counterpart.counterpart import make_counterpart_node
 from app.airag.chains.agents.counterpart.counterpart_helpers import (
     fallback_counterpart_response,
     render_counterpart_prompt,
 )
+from langgraph.graph.message import add_messages
 from app.airag.chains.agents.evaluator.evaluator import make_evaluator_node
 from app.airag.chains.agents.evaluator.evaluator_helpers import (
     render_evaluator_prompt,
     render_final_evaluator_prompt,
+    summarize_proxy_authorship,
 )
 
 
@@ -225,6 +228,64 @@ def test_evaluator_prompt_contains_all_structured_contexts():
     assert "auto_user_proxy" in final
 
 
+def test_format_messages_preserves_proxy_metadata_after_langgraph_coercion():
+    messages = add_messages(
+        [],
+        [
+            {
+                "role": "user",
+                "content": "Proxy offer",
+                "side": "side_b",
+                "metadata": {"user_reply_origin": "auto_user_proxy"},
+            }
+        ],
+    )
+
+    rendered = format_messages(messages)
+
+    assert "auto_user_proxy" in rendered
+    assert "user_reply_origin" in rendered
+    assert "side_b" in rendered
+
+
+def test_summarize_proxy_authorship_reads_deeply_nested_metadata():
+    messages = [
+        {
+            "role": "human",
+            "content": "Proxy offer",
+            "metadata": {
+                "metadata": {
+                    "metadata": {
+                        "timestamp": "2026-06-16T10:14:39.939181+00:00",
+                        "side": "side_a",
+                        "metadata": {"user_reply_origin": "auto_user_proxy"},
+                    }
+                }
+            },
+        },
+        {
+            "role": "ai",
+            "content": "Counterpart reply",
+            "metadata": {"metadata": {"side": "side_b"}},
+        },
+        {
+            "role": "human",
+            "content": "Proxy accept",
+            "metadata": {
+                "timestamp": "2026-06-16T10:20:18.356642+00:00",
+                "side": "side_a",
+                "metadata": {"user_reply_origin": "auto_user_proxy"},
+            },
+        },
+    ]
+
+    summary = summarize_proxy_authorship(messages)
+
+    assert summary["student_authored_turns"] == 0
+    assert summary["proxy_authored_turns"] == 2
+    assert summary["proxy_extent"] == "extensive"
+
+
 def test_evaluator_prompts_define_proxy_authorship_and_student_attribution_rules():
     state = {
         "user_side": "side_b",
@@ -250,6 +311,39 @@ def test_evaluator_prompts_define_proxy_authorship_and_student_attribution_rules
         assert "Do not count proxy-authored tactics as evidence of the student's own negotiation skill." in rendered
 
     assert 'If every student-side turn was proxy-authored, set "overall_score" to 0.0.' in final
+
+
+def test_custom_rolling_evaluator_prompt_appends_proxy_guidance_and_summary():
+    messages = add_messages(
+        [],
+        [
+            {
+                "role": "user",
+                "content": "Student turn",
+                "side": "side_b",
+                "metadata": {"user_reply_origin": "user"},
+            },
+            {
+                "role": "user",
+                "content": "Proxy turn",
+                "side": "side_b",
+                "metadata": {"user_reply_origin": "auto_user_proxy"},
+            },
+        ],
+    )
+    rendered = render_evaluator_prompt(
+        {
+            "user_side": "side_b",
+            "messages": messages,
+        },
+        prompt_template="Evaluate this turn carefully.",
+    )
+
+    assert "Evaluate this turn carefully." in rendered
+    assert "Proxy authorship rules:" in rendered
+    assert "student_authored_turns" in rendered
+    assert "proxy_authored_turns" in rendered
+    assert "auto_user_proxy" in rendered
 
 
 def test_evaluator_wrapper_invokes_graph_with_full_context():

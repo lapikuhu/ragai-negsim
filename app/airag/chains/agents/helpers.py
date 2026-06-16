@@ -17,6 +17,27 @@ def json_dumps(value: Any) -> str:
 	return json.dumps(value, default=str, ensure_ascii=False, indent=2)
 
 
+def flatten_message_metadata(metadata: Any) -> dict[str, Any]:
+	"""
+	Flatten repeated metadata wrappers introduced by message round-tripping.
+	Args:
+		metadata: The metadata object to flatten, which may be nested.
+	Returns:
+		A flattened dictionary containing the metadata, with nested "metadata"
+	"""
+	if not isinstance(metadata, dict):
+		return {}
+
+	flattened: dict[str, Any] = {}
+	current: Any = metadata
+	while isinstance(current, dict):
+		for key, value in current.items():
+			if key != "metadata":
+				flattened[key] = value
+		current = current.get("metadata")
+	return flattened
+
+
 def append_missing_context_sections(
 	prompt: str,
 	template: str,
@@ -58,13 +79,33 @@ def format_messages(messages: list[Any] | None) -> str:
 	formatted_messages = []
 	for message in messages:
 		if isinstance(message, BaseMessage):
-			formatted_messages.append(
-				{
-					"type": message.type,
-					"content": message.content,
-				}
-			)
+			formatted: dict[str, Any] = {
+				"type": message.type,
+				"content": message.content,
+			}
+			if message.name:
+				formatted["name"] = message.name
+			if message.additional_kwargs:
+				metadata = flatten_message_metadata(message.additional_kwargs)
+				formatted.update(
+					{
+						key: value
+						for key, value in message.additional_kwargs.items()
+						if key != "metadata"
+					}
+				)
+				if metadata:
+					formatted["metadata"] = metadata
+			formatted_messages.append(formatted)
 		else:
-			formatted_messages.append(message)
+			if isinstance(message, dict) and isinstance(message.get("metadata"), dict):
+				formatted_messages.append(
+					{
+						**message,
+						"metadata": flatten_message_metadata(message["metadata"]),
+					}
+				)
+			else:
+				formatted_messages.append(message)
 
 	return json_dumps(formatted_messages)

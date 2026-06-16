@@ -100,6 +100,7 @@ Important rules:
 - If the proxy appears only briefly, treat it as a limited negative signal for the student.
 - If the proxy appears extensively, treat it as a serious negative signal for the student and say so explicitly.
 - You should still evaluate the quality of the proxy's tactics and their effect on the negotiation.
+- Populate `proxy_usage_assessment` explicitly from the transcript metadata summary.
 
 
 FORMAT
@@ -135,6 +136,12 @@ Return valid JSON with this exact structure:
     "for_side_a": "poor | acceptable | good | excellent | unknown",
     "for_side_b": "poor | acceptable | good | excellent | unknown",
     "overall": "poor | acceptable | good | excellent | unknown"
+  },
+  "proxy_usage_assessment": {
+    "student_authored_turns": 0,
+    "proxy_authored_turns": 0,
+    "proxy_extent": "none | limited | extensive",
+    "impact_on_student_score": "..."
   },
   "next_best_action": "continue | counter | accept | walk_away",
   "reasoning": "...",

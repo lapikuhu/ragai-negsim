@@ -11,6 +11,7 @@ from app.airag.chains.negotiation.negotiation import (
     invoke_negotiation_turn,
     make_negotiation_graph,
 )
+from app.airag.chains.agents.helpers import flatten_message_metadata
 from app.airag.chains.agents.user_proxy_negotiator.user_proxy import (
     invoke_user_proxy_turn,
 )
@@ -128,10 +129,11 @@ def _json_safe(value: Any) -> Any:
     it falls back to converting the value to a string.
     """
     if isinstance(value, BaseMessage):
+        metadata = flatten_message_metadata(value.additional_kwargs)
         return {
             "role": value.type,
             "content": str(value.content),
-            "metadata": dict(value.additional_kwargs),
+            "metadata": metadata,
         }
     if isinstance(value, Document):
         return {
@@ -160,19 +162,22 @@ def _message_to_schema(message: Any) -> SimulationMessageSchema:
         return message
 
     if isinstance(message, BaseMessage):
+        metadata = flatten_message_metadata(message.additional_kwargs)
         return SimulationMessageSchema(
             role=message.type,
             content=str(message.content),
-            timestamp=message.additional_kwargs.get("timestamp"),
-            metadata={
-                key: _json_safe(value)
-                for key, value in message.additional_kwargs.items()
-                if key != "timestamp"
-            },
+            timestamp=metadata.get("timestamp"),
+            metadata=_json_safe(
+                {
+                    key: value
+                    for key, value in metadata.items()
+                    if key != "timestamp"
+                }
+            ),
         )
 
     if isinstance(message, dict):
-        metadata = message.get("metadata") or {}
+        metadata = flatten_message_metadata(message.get("metadata") or {})
         for key in ("side", "sender", "name"):
             if key in message and key not in metadata:
                 metadata[key] = message[key]

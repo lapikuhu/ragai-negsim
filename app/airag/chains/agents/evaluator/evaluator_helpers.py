@@ -1,4 +1,5 @@
 from typing import Any
+from langchain_core.messages import BaseMessage
 
 from app.airag.chains.agents.evaluator.evaluator_model import (
     Evaluation,
@@ -8,6 +9,7 @@ from app.airag.chains.agents.evaluator.evaluator_model import (
 )
 from app.airag.chains.agents.helpers import (
 	append_missing_context_sections,
+	flatten_message_metadata,
 	format_messages,
 	json_dumps,
 )
@@ -30,6 +32,97 @@ PROXY_EVALUATION_GUIDANCE = [
 	"- Evaluate the proxy's tactics when present and explain their effect on the negotiation.",
 	"- A small amount of proxy use is a limited negative signal for the student; sustained proxy reliance is a serious negative signal.",
 ]
+
+
+def _message_metadata(message: Any) -> dict[str, Any]:
+	"""
+	Extract metadata from supported message shapes.
+	Args:
+		message: The message object from which to extract metadata.
+	Returns:
+		A dictionary containing the extracted metadata.
+	"""
+	if isinstance(message, dict):
+		return flatten_message_metadata(message.get("metadata"))
+	if isinstance(message, BaseMessage):
+		return flatten_message_metadata(message.additional_kwargs)
+	return {}
+
+
+def summarize_proxy_authorship(messages: list[Any] | None) -> dict[str, Any]:
+	"""
+	Summarize student-vs-proxy authorship from the transcript.
+	Args:
+		messages: The list of messages in the negotiation transcript.
+	Returns:
+		A dictionary summarizing the student-vs-proxy authorship.
+	"""
+	student_authored_turns = 0
+	proxy_authored_turns = 0
+
+	for message in messages or []:
+		if isinstance(message, dict):
+			role = message.get("role") or message.get("type")
+		elif isinstance(message, BaseMessage):
+			role = message.type
+		else:
+			role = getattr(message, "role", None) or getattr(message, "type", None)
+
+		if role not in {"user", "human"}:
+			continue
+
+		origin = _message_metadata(message).get("user_reply_origin", "user")
+		if origin == "auto_user_proxy":
+			proxy_authored_turns += 1
+		else:
+			student_authored_turns += 1
+
+	if proxy_authored_turns == 0:
+		proxy_extent = "none"
+		impact_on_student_score = "No proxy use detected."
+	elif student_authored_turns == 0:
+		proxy_extent = "extensive"
+		impact_on_student_score = (
+			"All student-side turns were proxy-authored, so student skill should be scored at 0.0."
+		)
+	elif proxy_authored_turns == 1:
+		proxy_extent = "limited"
+		impact_on_student_score = (
+			"Limited proxy use should slightly reduce confidence in the student's score."
+		)
+	else:
+		proxy_extent = "extensive"
+		impact_on_student_score = (
+			"Sustained proxy use should materially reduce the student's score and be treated as a serious negative signal."
+		)
+
+	return {
+		"student_authored_turns": student_authored_turns,
+		"proxy_authored_turns": proxy_authored_turns,
+		"proxy_extent": proxy_extent,
+		"impact_on_student_score": impact_on_student_score,
+	}
+
+
+def append_proxy_guidance(prompt: str, template: str, messages: list[Any] | None) -> str:
+	"""
+	Append proxy guidance additively, even for custom templates.
+	Args:
+		prompt: The current prompt string.
+		template: The original prompt template string.
+		messages: The list of messages in the negotiation transcript.
+	Returns:
+		The prompt string with proxy guidance appended if not already present."""
+	additions = []
+	if "Proxy authorship rules:" not in template:
+		additions.extend(PROXY_EVALUATION_GUIDANCE)
+	additions.extend(
+		[
+			"Proxy authorship summary:",
+			json_dumps(summarize_proxy_authorship(messages)),
+		]
+	)
+	return "\n".join([prompt, "", *additions]) if additions else prompt
 
 # Helper candidate
 def get_counterpart_side(state: EvaluatorGraphState) -> Side:
@@ -212,7 +305,7 @@ def render_evaluator_prompt(
 	prompt = template
 	for placeholder, value in replacements.items():
 		prompt = prompt.replace(placeholder, str(value))
-	return append_missing_context_sections(
+	prompt = append_missing_context_sections(
 		prompt,
 		template,
 		[
@@ -229,6 +322,7 @@ def render_evaluator_prompt(
 			),
 		],
 	)
+	return append_proxy_guidance(prompt, template, state.get("messages", []))
 
 
 def render_final_evaluator_prompt(state: EvaluatorGraphState) -> str:
@@ -262,6 +356,8 @@ def render_final_evaluator_prompt(state: EvaluatorGraphState) -> str:
 			f"Grounding context: {state.get('retrieval_context', '')}",
 			"",
 			*PROXY_EVALUATION_GUIDANCE,
+			"Proxy authorship summary:",
+			json_dumps(summarize_proxy_authorship(state.get("messages", []))),
 			"If every student-side turn was proxy-authored, set \"overall_score\" to 0.0.",
 			"You should still evaluate the proxy's tactics and their effect on the negotiation in the narrative fields.",
 			"",
@@ -279,6 +375,12 @@ def render_final_evaluator_prompt(state: EvaluatorGraphState) -> str:
 			'  "concession_quality": "...",',
 			'  "communication_quality": "...",',
 			'  "outcome_quality": "...",',
+			'  "proxy_usage_assessment": {',
+			'    "student_authored_turns": 0,',
+			'    "proxy_authored_turns": 0,',
+			'    "proxy_extent": "none | limited | extensive",',
+			'    "impact_on_student_score": "..."',
+			"  },",
 			'  "lessons": ["..."],',
 			'  "reasoning": "...",',
 			'  "confidence": "low | medium | high",',
@@ -318,11 +420,13 @@ def compact_evaluation_from_response(
 	Returns:
 		A dictionary representing the compact evaluation.
 	"""
+	proxy_usage_assessment = summarize_proxy_authorship(state.get("messages", []))
 	return {
 		"evaluated_side": state.get("user_side", "side_a"),
 		"score": response.get("score", 0.5),
 		"reasoning": response.get("reasoning", ""),
 		"detected_risks": response.get("detected_risks", []),
+		"proxy_usage_assessment": proxy_usage_assessment,
 		"next_best_action": response.get("next_best_action", "continue"),
 		"confidence": response.get("confidence", "low"),
 		"missing_information": response.get("missing_information", []),
@@ -334,15 +438,23 @@ def final_evaluation_from_response(
 	response: dict[str, Any],
 ) -> FinalEvaluation:
 	"""Convert final evaluator output to the parent final-evaluation shape."""
+	proxy_usage_assessment = summarize_proxy_authorship(state.get("messages", []))
+	overall_score = response.get("overall_score", 0.5)
+	if (
+		proxy_usage_assessment["student_authored_turns"] == 0
+		and proxy_usage_assessment["proxy_authored_turns"] > 0
+	):
+		overall_score = 0.0
 	return {
 		"evaluated_side": state.get("user_side", "side_a"),
-		"overall_score": response.get("overall_score", 0.5),
+		"overall_score": overall_score,
 		"goal_achievement": response.get("goal_achievement", ""),
 		"strengths": response.get("strengths", []),
 		"mistakes": response.get("mistakes", []),
 		"concession_quality": response.get("concession_quality", ""),
 		"communication_quality": response.get("communication_quality", ""),
 		"outcome_quality": response.get("outcome_quality", ""),
+		"proxy_usage_assessment": proxy_usage_assessment,
 		"lessons": response.get("lessons", []),
 		"reasoning": response.get("reasoning", ""),
 		"confidence": response.get("confidence", "low"),
@@ -400,6 +512,7 @@ def fallback_evaluator_response(
 			"for_side_b": "unknown",
 			"overall": "unknown",
 		},
+		proxy_usage_assessment=summarize_proxy_authorship(state.get("messages", [])),
 		next_best_action="continue",
 		reasoning=grounding_note,
 		missing_information=missing_information,
@@ -432,6 +545,7 @@ def fallback_final_evaluator_response(
 		concession_quality="unknown",
 		communication_quality="unknown",
 		outcome_quality="unknown",
+		proxy_usage_assessment=summarize_proxy_authorship(state.get("messages", [])),
 		lessons=["Review the transcript manually before drawing strong conclusions."],
 		reasoning=(
 			"I could not generate a grounded final evaluation, so this is a "

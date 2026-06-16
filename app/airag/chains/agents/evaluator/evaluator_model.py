@@ -12,6 +12,7 @@ from app.airag.chains.negotiation.negotiation_model import (
 	EvaluatorStrategy,
 	FinalEvaluation,
 	Offer,
+	ProxyExtent,
 	RetrievalResult,
 	Side,
 	SideProfile,
@@ -47,6 +48,15 @@ class DealQualityModel(BaseModel):
 	overall: DealQuality
 
 
+class ProxyUsageAssessmentModel(BaseModel):
+	"""Validated student-vs-proxy authorship assessment."""
+
+	student_authored_turns: int = Field(ge=0)
+	proxy_authored_turns: int = Field(ge=0)
+	proxy_extent: ProxyExtent
+	impact_on_student_score: str
+
+
 class EvaluatorResponseModel(BaseModel):
 	"""Validated evaluator response matching evaluator_prompt.md."""
 
@@ -57,6 +67,7 @@ class EvaluatorResponseModel(BaseModel):
 	zopa_assessment: ZopaAssessmentModel
 	detected_risks: list[str] = Field(default_factory=list)
 	deal_quality: DealQualityModel
+	proxy_usage_assessment: ProxyUsageAssessmentModel
 	next_best_action: EvaluatorNextBestAction
 	reasoning: str
 	missing_information: list[str] = Field(default_factory=list)
@@ -73,6 +84,7 @@ class FinalEvaluatorResponseModel(BaseModel):
 	concession_quality: str
 	communication_quality: str
 	outcome_quality: str
+	proxy_usage_assessment: ProxyUsageAssessmentModel
 	lessons: list[str] = Field(default_factory=list)
 	reasoning: str
 	confidence: Confidence

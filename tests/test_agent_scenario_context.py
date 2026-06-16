@@ -56,7 +56,7 @@ def test_final_evaluator_prompt_includes_structured_contexts():
     assert "SIDE-B-SECRET" in rendered
 
 
-def test_custom_rolling_evaluator_prompt_does_not_auto_append_proxy_policy():
+def test_custom_rolling_evaluator_prompt_appends_proxy_policy_and_summary():
     rendered = render_evaluator_prompt(
         {
             "user_side": "side_b",
@@ -71,4 +71,6 @@ def test_custom_rolling_evaluator_prompt_does_not_auto_append_proxy_policy():
         prompt_template="Evaluate the turn.",
     )
 
-    assert rendered == "Evaluate the turn."
+    assert "Evaluate the turn." in rendered
+    assert "Proxy authorship rules:" in rendered
+    assert "proxy_authored_turns" in rendered

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+from langchain_core.messages import HumanMessage
 
 from app.schemas.simulations_schemas import (
     SimulationCreate,
@@ -225,6 +226,29 @@ def test_public_graph_state_exposes_safe_proxy_status_only():
     assert public["user_proxy_persona"]["name"] == "Firm seller"
     assert public["user_proxy_persona_id"] == 300
     assert "description" not in public["user_proxy_persona"]
+
+
+def test_message_to_schema_flattens_recursively_nested_metadata():
+    message = HumanMessage(
+        content="Proxy turn",
+        additional_kwargs={
+            "metadata": {
+                "metadata": {
+                    "timestamp": "2026-06-16T10:14:39.939181+00:00",
+                    "side": "side_a",
+                    "metadata": {"user_reply_origin": "auto_user_proxy"},
+                }
+            }
+        },
+    )
+
+    schema = simulations_service._message_to_schema(message)
+
+    assert schema.timestamp == "2026-06-16T10:14:39.939181+00:00"
+    assert schema.metadata == {
+        "side": "side_a",
+        "user_reply_origin": "auto_user_proxy",
+    }
 
 
 def _patch_runtime_context_repositories(
