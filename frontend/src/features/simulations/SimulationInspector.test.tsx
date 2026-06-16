@@ -76,13 +76,17 @@ describe("SimulationInspector", () => {
             confidence: "high",
             risks: ["Moving too quickly could weaken your position."]
           },
+          token_usage: {
+            coach_total: 42
+          },
           final_evaluation: {},
           counterpart_response: "I can move a little."
         }}
       />
     );
 
-    expect(screen.getByText("Coach guidance")).toBeInTheDocument();
+    expect(screen.getByText("Coach Guidance")).toBeInTheDocument();
+    expect(screen.getByText("42 total coach tokens")).toBeInTheDocument();
     expect(screen.getByText("Latest summary")).toBeInTheDocument();
     expect(screen.queryByText("Persisted summary")).not.toBeInTheDocument();
   });
@@ -95,6 +99,9 @@ describe("SimulationInspector", () => {
           negotiation_state: {
             ...baseSimulation.negotiation_state,
             data: {
+              token_usage: {
+                coach_total: 18
+              },
               coach_advice: {
                 summary: "Persisted summary",
                 suggested_response: "Ask one clarifying question before conceding."
@@ -106,6 +113,7 @@ describe("SimulationInspector", () => {
       />
     );
 
+    expect(screen.getByText("18 total coach tokens")).toBeInTheDocument();
     expect(screen.getByText("Persisted summary")).toBeInTheDocument();
     expect(screen.getByText("Ask one clarifying question before conceding.")).toBeInTheDocument();
   });

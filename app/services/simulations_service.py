@@ -18,6 +18,7 @@ from app.airag.chains.agents.user_proxy_negotiator.user_proxy import (
 )
 from app.airag.observability.llm_usage import (
     create_usage_tracking_context,
+    summarize_agent_token_usage_handler,
     summarize_usage_handler,
 )
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
@@ -70,6 +71,7 @@ from app.schemas.simulations_schemas import (
     SimulationProxyTurnResponse,
     SimulationStatus,
     SimulationStatusUpdate,
+    SimulationTokenUsageSchema,
     SimulationTeacherReview,
     SimulationTeacherReviewRequest,
     SimulationTurnRequest,
@@ -105,6 +107,7 @@ PUBLIC_GRAPH_STATE_FIELDS = (
     "auto_user_proxy_enabled",
     "user_proxy_persona",
     "user_proxy_persona_id",
+    "token_usage",
 )
 
 
@@ -304,6 +307,62 @@ def _safe_context_dict(value: Any) -> dict[str, Any]:
         dictionary.
     """
     return _json_safe(value) if isinstance(value, dict) else {}
+
+
+def _int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return None
+
+
+def _token_usage_schema(value: Any) -> SimulationTokenUsageSchema:
+    """
+    Convert a value to a SimulationTokenUsageSchema.
+    Args:
+        value: The value to convert, either a SimulationTokenUsageSchema 
+            or a dictionary.
+    Returns:
+        A SimulationTokenUsageSchema instance.
+    """
+    if isinstance(value, SimulationTokenUsageSchema):
+        return value
+    if isinstance(value, dict):
+        return SimulationTokenUsageSchema(
+            simulation_total=_int_or_none(value.get("simulation_total")),
+            coach_total=_int_or_none(value.get("coach_total")),
+            counterpart_latest=_int_or_none(value.get("counterpart_latest")),
+            proxy_latest=_int_or_none(value.get("proxy_latest")),
+            evaluator_total=_int_or_none(value.get("evaluator_total")),
+        )
+    return SimulationTokenUsageSchema()
+
+
+def _public_token_usage_dict(value: Any) -> dict[str, int]:
+    """
+    Convert a SimulationTokenUsageSchema or dictionary to a public dictionary
+    representation, filtering out non-integer values.
+    Args:
+        value: The value to convert, either a SimulationTokenUsageSchema or a dictionary.
+    Returns:
+        A dictionary containing the public token usage information.
+    """
+    token_usage = _token_usage_schema(value)
+    public = {
+        "simulation_total": token_usage.simulation_total,
+        "coach_total": token_usage.coach_total,
+        "counterpart_latest": token_usage.counterpart_latest,
+        "proxy_latest": token_usage.proxy_latest,
+        "evaluator_total": token_usage.evaluator_total,
+    }
+    return {
+        key: value
+        for key, value in public.items()
+        if isinstance(value, int)
+    }
 
 
 def _participant_user_id(simulation: Simulation) -> int:
@@ -1113,6 +1172,83 @@ def _messages_from_graph_state(state: dict[str, Any]) -> list[SimulationMessageS
     return [_message_to_schema(message) for message in state.get("messages", [])]
 
 
+def _build_public_token_usage(
+    previous: Any,
+    current_agent_totals: dict[str, int],
+) -> dict[str, int]:
+    previous_usage = _token_usage_schema(previous)
+    counterpart_latest = current_agent_totals.get("counterpart")
+    proxy_latest = current_agent_totals.get("user_proxy")
+    coach_delta = current_agent_totals.get("coach", 0)
+    evaluator_delta = current_agent_totals.get("evaluator", 0)
+    simulation_delta = sum(int(value) for value in current_agent_totals.values())
+
+    token_usage = SimulationTokenUsageSchema(
+        simulation_total=(
+            previous_usage.simulation_total + simulation_delta
+            if previous_usage.simulation_total is not None
+            else simulation_delta if simulation_delta > 0 else None
+        ),
+        coach_total=(
+            previous_usage.coach_total + coach_delta
+            if previous_usage.coach_total is not None
+            else coach_delta if coach_delta > 0 else None
+        ),
+        counterpart_latest=counterpart_latest,
+        proxy_latest=proxy_latest,
+        evaluator_total=(
+            previous_usage.evaluator_total + evaluator_delta
+            if previous_usage.evaluator_total is not None
+            else evaluator_delta if evaluator_delta > 0 else None
+        ),
+    )
+    return _public_token_usage_dict(token_usage)
+
+
+def _attach_message_token_usage(
+    message: dict[str, Any],
+    *,
+    total_tokens: int | None,
+) -> None:
+    if total_tokens is None:
+        return
+    if not message.get("timestamp"):
+        message["timestamp"] = _utc_timestamp()
+    metadata = message.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+        message["metadata"] = metadata
+    metadata["token_usage"] = {"total_tokens": total_tokens}
+
+
+def _attach_generated_message_token_usage(state: dict[str, Any]) -> None:
+    messages = state.get("messages")
+    if not isinstance(messages, list) or not messages:
+        return
+
+    token_usage = _token_usage_schema(state.get("token_usage"))
+    counterpart_tokens = token_usage.counterpart_latest
+    proxy_tokens = token_usage.proxy_latest
+
+    if proxy_tokens is not None:
+        for message in reversed(messages):
+            if not isinstance(message, dict):
+                continue
+            metadata = message.get("metadata")
+            if isinstance(metadata, dict) and metadata.get("user_reply_origin") == "auto_user_proxy":
+                _attach_message_token_usage(message, total_tokens=proxy_tokens)
+                break
+
+    if counterpart_tokens is not None:
+        for message in reversed(messages):
+            if not isinstance(message, dict):
+                continue
+            if str(message.get("role") or "") not in {"assistant", "ai"}:
+                continue
+            _attach_message_token_usage(message, total_tokens=counterpart_tokens)
+            break
+
+
 def _graph_state_from_simulation(simulation: Simulation) -> dict[str, Any]:
     """
     Convert a simulation instance to a graph state dictionary.
@@ -1253,6 +1389,7 @@ def _base_turn_response(graph_state: dict[str, Any], user_side: str | None, simu
             if graph_state.get("phase") == "ended"
             else _counterpart_response(graph_state, user_side)
         ),
+        "token_usage": _public_token_usage_dict(graph_state.get("token_usage")),
     }
 
 
@@ -1631,13 +1768,18 @@ async def submit_simulation_turn_srvc(
         state["requested_action"] = turn_data.action
 
     graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
-    usage_handler, usage_config = create_usage_tracking_context(
+    usage_handler, public_usage_handler, usage_config = create_usage_tracking_context(
         tags=["service:simulation_turn"],
         metadata=_usage_metadata_for_state(state),
         run_name="simulation.turn",
     )
     graph_state = _json_safe(invoke_negotiation_turn(graph, state, config=usage_config))
     graph_state["llm_usage"] = summarize_usage_handler(usage_handler)
+    graph_state["token_usage"] = _build_public_token_usage(
+        state.get("token_usage"),
+        summarize_agent_token_usage_handler(public_usage_handler),
+    )
+    _attach_generated_message_token_usage(graph_state)
     graph_state.pop("requested_action", None)
     next_status = _status_after_graph(graph_state)
     update_in = SimulationUpdate(
@@ -1705,7 +1847,7 @@ async def submit_simulation_proxy_turn_srvc(
         proxy_data.duration == "remainder",
         persona_context,
     )
-    usage_handler, usage_config = create_usage_tracking_context(
+    usage_handler, public_usage_handler, usage_config = create_usage_tracking_context(
         tags=["service:simulation_proxy_turn"],
         metadata=_usage_metadata_for_state(state),
         run_name="simulation.proxy_turn",
@@ -1733,6 +1875,11 @@ async def submit_simulation_proxy_turn_srvc(
     graph = negotiation_graph or await _get_negotiation_graph_for_simulation(simulation, session)
     graph_state = _json_safe(invoke_negotiation_turn(graph, state, config=usage_config))
     graph_state["llm_usage"] = summarize_usage_handler(usage_handler)
+    graph_state["token_usage"] = _build_public_token_usage(
+        state.get("token_usage"),
+        summarize_agent_token_usage_handler(public_usage_handler),
+    )
+    _attach_generated_message_token_usage(graph_state)
     graph_state.pop("requested_action", None)
     _carry_forward_proxy_state(state, graph_state)
     next_status = _status_after_graph(graph_state)

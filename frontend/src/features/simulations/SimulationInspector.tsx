@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/common/KeyValueList";
 import { stringifyJson } from "@/utils/format";
-import type { SimulationReadWithState, SimulationTurnResponse } from "@/api/types";
+import type { SimulationReadWithState, SimulationTokenUsage, SimulationTurnResponse } from "@/api/types";
 
 type CoachAdviceRecord = Record<string, unknown>;
 
@@ -42,11 +42,32 @@ function getStringList(value: unknown) {
     : [];
 }
 
-function CoachGuidanceCard({ advice }: { advice: CoachAdviceRecord | null }) {
+function getTokenUsage(
+  simulation: SimulationReadWithState,
+  latestTurn: SimulationTurnResponse | null
+): SimulationTokenUsage | null {
+  if (latestTurn?.token_usage) {
+    return latestTurn.token_usage;
+  }
+
+  const persisted = simulation.negotiation_state?.data?.token_usage;
+  return isRecord(persisted) ? (persisted as SimulationTokenUsage) : null;
+}
+
+function CoachGuidanceCard({
+  advice,
+  coachTotalTokens
+}: {
+  advice: CoachAdviceRecord | null;
+  coachTotalTokens: number | null;
+}) {
   if (!advice) {
     return (
       <Card className="min-w-0">
-        <h2 className="text-lg font-semibold text-slate-950">Coach guidance</h2>
+        <h2 className="text-lg font-semibold text-slate-950">Coach Guidance</h2>
+        {coachTotalTokens !== null ? (
+          <p className="mt-1 text-sm text-slate-500">{coachTotalTokens} total coach tokens</p>
+        ) : null}
         <p className="mt-3 text-sm text-slate-600">
           Coach guidance will appear after a turn produces public coach output.
         </p>
@@ -67,7 +88,10 @@ function CoachGuidanceCard({ advice }: { advice: CoachAdviceRecord | null }) {
 
   return (
     <Card className="min-w-0">
-      <h2 className="text-lg font-semibold text-slate-950">Coach guidance</h2>
+      <h2 className="text-lg font-semibold text-slate-950">Coach Guidance</h2>
+      {coachTotalTokens !== null ? (
+        <p className="mt-1 text-sm text-slate-500">{coachTotalTokens} total coach tokens</p>
+      ) : null}
       <div className="mt-4 grid gap-4">
         {summary ? (
           <section className="grid gap-1">
@@ -161,10 +185,11 @@ export function SimulationInspector({
 }) {
   const state = simulation.negotiation_state ?? { current_phase: null, user_side: null, data: {} };
   const coachAdvice = getCoachAdvice(simulation, latestTurn);
+  const tokenUsage = getTokenUsage(simulation, latestTurn);
 
   return (
     <div className="grid min-w-0 w-full gap-4">
-      <CoachGuidanceCard advice={coachAdvice} />
+      <CoachGuidanceCard advice={coachAdvice} coachTotalTokens={tokenUsage?.coach_total ?? null} />
 
       <Card className="min-w-0">
         <h2 className="text-lg font-semibold text-slate-950">Simulation state</h2>

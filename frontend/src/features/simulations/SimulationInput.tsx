@@ -19,6 +19,7 @@ export function SimulationInput({
   proxyBusy = false,
   canEvaluate = false,
   evaluation = null,
+  evaluatorTotalTokens = null,
   isEvaluationVisible = false,
   onEvaluate,
   evaluationUnavailableMessage
@@ -34,6 +35,7 @@ export function SimulationInput({
   proxyBusy?: boolean;
   canEvaluate?: boolean;
   evaluation?: EvaluationRecord | null;
+  evaluatorTotalTokens?: number | null;
   isEvaluationVisible?: boolean;
   onEvaluate?: () => void;
   evaluationUnavailableMessage?: string | null;
@@ -96,7 +98,9 @@ export function SimulationInput({
             Send turn
           </Button>
         </div>
-        {isEvaluationVisible && evaluation ? <SimulationEvaluation evaluation={evaluation} /> : null}
+        {isEvaluationVisible && evaluation ? (
+          <SimulationEvaluation evaluation={evaluation} evaluatorTotalTokens={evaluatorTotalTokens} />
+        ) : null}
       </form>
 
       {isProxyDialogOpen ? (

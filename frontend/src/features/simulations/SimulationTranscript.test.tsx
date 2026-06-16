@@ -73,4 +73,40 @@ describe("SimulationTranscript", () => {
 
     expect(screen.getByText("Proxy")).toBeInTheDocument();
   });
+
+  it("shows token usage for generated response cards when metadata includes totals", () => {
+    render(
+      <SimulationTranscript
+        simulation={{
+          ...simulationWithMessage,
+          messages: [
+            {
+              role: "assistant",
+              content: "I can do 95.",
+              timestamp: "2026-06-10T09:00:00Z",
+              metadata: { token_usage: { total_tokens: 17 } }
+            },
+            {
+              role: "user",
+              content: "I can move to 100 if we can settle today.",
+              timestamp: "2026-06-10T09:01:00Z",
+              metadata: {
+                user_reply_origin: "auto_user_proxy",
+                token_usage: { total_tokens: 11 }
+              }
+            }
+          ]
+        }}
+      />
+    );
+
+    expect(screen.getByText("17 tokens")).toBeInTheDocument();
+    expect(screen.getByText("11 tokens")).toBeInTheDocument();
+  });
+
+  it("omits token usage when metadata does not include totals", () => {
+    render(<SimulationTranscript simulation={simulationWithMessage} />);
+
+    expect(screen.queryByText(/tokens$/)).not.toBeInTheDocument();
+  });
 });

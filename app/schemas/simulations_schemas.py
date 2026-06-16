@@ -143,6 +143,14 @@ class SimulationTurnRequest(SQLModel):
     action: Literal["continue", "end"] | None = None
 
 
+class SimulationTokenUsageSchema(SQLModel):
+    simulation_total: int | None = None
+    coach_total: int | None = None
+    counterpart_latest: int | None = None
+    proxy_latest: int | None = None
+    evaluator_total: int | None = None
+
+
 class SimulationTurnResponse(SQLModel):
     simulation_id: int
     status: SimulationStatus
@@ -153,6 +161,7 @@ class SimulationTurnResponse(SQLModel):
     coach_advice: dict[str, Any] = Field(default_factory=dict)
     final_evaluation: dict[str, Any] = Field(default_factory=dict)
     counterpart_response: str | None = None
+    token_usage: SimulationTokenUsageSchema = Field(default_factory=SimulationTokenUsageSchema)
 
 
 class SimulationProxyTurnRequest(SQLModel):

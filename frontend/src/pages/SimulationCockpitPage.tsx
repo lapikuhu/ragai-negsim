@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type {
   CounterpartPersonaRead,
+  SimulationReadWithState,
+  SimulationTokenUsage,
   SimulationProxyTurnResponse,
   SimulationTurnResponse
 } from "@/api/types";
@@ -30,6 +32,18 @@ function hasVisibleEvaluation(value: unknown): value is Record<string, unknown> 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object";
+}
+
+function getTokenUsage(
+  simulation: SimulationReadWithState | null,
+  latestTurn: SimulationTurnResponse | SimulationProxyTurnResponse | null
+): SimulationTokenUsage | null {
+  if (latestTurn?.token_usage) {
+    return latestTurn.token_usage;
+  }
+
+  const persisted = simulation?.negotiation_state?.data?.token_usage;
+  return isRecord(persisted) ? (persisted as SimulationTokenUsage) : null;
 }
 
 export function SimulationCockpitPage() {
@@ -76,6 +90,7 @@ export function SimulationCockpitPage() {
     isTerminal && !currentEvaluation
       ? "Final evaluation is not available for this completed simulation."
       : null;
+  const tokenUsage = getTokenUsage(simulation, latestTurn);
   const proxyActiveLabel = effectiveProxyState.active
     ? `Proxy active: ${effectiveProxyState.personaName ?? "Neutral"}`
     : null;
@@ -146,6 +161,11 @@ export function SimulationCockpitPage() {
         description={simulation.description ?? "Simulation-backed negotiation cockpit."}
         actions={
           <div className="flex items-center gap-2">
+            {typeof tokenUsage?.simulation_total === "number" ? (
+              <span className="text-sm font-medium text-slate-600">
+                Simulation Total Tokens: {tokenUsage.simulation_total}
+              </span>
+            ) : null}
             <StatusBadge status={effectiveStatus} />
           </div>
         }
@@ -215,6 +235,7 @@ export function SimulationCockpitPage() {
             proxyBusy={proxyTurnMutation.isPending || disableProxyMutation.isPending}
             canEvaluate={canEvaluate}
             evaluation={currentEvaluation}
+            evaluatorTotalTokens={tokenUsage?.evaluator_total ?? null}
             isEvaluationVisible={isEvaluationVisible}
             evaluationUnavailableMessage={evaluationUnavailableMessage}
             onEvaluate={() => {

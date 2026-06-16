@@ -239,6 +239,51 @@ def test_public_graph_state_excludes_hidden_llm_usage():
     assert "llm_usage" not in public
 
 
+def test_public_graph_state_exposes_public_token_usage_only():
+    internal = _internal_state_with_secrets()
+    internal["llm_usage"] = {
+        "totals": {"input_tokens": 12, "output_tokens": 5, "total_tokens": 17}
+    }
+    internal["token_usage"] = {
+        "simulation_total": 17,
+        "coach_total": 9,
+        "counterpart_latest": 8,
+    }
+
+    public = simulations_service._public_graph_state(internal)
+
+    assert public["token_usage"] == {
+        "simulation_total": 17,
+        "coach_total": 9,
+        "counterpart_latest": 8,
+    }
+    assert "llm_usage" not in public
+
+
+def test_generated_message_token_usage_handles_langchain_ai_role():
+    state = {
+        "token_usage": {"counterpart_latest": 12},
+        "messages": [
+            {
+                "role": "human",
+                "content": "Could you do 95?",
+                "timestamp": "2026-06-16T10:00:00+00:00",
+                "metadata": {},
+            },
+            {
+                "role": "ai",
+                "content": "I can do 98.",
+                "metadata": {},
+            },
+        ],
+    }
+
+    simulations_service._attach_generated_message_token_usage(state)
+
+    assert state["messages"][1]["metadata"]["token_usage"]["total_tokens"] == 12
+    assert isinstance(state["messages"][1]["timestamp"], str)
+
+
 def test_message_to_schema_flattens_recursively_nested_metadata():
     message = HumanMessage(
         content="Proxy turn",
@@ -1000,6 +1045,193 @@ async def test_submit_turn_persists_hidden_llm_usage_summary(monkeypatch):
     assert "llm_usage" not in simulations_service._public_graph_state(
         simulation.negotiation_state["data"]
     )
+
+
+@pytest.mark.asyncio
+async def test_submit_turn_returns_public_token_usage_and_stamps_counterpart_message(monkeypatch):
+    simulation = _simulation(
+        status="active",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "opening",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "opening",
+                "messages": [],
+                "event_log": [],
+                "token_usage": {
+                    "simulation_total": 20,
+                    "coach_total": 4,
+                    "evaluator_total": 3,
+                },
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state, config=None):
+            return {
+                **state,
+                "phase": "bargaining",
+                "should_pause": True,
+                "pause_reason": "counterpart_response_ready",
+                "side_b_response": "I can do 95.",
+                "messages": [
+                    *state["messages"],
+                    {
+                        "role": "assistant",
+                        "content": "I can do 95.",
+                        "timestamp": "2026-06-16T11:00:00Z",
+                        "side": "side_b",
+                        "metadata": {},
+                    },
+                ],
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "create_usage_tracking_context",
+        lambda **kwargs: ("raw-handler", "public-handler", {"callbacks": []}),
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "summarize_usage_handler",
+        lambda handler: {"totals": {"input_tokens": 6, "output_tokens": 4, "total_tokens": 10}, "models": {}},
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "summarize_agent_token_usage_handler",
+        lambda handler: {"coach": 11, "counterpart": 7},
+    )
+
+    result = await simulations_service.submit_simulation_turn_srvc(
+        simulation,
+        SimulationTurnRequest(message="Could you do 95?"),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert result.token_usage.model_dump(exclude_none=True) == {
+        "simulation_total": 38,
+        "coach_total": 15,
+        "counterpart_latest": 7,
+        "evaluator_total": 3,
+    }
+    assert result.messages[-1].metadata["token_usage"]["total_tokens"] == 7
+    assert simulation.negotiation_state["data"]["token_usage"] == {
+        "simulation_total": 38,
+        "coach_total": 15,
+        "counterpart_latest": 7,
+        "evaluator_total": 3,
+    }
+
+
+@pytest.mark.asyncio
+async def test_submit_proxy_turn_returns_public_token_usage_and_stamps_proxy_message(monkeypatch):
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state, config=None):
+            return {
+                **state,
+                "phase": "bargaining",
+                "should_pause": True,
+                "pause_reason": "counterpart_response_ready",
+                "side_b_response": "I can do 98.",
+                "messages": [
+                    *state["messages"],
+                    {
+                        "role": "assistant",
+                        "content": "I can do 98.",
+                        "timestamp": "2026-06-16T11:05:00Z",
+                        "side": "side_b",
+                        "metadata": {},
+                    },
+                ],
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    async def fake_proxy_turn(state, persona, duration, *, config=None):
+        return {"message": "I can move to 100 if we can settle today."}
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "create_usage_tracking_context",
+        lambda **kwargs: ("raw-handler", "public-handler", {"callbacks": []}),
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "summarize_usage_handler",
+        lambda handler: {"totals": {"input_tokens": 9, "output_tokens": 8, "total_tokens": 17}, "models": {}},
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "summarize_agent_token_usage_handler",
+        lambda handler: {"user_proxy": 9, "counterpart": 8},
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_invoke_user_proxy_turn_with_optional_config",
+        fake_proxy_turn,
+    )
+
+    result = await simulations_service.submit_simulation_proxy_turn_srvc(
+        simulation,
+        SimulationProxyTurnRequest(persona_id=None, duration="this_turn"),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert result.token_usage.model_dump(exclude_none=True) == {
+        "simulation_total": 17,
+        "counterpart_latest": 8,
+        "proxy_latest": 9,
+    }
+    assert result.messages[0].metadata["token_usage"]["total_tokens"] == 9
+    assert simulation.negotiation_state["data"]["messages"][0]["metadata"]["token_usage"]["total_tokens"] == 9
 
 @pytest.mark.asyncio
 async def test_submit_turn_tags_human_provenance_and_disables_proxy_mode(monkeypatch):

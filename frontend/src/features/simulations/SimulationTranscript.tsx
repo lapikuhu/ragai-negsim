@@ -2,6 +2,21 @@ import { Card } from "@/components/ui/Card";
 import { formatDateTime } from "@/utils/format";
 import type { SimulationReadWithState } from "@/api/types";
 
+type TranscriptMessage = NonNullable<SimulationReadWithState["messages"]>[number];
+
+function getMessageTokenUsage(message: TranscriptMessage): number | null {
+  const tokenUsage = message.metadata?.token_usage;
+  if (
+    tokenUsage &&
+    typeof tokenUsage === "object" &&
+    "total_tokens" in tokenUsage &&
+    typeof tokenUsage.total_tokens === "number"
+  ) {
+    return tokenUsage.total_tokens;
+  }
+  return null;
+}
+
 export function SimulationTranscript({ simulation }: { simulation: SimulationReadWithState }) {
   const messages = simulation.messages ?? [];
 
@@ -31,6 +46,9 @@ export function SimulationTranscript({ simulation }: { simulation: SimulationRea
                 <span className="text-xs text-slate-500">{formatDateTime(message.timestamp)}</span>
               </div>
               <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{message.content}</p>
+              {getMessageTokenUsage(message) !== null ? (
+                <p className="mt-2 text-xs font-medium text-slate-500">{getMessageTokenUsage(message)} tokens</p>
+              ) : null}
             </div>
           ))
         ) : (

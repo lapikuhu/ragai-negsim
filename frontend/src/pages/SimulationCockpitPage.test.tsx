@@ -33,7 +33,11 @@ const simulation: SimulationReadWithState = {
   negotiation_state: {
     current_phase: "bargaining",
     user_side: "side_a",
-    data: {}
+    data: {
+      token_usage: {
+        simulation_total: 91
+      }
+    }
   }
 };
 
@@ -45,6 +49,10 @@ const completedSimulation: SimulationReadWithState = {
     user_side: "side_a",
     data: {
       phase: "ended",
+      token_usage: {
+        simulation_total: 140,
+        evaluator_total: 61
+      },
       final_evaluation: {
         overall_score: 0.82,
         goal_achievement: "Reached a workable agreement.",
@@ -164,6 +172,7 @@ describe("SimulationCockpitPage", () => {
     queryState.simulation = simulation;
     render(<SimulationCockpitPage />);
 
+    expect(screen.getByText("Simulation Total Tokens: 91")).toBeInTheDocument();
     expect(screen.getByLabelText("Your next turn")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send turn" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();
@@ -191,6 +200,7 @@ describe("SimulationCockpitPage", () => {
     await user.click(screen.getByRole("button", { name: "Evaluate" }));
 
     expect(screen.getByText("Overall score: 0.82")).toBeInTheDocument();
+    expect(screen.getByText("61 total evaluator tokens")).toBeInTheDocument();
     expect(screen.getByText("Goal achievement: Reached a workable agreement.")).toBeInTheDocument();
     expect(screen.getByText("Reasoning: The student balanced assertiveness with flexibility.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();

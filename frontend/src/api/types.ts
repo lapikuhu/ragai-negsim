@@ -7,6 +7,13 @@ export type UserRead = components["schemas"]["UserRead"];
 export type Token = components["schemas"]["Token"];
 export type SimulationRead = components["schemas"]["SimulationRead"];
 export type SimulationReadWithState = components["schemas"]["SimulationReadWithState"];
+export type SimulationTokenUsage = {
+  simulation_total?: number | null;
+  coach_total?: number | null;
+  counterpart_latest?: number | null;
+  proxy_latest?: number | null;
+  evaluator_total?: number | null;
+};
 export type SimulationEvaluationListItem = SimulationRead & {
   scenario_name?: string | null;
   participant_user_id: number;
@@ -17,7 +24,9 @@ export type SimulationEvaluationListResponse = {
   limit: number;
   has_more: boolean;
 };
-export type SimulationTurnResponse = components["schemas"]["SimulationTurnResponse"];
+export type SimulationTurnResponse = components["schemas"]["SimulationTurnResponse"] & {
+  token_usage?: SimulationTokenUsage;
+};
 export type SimulationProxyTurnRequest = {
   persona_id: number | null;
   duration: "this_turn" | "remainder";
@@ -45,7 +54,9 @@ export type VectorStoreRead = components["schemas"]["VectorStoreReadWithIds"];
 export type PromptRead = components["schemas"]["PromptRead"];
 export type ScenarioPublicRead = components["schemas"]["ScenarioPublicReadWithIds"];
 export type ScenarioAuthoringRead = components["schemas"]["ScenarioAuthoringReadWithIds"];
-export type ScenarioRead = ScenarioPublicRead;
+export type ScenarioRead = ScenarioPublicRead & {
+  description?: string | null;
+};
 export type ScenarioContextGenerateRequest = components["schemas"]["ScenarioContextGenerateRequest"];
 export type ScenarioContextGenerateResponse = components["schemas"]["ScenarioContextGenerateResponse"];
 export type CounterpartPersonaRead = components["schemas"]["CounterpartPersonaReadWithIds"];

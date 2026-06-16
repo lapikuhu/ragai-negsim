@@ -34,7 +34,13 @@ function EvaluationList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-export function SimulationEvaluation({ evaluation }: { evaluation: EvaluationRecord }) {
+export function SimulationEvaluation({
+  evaluation,
+  evaluatorTotalTokens = null
+}: {
+  evaluation: EvaluationRecord;
+  evaluatorTotalTokens?: number | null;
+}) {
   return (
     <section className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
       <h2 className="text-base font-semibold text-slate-950">Final evaluation</h2>
@@ -49,6 +55,9 @@ export function SimulationEvaluation({ evaluation }: { evaluation: EvaluationRec
       <p className="text-sm text-slate-700">Reasoning: {asString(evaluation.reasoning)}</p>
       <p className="text-sm text-slate-700">Confidence: {asString(evaluation.confidence)}</p>
       <EvaluationList title="Missing information" items={asStringList(evaluation.missing_information)} />
+      {evaluatorTotalTokens !== null ? (
+        <p className="text-xs font-medium text-slate-500">{evaluatorTotalTokens} total evaluator tokens</p>
+      ) : null}
     </section>
   );
 }
