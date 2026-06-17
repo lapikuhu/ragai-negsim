@@ -1,6 +1,6 @@
 import logging
 
-from app.core.logging import SafeRotatingFileHandler
+from app.core.logging import SafeRotatingFileHandler, configure_logging
 
 
 def test_safe_rotating_file_handler_ignores_locked_windows_rollover(tmp_path, monkeypatch):
@@ -23,3 +23,13 @@ def test_safe_rotating_file_handler_ignores_locked_windows_rollover(tmp_path, mo
     handler.close()
 
     assert "still logging" in log_path.read_text(encoding="utf-8")
+
+
+def test_configure_logging_quiets_dependency_http_request_logs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    configure_logging()
+
+    assert logging.getLogger("app").getEffectiveLevel() == logging.INFO
+    assert logging.getLogger("httpx").getEffectiveLevel() == logging.WARNING
+    assert logging.getLogger("httpcore").getEffectiveLevel() == logging.WARNING

@@ -135,6 +135,10 @@ class SimulationStartRequest(SQLModel):
     side_a: dict[str, Any] = Field(default_factory=dict)
     side_b: dict[str, Any] = Field(default_factory=dict)
     max_turn_count: int = Field(default=12, ge=1, le=100)
+    counterpart_llm_provider: Literal["openai", "ollama"] | None = None
+    counterpart_llm_model: str | None = None
+    evaluator_llm_provider: Literal["openai", "ollama"] | None = None
+    evaluator_llm_model: str | None = None
 
 
 class SimulationTurnRequest(SQLModel):

@@ -43,6 +43,33 @@ export type SimulationProxyDisableResponse = {
   user_proxy_persona: Record<string, unknown>;
   messages: components["schemas"]["SimulationMessageSchema"][];
 };
+export type LLMProvider = "openai" | "ollama";
+export type LLMSelection = {
+  provider: LLMProvider;
+  model: string;
+};
+export type LLMModelCatalogItem = {
+  name: string;
+  size_gib?: number | null;
+};
+export type LLMProviderCatalog = {
+  provider: LLMProvider;
+  models: LLMModelCatalogItem[];
+  error?: string | null;
+};
+export type LLMModelCatalogResponse = {
+  providers: LLMProviderCatalog[];
+  gpu_memory_gib?: number | null;
+};
+export type SimulationStartRequest = {
+  side_a: Record<string, unknown>;
+  side_b: Record<string, unknown>;
+  max_turn_count: number;
+  counterpart_llm_provider?: LLMProvider | null;
+  counterpart_llm_model?: string | null;
+  evaluator_llm_provider?: LLMProvider | null;
+  evaluator_llm_model?: string | null;
+};
 export type SessionRead = components["schemas"]["SessionRead"];
 export type CorpusRead = components["schemas"]["CorpusRead"];
 export type CorpusIndexRead = components["schemas"]["CorpusIndexReadWithIds"];

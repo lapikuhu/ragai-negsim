@@ -9,11 +9,11 @@ import type {
   SimulationProxyTurnResponse,
   SimulationRead,
   SimulationReadWithState,
+  SimulationStartRequest,
   SimulationTurnResponse
 } from "@/api/types";
 
 type SimulationCreateRequest = ApiComponents["schemas"]["SimulationCreateRequest"];
-type SimulationStartRequest = ApiComponents["schemas"]["SimulationStartRequest"];
 type SimulationTurnRequest = ApiComponents["schemas"]["SimulationTurnRequest"];
 type SimulationTeacherReviewRequest = ApiComponents["schemas"]["SimulationTeacherReviewRequest"];
 

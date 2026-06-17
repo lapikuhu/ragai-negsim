@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from app.services.llm_models_service import normalize_rag_llm_components
 from app.airag.reranking.reranking import list_available_reranker_names
 
 RagStrategy = Literal["crag", "graphrag"]
@@ -180,7 +181,7 @@ def normalize_rag_profile_config(
     elif not isinstance(config, dict):
         raise ValueError("RAG profile config must be a dictionary or None")
 
-    allowed_names = {field.name for field in definition.fields}
+    allowed_names = {field.name for field in definition.fields} | {"llm_components"}
     unknown = sorted(set(config) - allowed_names)
     if unknown:
         raise ValueError(
@@ -212,5 +213,9 @@ def normalize_rag_profile_config(
 
         if normalized["reranker"] == "none":
             normalized["top_n"] = normalized["top_k"]
+
+    normalized["llm_components"] = normalize_rag_llm_components(
+        config.get("llm_components")
+    )
 
     return normalized

@@ -10,7 +10,7 @@ from app.airag.prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_
 from app.airag.prompts.sys_prompts import HALL_PROMPT, ANS_GRADER_PROMPT, FALLBACK_PROMPT
 from app.core.config import settings
 from app.airag.embeddings.embeddings import choose_embedding_model
-from app.airag.llm_models.llm_models import get_openai_llm
+from app.airag.llm_models.llm_models import get_llm, get_openai_llm
 
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 llm_model_name   = "gpt-4o-mini"
@@ -113,6 +113,43 @@ generation_chain = GEN_PROMPT | llm | StrOutputParser()
 
 ### --------------------------- FALLBACK -------------------------- ###
 fallback_chain = FALLBACK_PROMPT | llm | StrOutputParser()
+
+
+def make_crag_component_chains(selections: dict[str, dict[str, str]] | None = None) -> dict[str, object]:
+    """
+    Make a dictionary of CRAG component chains based on the provided selections.
+    Args:
+        selections (dict[str, dict[str, str]] | None): A dictionary mapping 
+            component names to their respective provider and model selections.
+    Returns:
+        dict[str, object]: A dictionary mapping component names to their
+            respective chains.
+    """
+    selections = selections or {}
+
+    def component_llm(component: str):
+        selection = selections.get(component, {})
+        return get_llm(
+            provider=selection.get("provider", "openai"),
+            model_name=selection.get("model", llm_model_name),
+            temperature=0,
+        )
+
+    document_llm = component_llm("document_grader")
+    rewrite_llm = component_llm("rewrite")
+    generate_llm = component_llm("generate")
+    hallucination_llm = component_llm("hallucination_grader")
+    answer_llm = component_llm("answer_grader")
+    fallback_llm = component_llm("fallback")
+
+    return {
+        "document_grader": DOC_GRADE_PROMPT | document_llm.with_structured_output(DocumentGrade),
+        "rewrite": REWRITE_PROMPT | rewrite_llm | StrOutputParser(),
+        "generate": GEN_PROMPT | generate_llm | StrOutputParser(),
+        "hallucination_grader": HALL_PROMPT | hallucination_llm.with_structured_output(HallucinationGrade),
+        "answer_grader": ANS_GRADER_PROMPT | answer_llm.with_structured_output(AnswerGrade),
+        "fallback": FALLBACK_PROMPT | fallback_llm | StrOutputParser(),
+    }
 ### ---------------------------------------------------------------- ###
 ### ------------------ Prompt Injection Detection ------------------ ###
 ### ---------------------------------------------------------------- ###

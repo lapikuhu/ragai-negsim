@@ -57,6 +57,8 @@ from app.airag.knowledge_graph.connection import (
 from app.airag.knowledge_graph.retrieval import ScopedGraphRetriever
 from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
 from app.core.config import settings
+from app.airag.llm_models.llm_models import get_llm
+from app.services.llm_models_service import normalize_llm_selection
 from app.schemas.simulations_schemas import (
     NegotiationStateSchema,
     SimulationCreate,
@@ -630,6 +632,7 @@ def _graph_cache_key(
     vector_store: Any,
     prompt_templates: dict[str, str | None],
     rag_profile: Any,
+    llm_selection: dict[str, Any] | None = None,
 ) -> tuple[Any, ...]:
     """
     Generate a cache key for the negotiation graph based on the corpus index,
@@ -658,6 +661,83 @@ def _graph_cache_key(
         prompt_templates.get("coach"),
         prompt_templates.get("counterpart"),
         prompt_templates.get("evaluator"),
+        json.dumps(llm_selection or {}, sort_keys=True),
+    )
+
+
+def _llm_selection_from_start_data(start_data: SimulationStartRequest) -> dict[str, dict[str, str]]:
+    """
+    Extract the LLM selection from the simulation start data.
+    Args:
+        start_data (SimulationStartRequest): The simulation start request data.
+    Returns:
+        dict[str, dict[str, str]]: A dictionary containing the LLM selections for
+            the counterpart and evaluator.
+    """
+    return {
+        "counterpart": normalize_llm_selection(
+            start_data.counterpart_llm_provider,
+            start_data.counterpart_llm_model,
+        ),
+        "evaluator": normalize_llm_selection(
+            start_data.evaluator_llm_provider,
+            start_data.evaluator_llm_model,
+        ),
+    }
+
+
+def _llm_selection_from_simulation(simulation: Simulation) -> dict[str, dict[str, str]]:
+    """
+    Extract the LLM selection from the simulation data.
+    Args:
+        simulation (Simulation): The simulation object.
+    Returns:
+        dict[str, dict[str, str]]: A dictionary containing the LLM selections for
+            the counterpart and evaluator.
+    """
+    raw_state = simulation.negotiation_state or {}
+    raw_data = raw_state.get("data") if isinstance(raw_state, dict) else None
+    raw_selection = raw_data.get("llm_selection") if isinstance(raw_data, dict) else None
+    if not isinstance(raw_selection, dict):
+        return {
+            "counterpart": normalize_llm_selection(None, None),
+            "evaluator": normalize_llm_selection(None, None),
+        }
+    return {
+        "counterpart": normalize_llm_selection(
+            raw_selection.get("counterpart", {}).get("provider")
+            if isinstance(raw_selection.get("counterpart"), dict)
+            else None,
+            raw_selection.get("counterpart", {}).get("model")
+            if isinstance(raw_selection.get("counterpart"), dict)
+            else None,
+        ),
+        "evaluator": normalize_llm_selection(
+            raw_selection.get("evaluator", {}).get("provider")
+            if isinstance(raw_selection.get("evaluator"), dict)
+            else None,
+            raw_selection.get("evaluator", {}).get("model")
+            if isinstance(raw_selection.get("evaluator"), dict)
+            else None,
+        ),
+    }
+
+
+def _build_selected_llm(selection: dict[str, str], run_name: str):
+    """
+    Instantiate a language model based on the provided selection and run name.
+    Args:
+        selection: A dictionary containing the provider and model name.
+        run_name: A string representing the name of the run for tracking 
+            purposes.
+    Returns:
+        An instantiated language model object.
+    """
+    return get_llm(
+        provider=selection["provider"],
+        model_name=selection["model"],
+        temperature=0,
+        run_name=run_name,
     )
 
 
@@ -707,6 +787,7 @@ def _make_crag_graph(retriever: Any, rag_profile: Any) -> Any:
         The CRAG graph.
     """
     from app.airag.chains.crag.crag import CRAGState, make_crag
+    from app.airag.chains.crag.helpers import make_crag_component_chains
 
     config = getattr(rag_profile, "config", {})
     return make_crag(
@@ -715,6 +796,7 @@ def _make_crag_graph(retriever: Any, rag_profile: Any) -> Any:
         max_rewrite_attempts=config.get("max_rewrite_attempts", 2),
         reranker_name=config.get("reranker", "cross_encoder"),
         rerank_top_k=config.get("top_n", 3),
+        component_chains=make_crag_component_chains(config.get("llm_components")),
     )
 
 
@@ -728,6 +810,7 @@ def _make_graphrag_graph(retriever: Any, rag_profile: Any) -> Any:
         The GraphRAG graph.
     """
     from app.airag.chains.crag.crag import CRAGState, make_crag
+    from app.airag.chains.crag.helpers import make_crag_component_chains
 
     return make_crag(
         retriever_obj=retriever,
@@ -735,6 +818,9 @@ def _make_graphrag_graph(retriever: Any, rag_profile: Any) -> Any:
         max_rewrite_attempts=1,
         reranker_name="none",
         rerank_top_k=rag_profile.config.get("evidence_limit", 6),
+        component_chains=make_crag_component_chains(
+            rag_profile.config.get("llm_components")
+        ),
     )
 
 
@@ -819,7 +905,14 @@ async def _get_negotiation_graph_for_simulation(
         corpus_index_id=corpus_index.id,
         session=session,
     )
-    cache_key = _graph_cache_key(corpus_index, vector_store, prompt_templates, rag_profile)
+    llm_selection = _llm_selection_from_simulation(simulation)
+    cache_key = _graph_cache_key(
+        corpus_index,
+        vector_store,
+        prompt_templates,
+        rag_profile,
+        llm_selection,
+    )
     cached_graph = NEGOTIATION_GRAPH_CACHE.get(cache_key)
     if cached_graph is not None:
         return cached_graph
@@ -847,6 +940,14 @@ async def _get_negotiation_graph_for_simulation(
         coach_prompt_template=prompt_templates["coach"],
         counterpart_prompt_template=prompt_templates["counterpart"],
         evaluator_prompt_template=prompt_templates["evaluator"],
+        counterpart_model=_build_selected_llm(
+            llm_selection["counterpart"],
+            "negotiation.counterpart",
+        ),
+        evaluator_model=_build_selected_llm(
+            llm_selection["evaluator"],
+            "negotiation.evaluator",
+        ),
     )
     NEGOTIATION_GRAPH_CACHE[cache_key] = graph
     return graph
@@ -1044,6 +1145,7 @@ def _initial_graph_state(
         A dictionary representing the initial graph state.
     """
     runtime_context = runtime_context or SimulationRuntimeContext()
+    llm_selection = _llm_selection_from_start_data(start_data)
     side_a, side_b = _side_profiles_with_context_defaults(
         simulation,
         start_data,
@@ -1071,6 +1173,7 @@ def _initial_graph_state(
         "user_proxy_persona_id": None,
         "event_log": ["api:simulation_started"],
         "max_turn_count": start_data.max_turn_count,
+        "llm_selection": llm_selection,
     }
     state.update(_runtime_context_snapshot(runtime_context))
 

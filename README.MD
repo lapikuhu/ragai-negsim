@@ -2,6 +2,8 @@
 
 This project is a FastAPI app for an educational negotiation simulator. The goal is to let learners practice negotiations against AI-driven counterparts, receive coaching and evaluation, and use curated corpora as grounding material for scenario-specific simulations.
 
+Developed on win32.
+
 The current codebase focuses on the backend foundation for:
 
 - User authentication, roles, and sessions
@@ -207,6 +209,16 @@ Run the API with the package entrypoint:
 
 ```powershell
 uv run uvicorn app.main:app --reload
+```
+
+If you want to monitor only the FastAPI app:
+```powershell
+uv run uvicorn app.main:app --reload --reload-dir app
+```
+
+or exclude annoying logger changes:
+```powershell
+uv run uvicorn app.main:app --reload --reload-dir app --reload-exclude "logs/*"
 ```
 
 Default local URL:

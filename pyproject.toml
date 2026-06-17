@@ -145,6 +145,7 @@ dependencies = [
     "pydantic-settings==2.13.1",
     "pygments==2.20.0",
     "pylatexenc==2.10",
+    "pyopencl>=2026.1.2",
     "pypdf==6.10.1",
     "pypdfium2==5.7.0",
     "pytest==9.0.3",

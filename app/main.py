@@ -12,6 +12,7 @@ from app.web.routes.embeddings_route import router as embeddings_router
 from app.web.routes.indexing_jobs_route import router as indexing_jobs_router
 from app.web.routes.knowledge_graph_build_jobs_route import router as knowledge_graph_build_jobs_router
 from app.web.routes.knowledge_graph_indices_route import router as knowledge_graph_indices_router
+from app.web.routes.llm_models_route import router as llm_models_router
 from app.web.routes.prompts_route import router as prompts_router
 from app.web.routes.rag_profiles_route import router as rag_profiles_router
 from app.web.routes.raw_documents_route import router as raw_documents_router
@@ -66,6 +67,7 @@ app.include_router(embeddings_router)
 app.include_router(indexing_jobs_router)
 app.include_router(knowledge_graph_indices_router)
 app.include_router(knowledge_graph_build_jobs_router)
+app.include_router(llm_models_router)
 app.include_router(prompts_router)
 app.include_router(rag_profiles_router)
 app.include_router(raw_documents_router)

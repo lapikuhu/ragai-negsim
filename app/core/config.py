@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str
     OPENAI_API_KEY: str
+    OPENAI_CHAT_MODELS: list[str] = ["gpt-4o-mini"]
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
     FIXED_ROLES: list[str] = ["admin", "student", "teacher"]
     RAW_DOCS_DIR: str = "app/raw_docs_store"

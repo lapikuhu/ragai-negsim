@@ -7,6 +7,7 @@ describe("vite proxy config", () => {
     const proxy = config.server?.proxy;
 
     expect(proxy).toBeDefined();
+    expect(proxy?.["/llm-models"]).toBe("http://127.0.0.1:8000");
     expect(proxy?.["/rag-profiles"]).toBe("http://127.0.0.1:8000");
     expect(proxy?.["/knowledge-graph-indexes"]).toBe("http://127.0.0.1:8000");
   });

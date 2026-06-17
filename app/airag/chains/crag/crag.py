@@ -11,6 +11,9 @@ except ImportError:
 # local imports
 from app.airag.chains.crag.crag_nodes import node_grade, make_crag_retrieve_node, node_rewrite
 from app.airag.chains.crag.crag_nodes import node_generate, node_fallback, node_quality_check
+from app.airag.chains.crag.crag_nodes import make_node_grade, make_node_rewrite
+from app.airag.chains.crag.crag_nodes import make_node_generate, make_node_fallback
+from app.airag.chains.crag.crag_nodes import make_node_quality_check
 from app.airag.chains.crag.crag_nodes import make_crag_rerank_node
 from app.airag.chains.crag.crag_routers import make_decide_after_grade, make_decide_after_quality
 from app.airag.reranking.reranking import choose_reranker
@@ -46,7 +49,8 @@ def make_crag(retriever_obj,
               max_rewrite_attempts: int = 2,
               reranker_name: str = "cross_encoder",
               reranker=None,
-              rerank_top_k: int = 3) -> StateGraph:
+              rerank_top_k: int = 3,
+              component_chains: dict[str, object] | None = None) -> StateGraph:
     """
     Construct the Corrective RAG graph using provided node functions and
     routing logic.
@@ -73,6 +77,16 @@ def make_crag(retriever_obj,
     """
     if rerank_top_k < 1:
         raise ValueError("rerank_top_k must be at least 1")
+
+    if component_chains is not None:
+        grader = make_node_grade(component_chains["document_grader"])
+        rewriter = make_node_rewrite(component_chains["rewrite"])
+        generator = make_node_generate(component_chains["generate"])
+        quality_check = make_node_quality_check(
+            component_chains["hallucination_grader"],
+            component_chains["answer_grader"],
+        )
+        fallback = make_node_fallback(component_chains["fallback"])
 
     # Create the retrieve node with access to the retriever instance
     retriever_node = make_retriever_node(retriever_obj)

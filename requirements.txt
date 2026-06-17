@@ -571,6 +571,7 @@ numpy==2.4.4
     #   opencv-python
     #   pandas
     #   pgvector
+    #   pyopencl
     #   ragai-negsim
     #   rapidocr
     #   safetensors
@@ -728,6 +729,8 @@ platformdirs==4.9.6
     #   banks
     #   jupyter-core
     #   llama-index-core
+    #   pyopencl
+    #   pytools
     #   ragai-negsim
 pluggy==1.6.0
     # via
@@ -849,6 +852,8 @@ pyobjc-framework-quartz==12.1 ; sys_platform == 'darwin'
     # via pyobjc-framework-vision
 pyobjc-framework-vision==12.1 ; sys_platform == 'darwin'
     # via ocrmac
+pyopencl==2026.1.2
+    # via ragai-negsim
 pypdf==6.10.1
     # via ragai-negsim
 pypdfium2==5.7.0
@@ -890,6 +895,8 @@ python-pptx==1.0.2
     # via
     #   docling
     #   ragai-negsim
+pytools==2026.1.1
+    # via pyopencl
 pytz==2026.2
     # via
     #   neo4j
@@ -1007,6 +1014,8 @@ shellingham==1.5.4
     # via
     #   ragai-negsim
     #   typer
+siphash24==1.8
+    # via pytools
 six==1.17.0
     # via
     #   ecdsa
@@ -1183,9 +1192,11 @@ typing-extensions==4.15.0
     #   psycopg-pool
     #   pydantic
     #   pydantic-core
+    #   pyopencl
     #   pytest-asyncio
     #   python-docx
     #   python-pptx
+    #   pytools
     #   ragai-negsim
     #   referencing
     #   sentence-transformers

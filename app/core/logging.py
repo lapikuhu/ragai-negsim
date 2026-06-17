@@ -52,3 +52,6 @@ def configure_logging() -> None:
         ],
         force=True,  # important if logging was already configured
     )
+
+    for dependency_logger in ("httpx", "httpcore"):
+        logging.getLogger(dependency_logger).setLevel(logging.WARNING)
