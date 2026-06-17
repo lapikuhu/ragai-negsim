@@ -30,6 +30,8 @@ export type SimulationTurnResponse = components["schemas"]["SimulationTurnRespon
 export type SimulationProxyTurnRequest = {
   persona_id: number | null;
   duration: "this_turn" | "remainder";
+  proxy_llm_provider?: LLMProvider | null;
+  proxy_llm_model?: string | null;
 };
 export type SimulationProxyTurnResponse = SimulationTurnResponse & {
   proxy_response: string;

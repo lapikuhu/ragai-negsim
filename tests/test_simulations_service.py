@@ -166,9 +166,16 @@ def test_turn_request_accepts_structured_action():
 
 
 def test_proxy_turn_request_accepts_duration_and_nullable_persona():
-    request = SimulationProxyTurnRequest(persona_id=None, duration="this_turn")
+    request = SimulationProxyTurnRequest(
+        persona_id=None,
+        duration="this_turn",
+        proxy_llm_provider="openai",
+        proxy_llm_model="gpt-4o-mini",
+    )
     assert request.persona_id is None
     assert request.duration == "this_turn"
+    assert request.proxy_llm_provider == "openai"
+    assert request.proxy_llm_model == "gpt-4o-mini"
 
 
 def test_public_graph_state_is_positive_allow_list():
@@ -1188,7 +1195,7 @@ async def test_submit_proxy_turn_returns_public_token_usage_and_stamps_proxy_mes
         simulation_obj.status = simulation_in.status
         return simulation_obj
 
-    async def fake_proxy_turn(state, persona, duration, *, config=None):
+    async def fake_proxy_turn(state, persona, duration, *, llm_selection=None, config=None):
         return {"message": "I can move to 100 if we can settle today."}
 
     monkeypatch.setattr(
@@ -1297,6 +1304,7 @@ async def test_submit_turn_tags_human_provenance_and_disables_proxy_mode(monkeyp
 @pytest.mark.asyncio
 async def test_submit_proxy_turn_generates_message_and_persists_remainder_mode(monkeypatch):
     captured_state = []
+    captured_proxy_selection = []
     simulation = _simulation(
         status="paused",
         user_id_owner=7,
@@ -1344,10 +1352,11 @@ async def test_submit_proxy_turn_generates_message_and_persists_remainder_mode(m
         simulation_obj.status = simulation_in.status
         return simulation_obj
 
-    async def fake_invoke_proxy_turn(state, persona, duration):
+    async def fake_invoke_proxy_turn(state, persona, duration, *, llm_selection=None):
         assert state["coach_advice"]["suggested_response"] == "Ask for 100 and hold firm."
         assert persona.id == 300
         assert duration == "remainder"
+        captured_proxy_selection.append(llm_selection)
         return {
             "message": "I can move to 100 if we can settle today.",
             "event_log": ["proxy:completed"],
@@ -1360,6 +1369,14 @@ async def test_submit_proxy_turn_generates_message_and_persists_remainder_mode(m
     )
     monkeypatch.setattr(
         simulations_service,
+        "normalize_llm_selection",
+        lambda provider, model: {
+            "provider": (provider or "openai"),
+            "model": (model or "gpt-4o-mini"),
+        },
+    )
+    monkeypatch.setattr(
+        simulations_service,
         "invoke_user_proxy_turn",
         fake_invoke_proxy_turn,
     )
@@ -1367,7 +1384,12 @@ async def test_submit_proxy_turn_generates_message_and_persists_remainder_mode(m
 
     result = await simulations_service.submit_simulation_proxy_turn_srvc(
         simulation,
-        SimulationProxyTurnRequest(persona_id=300, duration="remainder"),
+        SimulationProxyTurnRequest(
+            persona_id=300,
+            duration="remainder",
+            proxy_llm_provider="ollama",
+            proxy_llm_model="qwen2.5:3b",
+        ),
         object(),
         _user(7),
         FakeGraph(),
@@ -1381,10 +1403,16 @@ async def test_submit_proxy_turn_generates_message_and_persists_remainder_mode(m
     assert captured_state[0]["messages"][0]["metadata"]["user_reply_origin"] == "auto_user_proxy"
     assert captured_state[0]["messages"][0]["metadata"]["persona_id"] == 300
     assert simulation.negotiation_state["data"]["auto_user_proxy_enabled"] is True
+    assert simulation.negotiation_state["data"]["llm_selection"]["proxy"] == {
+        "provider": "ollama",
+        "model": "qwen2.5:3b",
+    }
+    assert captured_proxy_selection == [{"provider": "ollama", "model": "qwen2.5:3b"}]
 
 
 @pytest.mark.asyncio
 async def test_submit_proxy_turn_preserves_remainder_mode_when_graph_omits_proxy_fields(monkeypatch):
+    captured_proxy_selection = []
     simulation = _simulation(
         status="paused",
         user_id_owner=7,
@@ -1401,6 +1429,9 @@ async def test_submit_proxy_turn_preserves_remainder_mode_when_graph_omits_proxy
                 "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
                 "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
                 "coach_advice": {"suggested_response": "Ask for 100 and hold firm."},
+                "llm_selection": {
+                    "proxy": {"provider": "ollama", "model": "qwen2.5:7b"},
+                },
                 "messages": [],
                 "event_log": [],
             },
@@ -1434,8 +1465,9 @@ async def test_submit_proxy_turn_preserves_remainder_mode_when_graph_omits_proxy
         simulation_obj.status = simulation_in.status
         return simulation_obj
 
-    async def fake_invoke_proxy_turn(state, persona, duration):
+    async def fake_invoke_proxy_turn(state, persona, duration, *, llm_selection=None):
         assert duration == "remainder"
+        captured_proxy_selection.append(llm_selection)
         return {
             "message": "I can move to 100 if we can settle today.",
             "event_log": ["proxy:completed"],
@@ -1445,6 +1477,14 @@ async def test_submit_proxy_turn_preserves_remainder_mode_when_graph_omits_proxy
         simulations_service.simulations_repo,
         "update_simulation",
         fake_update_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "normalize_llm_selection",
+        lambda provider, model: {
+            "provider": (provider or "openai"),
+            "model": (model or "gpt-4o-mini"),
+        },
     )
     monkeypatch.setattr(
         simulations_service,
@@ -1466,6 +1506,84 @@ async def test_submit_proxy_turn_preserves_remainder_mode_when_graph_omits_proxy
     assert simulation.negotiation_state["data"]["auto_user_proxy_enabled"] is True
     assert simulation.negotiation_state["data"]["user_proxy_persona"]["name"] == "Firm seller"
     assert simulation.negotiation_state["data"]["user_proxy_persona_id"] == 300
+    assert captured_proxy_selection == [{"provider": "ollama", "model": "qwen2.5:7b"}]
+
+
+@pytest.mark.asyncio
+async def test_submit_proxy_turn_does_not_persist_one_turn_proxy_model(monkeypatch):
+    captured_proxy_selection = []
+    simulation = _simulation(
+        status="paused",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "bargaining",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+
+    class FakeGraph:
+        def invoke(self, state):
+            return {
+                **state,
+                "phase": "bargaining",
+                "should_pause": True,
+                "pause_reason": "counterpart_response_ready",
+                "messages": state["messages"],
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    async def fake_invoke_proxy_turn(state, persona, duration, *, llm_selection=None):
+        captured_proxy_selection.append(llm_selection)
+        return {"message": "I need a little more here."}
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "normalize_llm_selection",
+        lambda provider, model: {
+            "provider": (provider or "openai"),
+            "model": (model or "gpt-4o-mini"),
+        },
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "invoke_user_proxy_turn",
+        fake_invoke_proxy_turn,
+    )
+
+    await simulations_service.submit_simulation_proxy_turn_srvc(
+        simulation,
+        SimulationProxyTurnRequest(
+            persona_id=None,
+            duration="this_turn",
+            proxy_llm_provider="openai",
+            proxy_llm_model="gpt-4o-mini",
+        ),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert captured_proxy_selection == [{"provider": "openai", "model": "gpt-4o-mini"}]
+    assert "llm_selection" not in simulation.negotiation_state["data"] or "proxy" not in simulation.negotiation_state["data"].get("llm_selection", {})
 
 
 @pytest.mark.asyncio
@@ -1986,6 +2104,8 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         counterpart_prompt_template=None,
         evaluator_prompt_template=None,
         intent_classifier_model=None,
+        counterpart_model=None,
+        evaluator_model=None,
     ):
         build_calls.append(
             (
@@ -1994,6 +2114,8 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
                 counterpart_prompt_template,
                 evaluator_prompt_template,
                 intent_classifier_model,
+                counterpart_model,
+                evaluator_model,
             )
         )
         return SimpleNamespace(invoke=lambda state: state)
@@ -2038,12 +2160,12 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
     assert first is second
     assert len(build_calls) == 1
     assert build_calls[0][0] == ("crag", ("dense", {"corpus_index_id": 77}), 500, "none")
-    assert build_calls[0][1:] == (
-        "DB coach {phase}",
-        "DB counterpart {phase}",
-        "DB evaluator {phase}",
-        None,
-    )
+    assert build_calls[0][1] == "DB coach {phase}"
+    assert build_calls[0][2] == "DB counterpart {phase}"
+    assert build_calls[0][3] == "DB evaluator {phase}"
+    assert build_calls[0][4] is None
+    assert build_calls[0][5] is not None
+    assert build_calls[0][6] is not None
 
 
 @pytest.mark.asyncio

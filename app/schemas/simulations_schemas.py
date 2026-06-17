@@ -171,6 +171,8 @@ class SimulationTurnResponse(SQLModel):
 class SimulationProxyTurnRequest(SQLModel):
     persona_id: int | None = None
     duration: Literal["this_turn", "remainder"]
+    proxy_llm_provider: Literal["openai", "ollama"] | None = None
+    proxy_llm_model: str | None = None
 
 
 class SimulationProxyTurnResponse(SimulationTurnResponse):

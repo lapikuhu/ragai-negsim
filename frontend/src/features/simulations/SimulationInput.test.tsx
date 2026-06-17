@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import type { LLMModelCatalogResponse } from "@/api/types";
+
 import { SimulationInput } from "./SimulationInput";
 
 const finalEvaluation = {
@@ -16,6 +18,21 @@ const finalEvaluation = {
   reasoning: "The student balanced assertiveness with flexibility.",
   confidence: "high",
   missing_information: ["Private reservation value was not explicit"]
+};
+
+const llmCatalog: LLMModelCatalogResponse = {
+  providers: [
+    {
+      provider: "openai",
+      models: [{ name: "gpt-4o-mini" }, { name: "gpt-4.1-mini" }]
+    },
+    {
+      provider: "ollama",
+      models: [{ name: "qwen2.5:3b", size_gib: 2.3 }, { name: "llama3.2:3b", size_gib: 2.0 }],
+      error: "Warmup required"
+    }
+  ],
+  gpu_memory_gib: 12
 };
 
 describe("SimulationInput", () => {
@@ -89,6 +106,7 @@ describe("SimulationInput", () => {
       <SimulationInput
         onSubmit={vi.fn()}
         onProxySubmit={vi.fn()}
+        llmCatalog={llmCatalog}
         canEvaluate={false}
         evaluation={null}
         isEvaluationVisible={false}
@@ -99,11 +117,13 @@ describe("SimulationInput", () => {
 
     expect(screen.getByRole("dialog", { name: "Use Proxy" })).toBeInTheDocument();
     expect(screen.getByLabelText("Persona")).toHaveValue("");
+    expect(screen.getByLabelText("Provider")).toHaveValue("openai");
+    expect(screen.getByLabelText("Model")).toHaveValue("gpt-4o-mini");
     expect(screen.getByLabelText("For this turn")).toBeChecked();
     expect(screen.getByLabelText("For the remainder of the negotiation")).not.toBeChecked();
   });
 
-  it("submits the selected proxy persona and duration", async () => {
+  it("submits the selected proxy persona, duration, and llm selection", async () => {
     const user = userEvent.setup();
     const onProxySubmit = vi.fn().mockResolvedValue(undefined);
 
@@ -115,6 +135,7 @@ describe("SimulationInput", () => {
           { id: 300, name: "Firm seller" },
           { id: 301, name: "Patient buyer" }
         ]}
+        llmCatalog={llmCatalog}
         canEvaluate={false}
         evaluation={null}
         isEvaluationVisible={false}
@@ -123,10 +144,37 @@ describe("SimulationInput", () => {
 
     await user.click(screen.getByRole("button", { name: "Use Proxy" }));
     await user.selectOptions(screen.getByLabelText("Persona"), "300");
+    await user.selectOptions(screen.getByLabelText("Provider"), "ollama");
+    await user.selectOptions(screen.getByLabelText("Model"), "llama3.2:3b");
     await user.click(screen.getByLabelText("For the remainder of the negotiation"));
     await user.click(screen.getByRole("button", { name: "Confirm Proxy" }));
 
-    expect(onProxySubmit).toHaveBeenCalledWith({ personaId: 300, duration: "remainder" });
+    expect(onProxySubmit).toHaveBeenCalledWith({
+      personaId: 300,
+      duration: "remainder",
+      llmSelection: { provider: "ollama", model: "llama3.2:3b" }
+    });
+  });
+
+  it("switches proxy model options when provider changes", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SimulationInput
+        onSubmit={vi.fn()}
+        onProxySubmit={vi.fn()}
+        llmCatalog={llmCatalog}
+        canEvaluate={false}
+        evaluation={null}
+        isEvaluationVisible={false}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Use Proxy" }));
+    await user.selectOptions(screen.getByLabelText("Provider"), "ollama");
+
+    expect(screen.getByLabelText("Model")).toHaveValue("qwen2.5:3b");
+    expect(screen.getByText("GPU memory: 12 GiB; Warmup required")).toBeInTheDocument();
   });
 
   it("closes the proxy dialog immediately after confirm while the submit is still pending", async () => {
@@ -143,6 +191,7 @@ describe("SimulationInput", () => {
       <SimulationInput
         onSubmit={vi.fn()}
         onProxySubmit={onProxySubmit}
+        llmCatalog={llmCatalog}
         canEvaluate={false}
         evaluation={null}
         isEvaluationVisible={false}
@@ -154,7 +203,11 @@ describe("SimulationInput", () => {
 
     await user.click(screen.getByRole("button", { name: "Confirm Proxy" }));
 
-    expect(onProxySubmit).toHaveBeenCalledWith({ personaId: null, duration: "this_turn" });
+    expect(onProxySubmit).toHaveBeenCalledWith({
+      personaId: null,
+      duration: "this_turn",
+      llmSelection: { provider: "openai", model: "gpt-4o-mini" }
+    });
     expect(screen.queryByRole("dialog", { name: "Use Proxy" })).not.toBeInTheDocument();
 
     pendingSubmit.resolve?.();

@@ -723,6 +723,70 @@ def _llm_selection_from_simulation(simulation: Simulation) -> dict[str, dict[str
     }
 
 
+def _proxy_llm_selection_from_state(state: dict[str, Any]) -> dict[str, str] | None:
+    """
+    Extract the proxy LLM selection from the simulation state.
+    Args:
+        state (dict[str, Any]): The current state of the simulation.
+    Returns:
+        dict[str, str] | None: A dictionary containing the proxy LLM selection
+            or None if not available.
+    """
+    raw_selection = state.get("llm_selection")
+    if not isinstance(raw_selection, dict):
+        return None
+    proxy_selection = raw_selection.get("proxy")
+    if not isinstance(proxy_selection, dict):
+        return None
+    return normalize_llm_selection(
+        proxy_selection.get("provider"),
+        proxy_selection.get("model"),
+    )
+
+
+def _proxy_llm_selection_for_turn(
+    state: dict[str, Any],
+    proxy_data: SimulationProxyTurnRequest,
+) -> dict[str, str]:
+    """
+    Select the appropriate proxy LLM selection for a simulation turn based 
+    on the current state and provided proxy data.
+    Args:
+        state (dict[str, Any]): The current state of the simulation.
+        proxy_data (SimulationProxyTurnRequest): The proxy turn request 
+            data.
+    Returns:
+        dict[str, str]: A dictionary containing the selected proxy LLM
+            provider and model.
+    """
+    if proxy_data.proxy_llm_provider is not None or proxy_data.proxy_llm_model is not None:
+        return normalize_llm_selection(
+            proxy_data.proxy_llm_provider,
+            proxy_data.proxy_llm_model,
+        )
+    persisted = _proxy_llm_selection_from_state(state)
+    if persisted is not None and proxy_data.duration == "remainder":
+        return persisted
+    return normalize_llm_selection(None, None)
+
+
+def _persist_proxy_llm_selection(
+    state: dict[str, Any],
+    selection: dict[str, str],
+) -> None:
+    """
+        Persist the proxy LLM selection in the simulation state.
+        Args:
+            state (dict[str, Any]): The current state of the simulation.
+            selection (dict[str, str]): The proxy LLM selection to persist.
+        """
+    llm_selection = state.get("llm_selection")
+    if not isinstance(llm_selection, dict):
+        llm_selection = {}
+        state["llm_selection"] = llm_selection
+    llm_selection["proxy"] = dict(selection)
+
+
 def _build_selected_llm(selection: dict[str, str], run_name: str):
     """
     Instantiate a language model based on the provided selection and run name.
@@ -1209,20 +1273,70 @@ async def _invoke_user_proxy_turn_with_optional_config(
     persona: Any | None,
     duration: str,
     *,
+    llm_selection: dict[str, str] | None = None,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
-    if config is None:
+    """
+    Invoke a user proxy turn with optional LLM selection and configuration.
+    Args:
+        state: The current state of the simulation.
+        persona: The persona to use for the proxy turn.
+        duration: The duration of the proxy turn.
+        llm_selection: Optional LLM selection for the proxy turn.
+        config: Optional configuration for the proxy turn.
+    Returns:
+        A dictionary representing the result of the proxy turn.
+    Raises:
+        TypeError: If the provided arguments are incompatible with the
+            invoke_user_proxy_turn function signature.
+    """
+    if config is None and llm_selection is None:
         return await invoke_user_proxy_turn(state, persona, duration)
     try:
         return await invoke_user_proxy_turn(
             state,
             persona,
             duration,
+            llm_selection=llm_selection,
             config=config,
         )
     except TypeError as exc:
-        if "config" not in str(exc):
+        message = str(exc)
+        if "llm_selection" not in message and "config" not in message:
             raise
+        if config is not None and llm_selection is not None:
+            try:
+                return await invoke_user_proxy_turn(
+                    state,
+                    persona,
+                    duration,
+                    llm_selection=llm_selection,
+                )
+            except TypeError as retry_exc:
+                if "llm_selection" not in str(retry_exc):
+                    raise
+        if config is not None:
+            try:
+                return await invoke_user_proxy_turn(
+                    state,
+                    persona,
+                    duration,
+                    config=config,
+                )
+            except TypeError as retry_exc:
+                if "config" not in str(retry_exc):
+                    raise
+        if llm_selection is not None:
+            try:
+                return await invoke_user_proxy_turn(
+                    state,
+                    persona,
+                    duration,
+                    llm_selection=llm_selection,
+                )
+            except TypeError as retry_exc:
+                if "llm_selection" not in str(retry_exc):
+                    raise
         return await invoke_user_proxy_turn(state, persona, duration)
 
 
@@ -1471,6 +1585,9 @@ def _carry_forward_proxy_state(source_state: dict[str, Any], target_state: dict[
         target_state.setdefault("user_proxy_persona", source_state["user_proxy_persona"])
     if source_state.get("user_proxy_persona_id") is not None:
         target_state.setdefault("user_proxy_persona_id", source_state["user_proxy_persona_id"])
+    persisted_proxy_selection = _proxy_llm_selection_from_state(source_state)
+    if persisted_proxy_selection is not None:
+        _persist_proxy_llm_selection(target_state, persisted_proxy_selection)
 
 
 def _base_turn_response(graph_state: dict[str, Any], user_side: str | None, simulation_id: int) -> dict[str, Any]:
@@ -1942,6 +2059,7 @@ async def submit_simulation_proxy_turn_srvc(
             raise ValueError("Counterpart persona not found")
 
     persona_context = _counterpart_persona_runtime_context(persona_record) if persona_record is not None else {}
+    proxy_llm_selection = _proxy_llm_selection_for_turn(state, proxy_data)
     state["user_id"] = str(current_user.id)
     state["user_side"] = simulation.user_side or state.get("user_side") or "side_a"
     state.setdefault("messages", [])
@@ -1950,6 +2068,8 @@ async def submit_simulation_proxy_turn_srvc(
         proxy_data.duration == "remainder",
         persona_context,
     )
+    if proxy_data.duration == "remainder":
+        _persist_proxy_llm_selection(state, proxy_llm_selection)
     usage_handler, public_usage_handler, usage_config = create_usage_tracking_context(
         tags=["service:simulation_proxy_turn"],
         metadata=_usage_metadata_for_state(state),
@@ -1959,6 +2079,7 @@ async def submit_simulation_proxy_turn_srvc(
         state,
         persona_record,
         proxy_data.duration,
+        llm_selection=proxy_llm_selection,
         config=usage_config,
     )
     proxy_message = str(proxy_result.get("message") or "").strip()

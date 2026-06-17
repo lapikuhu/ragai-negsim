@@ -95,6 +95,26 @@ vi.mock("@/features/counterpartPersonas/personaQueries", () => ({
   })
 }));
 
+vi.mock("@/features/llmModels/llmModelQueries", () => ({
+  useLlmModelCatalogQuery: () => ({
+    isLoading: false,
+    isError: false,
+    data: {
+      providers: [
+        {
+          provider: "openai",
+          models: [{ name: "gpt-4o-mini" }, { name: "gpt-4.1-mini" }]
+        },
+        {
+          provider: "ollama",
+          models: [{ name: "qwen2.5:3b", size_gib: 2.3 }]
+        }
+      ],
+      gpu_memory_gib: 12
+    }
+  })
+}));
+
 const queryState = vi.hoisted(() => {
   const baseSimulation: SimulationReadWithState = {
     id: 1,
@@ -311,12 +331,16 @@ describe("SimulationCockpitPage", () => {
     render(<SimulationCockpitPage />);
 
     await user.click(screen.getByRole("button", { name: "Use Proxy" }));
+    await user.selectOptions(screen.getByLabelText("Provider"), "ollama");
+    await user.selectOptions(screen.getByLabelText("Model"), "qwen2.5:3b");
     await user.click(screen.getByRole("button", { name: "Confirm Proxy" }));
 
     await waitFor(() => {
       expect(queryState.proxyTurnMutateAsync).toHaveBeenCalledWith({
         persona_id: null,
-        duration: "this_turn"
+        duration: "this_turn",
+        proxy_llm_provider: "ollama",
+        proxy_llm_model: "qwen2.5:3b"
       });
     });
   });

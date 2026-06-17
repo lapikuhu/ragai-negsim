@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { LLMModelCatalogResponse, LLMProvider, LLMSelection } from "@/api/types";
 import { Button } from "@/components/ui/Button";
 import { Field, Select, Textarea } from "@/components/ui/Field";
 import { SimulationEvaluation } from "@/features/simulations/SimulationEvaluation";
@@ -12,6 +13,8 @@ export function SimulationInput({
   disabledMessage,
   onSubmit,
   onProxySubmit,
+  llmCatalog,
+  llmCatalogError,
   proxyPersonaOptions = [],
   isProxyActive = false,
   proxyActiveLabel,
@@ -27,7 +30,9 @@ export function SimulationInput({
   disabled?: boolean;
   disabledMessage?: string | null;
   onSubmit: (message: string) => Promise<void>;
-  onProxySubmit?: (input: { personaId: number | null; duration: ProxyDuration }) => Promise<void>;
+  onProxySubmit?: (input: { personaId: number | null; duration: ProxyDuration; llmSelection: LLMSelection }) => Promise<void>;
+  llmCatalog?: LLMModelCatalogResponse;
+  llmCatalogError?: string | null;
   proxyPersonaOptions?: ProxyPersonaOption[];
   isProxyActive?: boolean;
   proxyActiveLabel?: string | null;
@@ -44,6 +49,13 @@ export function SimulationInput({
   const [isProxyDialogOpen, setIsProxyDialogOpen] = useState(false);
   const [proxyPersonaId, setProxyPersonaId] = useState("");
   const [proxyDuration, setProxyDuration] = useState<ProxyDuration>("this_turn");
+  const [proxyLlm, setProxyLlm] = useState<LLMSelection>({
+    provider: "openai",
+    model: getDefaultCatalogModel(llmCatalog, "openai") ?? ""
+  });
+  const proxyProviderCatalog = llmCatalog?.providers.find((provider) => provider.provider === proxyLlm.provider);
+  const proxyModels = proxyProviderCatalog?.models ?? [];
+  const canConfirmProxy = Boolean(onProxySubmit) && Boolean(proxyLlm.model);
 
   return (
     <>
@@ -126,6 +138,42 @@ export function SimulationInput({
                   ))}
                 </Select>
               </Field>
+              <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <Field label="Provider">
+                  <Select
+                    value={proxyLlm.provider}
+                    onChange={(event) => {
+                      const provider = event.target.value as LLMProvider;
+                      setProxyLlm({ provider, model: getDefaultCatalogModel(llmCatalog, provider) ?? "" });
+                    }}
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="ollama">Ollama</option>
+                  </Select>
+                </Field>
+                <Field label="Model">
+                  <Select
+                    value={proxyLlm.model}
+                    disabled={!proxyModels.length}
+                    onChange={(event) => setProxyLlm((current) => ({ ...current, model: event.target.value }))}
+                  >
+                    <option value="">{proxyModels.length ? "Select model" : "No models available"}</option>
+                    {proxyModels.map((model) => (
+                      <option key={model.name} value={model.name}>
+                        {model.name}
+                        {proxyLlm.provider === "ollama" && typeof model.size_gib === "number" ? ` (${model.size_gib} GiB)` : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {proxyLlm.provider === "ollama" ? (
+                  <p className="text-xs text-slate-500">
+                    GPU memory: {typeof llmCatalog?.gpu_memory_gib === "number" ? `${llmCatalog.gpu_memory_gib} GiB` : "unknown"}
+                    {proxyProviderCatalog?.error ? `; ${proxyProviderCatalog.error}` : ""}
+                  </p>
+                ) : null}
+                {llmCatalogError ? <p className="text-xs text-amber-700">{llmCatalogError}</p> : null}
+              </div>
               <fieldset className="grid gap-2">
                 <legend className="text-sm font-medium text-slate-700">Duration</legend>
                 <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -153,14 +201,16 @@ export function SimulationInput({
                 </Button>
                 <Button
                   type="button"
+                  disabled={!canConfirmProxy}
                   onClick={async () => {
-                    if (!onProxySubmit) {
+                    if (!onProxySubmit || !proxyLlm.model) {
                       return;
                     }
                     setIsProxyDialogOpen(false);
                     await onProxySubmit({
                       personaId: proxyPersonaId ? Number(proxyPersonaId) : null,
-                      duration: proxyDuration
+                      duration: proxyDuration,
+                      llmSelection: proxyLlm
                     });
                   }}
                 >
@@ -173,4 +223,8 @@ export function SimulationInput({
       ) : null}
     </>
   );
+}
+
+function getDefaultCatalogModel(catalog: LLMModelCatalogResponse | undefined, provider: LLMProvider) {
+  return catalog?.providers.find((entry) => entry.provider === provider)?.models[0]?.name ?? null;
 }

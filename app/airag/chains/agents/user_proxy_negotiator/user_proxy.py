@@ -116,6 +116,7 @@ async def invoke_user_proxy_turn(
     state: ParentNegotiationState,
     persona: Any | None,
     duration: str,
+    llm_selection: dict[str, str] | None = None,
     user_proxy_graph: Any | None = None,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
@@ -130,7 +131,19 @@ async def invoke_user_proxy_turn(
     Returns:
         A dictionary containing the user proxy response.
     """
-    graph = user_proxy_graph or make_user_proxy_graph()
+    graph = user_proxy_graph
+    if graph is None:
+        model = None
+        if llm_selection is not None:
+            from app.airag.llm_models.llm_models import get_llm
+
+            model = get_llm(
+                provider=llm_selection["provider"],
+                model_name=llm_selection["model"],
+                temperature=0,
+                run_name="negotiation.user_proxy",
+            )
+        graph = make_user_proxy_graph(model=model)
     proxy_state = project_user_proxy_state(
         {
             **state,

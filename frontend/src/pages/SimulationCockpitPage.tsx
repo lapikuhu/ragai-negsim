@@ -243,10 +243,14 @@ export function SimulationCockpitPage() {
             disabledMessage={
               isTerminal ? "This simulation has ended. No further turns can be sent." : null
             }
-            onProxySubmit={async ({ personaId, duration }) => {
+            llmCatalog={llmCatalogQuery.data}
+            llmCatalogError={llmCatalogQuery.isError ? "LLM catalog is unavailable." : null}
+            onProxySubmit={async ({ personaId, duration, llmSelection }) => {
               const result = await proxyTurnMutation.mutateAsync({
                 persona_id: personaId,
-                duration
+                duration,
+                proxy_llm_provider: llmSelection.provider,
+                proxy_llm_model: llmSelection.model
               });
               setLatestTurn(result);
               setProxyOverride({
