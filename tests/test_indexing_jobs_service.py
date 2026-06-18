@@ -38,7 +38,7 @@ def _job(**overrides):
 
 
 @pytest.mark.asyncio
-async def test_queue_job_rejects_when_non_terminal_simulation_uses_replaceable_index(monkeypatch):
+async def test_queue_job_allows_same_configuration_with_different_name(monkeypatch):
     async def fake_get_corpus_by_id(corpus_id, session):
         return SimpleNamespace(id=corpus_id)
 
@@ -51,24 +51,92 @@ async def test_queue_job_rejects_when_non_terminal_simulation_uses_replaceable_i
     async def fake_get_corpus_raw_document_ids(corpus_id, session):
         return [7]
 
-    async def fake_get_replaceable_built_index(**kwargs):
-        return SimpleNamespace(id=77)
-
     async def fake_get_corpus_index_by_name(name, session):
         return None
 
+    async def fake_get_corpus_index_by_vector_namespace(**kwargs):
+        return None
+
+    async def fake_get_replaceable_built_index(**kwargs):
+        raise AssertionError("same-configuration indices should not be treated as replacements")
+
     async def fake_has_non_terminal(index_id, session):
-        return True
+        raise AssertionError("simulation guards should not run for parallel index creation")
+
+    async def fake_has_knowledge_graphs(index_id, session):
+        raise AssertionError("knowledge graph guards should not run for parallel index creation")
+
+    async def fake_create_indexing_job(job_in, session):
+        return _job(
+            corpus_id=job_in.corpus_id,
+            chunking_profile_id=job_in.chunking_profile_id,
+            vector_store_id=job_in.vector_store_id,
+            embedding_model=job_in.embedding_model,
+            requested_index_name=job_in.requested_index_name,
+            requested_vector_namespace=job_in.requested_vector_namespace,
+        )
+
+    async def fake_update_progress(job, session, **kwargs):
+        for key, value in kwargs.items():
+            setattr(job, key, value)
+        return job
 
     monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
     monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
     monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
     monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
     monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_vector_namespace", fake_get_corpus_index_by_vector_namespace)
     monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_replaceable_built_index", fake_get_replaceable_built_index)
     monkeypatch.setattr(indexing_jobs_service, "_has_non_terminal_simulations_for_index", fake_has_non_terminal)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "has_knowledge_graphs", fake_has_knowledge_graphs)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "create_indexing_job", fake_create_indexing_job)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "update_indexing_job_progress", fake_update_progress)
 
-    with pytest.raises(ValueError, match="Cannot replace corpus index while simulations are still using it"):
+    queued = await indexing_jobs_service.queue_indexing_job_srvc(
+        IndexingJobCreate(
+            corpus_id=1,
+            chunking_profile_id=2,
+            vector_store_id=3,
+            embedding_model="mini-l6-v2",
+            requested_index_name="policy-index-v2",
+        ),
+        object(),
+    )
+
+    assert queued.id == 9
+    assert queued.requested_index_name == "policy-index-v2"
+    assert queued.total_documents == 1
+
+
+@pytest.mark.asyncio
+async def test_queue_job_rejects_duplicate_index_name(monkeypatch):
+    async def fake_get_corpus_by_id(corpus_id, session):
+        return SimpleNamespace(id=corpus_id)
+
+    async def fake_get_profile(profile_id, session):
+        return SimpleNamespace(id=profile_id, strategy="recursive", config={"chunk_size": 100, "chunk_overlap": 10})
+
+    async def fake_get_store(store_id, session):
+        return SimpleNamespace(id=store_id, embedding_dimensions=384)
+
+    async def fake_get_corpus_raw_document_ids(corpus_id, session):
+        return [7]
+
+    async def fake_get_corpus_index_by_name(name, session):
+        return SimpleNamespace(id=77)
+
+    async def fake_create_indexing_job(job_in, session):
+        raise AssertionError("duplicate index names should fail before job creation")
+
+    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "create_indexing_job", fake_create_indexing_job)
+
+    with pytest.raises(ValueError, match="Corpus index name already exists"):
         await indexing_jobs_service.queue_indexing_job_srvc(
             IndexingJobCreate(
                 corpus_id=1,
@@ -82,16 +150,12 @@ async def test_queue_job_rejects_when_non_terminal_simulation_uses_replaceable_i
 
 
 @pytest.mark.asyncio
-async def test_queue_job_rejects_when_knowledge_graph_uses_replaceable_index(monkeypatch):
+async def test_queue_job_rejects_duplicate_vector_namespace(monkeypatch):
     async def fake_get_corpus_by_id(corpus_id, session):
         return SimpleNamespace(id=corpus_id)
 
     async def fake_get_profile(profile_id, session):
-        return SimpleNamespace(
-            id=profile_id,
-            strategy="recursive",
-            config={"chunk_size": 100, "chunk_overlap": 10},
-        )
+        return SimpleNamespace(id=profile_id, strategy="recursive", config={"chunk_size": 100, "chunk_overlap": 10})
 
     async def fake_get_store(store_id, session):
         return SimpleNamespace(id=store_id, embedding_dimensions=384)
@@ -99,38 +163,58 @@ async def test_queue_job_rejects_when_knowledge_graph_uses_replaceable_index(mon
     async def fake_get_corpus_raw_document_ids(corpus_id, session):
         return [7]
 
-    async def fake_get_replaceable_built_index(**kwargs):
-        return SimpleNamespace(id=77)
-
     async def fake_get_corpus_index_by_name(name, session):
         return None
 
-    async def fake_has_non_terminal(index_id, session):
-        return False
+    async def fake_get_corpus_index_by_vector_namespace(**kwargs):
+        return SimpleNamespace(id=77, vector_store_id=kwargs["vector_store_id"])
 
-    async def fake_has_knowledge_graphs(index_id, session):
-        return True
+    async def fake_create_indexing_job(job_in, session):
+        raise AssertionError("duplicate vector namespaces should fail before job creation")
 
     monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
     monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
     monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
     monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
     monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_replaceable_built_index", fake_get_replaceable_built_index)
-    monkeypatch.setattr(indexing_jobs_service, "_has_non_terminal_simulations_for_index", fake_has_non_terminal)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "has_knowledge_graphs", fake_has_knowledge_graphs)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_vector_namespace", fake_get_corpus_index_by_vector_namespace)
+    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "create_indexing_job", fake_create_indexing_job)
 
-    with pytest.raises(ValueError, match="Cannot replace corpus index used by a knowledge graph"):
+    with pytest.raises(ValueError, match="Vector namespace already exists for this vector store"):
         await indexing_jobs_service.queue_indexing_job_srvc(
             IndexingJobCreate(
                 corpus_id=1,
                 chunking_profile_id=2,
                 vector_store_id=3,
                 embedding_model="mini-l6-v2",
-                requested_index_name="policy-index",
+                requested_index_name="policy-index-v2",
+                requested_vector_namespace="shared-namespace",
             ),
             object(),
         )
+
+
+@pytest.mark.asyncio
+async def test_activate_candidate_index_does_not_infer_replacement(monkeypatch):
+    job = _job(requested_index_name="policy-index-v2")
+    candidate_index = SimpleNamespace(id=88, status="built")
+
+    async def fake_get_replaceable_built_index(**kwargs):
+        raise AssertionError("activation should not look up same-configuration replacement targets")
+
+    async def fake_activate_candidate_index(**kwargs):
+        assert "replaced_index" not in kwargs
+        kwargs["candidate_index"].name = kwargs["requested_name"]
+        return kwargs["candidate_index"], None
+
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_replaceable_built_index", fake_get_replaceable_built_index)
+    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "activate_candidate_index", fake_activate_candidate_index)
+
+    result = await indexing_jobs_service._activate_candidate_index(job, candidate_index, object())
+
+    assert result.candidate_corpus_index_id == 88
+    assert result.replaced_corpus_index_id is None
+    assert candidate_index.name == "policy-index-v2"
 
 
 @pytest.mark.asyncio

@@ -207,7 +207,7 @@ export function IndexingPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Index name" hint="This must stay unique unless it belongs to the same replacement configuration tuple.">
+          <Field label="Index name" hint="This must be unique. Use a different name to create another index for the same corpus.">
             <Input value={indexName} onChange={(event) => setIndexName(event.target.value)} disabled={formDisabled} />
           </Field>
           <Field label="Vector namespace" hint="Optional. Leave blank to let the backend generate a namespace automatically.">
@@ -459,7 +459,7 @@ function getCurrentActivityMessage(detail: {
     return "All documents ingested. Embedding chunks now.";
   }
   if (detail.stage === "finalizing") {
-    return "Activating the candidate index and cleaning up replaced artifacts.";
+    return "Activating the candidate index.";
   }
   if (detail.current_document_name) {
     return detail.current_document_name;

@@ -117,6 +117,21 @@ async def get_corpus_index_by_name(
     return result.first()
 
 
+async def get_corpus_index_by_vector_namespace(
+    *,
+    vector_store_id: int,
+    vector_namespace: str,
+    session: AsyncSession,
+) -> CorpusIndex | None:
+    result = await session.exec(
+        select(CorpusIndex).where(
+            CorpusIndex.vector_store_id == vector_store_id,
+            CorpusIndex.vector_namespace == vector_namespace,
+        )
+    )
+    return result.first()
+
+
 async def get_replaceable_built_index(
     *,
     corpus_id: int,

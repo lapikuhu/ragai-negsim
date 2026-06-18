@@ -84,7 +84,7 @@ def _vector_namespace(corpus_index_id: int, requested_namespace: str | None) -> 
             The determined vector namespace.
     """
     if requested_namespace is not None and requested_namespace.strip():
-        return requested_namespace
+        return requested_namespace.strip()
     return f"corpus-index-{corpus_index_id}"
 
 
@@ -265,7 +265,7 @@ async def _ensure_index_name_is_available_for_request(
             job_in: The indexing job creation data.
             session: The database session.
         Raises:
-            ValueError: If the index name is already in use for a different configuration.
+            ValueError: If the index name is already in use.
     """
     existing_index = await corpus_indices_repo.get_corpus_index_by_name(
         job_in.requested_index_name,
@@ -274,16 +274,26 @@ async def _ensure_index_name_is_available_for_request(
     if existing_index is None:
         return
 
-    same_configuration = (
-        existing_index.corpus_id == job_in.corpus_id
-        and existing_index.chunking_profile_id == job_in.chunking_profile_id
-        and existing_index.vector_store_id == job_in.vector_store_id
-        and existing_index.embedding_model == job_in.embedding_model
-    )
-    if same_configuration:
+    raise ValueError("Corpus index name already exists")
+
+
+async def _ensure_vector_namespace_is_available_for_request(
+    job_in: IndexingJobCreate,
+    session: AsyncSession,
+) -> None:
+    vector_namespace = job_in.requested_vector_namespace
+    if vector_namespace is None or not vector_namespace.strip():
         return
 
-    raise ValueError("Corpus index name already exists for a different configuration")
+    existing_index = await corpus_indices_repo.get_corpus_index_by_vector_namespace(
+        vector_store_id=job_in.vector_store_id,
+        vector_namespace=vector_namespace.strip(),
+        session=session,
+    )
+    if existing_index is None:
+        return
+
+    raise ValueError("Vector namespace already exists for this vector store")
 
 
 async def _has_non_terminal_simulations_for_index(index_id: int, session: AsyncSession) -> bool:
@@ -325,24 +335,7 @@ async def queue_indexing_job_srvc(
     await _ensure_corpus_has_raw_documents(job_in.corpus_id, session)
     get_embedding_model_info(job_in.embedding_model)
     await _ensure_index_name_is_available_for_request(job_in, session)
-
-    replaceable_index = await corpus_indices_repo.get_replaceable_built_index(
-        corpus_id=job_in.corpus_id,
-        chunking_profile_id=job_in.chunking_profile_id,
-        vector_store_id=job_in.vector_store_id,
-        embedding_model=job_in.embedding_model,
-        session=session,
-    )
-    if replaceable_index is not None and await _has_non_terminal_simulations_for_index(
-        replaceable_index.id,
-        session,
-    ):
-        raise ValueError("Cannot replace corpus index while simulations are still using it")
-    if replaceable_index is not None and await corpus_indices_repo.has_knowledge_graphs(
-        replaceable_index.id,
-        session,
-    ):
-        raise ValueError("Cannot replace corpus index used by a knowledge graph")
+    await _ensure_vector_namespace_is_available_for_request(job_in, session)
 
     raw_document_ids = await corpus_repo.get_corpus_raw_document_ids(job_in.corpus_id, session)
     job = await indexing_jobs_repo.create_indexing_job(job_in, session)
@@ -696,25 +689,9 @@ async def _activate_candidate_index(
             An ActivationResult object containing the IDs of the activated 
             and replaced corpus indices.
     """
-    replaced_index = await corpus_indices_repo.get_replaceable_built_index(
-        corpus_id=job.corpus_id,
-        chunking_profile_id=job.chunking_profile_id,
-        vector_store_id=job.vector_store_id,
-        embedding_model=job.embedding_model,
-        session=session,
-    )
-    if replaced_index is not None and replaced_index.id == candidate_index.id:
-        replaced_index = None
-    if replaced_index is not None and await corpus_indices_repo.has_knowledge_graphs(
-        replaced_index.id,
-        session,
-    ):
-        raise ValueError("Cannot replace corpus index used by a knowledge graph")
-
     candidate_index, replaced_index = await corpus_indices_repo.activate_candidate_index(
         candidate_index=candidate_index,
         requested_name=job.requested_index_name,
-        replaced_index=replaced_index,
         session=session,
     )
     return ActivationResult(
