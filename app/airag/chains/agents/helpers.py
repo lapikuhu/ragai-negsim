@@ -4,6 +4,9 @@ from langchain_core.messages import BaseMessage
 
 ### ------------------ GENERIC HELPERS FOR AGENTS ------------------ ###
 
+CUSTOM_PROMPT_EXTENSION_HEADER = "CUSTOM PROMPT EXTENSION"
+
+
 def json_dumps(value: Any) -> str:
 	"""
 	Serialize prompt values compactly while tolerating LangChain objects.
@@ -60,6 +63,45 @@ def append_missing_context_sections(
 	if not appended:
 		return prompt
 	return "\n\n".join([prompt, *appended])
+
+
+def render_prompt_template(template: str, replacements: dict[str, Any]) -> str:
+	"""
+	Render a prompt template by replacing known placeholders.
+	Args:
+		template: The prompt template to render.
+		replacements: Placeholder-to-value mappings.
+	Returns:
+		The rendered prompt template.
+	"""
+	prompt = template
+	for placeholder, value in replacements.items():
+		prompt = prompt.replace(placeholder, str(value))
+	return prompt
+
+
+def append_custom_prompt_extension(
+	prompt: str,
+	prompt_template: str | None,
+	replacements: dict[str, Any],
+) -> str:
+	"""
+	Append a rendered custom registry prompt without replacing the base prompt.
+	Args:
+		prompt: The rendered built-in prompt.
+		prompt_template: Optional custom extension template.
+		replacements: Placeholder-to-value mappings.
+	Returns:
+		The prompt with the custom extension appended, if present.
+	"""
+	if not prompt_template or not prompt_template.strip():
+		return prompt
+
+	extension = render_prompt_template(prompt_template, replacements).strip()
+	if not extension:
+		return prompt
+
+	return "\n\n".join([prompt, CUSTOM_PROMPT_EXTENSION_HEADER, extension])
 
 
 def format_messages(messages: list[Any] | None) -> str:

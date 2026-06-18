@@ -3,8 +3,10 @@ from typing import Any
 from app.airag.chains.agents.coach.coach_model import CoachGraphState
 from app.airag.chains.agents.helpers import (
 	append_missing_context_sections,
+	append_custom_prompt_extension,
 	format_messages,
 	json_dumps,
+	render_prompt_template,
 )
 from app.airag.chains.crag.helpers import format_trusted_context_sections
 from app.airag.chains.negotiation.negotiation_model import CoachAdvice
@@ -22,8 +24,7 @@ def render_coach_prompt(
 	Args: 
 		state: The current state of the coach graph, containing various 
 			context fields.
-		prompt_template: Optional custom prompt template to use instead 
-			of the default.
+		prompt_template: Optional custom prompt extension template.
 	Returns:
 	A string containing the rendered prompt ready for coach generation.
 	"""
@@ -38,12 +39,9 @@ def render_coach_prompt(
 		"{offer_history}": json_dumps(state.get("offer_history", [])),
 		"{retrieval_context}": state.get("retrieval_context", ""),
 	}
-	# Check how the template is structured, perhaps use a combination?
-	template = prompt_template or COACH_PROMPT
-	prompt = template
-	for placeholder, value in replacements.items():
-		prompt = prompt.replace(placeholder, str(value))
-	return append_missing_context_sections(
+	template = COACH_PROMPT
+	prompt = render_prompt_template(template, replacements)
+	prompt = append_missing_context_sections(
 		prompt,
 		template,
 		[
@@ -55,6 +53,7 @@ def render_coach_prompt(
 			),
 		],
 	)
+	return append_custom_prompt_extension(prompt, prompt_template, replacements)
 
 
 def get_student_private_context(state: CoachGraphState) -> dict[str, Any]:

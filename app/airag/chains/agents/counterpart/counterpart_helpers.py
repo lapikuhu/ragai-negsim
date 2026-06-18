@@ -2,8 +2,10 @@ from typing import Any
 #local imports
 from app.airag.chains.agents.helpers import (
 	append_missing_context_sections,
+	append_custom_prompt_extension,
 	format_messages,
 	json_dumps,
+	render_prompt_template,
 )
 from app.airag.chains.negotiation.negotiation_model import (
     Side,
@@ -81,8 +83,7 @@ def render_counterpart_prompt(
 	"""Render counterpart_prompt.md with the current graph state.
 	Args:
 		state: The current graph state containing negotiation context.
-		prompt_template: Optional custom prompt template to use instead 
-			of the default.
+		prompt_template: Optional custom prompt extension template.
 	Returns:
 		A string with the prompt ready to be sent to the LLM.
 	"""
@@ -101,11 +102,9 @@ def render_counterpart_prompt(
 		"{offer_history}": json_dumps(state.get("offer_history", [])),
 	}
 
-	template = prompt_template or COUNTERPART_PROMPT
-	prompt = template
-	for placeholder, value in replacements.items():
-		prompt = prompt.replace(placeholder, str(value))
-	return append_missing_context_sections(
+	template = COUNTERPART_PROMPT
+	prompt = render_prompt_template(template, replacements)
+	prompt = append_missing_context_sections(
 		prompt,
 		template,
 		# Build the prompt with the allowed public and private context sections,
@@ -117,6 +116,7 @@ def render_counterpart_prompt(
 			("{counterpart_persona}", "YOUR PERSONA", get_counterpart_persona(state)),
 		],
 	)
+	return append_custom_prompt_extension(prompt, prompt_template, replacements)
 
 
 def coerce_counterpart_response(result: Any) -> dict[str, Any]:

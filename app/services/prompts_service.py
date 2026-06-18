@@ -56,19 +56,24 @@ async def _ensure_owner_exists(
 async def create_prompt_srvc(
     prompt_data: PromptCreate,
     session: AsyncSession,
-    _current_user: User,
+    current_user: User,
 ) -> PromptRead:
     """
     Create a new prompt.
     Args:
         prompt_data (PromptCreate): The data for the new prompt.
         session (AsyncSession): The database session to use for the operation.
-        _current_user (User): The current user creating the prompt.
+        current_user (User): The current user creating the prompt.
     Returns:
         PromptRead: The created prompt.
     """
-    await _ensure_owner_exists(prompt_data.owner_id, session)
-    prompt = await prompts_repo.create_prompt(prompt_data, session)
+    owned_prompt_data = PromptCreate(
+        **{
+            **prompt_data.model_dump(),
+            "owner_id": current_user.id,
+        }
+    )
+    prompt = await prompts_repo.create_prompt(owned_prompt_data, session)
     return _read_prompt(prompt)
 
 

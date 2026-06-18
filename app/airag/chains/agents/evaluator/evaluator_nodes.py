@@ -155,7 +155,7 @@ def make_generate_evaluator_response_node(
 
 		final_mode = state.get("evaluation_mode") == "final"
 		prompt = (
-			render_final_evaluator_prompt(state)
+			render_final_evaluator_prompt(state, prompt_template)
 			if final_mode
 			else render_evaluator_prompt(state, prompt_template)
 		)
@@ -221,7 +221,7 @@ def make_repair_evaluator_response_node(
 				"Repair the evaluator response so it satisfies the required schema.",
 				"Return only the structured output. Do not add markdown or commentary.",
 				f"Validation or generation error:\n{state.get('evaluator_validation_error', '')}",
-				f"Original evaluator prompt:\n{state.get('evaluator_prompt') or (render_final_evaluator_prompt(state) if final_mode else render_evaluator_prompt(state, prompt_template))}",
+				f"Original evaluator prompt:\n{state.get('evaluator_prompt') or (render_final_evaluator_prompt(state, prompt_template) if final_mode else render_evaluator_prompt(state, prompt_template))}",
 			]
 		)
 

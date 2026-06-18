@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useCreatePromptMutation, usePromptsQuery, useUpdatePromptMutation } from "@/features/prompts/promptQueries";
 import type { PromptRead } from "@/api/types";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { parseJsonInput, stringifyJson } from "@/utils/format";
 
+const PROMPT_TEMPLATE_KEYS = ["template", "prompt", "content", "system", "coach", "counterpart", "evaluator"];
+const PROMPT_TEMPLATE_EXAMPLE = `{
+  "template": "Add stricter negotiation coaching around {messages}."
+}`;
+
 export function PromptsPage() {
   const query = usePromptsQuery();
   const createMutation = useCreatePromptMutation();
@@ -17,10 +22,10 @@ export function PromptsPage() {
     name: "",
     description: "",
     messages: "{}",
-    ownerId: "",
     isSystem: false
   });
   const [editId, setEditId] = useState<number | null>(null);
+  const [createMessagesError, setCreateMessagesError] = useState<string | null>(null);
 
   if (query.isLoading) {
     return <LoadingState label="Loading prompts..." />;
@@ -40,14 +45,21 @@ export function PromptsPage() {
           className="mt-4 grid gap-3"
           onSubmit={async (event) => {
             event.preventDefault();
+            setCreateMessagesError(null);
+            let messages: Record<string, unknown>;
+            try {
+              messages = parseJsonInput<Record<string, unknown>>(createForm.messages, {});
+            } catch {
+              setCreateMessagesError("Prompt Template JSON must be valid JSON.");
+              return;
+            }
             await createMutation.mutateAsync({
               name: createForm.name,
               description: createForm.description || null,
-              messages: parseJsonInput(createForm.messages, {}),
-              owner_id: createForm.ownerId ? Number(createForm.ownerId) : null,
+              messages,
               is_system: createForm.isSystem
             });
-            setCreateForm({ name: "", description: "", messages: "{}", ownerId: "", isSystem: false });
+            setCreateForm({ name: "", description: "", messages: "{}", isSystem: false });
           }}
         >
           <Field label="Name">
@@ -62,18 +74,16 @@ export function PromptsPage() {
               onChange={(event) => setCreateForm((current) => ({ ...current, description: event.target.value }))}
             />
           </Field>
-          <Field label="Messages JSON">
+          <PromptTemplateJsonField error={createMessagesError}>
             <Textarea
+              aria-label="Prompt Template JSON"
               value={createForm.messages}
-              onChange={(event) => setCreateForm((current) => ({ ...current, messages: event.target.value }))}
+              onChange={(event) => {
+                setCreateMessagesError(null);
+                setCreateForm((current) => ({ ...current, messages: event.target.value }));
+              }}
             />
-          </Field>
-          <Field label="Owner ID">
-            <Input
-              value={createForm.ownerId}
-              onChange={(event) => setCreateForm((current) => ({ ...current, ownerId: event.target.value }))}
-            />
-          </Field>
+          </PromptTemplateJsonField>
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -116,8 +126,8 @@ function PromptCard({
   const [name, setName] = useState(prompt.name);
   const [description, setDescription] = useState(prompt.description ?? "");
   const [messages, setMessages] = useState(stringifyJson(prompt.messages));
-  const [ownerId, setOwnerId] = useState(prompt.owner_id ? String(prompt.owner_id) : "");
   const [isSystem, setIsSystem] = useState(prompt.is_system);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
 
   return (
     <Card>
@@ -126,11 +136,18 @@ function PromptCard({
           className="grid gap-3"
           onSubmit={async (event) => {
             event.preventDefault();
+            setMessagesError(null);
+            let parsedMessages: Record<string, unknown>;
+            try {
+              parsedMessages = parseJsonInput<Record<string, unknown>>(messages, {});
+            } catch {
+              setMessagesError("Prompt Template JSON must be valid JSON.");
+              return;
+            }
             await updateMutation.mutateAsync({
               name,
               description,
-              messages: parseJsonInput(messages, {}),
-              owner_id: ownerId ? Number(ownerId) : null,
+              messages: parsedMessages,
               is_system: isSystem
             });
             onEdit(null);
@@ -142,12 +159,16 @@ function PromptCard({
           <Field label="Description">
             <Textarea value={description} onChange={(event) => setDescription(event.target.value)} />
           </Field>
-          <Field label="Messages JSON">
-            <Textarea value={messages} onChange={(event) => setMessages(event.target.value)} />
-          </Field>
-          <Field label="Owner ID">
-            <Input value={ownerId} onChange={(event) => setOwnerId(event.target.value)} />
-          </Field>
+          <PromptTemplateJsonField error={messagesError}>
+            <Textarea
+              aria-label="Prompt Template JSON"
+              value={messages}
+              onChange={(event) => {
+                setMessagesError(null);
+                setMessages(event.target.value);
+              }}
+            />
+          </PromptTemplateJsonField>
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" checked={isSystem} onChange={(event) => setIsSystem(event.target.checked)} />
             System prompt
@@ -176,5 +197,26 @@ function PromptCard({
         </div>
       )}
     </Card>
+  );
+}
+
+function PromptTemplateJsonField({
+  children,
+  error
+}: {
+  children: ReactNode;
+  error?: string | null;
+}) {
+  return (
+    <Field label="Prompt Template JSON">
+      <div className="grid gap-2">
+        <pre className="overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs text-slate-700">
+          {PROMPT_TEMPLATE_EXAMPLE}
+        </pre>
+        <p className="text-xs text-slate-500">Accepted keys: {PROMPT_TEMPLATE_KEYS.join(", ")}.</p>
+        {children}
+        {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      </div>
+    </Field>
   );
 }

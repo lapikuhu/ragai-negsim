@@ -9,9 +9,11 @@ from app.airag.chains.agents.evaluator.evaluator_model import (
 )
 from app.airag.chains.agents.helpers import (
 	append_missing_context_sections,
+	append_custom_prompt_extension,
 	flatten_message_metadata,
 	format_messages,
 	json_dumps,
+	render_prompt_template,
 )
 from app.airag.chains.crag.helpers import format_trusted_context_sections
 from app.airag.chains.negotiation.negotiation_model import (
@@ -19,7 +21,10 @@ from app.airag.chains.negotiation.negotiation_model import (
 	Side,
 	SideProfile,
 )
-from app.airag.prompts.neg_prompts.md_loader import EVALUATOR_PROMPT
+from app.airag.prompts.neg_prompts.md_loader import (
+    EVALUATOR_FINAL_MODE_PROMPT,
+    EVALUATOR_PROMPT,
+)
 
 
 PROXY_EVALUATION_GUIDANCE = [
@@ -280,7 +285,7 @@ def render_evaluator_prompt(
 	Args:
 		state: The current evaluator graph state containing negotiation 
 			context.
-		prompt_template: Optional custom prompt template for the evaluator.
+		prompt_template: Optional custom prompt extension template for the evaluator.
 	Returns:
 		A string representing the rendered evaluator prompt.
 	"""
@@ -301,10 +306,8 @@ def render_evaluator_prompt(
 		"{counterpart_response}": get_latest_counterpart_response(state),
 	}
 
-	template = prompt_template or EVALUATOR_PROMPT
-	prompt = template
-	for placeholder, value in replacements.items():
-		prompt = prompt.replace(placeholder, str(value))
+	template = EVALUATOR_PROMPT
+	prompt = render_prompt_template(template, replacements)
 	prompt = append_missing_context_sections(
 		prompt,
 		template,
@@ -322,72 +325,76 @@ def render_evaluator_prompt(
 			),
 		],
 	)
+	prompt = append_custom_prompt_extension(prompt, prompt_template, replacements)
 	return append_proxy_guidance(prompt, template, state.get("messages", []))
 
 
-def render_final_evaluator_prompt(state: EvaluatorGraphState) -> str:
+def render_final_evaluator_prompt(
+	state: EvaluatorGraphState,
+	prompt_template: str | None = None,
+) -> str:
 	"""
-	Render a dedicated final evaluator prompt using the full transcript.
+	Render the final evaluator prompt using the full transcript.
 	Args:
 		state: The current evaluator graph state containing negotiation 
 			context.
+		prompt_template: Optional custom prompt extension template for the final
+			evaluator.
 	Returns:
 		A string representing the rendered final evaluator prompt.
 	"""
-	return "\n".join(
+	replacements = {
+		"{user_side}": state.get("user_side", ""),
+		"{side_a_profile}": json_dumps(state.get("side_a", {})),
+		"{side_b_profile}": json_dumps(state.get("side_b", {})),
+		"{public_context}": json_dumps(state.get("scenario_public_context", {})),
+		"{side_a_private_context}": json_dumps(state.get("side_a_private_context", {})),
+		"{side_b_private_context}": json_dumps(state.get("side_b_private_context", {})),
+		"{phase}": state.get("phase", ""),
+		"{messages}": format_messages(state.get("messages", [])),
+		"{current_offer}": json_dumps(state.get("current_offer", {})),
+		"{offer_history}": json_dumps(state.get("offer_history", [])),
+		"{rolling_evaluation}": json_dumps(state.get("evaluation", {})),
+		"{coach_advice}": json_dumps(state.get("coach_advice", {})),
+		"{retrieval_context}": state.get("retrieval_context", ""),
+	}
+
+	template = EVALUATOR_FINAL_MODE_PROMPT
+	prompt = render_prompt_template(template, replacements)
+	prompt = append_missing_context_sections(
+		prompt,
+		template,
 		[
-			"PERSONA",
-			"You are the final evaluator for a negotiation simulation.",
-			"You assess the student's overall performance across the full negotiation.",
-			"",
-			"CONTEXT",
-			f"User side: {state.get('user_side', '')}",
-			f"Side A profile: {json_dumps(state.get('side_a', {}))}",
-			f"Side B profile: {json_dumps(state.get('side_b', {}))}",
-			f"Public context: {json_dumps(state.get('scenario_public_context', {}))}",
-			f"Side A private context: {json_dumps(state.get('side_a_private_context', {}))}",
-			f"Side B private context: {json_dumps(state.get('side_b_private_context', {}))}",
-			f"Final phase: {state.get('phase', '')}",
-			f"Conversation history: {format_messages(state.get('messages', []))}",
-			f"Current offer: {json_dumps(state.get('current_offer', {}))}",
-			f"Offer history: {json_dumps(state.get('offer_history', []))}",
-			f"Rolling evaluation: {json_dumps(state.get('evaluation', {}))}",
-			f"Latest coach advice: {json_dumps(state.get('coach_advice', {}))}",
-			f"Grounding context: {state.get('retrieval_context', '')}",
-			"",
-			*PROXY_EVALUATION_GUIDANCE,
-			"Proxy authorship summary:",
-			json_dumps(summarize_proxy_authorship(state.get("messages", []))),
-			"If every student-side turn was proxy-authored, set \"overall_score\" to 0.0.",
-			"You should still evaluate the proxy's tactics and their effect on the negotiation in the narrative fields.",
-			"",
-			"TASK",
-			"Assess the student's overall performance over the whole negotiation.",
-			"Work with the available information and state unknowns explicitly.",
-			"Because the simulation has ended, the final debrief may explicitly compare the student's decisions with either side's private targets, reservation points, BATNAs, and constraints.",
-			"",
-			"FORMAT",
-			"{",
-			'  "overall_score": 0.0,',
-			'  "goal_achievement": "...",',
-			'  "strengths": ["..."],',
-			'  "mistakes": ["..."],',
-			'  "concession_quality": "...",',
-			'  "communication_quality": "...",',
-			'  "outcome_quality": "...",',
-			'  "proxy_usage_assessment": {',
-			'    "student_authored_turns": 0,',
-			'    "proxy_authored_turns": 0,',
-			'    "proxy_extent": "none | limited | extensive",',
-			'    "impact_on_student_score": "..."',
-			"  },",
-			'  "lessons": ["..."],',
-			'  "reasoning": "...",',
-			'  "confidence": "low | medium | high",',
-			'  "missing_information": ["..."]',
-			"}",
-		]
+			("{public_context}", "PUBLIC CONTEXT", state.get("scenario_public_context", {})),
+			(
+				"{side_a_private_context}",
+				"SIDE A PRIVATE CONTEXT",
+				state.get("side_a_private_context", {}),
+			),
+			(
+				"{side_b_private_context}",
+				"SIDE B PRIVATE CONTEXT",
+				state.get("side_b_private_context", {}),
+			),
+			(
+				"{rolling_evaluation}",
+				"ROLLING EVALUATION",
+				state.get("evaluation", {}),
+			),
+		],
 	)
+	prompt = append_custom_prompt_extension(prompt, prompt_template, replacements)
+	prompt = append_proxy_guidance(prompt, template, state.get("messages", []))
+	if 'If every student-side turn was proxy-authored, set "overall_score" to 0.0.' not in template:
+		prompt = "\n".join(
+			[
+				prompt,
+				"",
+				'If every student-side turn was proxy-authored, set "overall_score" to 0.0.',
+				"You should still evaluate the proxy's tactics and their effect on the negotiation in the narrative fields.",
+			]
+		)
+	return prompt
 
 
 def coerce_evaluator_response(result: Any, final_mode: bool = False) -> dict[str, Any]:

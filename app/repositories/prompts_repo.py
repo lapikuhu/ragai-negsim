@@ -13,6 +13,17 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
+PROMPT_TEMPLATE_KEYS = (
+    "template",
+    "prompt",
+    "content",
+    "system",
+    "coach",
+    "counterpart",
+    "evaluator",
+)
+
+
 def ensure_prompt_messages_dict(messages: dict[str, Any] | None) -> None:
     """
     Ensure that the prompt messages are a dictionary if they are provided.
@@ -25,6 +36,42 @@ def ensure_prompt_messages_dict(messages: dict[str, Any] | None) -> None:
     """
     if messages is not None and not isinstance(messages, dict):
         raise ValueError("Prompt messages must be a dictionary")
+
+
+def extract_prompt_template(messages: dict[str, Any] | None) -> str | None:
+    """
+    Extract the first recognized non-empty prompt template string.
+        Args:
+            messages: The prompt messages object.
+        Returns:
+            The template string if found, otherwise None.
+    """
+    if not isinstance(messages, dict):
+        return None
+
+    for key in PROMPT_TEMPLATE_KEYS:
+        value = messages.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def validate_prompt_messages(messages: dict[str, Any] | None) -> None:
+    """
+    Validate prompt messages for custom prompt registry records.
+        Args:
+            messages: The prompt messages to validate.
+        Raises:
+            ValueError: If messages are not a dict or do not contain a
+                recognized non-empty template string.
+    """
+    ensure_prompt_messages_dict(messages)
+    if extract_prompt_template(messages) is None:
+        keys = ", ".join(PROMPT_TEMPLATE_KEYS)
+        raise ValueError(
+            "Prompt messages must include a non-empty template string under "
+            f"one of: {keys}"
+        )
 
 
 async def get_prompt_by_id(
@@ -132,7 +179,7 @@ async def create_prompt(
             invalid.
     """
     await ensure_prompt_name_available(prompt_in.name, session)
-    ensure_prompt_messages_dict(prompt_in.messages)
+    validate_prompt_messages(prompt_in.messages)
     prompt = Prompt(**prompt_in.model_dump())
     return await commit_and_refresh(session, prompt)
 
@@ -155,7 +202,7 @@ async def create_owned_prompt(
             ValueError: If the prompt name already exists or messages are invalid.
     """
     await ensure_prompt_name_available(prompt_in.name, session)
-    ensure_prompt_messages_dict(prompt_in.messages)
+    validate_prompt_messages(prompt_in.messages)
     prompt_data = prompt_in.model_dump()
     prompt_data["owner_id"] = owner_id
     prompt_data["is_system"] = False
@@ -225,7 +272,7 @@ async def _apply_prompt_update(
         await ensure_prompt_name_available(update_data["name"], session, prompt.id)
 
     if "messages" in update_data:
-        ensure_prompt_messages_dict(update_data["messages"])
+        validate_prompt_messages(update_data["messages"])
 
     for field_name, value in update_data.items():
         setattr(prompt, field_name, value)

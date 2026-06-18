@@ -26,6 +26,19 @@ class _DummyStructuredModel:
         return prompt
 
 
+class _CapturingStructuredModel:
+    def __init__(self, response):
+        self.response = response
+        self.prompts = []
+
+    def with_structured_output(self, *args, **kwargs):
+        return self
+
+    def invoke(self, prompt):
+        self.prompts.append(prompt)
+        return self.response
+
+
 def test_public_invoke_wrappers_are_traceable():
     assert hasattr(negotiation.invoke_negotiation_turn, "__wrapped__")
     assert hasattr(coach.invoke_coach_advice, "__wrapped__")
@@ -109,3 +122,43 @@ def test_agent_model_and_subgraph_nodes_are_traceable():
         ),
         "__wrapped__",
     )
+
+
+def test_final_evaluator_nodes_use_custom_prompt_template():
+    state = {
+        "evaluation_mode": "final",
+        "messages": [{"role": "user", "content": "Student turn"}],
+        "evaluator_validation_error": "schema mismatch",
+    }
+    response = {
+        "overall_score": 0.8,
+        "goal_achievement": "Met the main negotiation goal.",
+        "strengths": ["Clear framing"],
+        "mistakes": ["Missed one tradeoff"],
+        "concession_quality": "Measured and intentional.",
+        "communication_quality": "Direct and credible.",
+        "outcome_quality": "Strong overall outcome.",
+        "proxy_usage_assessment": {
+            "student_authored_turns": 1,
+            "proxy_authored_turns": 0,
+            "proxy_extent": "none",
+            "impact_on_student_score": "No proxy use detected.",
+        },
+        "lessons": ["Keep probing for non-price terms."],
+        "reasoning": "Final review.",
+        "confidence": "medium",
+        "missing_information": [],
+    }
+    model = _CapturingStructuredModel(response)
+    prompt_template = "Custom final template\n{messages}"
+
+    evaluator_nodes.make_generate_evaluator_response_node(
+        model,
+        prompt_template=prompt_template,
+    )(state)
+    evaluator_nodes.make_repair_evaluator_response_node(
+        model,
+        prompt_template=prompt_template,
+    )(state)
+
+    assert any("Custom final template" in prompt for prompt in model.prompts)

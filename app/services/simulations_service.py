@@ -547,12 +547,16 @@ def _prompt_template(prompt: Any, prompt_role: str) -> str:
     """
     messages = getattr(prompt, "messages", None)
     if isinstance(messages, dict):
-        for key in ("template", "prompt", "content", "system", prompt_role):
+        prompt_keys = (
+            prompt_role,
+            *[
+                key
+                for key in prompts_repo.PROMPT_TEMPLATE_KEYS
+                if key != prompt_role
+            ],
+        )
+        for key in prompt_keys:
             value = messages.get(key)
-            if isinstance(value, str) and value.strip():
-                return value
-        if len(messages) == 1:
-            value = next(iter(messages.values()))
             if isinstance(value, str) and value.strip():
                 return value
 

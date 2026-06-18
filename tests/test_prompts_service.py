@@ -7,6 +7,7 @@ from app.schemas.prompts_schemas import (
     PromptClone,
     PromptCreate,
 )
+from app.repositories import prompts_repo
 from app.services import prompts_service
 
 
@@ -32,13 +33,27 @@ def _prompt(
     )
 
 
-@pytest.mark.asyncio
-async def test_create_prompt_validates_owner_and_converts(monkeypatch):
-    captured = []
+def test_validate_prompt_messages_accepts_template_key():
+    prompts_repo.validate_prompt_messages({"template": "Add a custom instruction."})
 
-    async def fake_get_user_by_id(user_id, session):
-        assert user_id == 7
-        return _user(7)
+
+@pytest.mark.parametrize(
+    "messages",
+    [
+        {},
+        {"template": ""},
+        {"template": 123},
+        {"unknown": "Add a custom instruction."},
+    ],
+)
+def test_validate_prompt_messages_rejects_missing_template(messages):
+    with pytest.raises(ValueError, match="non-empty template string"):
+        prompts_repo.validate_prompt_messages(messages)
+
+
+@pytest.mark.asyncio
+async def test_create_prompt_stamps_current_user_owner_and_converts(monkeypatch):
+    captured = []
 
     async def fake_create_prompt(prompt_in, session):
         captured.append(prompt_in)
@@ -51,7 +66,6 @@ async def test_create_prompt_validates_owner_and_converts(monkeypatch):
             is_system=prompt_in.is_system,
         )
 
-    monkeypatch.setattr(prompts_service.users_repo, "get_user_by_id", fake_get_user_by_id)
     monkeypatch.setattr(prompts_service.prompts_repo, "create_prompt", fake_create_prompt)
 
     result = await prompts_service.create_prompt_srvc(
@@ -67,32 +81,46 @@ async def test_create_prompt_validates_owner_and_converts(monkeypatch):
     )
 
     assert result.id == 12
-    assert result.owner_id == 7
+    assert result.owner_id == 1
     assert result.is_system is True
     assert captured == [
         PromptCreate(
             name="Coach prompt",
             description="Negotiation coach",
             messages={"system": "Coach the student."},
-            owner_id=7,
+            owner_id=1,
             is_system=True,
         )
     ]
 
 
 @pytest.mark.asyncio
-async def test_create_prompt_requires_existing_owner(monkeypatch):
-    async def fake_get_user_by_id(user_id, session):
-        return None
+async def test_create_prompt_ignores_caller_supplied_owner(monkeypatch):
+    captured = []
 
-    monkeypatch.setattr(prompts_service.users_repo, "get_user_by_id", fake_get_user_by_id)
-
-    with pytest.raises(ValueError, match="User not found"):
-        await prompts_service.create_prompt_srvc(
-            PromptCreate(name="Missing owner", owner_id=99),
-            object(),
-            _user(1),
+    async def fake_create_prompt(prompt_in, session):
+        captured.append(prompt_in)
+        return _prompt(
+            prompt_id=13,
+            name=prompt_in.name,
+            messages=prompt_in.messages,
+            owner_id=prompt_in.owner_id,
         )
+
+    monkeypatch.setattr(prompts_service.prompts_repo, "create_prompt", fake_create_prompt)
+
+    result = await prompts_service.create_prompt_srvc(
+        PromptCreate(
+            name="Owned prompt",
+            messages={"template": "Use this custom extension."},
+            owner_id=99,
+        ),
+        object(),
+        _user(4),
+    )
+
+    assert result.owner_id == 4
+    assert captured[0].owner_id == 4
 
 
 @pytest.mark.asyncio

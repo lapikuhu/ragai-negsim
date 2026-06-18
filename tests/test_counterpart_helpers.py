@@ -99,9 +99,11 @@ def test_render_counterpart_prompt_appends_public_context_to_legacy_custom_templ
         prompt_template="Reply as the counterpart.",
     )
 
-    assert "PUBLIC CONTEXT" in rendered
     assert '"name": "Hotel late checkout"' in rendered
     assert '"description": "The guest wants a free late checkout."' in rendered
+    assert "You are the negotiating counterpart in a simulated negotiation." in rendered
+    assert "CUSTOM PROMPT EXTENSION" in rendered
+    assert "Reply as the counterpart." in rendered
 
 
 def test_counterpart_fallback_advances_scenario_instead_of_repeated_clarification():
