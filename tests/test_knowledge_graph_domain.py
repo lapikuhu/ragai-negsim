@@ -10,13 +10,14 @@ from app.schemas.knowledge_graph_indices_schemas import (
     normalize_knowledge_graph_build_config,
 )
 from app.repositories import knowledge_graph_indices_repo
+from app.services.llm_models_service import get_default_openai_chat_model
 
 
 def test_normalize_graph_config_defaults_to_openai_and_requires_extractor():
     normalized = normalize_knowledge_graph_build_config({})
 
     assert normalized["llm_provider"] == "openai"
-    assert normalized["llm_model"] == "gpt-4o-mini"
+    assert normalized["llm_model"] == get_default_openai_chat_model()
     assert normalized["embedding_provider"] == "openai"
     assert normalized["embedding_model"] == "text-embedding-3-small"
     assert normalized["extractors"] == ["schema"]
@@ -38,6 +39,33 @@ def test_graph_create_rejects_duplicate_extractors_and_unknown_provider():
             name="Negotiation graph",
             corpus_index_id=7,
             build_config={"llm_provider": "other"},
+        )
+
+
+def test_graph_create_infers_embedding_provider_from_model():
+    created = KnowledgeGraphIndexCreate(
+        name="Negotiation graph",
+        corpus_index_id=7,
+        build_config={
+            "embedding_provider": "openai",
+            "embedding_model": "mini-l6-v2",
+            "extractors": ["schema"],
+        },
+    )
+
+    assert created.build_config["embedding_model"] == "mini-l6-v2"
+    assert created.build_config["embedding_provider"] == "huggingface"
+
+
+def test_graph_create_rejects_unsupported_embedding_model():
+    with pytest.raises(ValueError, match="Unsupported model name"):
+        KnowledgeGraphIndexCreate(
+            name="Negotiation graph",
+            corpus_index_id=7,
+            build_config={
+                "embedding_model": "nomic-embed-text",
+                "extractors": ["schema"],
+            },
         )
 
 

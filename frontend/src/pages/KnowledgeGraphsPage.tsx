@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -8,18 +8,29 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { getErrorMessage } from "@/api/client";
+import type { EmbeddingModelRead, LLMModelCatalogResponse, LLMProvider } from "@/api/types";
 import { formatDateTime } from "@/utils/format";
-import { useCorpusIndicesQuery } from "@/features/corpusIndices/corpusIndexQueries";
+import { useCorpusIndicesQuery, useEmbeddingModelsQuery } from "@/features/corpusIndices/corpusIndexQueries";
 import {
   useBuildKnowledgeGraphMutation,
   useCreateKnowledgeGraphMutation,
   useDeleteKnowledgeGraphMutation,
   useKnowledgeGraphsQuery,
 } from "@/features/knowledgeGraphs/knowledgeGraphQueries";
+import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
 
 const semanticExtractors = ["schema", "simple"] as const;
 type SemanticExtractor = (typeof semanticExtractors)[number];
 type GraphExtractor = SemanticExtractor | "implicit";
+type GraphForm = {
+  name: string;
+  corpusIndexId: string;
+  llmProvider: LLMProvider;
+  llmModel: string;
+  embeddingModel: string;
+  semanticExtractor: SemanticExtractor;
+  includeImplicit: boolean;
+};
 
 const semanticExtractorCopy: Record<
   SemanticExtractor,
@@ -40,30 +51,65 @@ const semanticExtractorCopy: Record<
 export function KnowledgeGraphsPage() {
   const graphs = useKnowledgeGraphsQuery();
   const indices = useCorpusIndicesQuery();
+  const llmCatalog = useLlmModelCatalogQuery();
+  const embeddingModels = useEmbeddingModelsQuery();
   const createMutation = useCreateKnowledgeGraphMutation();
   const buildMutation = useBuildKnowledgeGraphMutation();
   const deleteMutation = useDeleteKnowledgeGraphMutation();
   const [message, setMessage] = useState<string | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<GraphForm>({
     name: "",
     corpusIndexId: "",
     llmProvider: "openai",
     llmModel: "gpt-4o-mini",
-    embeddingProvider: "openai",
     embeddingModel: "text-embedding-3-small",
     semanticExtractor: "schema" as SemanticExtractor,
     includeImplicit: true,
   });
 
-  if (graphs.isLoading) {
+  useEffect(() => {
+    const models = llmCatalog.data?.providers.find((provider) => provider.provider === form.llmProvider)?.models ?? [];
+    const defaultModel = models[0]?.name;
+    if (defaultModel && !models.some((model) => model.name === form.llmModel)) {
+      setForm((current) => ({ ...current, llmModel: defaultModel }));
+    }
+  }, [form.llmModel, form.llmProvider, llmCatalog.data]);
+
+  useEffect(() => {
+    const models = embeddingModels.data ?? [];
+    if (models.length && !models.some((model) => model.name === form.embeddingModel)) {
+      setForm((current) => ({ ...current, embeddingModel: models[0].name }));
+    }
+  }, [embeddingModels.data, form.embeddingModel]);
+
+  if (graphs.isLoading || indices.isLoading || llmCatalog.isLoading || embeddingModels.isLoading) {
     return <LoadingState label="Loading knowledge graphs..." />;
   }
-  if (graphs.isError) {
-    return <ErrorState message={graphs.error.message} onRetry={() => graphs.refetch()} />;
+  if (graphs.isError || indices.isError || llmCatalog.isError || embeddingModels.isError) {
+    return (
+      <ErrorState
+        message={
+          graphs.error?.message ??
+          indices.error?.message ??
+          llmCatalog.error?.message ??
+          embeddingModels.error?.message ??
+          "Unable to load knowledge graphs."
+        }
+        onRetry={() => {
+          void graphs.refetch();
+          void indices.refetch();
+          void llmCatalog.refetch();
+          void embeddingModels.refetch();
+        }}
+      />
+    );
   }
 
   const items = graphs.data ?? [];
   const builtIndices = (indices.data ?? []).filter((index) => index.status === "built");
+  const providerCatalog = llmCatalog.data?.providers.find((provider) => provider.provider === form.llmProvider);
+  const extractionModels = providerCatalog?.models ?? [];
+  const selectedEmbeddingModel = (embeddingModels.data ?? []).find((model) => model.name === form.embeddingModel) ?? null;
   const selectedExtractors: GraphExtractor[] = form.includeImplicit
     ? [form.semanticExtractor, "implicit"]
     : [form.semanticExtractor];
@@ -86,9 +132,8 @@ export function KnowledgeGraphsPage() {
                 name: form.name.trim(),
                 corpus_index_id: Number(form.corpusIndexId),
                 build_config: {
-                  llm_provider: form.llmProvider as "openai" | "ollama",
+                  llm_provider: form.llmProvider,
                   llm_model: form.llmModel.trim(),
-                  embedding_provider: form.embeddingProvider as "openai" | "ollama",
                   embedding_model: form.embeddingModel.trim(),
                   extractors: selectedExtractors,
                   strict_schema: true,
@@ -126,30 +171,50 @@ export function KnowledgeGraphsPage() {
           <Field label="Extraction provider">
             <Select
               value={form.llmProvider}
-              onChange={(event) => setForm({ ...form, llmProvider: event.target.value })}
+              onChange={(event) => {
+                const provider = event.target.value as LLMProvider;
+                setForm({
+                  ...form,
+                  llmProvider: provider,
+                  llmModel: getDefaultCatalogModel(llmCatalog.data, provider) ?? "",
+                });
+              }}
             >
               <option value="openai">OpenAI</option>
               <option value="ollama">Ollama</option>
             </Select>
           </Field>
           <Field label="Extraction model">
-            <Input value={form.llmModel} onChange={(event) => setForm({ ...form, llmModel: event.target.value })} required />
-          </Field>
-          <Field label="Embedding provider">
             <Select
-              value={form.embeddingProvider}
-              onChange={(event) => setForm({ ...form, embeddingProvider: event.target.value })}
+              value={form.llmModel}
+              disabled={!extractionModels.length}
+              onChange={(event) => setForm({ ...form, llmModel: event.target.value })}
+              required
             >
-              <option value="openai">OpenAI</option>
-              <option value="ollama">Ollama</option>
+              <option value="">{extractionModels.length ? "Select model" : "No models available"}</option>
+              {extractionModels.map((model) => (
+                <option key={model.name} value={model.name}>
+                  {model.name}{form.llmProvider === "ollama" && typeof model.size_gib === "number" ? ` (${model.size_gib} GiB)` : ""}
+                </option>
+              ))}
             </Select>
+            {form.llmProvider === "ollama" && providerCatalog?.error ? (
+              <span className="text-xs text-amber-700">{providerCatalog.error}</span>
+            ) : null}
           </Field>
-          <Field label="Embedding model">
-            <Input
+          <Field label="Embedding model" hint={selectedEmbeddingModel ? `Dimensions: ${selectedEmbeddingModel.dimensionality}` : undefined}>
+            <Select
               value={form.embeddingModel}
               onChange={(event) => setForm({ ...form, embeddingModel: event.target.value })}
               required
-            />
+            >
+              <option value="">Select model</option>
+              {(embeddingModels.data ?? []).map((model) => (
+                <option key={model.name} value={model.name}>
+                  {model.display_name}
+                </option>
+              ))}
+            </Select>
           </Field>
           <fieldset className="md:col-span-2">
             <legend className="text-sm font-medium text-slate-700">Semantic extraction</legend>
@@ -250,7 +315,7 @@ export function KnowledgeGraphsPage() {
                   render: (graph) => (
                     <div className="text-xs text-slate-600">
                       <div>{graph.build_config.llm_provider}: {graph.build_config.llm_model}</div>
-                      <div>{graph.build_config.embedding_provider}: {graph.build_config.embedding_model}</div>
+                      <div>{getEmbeddingProviderLabel(graph.build_config.embedding_provider ?? getEmbeddingProviderForModel(embeddingModels.data ?? [], graph.build_config.embedding_model))}: {graph.build_config.embedding_model}</div>
                     </div>
                   ),
                 },
@@ -307,4 +372,28 @@ export function KnowledgeGraphsPage() {
       </Card>
     </div>
   );
+}
+
+function getDefaultCatalogModel(catalog: LLMModelCatalogResponse | undefined, provider: LLMProvider) {
+  return catalog?.providers.find((entry) => entry.provider === provider)?.models[0]?.name ?? null;
+}
+
+function getEmbeddingProviderForModel(models: EmbeddingModelRead[], modelName: string) {
+  return models.find((model) => model.name === modelName)?.provider ?? null;
+}
+
+function getEmbeddingProviderLabel(provider: string | null | undefined) {
+  if (!provider) {
+    return "embedding";
+  }
+  if (provider === "openai") {
+    return "OpenAI";
+  }
+  if (provider === "huggingface") {
+    return "HuggingFace";
+  }
+  if (provider === "ollama") {
+    return "Ollama";
+  }
+  return provider;
 }

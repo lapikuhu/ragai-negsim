@@ -4,7 +4,13 @@ from typing import Any
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
+from app.airag.embeddings.embeddings import get_embedding_model_info
+from app.services.llm_models_service import (
+    get_default_openai_chat_model,
+    normalize_llm_selection,
+)
 
+# Consider moving to config
 GRAPH_EXTRACTORS = {"simple", "implicit", "schema"}
 GRAPH_PROVIDERS = {"openai", "ollama"}
 SEMANTIC_GRAPH_EXTRACTORS = {"simple", "schema"}
@@ -47,31 +53,55 @@ def normalize_knowledge_graph_build_config(
     require_supported_combination: bool = False,
 ) -> dict[str, Any]:
     values = dict(config or {})
-    llm_provider = values.get("llm_provider", "openai")
-    embedding_provider = values.get("embedding_provider", "openai")
-    if llm_provider not in GRAPH_PROVIDERS:
-        raise ValueError(f"Unsupported LLM provider: {llm_provider}")
-    if embedding_provider not in GRAPH_PROVIDERS:
-        raise ValueError(f"Unsupported embedding provider: {embedding_provider}")
+    if require_supported_combination:
+        llm_selection = normalize_llm_selection(
+            values.get("llm_provider"),
+            values.get("llm_model"),
+        )
+        llm_provider = llm_selection["provider"]
+        llm_model = llm_selection["model"]
+    else:
+        llm_provider = str(values.get("llm_provider", "openai")).strip().lower()
+        if llm_provider not in GRAPH_PROVIDERS:
+            raise ValueError(f"Unsupported LLM provider: {llm_provider}")
+        llm_model = str(
+            values.get(
+                "llm_model",
+                get_default_openai_chat_model()
+                if llm_provider == "openai"
+                else "llama3.1",
+            )
+        ).strip()
 
     extractors = _normalize_graph_extractors(
         list(values.get("extractors", ["schema"])),
         require_supported_combination=require_supported_combination,
     )
 
+    embedding_model = str(
+        values.get("embedding_model", "text-embedding-3-small")
+    ).strip()
+    if require_supported_combination:
+        embedding_model_info = get_embedding_model_info(embedding_model)
+        embedding_provider = embedding_model_info["provider"]
+    else:
+        try:
+            embedding_model_info = get_embedding_model_info(embedding_model)
+            embedding_provider = embedding_model_info["provider"]
+        except ValueError:
+            embedding_provider = str(
+                values.get("embedding_provider", "openai")
+            ).strip().lower()
+            if embedding_provider not in GRAPH_PROVIDERS:
+                raise ValueError(
+                    f"Unsupported embedding provider: {embedding_provider}"
+                )
+
     normalized = {
         "llm_provider": llm_provider,
-        "llm_model": values.get(
-            "llm_model",
-            "gpt-4o-mini" if llm_provider == "openai" else "llama3.1",
-        ),
+        "llm_model": llm_model,
         "embedding_provider": embedding_provider,
-        "embedding_model": values.get(
-            "embedding_model",
-            "text-embedding-3-small"
-            if embedding_provider == "openai"
-            else "nomic-embed-text",
-        ),
+        "embedding_model": embedding_model,
         "extractors": extractors,
         "strict_schema": bool(values.get("strict_schema", True)),
         "max_paths_per_chunk": int(values.get("max_paths_per_chunk", 10)),

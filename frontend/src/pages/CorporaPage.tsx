@@ -49,7 +49,7 @@ export function CorporaPage() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Corpora and RAG" description="Corpora, indices, vector stores, and chunking profiles grounded in the existing API." />
+      <PageHeader title="Corpora" description="Corpora grounded in the existing API." />
 
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">Create corpus</h2>

@@ -2,19 +2,42 @@ from collections import defaultdict
 from typing import Any, Sequence
 
 from llama_index.core import PropertyGraphIndex
+from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.indices.property_graph import (
     ImplicitPathExtractor,
     SchemaLLMPathExtractor,
     SimpleLLMPathExtractor,
 )
 from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
+from pydantic import PrivateAttr
 
+from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.knowledge_graph.val_schema import (
     ENTITIES,
     RELATIONS,
     VALIDATION_SCHEMA,
 )
 from app.core.config import settings
+
+
+class LangChainEmbeddingAdapter(BaseEmbedding):
+    _embedding_model: Any = PrivateAttr()
+
+    def __init__(self, embedding_model: Any, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._embedding_model = embedding_model
+
+    def _get_query_embedding(self, query: str) -> list[float]:
+        return self._embedding_model.embed_query(query)
+
+    async def _aget_query_embedding(self, query: str) -> list[float]:
+        return self._get_query_embedding(query)
+
+    def _get_text_embedding(self, text: str) -> list[float]:
+        return self._embedding_model.embed_documents([text])[0]
+
+    def _get_text_embeddings(self, texts: list[str]) -> list[list[float]]:
+        return self._embedding_model.embed_documents(texts)
 
 
 def create_graph_llm(config: dict[str, Any]):
@@ -65,17 +88,14 @@ def create_graph_embedding_model(config: dict[str, Any]):
         ValueError: If the embedding provider is unsupported or if required
         API keys are not configured.
     """
-    provider = config["embedding_provider"]
     model = config["embedding_model"]
-    if provider == "openai":
-        from llama_index.embeddings.openai import OpenAIEmbedding
+    try:
+        embedding_model, _metadata = choose_embedding_model(model)
+        return LangChainEmbeddingAdapter(embedding_model)
+    except ValueError:
+        pass
 
-        if not settings.OPENAI_API_KEY:
-            raise ValueError("OpenAI API key is not configured")
-        return OpenAIEmbedding(
-            model=model,
-            api_key=settings.OPENAI_API_KEY,
-        )
+    provider = config.get("embedding_provider")
     if provider == "ollama":
         from llama_index.embeddings.ollama import OllamaEmbedding
 
@@ -83,7 +103,7 @@ def create_graph_embedding_model(config: dict[str, Any]):
             model_name=model,
             base_url=config.get("ollama_base_url", "http://localhost:11434"),
         )
-    raise ValueError(f"Unsupported embedding provider: {provider}")
+    raise ValueError(f"Unsupported embedding model: {model}")
 
 
 def create_kg_extractors(

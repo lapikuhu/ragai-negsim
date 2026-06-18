@@ -153,9 +153,9 @@ export type RagProfileCopy = {
 };
 
 export type KnowledgeGraphBuildConfig = {
-  llm_provider: "openai" | "ollama";
+  llm_provider: LLMProvider;
   llm_model: string;
-  embedding_provider: "openai" | "ollama";
+  embedding_provider?: string;
   embedding_model: string;
   extractors: Array<"simple" | "implicit" | "schema">;
   strict_schema?: boolean;
