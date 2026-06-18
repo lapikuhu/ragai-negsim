@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     ALGORITHM: str
     OPENAI_API_KEY: str
     OPENAI_CHAT_MODELS: list[str] = ["gpt-4o-mini"]
+    OPEN_AI_DEFAULT_MODEL: str = "gpt-4o-mini"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_DEFAULT_MODEL: str = "qwen2.5:1.5b-instruct"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
     FIXED_ROLES: list[str] = ["admin", "student", "teacher"]
     RAW_DOCS_DIR: str = "app/raw_docs_store"

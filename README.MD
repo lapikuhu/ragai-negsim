@@ -338,3 +338,4 @@ You should browse to the frontend URL, not the backend URL, for normal UI work.
 - Refactor god files
 - For completeness implement the BM25 retriever, even though it is not appropriate for the nature of the project.
 - Decouple chunking from indexing, keep complete pipeline as a feature
+- Implement HippoRAG2 knowledge graphs

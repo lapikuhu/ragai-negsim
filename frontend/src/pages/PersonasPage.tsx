@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import { useCreatePersonaMutation, usePersonasQuery, useUpdatePersonaMutation } from "@/features/counterpartPersonas/personaQueries";
 import type { CounterpartPersonaRead } from "@/api/types";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -9,6 +11,24 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { formatDateTime } from "@/utils/format";
+
+const personaMarkdownComponents: Components = {
+  h1: ({ children }) => <h4 className="mb-1 mt-0 text-sm font-semibold text-slate-950">{children}</h4>,
+  h2: ({ children }) => <h4 className="mb-1 mt-0 text-sm font-semibold text-slate-950">{children}</h4>,
+  h3: ({ children }) => <h4 className="mb-1 mt-0 text-sm font-semibold text-slate-950">{children}</h4>,
+  p: ({ children }) => <p className="my-1">{children}</p>,
+  ul: ({ children }) => <ul className="my-1 list-disc space-y-0.5 pl-5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-1 list-decimal space-y-0.5 pl-5">{children}</ol>,
+  li: ({ children }) => <li>{children}</li>,
+  a: ({ children, href }) => (
+    <a className="font-medium text-sky-700 underline" href={href} rel="noreferrer" target="_blank">
+      {children}
+    </a>
+  ),
+  code: ({ children }) => <code className="rounded bg-slate-200 px-1 py-0.5 text-xs text-slate-800">{children}</code>,
+  pre: ({ children }) => <pre className="my-2 overflow-x-auto rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-100">{children}</pre>,
+  blockquote: ({ children }) => <blockquote className="my-2 border-l-2 border-slate-300 pl-3 text-slate-600">{children}</blockquote>
+};
 
 export function PersonasPage() {
   const query = usePersonasQuery();
@@ -113,9 +133,9 @@ function PersonaCard({
         </form>
       ) : (
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold text-slate-950">{persona.name}</h3>
-            <p className="mt-1 text-sm text-slate-600">{persona.description ?? "No description"}</p>
+            <PersonaDescriptionPreview value={persona.description} />
             <p className="mt-2 text-xs text-slate-500">Updated {formatDateTime(persona.last_updated)}</p>
           </div>
           <Button type="button" variant="secondary" onClick={() => onEdit(persona.id)}>
@@ -124,5 +144,64 @@ function PersonaCard({
         </div>
       )}
     </Card>
+  );
+}
+
+function PersonaDescriptionPreview({ value }: { value?: string | null }) {
+  const content = value?.trim() || "No description";
+  const hasDescription = Boolean(value?.trim());
+  const [expanded, setExpanded] = useState(false);
+  const [measuredOverflow, setMeasuredOverflow] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const sourceSuggestsOverflow = content.split(/\r?\n/).length > 7 || content.length > 360;
+  const canExpand = hasDescription && (sourceSuggestsOverflow || measuredOverflow);
+  const isPreviewed = hasDescription && !expanded;
+  const isCollapsed = canExpand && !expanded;
+
+  useEffect(() => {
+    setMeasuredOverflow(false);
+  }, [content]);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !hasDescription || expanded) {
+      return;
+    }
+
+    const measureOverflow = () => {
+      setMeasuredOverflow(preview.scrollHeight > preview.clientHeight + 1);
+    };
+
+    measureOverflow();
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measureOverflow);
+    resizeObserver?.observe(preview);
+    return () => resizeObserver?.disconnect();
+  }, [content, hasDescription, expanded]);
+
+  return (
+    <div className="mt-2">
+      <div className="relative rounded-xl bg-slate-100 px-3 py-3">
+        <div
+          ref={previewRef}
+          data-testid="persona-description-preview"
+          className={[
+            "max-w-none text-sm leading-6 text-slate-700",
+            isPreviewed ? "max-h-[10.5rem] overflow-hidden" : ""
+          ].join(" ")}
+        >
+          <ReactMarkdown components={personaMarkdownComponents}>{content}</ReactMarkdown>
+        </div>
+        {isCollapsed ? (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-end bg-gradient-to-t from-slate-100 via-slate-100/95 to-transparent pt-8 text-sm font-semibold text-slate-500">
+            ...
+          </div>
+        ) : null}
+      </div>
+      {canExpand ? (
+        <Button type="button" variant="secondary" className="mt-2" onClick={() => setExpanded((current) => !current)}>
+          {expanded ? "Show less" : "Show more"}
+        </Button>
+      ) : null}
+    </div>
   );
 }
