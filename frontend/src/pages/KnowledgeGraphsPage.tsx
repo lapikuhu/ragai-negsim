@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { getErrorMessage } from "@/api/client";
-import type { EmbeddingModelRead, LLMModelCatalogResponse, LLMProvider } from "@/api/types";
+import type { EmbeddingModelRead, LLMProvider } from "@/api/types";
+import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { formatDateTime } from "@/utils/format";
 import { useCorpusIndicesQuery, useEmbeddingModelsQuery } from "@/features/corpusIndices/corpusIndexQueries";
 import {
@@ -107,8 +108,6 @@ export function KnowledgeGraphsPage() {
 
   const items = graphs.data ?? [];
   const builtIndices = (indices.data ?? []).filter((index) => index.status === "built");
-  const providerCatalog = llmCatalog.data?.providers.find((provider) => provider.provider === form.llmProvider);
-  const extractionModels = providerCatalog?.models ?? [];
   const selectedEmbeddingModel = (embeddingModels.data ?? []).find((model) => model.name === form.embeddingModel) ?? null;
   const selectedExtractors: GraphExtractor[] = form.includeImplicit
     ? [form.semanticExtractor, "implicit"]
@@ -168,40 +167,16 @@ export function KnowledgeGraphsPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Extraction provider">
-            <Select
-              value={form.llmProvider}
-              onChange={(event) => {
-                const provider = event.target.value as LLMProvider;
-                setForm({
-                  ...form,
-                  llmProvider: provider,
-                  llmModel: getDefaultCatalogModel(llmCatalog.data, provider) ?? "",
-                });
-              }}
-            >
-              <option value="openai">OpenAI</option>
-              <option value="ollama">Ollama</option>
-            </Select>
-          </Field>
-          <Field label="Extraction model">
-            <Select
-              value={form.llmModel}
-              disabled={!extractionModels.length}
-              onChange={(event) => setForm({ ...form, llmModel: event.target.value })}
-              required
-            >
-              <option value="">{extractionModels.length ? "Select model" : "No models available"}</option>
-              {extractionModels.map((model) => (
-                <option key={model.name} value={model.name}>
-                  {model.name}{form.llmProvider === "ollama" && typeof model.size_gib === "number" ? ` (${model.size_gib} GiB)` : ""}
-                </option>
-              ))}
-            </Select>
-            {form.llmProvider === "ollama" && providerCatalog?.error ? (
-              <span className="text-xs text-amber-700">{providerCatalog.error}</span>
-            ) : null}
-          </Field>
+          <LlmModelSelector
+            label="Extraction provider"
+            modelLabel="Extraction model"
+            catalog={llmCatalog.data}
+            selection={{ provider: form.llmProvider, model: form.llmModel }}
+            onChange={(selection) => setForm({ ...form, llmProvider: selection.provider, llmModel: selection.model })}
+            metadataMode="error-only"
+            variant="plain"
+            className="md:col-span-2 md:grid-cols-2"
+          />
           <Field label="Embedding model" hint={selectedEmbeddingModel ? `Dimensions: ${selectedEmbeddingModel.dimensionality}` : undefined}>
             <Select
               value={form.embeddingModel}
@@ -372,10 +347,6 @@ export function KnowledgeGraphsPage() {
       </Card>
     </div>
   );
-}
-
-function getDefaultCatalogModel(catalog: LLMModelCatalogResponse | undefined, provider: LLMProvider) {
-  return catalog?.providers.find((entry) => entry.provider === provider)?.models[0]?.name ?? null;
 }
 
 function getEmbeddingProviderForModel(models: EmbeddingModelRead[], modelName: string) {

@@ -25,6 +25,7 @@ import { DataTable } from "@/components/common/DataTable";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { formatDateTime } from "@/utils/format";
 import { useKnowledgeGraphsQuery } from "@/features/knowledgeGraphs/knowledgeGraphQueries";
 import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
@@ -102,10 +103,13 @@ export function RagProfilesPage() {
     if (!defaultModel) {
       return;
     }
-    setCreateForm((current) => ({
-      ...current,
-      llmComponents: buildLlmComponentValues(current.llmComponents, defaultModel),
-    }));
+    setCreateForm((current) => {
+      const llmComponents = buildLlmComponentValues(current.llmComponents, defaultModel);
+      if (areLlmComponentValuesEqual(current.llmComponents, llmComponents)) {
+        return current;
+      }
+      return { ...current, llmComponents };
+    });
   }, [llmCatalogQuery.data]);
 
   if (query.isLoading || definitionsQuery.isLoading || knowledgeGraphsQuery.isLoading || llmCatalogQuery.isLoading) {
@@ -726,66 +730,19 @@ function LlmComponentsFields({
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {RAG_LLM_COMPONENTS.map((component) => (
-          <LlmComponentSelector
+          <LlmModelSelector
             key={component.key}
             label={component.label}
+            modelLabel={`${component.label} model`}
             catalog={catalog}
             selection={values[component.key] ?? { provider: "openai", model: getDefaultCatalogModel(catalog, "openai") ?? "" }}
             disabled={disabled}
             onChange={(selection) => onChange(component.key, selection)}
+            metadataMode="error-only"
+            variant="plain"
           />
         ))}
       </div>
-    </div>
-  );
-}
-
-function LlmComponentSelector({
-  label,
-  catalog,
-  selection,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  catalog?: LLMModelCatalogResponse;
-  selection: LLMSelection;
-  onChange: (selection: LLMSelection) => void;
-  disabled: boolean;
-}) {
-  const providerCatalog = catalog?.providers.find((provider) => provider.provider === selection.provider);
-  const models = providerCatalog?.models ?? [];
-
-  return (
-    <div className="grid gap-2">
-      <Field label={label}>
-        <Select
-          value={selection.provider}
-          disabled={disabled}
-          onChange={(event) => {
-            const provider = event.target.value as LLMProvider;
-            onChange({ provider, model: getDefaultCatalogModel(catalog, provider) ?? "" });
-          }}
-        >
-          <option value="openai">OpenAI</option>
-          <option value="ollama">Ollama</option>
-        </Select>
-      </Field>
-      <Select
-        value={selection.model}
-        disabled={disabled || !models.length}
-        onChange={(event) => onChange({ ...selection, model: event.target.value })}
-      >
-        <option value="">{models.length ? "Select model" : "No models available"}</option>
-        {models.map((model) => (
-          <option key={model.name} value={model.name}>
-            {model.name}{selection.provider === "ollama" && typeof model.size_gib === "number" ? ` (${model.size_gib} GiB)` : ""}
-          </option>
-        ))}
-      </Select>
-      {selection.provider === "ollama" && providerCatalog?.error ? (
-        <span className="text-xs text-amber-700">{providerCatalog.error}</span>
-      ) : null}
     </div>
   );
 }
@@ -823,6 +780,17 @@ function buildLlmComponentValues(raw?: unknown, defaultModel = ""): Record<strin
   ) as Record<string, LLMSelection>;
 }
 
+function areLlmComponentValuesEqual(
+  left: Record<string, LLMSelection>,
+  right: Record<string, LLMSelection>,
+) {
+  return RAG_LLM_COMPONENTS.every((component) => {
+    const leftSelection = left[component.key];
+    const rightSelection = right[component.key];
+    return leftSelection?.provider === rightSelection?.provider && leftSelection?.model === rightSelection?.model;
+  });
+}
+
 function packProfileConfig(
   definition: RagProfileDefinitionRead,
   fieldValues: Record<string, string>,
@@ -842,10 +810,6 @@ function packProfileConfig(
       RAG_LLM_COMPONENTS.map((component) => [component.key, llmComponents[component.key]]),
     ),
   };
-}
-
-function getDefaultCatalogModel(catalog: LLMModelCatalogResponse | undefined, provider: LLMProvider) {
-  return catalog?.providers.find((entry) => entry.provider === provider)?.models[0]?.name ?? null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

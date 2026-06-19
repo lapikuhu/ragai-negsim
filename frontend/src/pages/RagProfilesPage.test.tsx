@@ -72,6 +72,21 @@ vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
   }),
 }));
 
+vi.mock("@/features/llmModels/llmModelQueries", () => ({
+  useLlmModelCatalogQuery: () => ({
+    isLoading: false,
+    isError: false,
+    data: {
+      providers: [
+        { provider: "openai", models: [{ name: "gpt-4o-mini" }] },
+        { provider: "ollama", models: [{ name: "qwen2.5:3b", size_gib: 2.2 }] },
+      ],
+      gpu_memory_gib: 8,
+    },
+    refetch: vi.fn(),
+  }),
+}));
+
 describe("RagProfilesPage", () => {
   it("renders both available strategies in the create selector", () => {
     render(<RagProfilesPage />);

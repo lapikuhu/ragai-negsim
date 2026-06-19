@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type {
   CounterpartPersonaRead,
-  LLMModelCatalogResponse,
-  LLMProvider,
   LLMSelection,
   SimulationReadWithState,
   SimulationTokenUsage,
@@ -26,7 +24,8 @@ import { SimulationInspector } from "@/features/simulations/SimulationInspector"
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { Field, Input } from "@/components/ui/Field";
+import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { usePersonasQuery } from "@/features/counterpartPersonas/personaQueries";
 import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
 
@@ -298,63 +297,4 @@ export function SimulationCockpitPage() {
       </div>
     </div>
   );
-}
-
-function LlmModelSelector({
-  label,
-  catalog,
-  selection,
-  onChange,
-  disabled = false,
-}: {
-  label: string;
-  catalog?: LLMModelCatalogResponse;
-  selection: LLMSelection;
-  onChange: (selection: LLMSelection) => void;
-  disabled?: boolean;
-}) {
-  const providerCatalog = catalog?.providers.find((provider) => provider.provider === selection.provider);
-  const models = providerCatalog?.models ?? [];
-
-  return (
-    <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <Field label={label}>
-        <Select
-          value={selection.provider}
-          disabled={disabled}
-          onChange={(event) => {
-            const provider = event.target.value as LLMProvider;
-            onChange({ provider, model: getDefaultCatalogModel(catalog, provider) ?? "" });
-          }}
-        >
-          <option value="openai">OpenAI</option>
-          <option value="ollama">Ollama</option>
-        </Select>
-      </Field>
-      <Field label="Model">
-        <Select
-          value={selection.model}
-          disabled={disabled || !models.length}
-          onChange={(event) => onChange({ ...selection, model: event.target.value })}
-        >
-          <option value="">{models.length ? "Select model" : "No models available"}</option>
-          {models.map((model) => (
-            <option key={model.name} value={model.name}>
-              {model.name}{selection.provider === "ollama" && typeof model.size_gib === "number" ? ` (${model.size_gib} GiB)` : ""}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      {selection.provider === "ollama" ? (
-        <p className="text-xs text-slate-500">
-          GPU memory: {typeof catalog?.gpu_memory_gib === "number" ? `${catalog.gpu_memory_gib} GiB` : "unknown"}
-          {providerCatalog?.error ? `; ${providerCatalog.error}` : ""}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function getDefaultCatalogModel(catalog: LLMModelCatalogResponse | undefined, provider: LLMProvider) {
-  return catalog?.providers.find((entry) => entry.provider === provider)?.models[0]?.name ?? null;
 }

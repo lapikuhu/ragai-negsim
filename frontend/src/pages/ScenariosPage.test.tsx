@@ -1,10 +1,30 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as scenarioQueries from "@/features/scenarios/scenarioQueries";
 
 import { ScenariosPage } from "./ScenariosPage";
+
+vi.mock("@/features/llmModels/llmModelQueries", () => ({
+  useLlmModelCatalogQuery: () => ({
+    isLoading: false,
+    isError: false,
+    data: {
+      providers: [
+        { provider: "openai", models: [{ name: "gpt-4o-mini" }, { name: "gpt-4o" }] },
+        {
+          provider: "ollama",
+          models: [{ name: "qwen2.5:3b", size_gib: 2.2 }],
+          error: "Warmup required",
+        },
+      ],
+      gpu_memory_gib: 8,
+    },
+    refetch: vi.fn(),
+  }),
+}));
 
 function renderPage() {
   const client = new QueryClient({
@@ -28,6 +48,11 @@ describe("ScenariosPage", () => {
   });
 
   it("generates preview JSON for create flow", async () => {
+    const generateMutateAsync = vi.fn().mockResolvedValue({
+      public_context: { issue: "late checkout" },
+      side_a_private_context: { goal: "avoid fee" },
+      side_b_private_context: { goal: "protect policy" }
+    });
     vi.spyOn(scenarioQueries, "useScenariosQuery").mockReturnValue({
       isLoading: false,
       isError: false,
@@ -40,15 +65,13 @@ describe("ScenariosPage", () => {
     } as never);
     vi.spyOn(scenarioQueries, "useGenerateScenarioContextMutation").mockReturnValue({
       isPending: false,
-      mutateAsync: vi.fn().mockResolvedValue({
-        public_context: { issue: "late checkout" },
-        side_a_private_context: { goal: "avoid fee" },
-        side_b_private_context: { goal: "protect policy" }
-      })
+      mutateAsync: generateMutateAsync
     } as never);
 
     renderPage();
 
+    expect(screen.getByLabelText("Generator provider")).toHaveValue("openai");
+    expect(screen.getByLabelText("Generator model")).toHaveValue("gpt-4o-mini");
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Hotel late checkout" } });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Guest and manager discuss checkout time and fees." }
@@ -60,6 +83,38 @@ describe("ScenariosPage", () => {
       expect(screen.getByLabelText("Side A private context JSON")).toHaveValue('{\n  "goal": "avoid fee"\n}');
       expect(screen.getByRole("button", { name: "Regenerate context" })).toBeInTheDocument();
     });
+    expect(generateMutateAsync).toHaveBeenCalledWith({
+      name: "Hotel late checkout",
+      description: "Guest and manager discuss checkout time and fees.",
+      provider: "openai",
+      modelName: "gpt-4o-mini",
+    });
+  });
+
+  it("switches generator models when the provider changes", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(scenarioQueries, "useScenariosQuery").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [],
+      refetch: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useCreateScenarioMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useGenerateScenarioContextMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+
+    renderPage();
+
+    await user.selectOptions(screen.getByLabelText("Generator provider"), "ollama");
+
+    expect(screen.getByLabelText("Generator model")).toHaveValue("qwen2.5:3b");
+    expect(screen.getByRole("option", { name: "qwen2.5:3b (2.2 GiB)" })).toBeInTheDocument();
+    expect(screen.getByText("GPU memory: 8 GiB; Warmup required")).toBeInTheDocument();
   });
 
   it("keeps form input when generation fails", async () => {
@@ -150,10 +205,19 @@ describe("ScenariosPage", () => {
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await waitFor(() => {
+      const generatorModels = screen.getAllByLabelText("Generator model");
+      expect(generatorModels[generatorModels.length - 1]).toHaveValue("gpt-4o-mini");
+    });
     fireEvent.click(await screen.findByRole("button", { name: "Regenerate context" }));
 
     await waitFor(() => {
-      expect(generateMutateAsync).toHaveBeenCalled();
+      expect(generateMutateAsync).toHaveBeenCalledWith({
+        name: "Late checkout",
+        description: "Original description",
+        provider: "openai",
+        modelName: "gpt-4o-mini",
+      });
       expect(screen.getByLabelText("Public context JSON")).toHaveValue('{\n  "issue": "updated issue"\n}');
     });
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();

@@ -123,6 +123,54 @@ describe("SimulationInput", () => {
     expect(screen.getByLabelText("For the remainder of the negotiation")).not.toBeChecked();
   });
 
+  it("renders the proxy dialog outside the local app container", async () => {
+    const user = userEvent.setup();
+    const appContainer = document.createElement("div");
+    document.body.appendChild(appContainer);
+
+    render(
+      <SimulationInput
+        onSubmit={vi.fn()}
+        onProxySubmit={vi.fn()}
+        llmCatalog={llmCatalog}
+        canEvaluate={false}
+        evaluation={null}
+        isEvaluationVisible={false}
+      />,
+      { container: appContainer }
+    );
+
+    await user.click(screen.getByRole("button", { name: "Use Proxy" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Use Proxy" });
+    expect(appContainer).not.toContainElement(dialog);
+    expect(dialog.parentElement?.parentElement).toBe(document.body);
+  });
+
+  it("locks body scroll while the proxy dialog is open and restores it after close", async () => {
+    const user = userEvent.setup();
+    document.body.style.overflow = "auto";
+
+    render(
+      <SimulationInput
+        onSubmit={vi.fn()}
+        onProxySubmit={vi.fn()}
+        llmCatalog={llmCatalog}
+        canEvaluate={false}
+        evaluation={null}
+        isEvaluationVisible={false}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Use Proxy" }));
+    expect(document.body.style.overflow).toBe("hidden");
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(document.body.style.overflow).toBe("auto");
+
+    document.body.style.overflow = "";
+  });
+
   it("submits the selected proxy persona, duration, and llm selection", async () => {
     const user = userEvent.setup();
     const onProxySubmit = vi.fn().mockResolvedValue(undefined);

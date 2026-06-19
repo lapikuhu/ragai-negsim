@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getErrorMessage } from "@/api/client";
-import type { ScenarioAuthoringRead, ScenarioContextGenerateResponse, ScenarioRead } from "@/api/types";
+import type {
+  LLMModelCatalogResponse,
+  LLMSelection,
+  ScenarioAuthoringRead,
+  ScenarioContextGenerateResponse,
+  ScenarioRead
+} from "@/api/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
@@ -15,6 +21,8 @@ import {
   useScenariosQuery,
   useUpdateScenarioMutation
 } from "@/features/scenarios/scenarioQueries";
+import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
+import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { formatDateTime, parseJsonInput, stringifyJson } from "@/utils/format";
 
 type ScenarioFormState = {
@@ -23,6 +31,7 @@ type ScenarioFormState = {
   publicContext: string;
   sideAPrivateContext: string;
   sideBPrivateContext: string;
+  llmSelection: LLMSelection;
   advancedOpen: boolean;
   generatedOnce: boolean;
 };
@@ -33,6 +42,7 @@ const EMPTY_FORM: ScenarioFormState = {
   publicContext: "{}",
   sideAPrivateContext: "{}",
   sideBPrivateContext: "{}",
+  llmSelection: { provider: "openai", model: "" },
   advancedOpen: false,
   generatedOnce: false
 };
@@ -53,6 +63,7 @@ function applyGeneratedContext(
 
 export function ScenariosPage() {
   const query = useScenariosQuery();
+  const llmCatalog = useLlmModelCatalogQuery();
   const createMutation = useCreateScenarioMutation();
   const [createForm, setCreateForm] = useState<ScenarioFormState>(EMPTY_FORM);
   const [editId, setEditId] = useState<number | null>(null);
@@ -89,6 +100,9 @@ export function ScenariosPage() {
             setCreateForm(EMPTY_FORM);
           }}
           disabled={createMutation.isPending}
+          llmCatalog={llmCatalog.data}
+          llmCatalogLoading={llmCatalog.isLoading}
+          llmCatalogError={llmCatalog.isError ? "LLM catalog is unavailable." : null}
         />
       </Card>
 
@@ -197,12 +211,14 @@ function ScenarioEditorForm({
   onClose: () => void;
 }) {
   const updateMutation = useUpdateScenarioMutation(scenario.id);
+  const llmCatalog = useLlmModelCatalogQuery();
   const [form, setForm] = useState<ScenarioFormState>({
     name: scenario.name,
     description: scenario.description ?? "",
     publicContext: stringifyJson(scenario.public_context),
     sideAPrivateContext: stringifyJson(scenario.side_a_private_context),
     sideBPrivateContext: stringifyJson(scenario.side_b_private_context),
+    llmSelection: { provider: "openai", model: "" },
     advancedOpen: true,
     generatedOnce: true
   });
@@ -224,6 +240,9 @@ function ScenarioEditorForm({
       }}
       disabled={updateMutation.isPending}
       onCancel={onClose}
+      llmCatalog={llmCatalog.data}
+      llmCatalogLoading={llmCatalog.isLoading}
+      llmCatalogError={llmCatalog.isError ? "LLM catalog is unavailable." : null}
     />
   );
 }
@@ -234,7 +253,10 @@ function ScenarioForm({
   onChange,
   onSubmit,
   disabled,
-  onCancel
+  onCancel,
+  llmCatalog,
+  llmCatalogLoading,
+  llmCatalogError,
 }: {
   form: ScenarioFormState;
   submitLabel: string;
@@ -242,10 +264,29 @@ function ScenarioForm({
   onSubmit: () => Promise<void>;
   disabled: boolean;
   onCancel?: () => void;
+  llmCatalog?: LLMModelCatalogResponse;
+  llmCatalogLoading: boolean;
+  llmCatalogError?: string | null;
 }) {
   const generateMutation = useGenerateScenarioContextMutation();
   const [message, setMessage] = useState<string | null>(null);
-  const canGenerate = form.name.trim().length >= 3 && form.description.trim().length >= 10;
+  const canGenerate =
+    form.name.trim().length >= 3 &&
+    form.description.trim().length >= 10 &&
+    Boolean(form.llmSelection.model) &&
+    !llmCatalogLoading &&
+    !llmCatalogError;
+
+  useEffect(() => {
+    const defaultModel = getDefaultCatalogModel(llmCatalog, form.llmSelection.provider);
+    if (!defaultModel || form.llmSelection.model) {
+      return;
+    }
+    onChange({
+      ...form,
+      llmSelection: { ...form.llmSelection, model: defaultModel },
+    });
+  }, [form, llmCatalog, onChange]);
 
   return (
     <form
@@ -264,6 +305,18 @@ function ScenarioForm({
           onChange={(event) => onChange({ ...form, description: event.target.value })}
         />
       </Field>
+      <LlmModelSelector
+        label="Generator provider"
+        modelLabel="Generator model"
+        catalog={llmCatalog}
+        selection={form.llmSelection}
+        disabled={disabled || generateMutation.isPending || llmCatalogLoading}
+        onChange={(llmSelection) => onChange({ ...form, llmSelection })}
+      />
+      {llmCatalogError ? <p className="text-sm text-amber-700">{llmCatalogError}</p> : null}
+      {!llmCatalogError && !llmCatalogLoading && !form.llmSelection.model ? (
+        <p className="text-sm text-amber-700">Select a generator model before generating context.</p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -279,7 +332,9 @@ function ScenarioForm({
               setMessage(null);
               const generated = await generateMutation.mutateAsync({
                 name: form.name.trim(),
-                description: form.description.trim()
+                description: form.description.trim(),
+                provider: form.llmSelection.provider,
+                modelName: form.llmSelection.model,
               });
               onChange(applyGeneratedContext(form, generated));
             } catch (error) {

@@ -1,7 +1,9 @@
-import { useState } from "react";
-import type { LLMModelCatalogResponse, LLMProvider, LLMSelection } from "@/api/types";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import type { LLMModelCatalogResponse, LLMSelection } from "@/api/types";
 import { Button } from "@/components/ui/Button";
 import { Field, Select, Textarea } from "@/components/ui/Field";
+import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { SimulationEvaluation } from "@/features/simulations/SimulationEvaluation";
 
 type EvaluationRecord = Record<string, unknown>;
@@ -53,9 +55,101 @@ export function SimulationInput({
     provider: "openai",
     model: getDefaultCatalogModel(llmCatalog, "openai") ?? ""
   });
-  const proxyProviderCatalog = llmCatalog?.providers.find((provider) => provider.provider === proxyLlm.provider);
-  const proxyModels = proxyProviderCatalog?.models ?? [];
   const canConfirmProxy = Boolean(onProxySubmit) && Boolean(proxyLlm.model);
+
+  useEffect(() => {
+    if (!isProxyDialogOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isProxyDialogOpen]);
+
+  const proxyDialog = isProxyDialogOpen
+    ? createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Use Proxy"
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+          >
+            <div className="grid gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Use Proxy</h2>
+                <p className="mt-1 text-sm text-slate-600">Choose a persona and how long the proxy should take over.</p>
+              </div>
+              <Field label="Persona">
+                <Select value={proxyPersonaId} onChange={(event) => setProxyPersonaId(event.target.value)}>
+                  <option value="">None (Neutral)</option>
+                  {proxyPersonaOptions.map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <LlmModelSelector
+                label="Provider"
+                catalog={llmCatalog}
+                selection={proxyLlm}
+                onChange={setProxyLlm}
+              />
+              {llmCatalogError ? <p className="text-xs text-amber-700">{llmCatalogError}</p> : null}
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium text-slate-700">Duration</legend>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="proxy-duration"
+                    checked={proxyDuration === "this_turn"}
+                    onChange={() => setProxyDuration("this_turn")}
+                  />
+                  <span>For this turn</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="proxy-duration"
+                    checked={proxyDuration === "remainder"}
+                    onChange={() => setProxyDuration("remainder")}
+                  />
+                  <span>For the remainder of the negotiation</span>
+                </label>
+              </fieldset>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={() => setIsProxyDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!canConfirmProxy}
+                  onClick={async () => {
+                    if (!onProxySubmit || !proxyLlm.model) {
+                      return;
+                    }
+                    setIsProxyDialogOpen(false);
+                    await onProxySubmit({
+                      personaId: proxyPersonaId ? Number(proxyPersonaId) : null,
+                      duration: proxyDuration,
+                      llmSelection: proxyLlm
+                    });
+                  }}
+                >
+                  Confirm Proxy
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
 
   return (
     <>
@@ -115,116 +209,7 @@ export function SimulationInput({
         ) : null}
       </form>
 
-      {isProxyDialogOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Use Proxy"
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
-          >
-            <div className="grid gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-950">Use Proxy</h2>
-                <p className="mt-1 text-sm text-slate-600">Choose a persona and how long the proxy should take over.</p>
-              </div>
-              <Field label="Persona">
-                <Select value={proxyPersonaId} onChange={(event) => setProxyPersonaId(event.target.value)}>
-                  <option value="">None (Neutral)</option>
-                  {proxyPersonaOptions.map((persona) => (
-                    <option key={persona.id} value={persona.id}>
-                      {persona.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <Field label="Provider">
-                  <Select
-                    value={proxyLlm.provider}
-                    onChange={(event) => {
-                      const provider = event.target.value as LLMProvider;
-                      setProxyLlm({ provider, model: getDefaultCatalogModel(llmCatalog, provider) ?? "" });
-                    }}
-                  >
-                    <option value="openai">OpenAI</option>
-                    <option value="ollama">Ollama</option>
-                  </Select>
-                </Field>
-                <Field label="Model">
-                  <Select
-                    value={proxyLlm.model}
-                    disabled={!proxyModels.length}
-                    onChange={(event) => setProxyLlm((current) => ({ ...current, model: event.target.value }))}
-                  >
-                    <option value="">{proxyModels.length ? "Select model" : "No models available"}</option>
-                    {proxyModels.map((model) => (
-                      <option key={model.name} value={model.name}>
-                        {model.name}
-                        {proxyLlm.provider === "ollama" && typeof model.size_gib === "number" ? ` (${model.size_gib} GiB)` : ""}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                {proxyLlm.provider === "ollama" ? (
-                  <p className="text-xs text-slate-500">
-                    GPU memory: {typeof llmCatalog?.gpu_memory_gib === "number" ? `${llmCatalog.gpu_memory_gib} GiB` : "unknown"}
-                    {proxyProviderCatalog?.error ? `; ${proxyProviderCatalog.error}` : ""}
-                  </p>
-                ) : null}
-                {llmCatalogError ? <p className="text-xs text-amber-700">{llmCatalogError}</p> : null}
-              </div>
-              <fieldset className="grid gap-2">
-                <legend className="text-sm font-medium text-slate-700">Duration</legend>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="radio"
-                    name="proxy-duration"
-                    checked={proxyDuration === "this_turn"}
-                    onChange={() => setProxyDuration("this_turn")}
-                  />
-                  <span>For this turn</span>
-                </label>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="radio"
-                    name="proxy-duration"
-                    checked={proxyDuration === "remainder"}
-                    onChange={() => setProxyDuration("remainder")}
-                  />
-                  <span>For the remainder of the negotiation</span>
-                </label>
-              </fieldset>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setIsProxyDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  disabled={!canConfirmProxy}
-                  onClick={async () => {
-                    if (!onProxySubmit || !proxyLlm.model) {
-                      return;
-                    }
-                    setIsProxyDialogOpen(false);
-                    await onProxySubmit({
-                      personaId: proxyPersonaId ? Number(proxyPersonaId) : null,
-                      duration: proxyDuration,
-                      llmSelection: proxyLlm
-                    });
-                  }}
-                >
-                  Confirm Proxy
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {proxyDialog}
     </>
   );
-}
-
-function getDefaultCatalogModel(catalog: LLMModelCatalogResponse | undefined, provider: LLMProvider) {
-  return catalog?.providers.find((entry) => entry.provider === provider)?.models[0]?.name ?? null;
 }

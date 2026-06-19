@@ -6,11 +6,16 @@ import type {
   ScenarioAuthoringRead,
   ScenarioContextGenerateRequest,
   ScenarioContextGenerateResponse,
-  ScenarioPublicRead
+  ScenarioPublicRead,
+  LLMProvider,
 } from "@/api/types";
 
 type ScenarioCreateRequest = ApiComponents["schemas"]["ScenarioCreateRequest"];
 type ScenarioUpdateRequest = ApiComponents["schemas"]["ScenarioUpdateRequest"];
+type ScenarioContextGenerateInput = ScenarioContextGenerateRequest & {
+  provider?: LLMProvider;
+  modelName?: string;
+};
 
 export const scenarioKeys = {
   all: ["scenarios"] as const,
@@ -67,12 +72,23 @@ async function updateScenario(scenarioId: number, input: ScenarioUpdateRequest) 
   );
 }
 
-async function generateScenarioContext(input: ScenarioContextGenerateRequest) {
+async function generateScenarioContext(input: ScenarioContextGenerateInput) {
+  const params = new URLSearchParams();
+  if (input.provider) {
+    params.set("provider", input.provider);
+  }
+  if (input.modelName) {
+    params.set("model_name", input.modelName);
+  }
+  const query = params.toString();
   return jsonRequest<ScenarioContextGenerateResponse>(
-    "/scenarios/generate-context",
+    `/scenarios/generate-context${query ? `?${query}` : ""}`,
     {
       method: "POST",
-      body: JSON.stringify(input)
+      body: JSON.stringify({
+        name: input.name,
+        description: input.description
+      })
     },
     "Unable to generate scenario context"
   );
