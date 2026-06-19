@@ -112,7 +112,7 @@ export function RagProfilesPage() {
     });
   }, [llmCatalogQuery.data]);
 
-  if (query.isLoading || definitionsQuery.isLoading || knowledgeGraphsQuery.isLoading || llmCatalogQuery.isLoading) {
+  if (query.isLoading || definitionsQuery.isLoading || knowledgeGraphsQuery.isLoading) {
     return <LoadingState label="Loading RAG profiles..." />;
   }
 
@@ -122,8 +122,6 @@ export function RagProfilesPage() {
       ? definitionsQuery.error
       : knowledgeGraphsQuery.isError
         ? knowledgeGraphsQuery.error
-        : llmCatalogQuery.isError
-          ? llmCatalogQuery.error
         : null;
   if (error) {
     return (
@@ -255,6 +253,8 @@ export function RagProfilesPage() {
               />
               <LlmComponentsFields
                 catalog={llmCatalogQuery.data}
+                catalogLoading={llmCatalogQuery.isLoading}
+                catalogError={llmCatalogQuery.isError ? getErrorMessage(llmCatalogQuery.error, "LLM catalog is unavailable.") : null}
                 values={createForm.llmComponents}
                 onChange={(component, selection) =>
                   setCreateForm((current) => ({
@@ -266,7 +266,15 @@ export function RagProfilesPage() {
             </>
           ) : null}
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={createMutation.isPending}>
+            <Button
+              type="submit"
+              disabled={
+                createMutation.isPending ||
+                llmCatalogQuery.isLoading ||
+                llmCatalogQuery.isError ||
+                !hasAllLlmComponentModels(createForm.llmComponents)
+              }
+            >
               {createMutation.isPending ? "Creating..." : "Create profile"}
             </Button>
             {message ? <span className="text-sm text-slate-600">{message}</span> : null}
@@ -372,6 +380,8 @@ export function RagProfilesPage() {
                 definitions={definitions}
                 knowledgeGraphs={builtGraphs}
                 llmCatalog={llmCatalogQuery.data}
+                llmCatalogLoading={llmCatalogQuery.isLoading}
+                llmCatalogError={llmCatalogQuery.isError ? getErrorMessage(llmCatalogQuery.error, "LLM catalog is unavailable.") : null}
                 onClose={() => setActiveAction(null)}
               />
             ) : null}
@@ -395,6 +405,8 @@ function ActionPanel({
   definitions,
   knowledgeGraphs,
   llmCatalog,
+  llmCatalogLoading,
+  llmCatalogError,
   onClose,
 }: {
   action: Exclude<ActiveAction, null>;
@@ -402,13 +414,15 @@ function ActionPanel({
   definitions: RagProfileDefinitionRead[];
   knowledgeGraphs: Array<{ id: number; name: string }>;
   llmCatalog?: LLMModelCatalogResponse;
+  llmCatalogLoading: boolean;
+  llmCatalogError: string | null;
   onClose: () => void;
 }) {
   if (action.type === "edit") {
-    return <EditProfilePanel profile={profile} definitions={definitions} knowledgeGraphs={knowledgeGraphs} llmCatalog={llmCatalog} onClose={onClose} />;
+    return <EditProfilePanel profile={profile} definitions={definitions} knowledgeGraphs={knowledgeGraphs} llmCatalog={llmCatalog} llmCatalogLoading={llmCatalogLoading} llmCatalogError={llmCatalogError} onClose={onClose} />;
   }
   if (action.type === "copy") {
-    return <CopyProfilePanel profile={profile} definitions={definitions} knowledgeGraphs={knowledgeGraphs} llmCatalog={llmCatalog} onClose={onClose} />;
+    return <CopyProfilePanel profile={profile} definitions={definitions} knowledgeGraphs={knowledgeGraphs} llmCatalog={llmCatalog} llmCatalogLoading={llmCatalogLoading} llmCatalogError={llmCatalogError} onClose={onClose} />;
   }
   return <DeleteProfilePanel profile={profile} onClose={onClose} />;
 }
@@ -418,12 +432,16 @@ function EditProfilePanel({
   definitions,
   knowledgeGraphs,
   llmCatalog,
+  llmCatalogLoading,
+  llmCatalogError,
   onClose,
 }: {
   profile: RagProfileRead;
   definitions: RagProfileDefinitionRead[];
   knowledgeGraphs: Array<{ id: number; name: string }>;
   llmCatalog?: LLMModelCatalogResponse;
+  llmCatalogLoading: boolean;
+  llmCatalogError: string | null;
   onClose: () => void;
 }) {
   const updateMutation = useUpdateRagProfileMutation(profile.id);
@@ -499,6 +517,8 @@ function EditProfilePanel({
         />
         <LlmComponentsFields
           catalog={llmCatalog}
+          catalogLoading={llmCatalogLoading}
+          catalogError={llmCatalogError}
           values={form.llmComponents}
           disabled={used}
           onChange={(component, selection) =>
@@ -509,7 +529,16 @@ function EditProfilePanel({
           }
         />
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={updateMutation.isPending || used}>
+          <Button
+            type="submit"
+            disabled={
+              updateMutation.isPending ||
+              used ||
+              llmCatalogLoading ||
+              Boolean(llmCatalogError) ||
+              !hasAllLlmComponentModels(form.llmComponents)
+            }
+          >
             {updateMutation.isPending ? "Saving..." : "Save changes"}
           </Button>
           <Button type="button" variant="secondary" onClick={onClose}>
@@ -527,12 +556,16 @@ function CopyProfilePanel({
   definitions,
   knowledgeGraphs,
   llmCatalog,
+  llmCatalogLoading,
+  llmCatalogError,
   onClose,
 }: {
   profile: RagProfileRead;
   definitions: RagProfileDefinitionRead[];
   knowledgeGraphs: Array<{ id: number; name: string }>;
   llmCatalog?: LLMModelCatalogResponse;
+  llmCatalogLoading: boolean;
+  llmCatalogError: string | null;
   onClose: () => void;
 }) {
   const copyMutation = useCopyRagProfileMutation(profile.id);
@@ -596,6 +629,8 @@ function CopyProfilePanel({
         />
         <LlmComponentsFields
           catalog={llmCatalog}
+          catalogLoading={llmCatalogLoading}
+          catalogError={llmCatalogError}
           values={form.llmComponents}
           onChange={(component, selection) =>
             setForm((current) => ({
@@ -605,7 +640,15 @@ function CopyProfilePanel({
           }
         />
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={copyMutation.isPending}>
+          <Button
+            type="submit"
+            disabled={
+              copyMutation.isPending ||
+              llmCatalogLoading ||
+              Boolean(llmCatalogError) ||
+              !hasAllLlmComponentModels(form.llmComponents)
+            }
+          >
             {copyMutation.isPending ? "Copying..." : "Create copy"}
           </Button>
           <Button type="button" variant="secondary" onClick={onClose}>
@@ -711,11 +754,15 @@ function DefinitionFields({
 
 function LlmComponentsFields({
   catalog,
+  catalogLoading = false,
+  catalogError = null,
   values,
   onChange,
   disabled = false,
 }: {
   catalog?: LLMModelCatalogResponse;
+  catalogLoading?: boolean;
+  catalogError?: string | null;
   values: Record<string, LLMSelection>;
   onChange: (component: string, selection: LLMSelection) => void;
   disabled?: boolean;
@@ -724,6 +771,8 @@ function LlmComponentsFields({
     <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div>
         <h3 className="text-sm font-semibold text-slate-950">LLM components</h3>
+        {catalogLoading ? <p className="mt-1 text-xs text-slate-500">Loading models...</p> : null}
+        {catalogError ? <p className="mt-1 text-xs text-amber-700">{catalogError}</p> : null}
         {typeof catalog?.gpu_memory_gib === "number" ? (
           <p className="mt-1 text-xs text-slate-500">Ollama GPU memory: {catalog.gpu_memory_gib} GiB</p>
         ) : null}
@@ -736,7 +785,7 @@ function LlmComponentsFields({
             modelLabel={`${component.label} model`}
             catalog={catalog}
             selection={values[component.key] ?? { provider: "openai", model: getDefaultCatalogModel(catalog, "openai") ?? "" }}
-            disabled={disabled}
+            disabled={disabled || catalogLoading}
             onChange={(selection) => onChange(component.key, selection)}
             metadataMode="error-only"
             variant="plain"
@@ -789,6 +838,10 @@ function areLlmComponentValuesEqual(
     const rightSelection = right[component.key];
     return leftSelection?.provider === rightSelection?.provider && leftSelection?.model === rightSelection?.model;
   });
+}
+
+function hasAllLlmComponentModels(values: Record<string, LLMSelection>) {
+  return RAG_LLM_COMPONENTS.every((component) => Boolean(values[component.key]?.model?.trim()));
 }
 
 function packProfileConfig(

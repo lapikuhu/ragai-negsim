@@ -3,6 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 
 import { RagProfilesPage } from "./RagProfilesPage";
 
+const llmCatalogState = vi.hoisted(() => ({
+  isLoading: false,
+  isError: false,
+  data: {
+    providers: [
+      { provider: "openai", models: [{ name: "gpt-4o-mini" }] },
+      { provider: "ollama", models: [{ name: "qwen2.5:3b", size_gib: 2.2 }] },
+    ],
+    gpu_memory_gib: 8,
+  },
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+
 vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
   useRagProfilesQuery: () => ({
     isLoading: false,
@@ -74,21 +88,55 @@ vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
 
 vi.mock("@/features/llmModels/llmModelQueries", () => ({
   useLlmModelCatalogQuery: () => ({
-    isLoading: false,
-    isError: false,
-    data: {
+    isLoading: llmCatalogState.isLoading,
+    isError: llmCatalogState.isError,
+    data: llmCatalogState.data,
+    error: llmCatalogState.error,
+    refetch: llmCatalogState.refetch,
+  }),
+}));
+
+describe("RagProfilesPage", () => {
+  it("renders page content while the LLM catalog is still loading", () => {
+    llmCatalogState.isLoading = true;
+    llmCatalogState.isError = false;
+    llmCatalogState.data = undefined as never;
+    llmCatalogState.error = null;
+
+    render(<RagProfilesPage />);
+
+    expect(screen.getByText("Create RAG profile")).toBeInTheDocument();
+    expect(screen.getByText("Loading models...")).toBeInTheDocument();
+    expect(screen.queryByText("Loading RAG profiles...")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create profile" })).toBeDisabled();
+  });
+
+  it("shows an inline warning when the LLM catalog fails without blocking the page", () => {
+    llmCatalogState.isLoading = false;
+    llmCatalogState.isError = true;
+    llmCatalogState.data = undefined as never;
+    llmCatalogState.error = new Error("Catalog unavailable");
+
+    render(<RagProfilesPage />);
+
+    expect(screen.getByText("Create RAG profile")).toBeInTheDocument();
+    expect(screen.getByText("Catalog unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Unable to load RAG profiles")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create profile" })).toBeDisabled();
+  });
+
+  it("renders both available strategies in the create selector", () => {
+    llmCatalogState.isLoading = false;
+    llmCatalogState.isError = false;
+    llmCatalogState.data = {
       providers: [
         { provider: "openai", models: [{ name: "gpt-4o-mini" }] },
         { provider: "ollama", models: [{ name: "qwen2.5:3b", size_gib: 2.2 }] },
       ],
       gpu_memory_gib: 8,
-    },
-    refetch: vi.fn(),
-  }),
-}));
+    };
+    llmCatalogState.error = null;
 
-describe("RagProfilesPage", () => {
-  it("renders both available strategies in the create selector", () => {
     render(<RagProfilesPage />);
 
     expect(screen.getByRole("option", { name: "Corrective RAG" })).toBeInTheDocument();
@@ -96,6 +144,17 @@ describe("RagProfilesPage", () => {
   });
 
   it("shows used profiles as locked for deletion", () => {
+    llmCatalogState.isLoading = false;
+    llmCatalogState.isError = false;
+    llmCatalogState.data = {
+      providers: [
+        { provider: "openai", models: [{ name: "gpt-4o-mini" }] },
+        { provider: "ollama", models: [{ name: "qwen2.5:3b", size_gib: 2.2 }] },
+      ],
+      gpu_memory_gib: 8,
+    };
+    llmCatalogState.error = null;
+
     render(<RagProfilesPage />);
 
     expect(screen.getByText("In use")).toBeInTheDocument();

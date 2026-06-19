@@ -313,6 +313,7 @@ function ScenarioForm({
         disabled={disabled || generateMutation.isPending || llmCatalogLoading}
         onChange={(llmSelection) => onChange({ ...form, llmSelection })}
       />
+      {llmCatalogLoading ? <p className="text-sm text-slate-500">Loading models...</p> : null}
       {llmCatalogError ? <p className="text-sm text-amber-700">{llmCatalogError}</p> : null}
       {!llmCatalogError && !llmCatalogLoading && !form.llmSelection.model ? (
         <p className="text-sm text-amber-700">Select a generator model before generating context.</p>

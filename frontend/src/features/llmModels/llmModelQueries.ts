@@ -7,7 +7,7 @@ export const llmModelKeys = {
   catalog: ["llm-models", "catalog"] as const,
 };
 
-async function getLlmModelCatalog() {
+export async function getLlmModelCatalog() {
   const response = await apiFetch(`${getApiBaseUrl()}/llm-models/catalog`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
@@ -26,6 +26,15 @@ function isLlmModelCatalogResponse(value: unknown): value is LLMModelCatalogResp
   return Boolean(value) && typeof value === "object" && Array.isArray((value as LLMModelCatalogResponse).providers);
 }
 
+export function llmModelCatalogQueryOptions() {
+  return {
+    queryKey: llmModelKeys.catalog,
+    queryFn: getLlmModelCatalog,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 120 * 60 * 1000,
+  } as const;
+}
+
 export function useLlmModelCatalogQuery() {
-  return useQuery({ queryKey: llmModelKeys.catalog, queryFn: getLlmModelCatalog });
+  return useQuery(llmModelCatalogQueryOptions());
 }

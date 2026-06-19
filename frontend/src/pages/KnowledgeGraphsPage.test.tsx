@@ -9,6 +9,20 @@ const { useKnowledgeGraphsQuery, mutateAsync } = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
 }));
 
+const llmCatalogState = vi.hoisted(() => ({
+  isLoading: false,
+  isError: false,
+  data: {
+    providers: [
+      { provider: "openai", models: [{ name: "gpt-4o-mini" }, { name: "gpt-4o" }] },
+      { provider: "ollama", models: [{ name: "qwen2.5:3b", size_gib: 2.2 }] },
+    ],
+    gpu_memory_gib: 8,
+  },
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+
 vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
   useKnowledgeGraphsQuery,
   useCreateKnowledgeGraphMutation: () => ({ isPending: false, mutateAsync }),
@@ -48,22 +62,27 @@ vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
 
 vi.mock("@/features/llmModels/llmModelQueries", () => ({
   useLlmModelCatalogQuery: () => ({
-    isLoading: false,
-    isError: false,
-    data: {
-      providers: [
-        { provider: "openai", models: [{ name: "gpt-4o-mini" }, { name: "gpt-4o" }] },
-        { provider: "ollama", models: [{ name: "qwen2.5:3b", size_gib: 2.2 }] },
-      ],
-      gpu_memory_gib: 8,
-    },
-    refetch: vi.fn(),
+    isLoading: llmCatalogState.isLoading,
+    isError: llmCatalogState.isError,
+    data: llmCatalogState.data,
+    error: llmCatalogState.error,
+    refetch: llmCatalogState.refetch,
   }),
 }));
 
 describe("KnowledgeGraphsPage", () => {
   beforeEach(() => {
     mutateAsync.mockReset();
+    llmCatalogState.isLoading = false;
+    llmCatalogState.isError = false;
+    llmCatalogState.data = {
+      providers: [
+        { provider: "openai", models: [{ name: "gpt-4o-mini" }, { name: "gpt-4o" }] },
+        { provider: "ollama", models: [{ name: "qwen2.5:3b", size_gib: 2.2 }] },
+      ],
+      gpu_memory_gib: 8,
+    };
+    llmCatalogState.error = null;
     useKnowledgeGraphsQuery.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -94,6 +113,31 @@ describe("KnowledgeGraphsPage", () => {
       ],
       refetch: vi.fn(),
     });
+  });
+
+  it("renders page content while the LLM catalog is still loading", () => {
+    llmCatalogState.isLoading = true;
+    llmCatalogState.data = undefined as never;
+
+    render(<KnowledgeGraphsPage />);
+
+    expect(screen.getByText("Create graph definition")).toBeInTheDocument();
+    expect(screen.getByText("Loading models...")).toBeInTheDocument();
+    expect(screen.queryByText("Loading knowledge graphs...")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create graph" })).toBeDisabled();
+  });
+
+  it("shows an inline warning when the LLM catalog fails without blocking the page", () => {
+    llmCatalogState.isError = true;
+    llmCatalogState.data = undefined as never;
+    llmCatalogState.error = new Error("Catalog unavailable");
+
+    render(<KnowledgeGraphsPage />);
+
+    expect(screen.getByText("Create graph definition")).toBeInTheDocument();
+    expect(screen.getByText("Catalog unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Unable to load knowledge graphs.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create graph" })).toBeDisabled();
   });
 
   it("defaults to schema with chunk structure enabled", () => {

@@ -83,23 +83,21 @@ export function KnowledgeGraphsPage() {
     }
   }, [embeddingModels.data, form.embeddingModel]);
 
-  if (graphs.isLoading || indices.isLoading || llmCatalog.isLoading || embeddingModels.isLoading) {
+  if (graphs.isLoading || indices.isLoading || embeddingModels.isLoading) {
     return <LoadingState label="Loading knowledge graphs..." />;
   }
-  if (graphs.isError || indices.isError || llmCatalog.isError || embeddingModels.isError) {
+  if (graphs.isError || indices.isError || embeddingModels.isError) {
     return (
       <ErrorState
         message={
           graphs.error?.message ??
           indices.error?.message ??
-          llmCatalog.error?.message ??
           embeddingModels.error?.message ??
           "Unable to load knowledge graphs."
         }
         onRetry={() => {
           void graphs.refetch();
           void indices.refetch();
-          void llmCatalog.refetch();
           void embeddingModels.refetch();
         }}
       />
@@ -112,6 +110,11 @@ export function KnowledgeGraphsPage() {
   const selectedExtractors: GraphExtractor[] = form.includeImplicit
     ? [form.semanticExtractor, "implicit"]
     : [form.semanticExtractor];
+  const canCreateGraph =
+    !createMutation.isPending &&
+    !llmCatalog.isLoading &&
+    !llmCatalog.isError &&
+    Boolean(form.llmModel.trim());
 
   return (
     <div className="grid gap-6">
@@ -173,10 +176,19 @@ export function KnowledgeGraphsPage() {
             catalog={llmCatalog.data}
             selection={{ provider: form.llmProvider, model: form.llmModel }}
             onChange={(selection) => setForm({ ...form, llmProvider: selection.provider, llmModel: selection.model })}
+            disabled={llmCatalog.isLoading}
             metadataMode="error-only"
             variant="plain"
             className="md:col-span-2 md:grid-cols-2"
           />
+          {llmCatalog.isLoading ? (
+            <p className="md:col-span-2 text-sm text-slate-500">Loading models...</p>
+          ) : null}
+          {llmCatalog.isError ? (
+            <p className="md:col-span-2 text-sm text-amber-700">
+              {getErrorMessage(llmCatalog.error, "LLM catalog is unavailable.")}
+            </p>
+          ) : null}
           <Field label="Embedding model" hint={selectedEmbeddingModel ? `Dimensions: ${selectedEmbeddingModel.dimensionality}` : undefined}>
             <Select
               value={form.embeddingModel}
@@ -247,7 +259,7 @@ export function KnowledgeGraphsPage() {
             </div>
           </fieldset>
           <div className="md:col-span-2 flex items-center gap-3">
-            <Button type="submit" disabled={createMutation.isPending}>Create graph</Button>
+            <Button type="submit" disabled={!canCreateGraph}>Create graph</Button>
             {message ? <span className="text-sm text-slate-600">{message}</span> : null}
           </div>
         </form>

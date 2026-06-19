@@ -225,6 +225,9 @@ export function SimulationCockpitPage() {
                     disabled={llmCatalogQuery.isLoading || startMutation.isPending}
                   />
                 </div>
+                {llmCatalogQuery.isLoading ? (
+                  <p className="text-sm text-slate-500">Loading models...</p>
+                ) : null}
                 {llmCatalogQuery.isError ? (
                   <p className="text-sm text-amber-700">LLM catalog is unavailable.</p>
                 ) : null}
