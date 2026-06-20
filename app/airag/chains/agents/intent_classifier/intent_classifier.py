@@ -77,6 +77,8 @@ def make_intent_classifier_node(intent_classifier_graph: Any):
         }
         if result.get("event_log"):
             updates["event_log"] = result["event_log"]
+        if result.get("evidence_ledger"):
+            updates["evidence_ledger"] = result["evidence_ledger"]
         return updates
 
     return intent_classifier_node

@@ -122,6 +122,8 @@ def make_evaluator_node(evaluator_graph: Any):
 			updates["final_evaluation"] = result.get("final_evaluation", {})
 		else:
 			updates["evaluation"] = result.get("evaluation", {})
+		if result.get("evidence_ledger"):
+			updates["evidence_ledger"] = result["evidence_ledger"]
 		return updates
 
 	return evaluator_node

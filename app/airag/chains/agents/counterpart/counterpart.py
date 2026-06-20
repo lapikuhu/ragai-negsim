@@ -146,6 +146,8 @@ def make_counterpart_node(counterpart_graph: Any):
 			updates["side_b_response"] = message
 		if offer:
 			updates["offer_history"] = [offer]
+		if result.get("evidence_ledger"):
+			updates["evidence_ledger"] = result["evidence_ledger"]
 
 		return updates
 

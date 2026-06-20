@@ -90,6 +90,7 @@ def project_counterpart_state(state: dict[str, Any]) -> dict[str, Any]:
         "scenario_public_context": _copy_dict(state.get("scenario_public_context")),
         "own_private_context": _copy_dict(state.get(private_key)),
         "counterpart_persona": _copy_dict(state.get("counterpart_persona")),
+        "evidence_ledger": _copy_dict(state.get("evidence_ledger")),
         "event_log": [],
     }
 
@@ -111,6 +112,7 @@ def project_coach_state(state: dict[str, Any]) -> dict[str, Any]:
         **_copy_fields(state, IDENTIFIER_FIELDS + NEGOTIATION_FIELDS),
         "scenario_public_context": _copy_dict(state.get("scenario_public_context")),
         "student_private_context": _copy_dict(state.get(private_key)),
+        "evidence_ledger": _copy_dict(state.get("evidence_ledger")),
         "event_log": [],
     }
 
@@ -130,6 +132,7 @@ def project_user_proxy_state(state: dict[str, Any]) -> dict[str, Any]:
         "student_private_context": _copy_dict(state.get(private_key)),
         "proxy_persona": _copy_dict(state.get("user_proxy_persona")),
         "coach_advice": _copy_dict(state.get("coach_advice")),
+        "evidence_ledger": _copy_dict(state.get("evidence_ledger")),
         "event_log": [],
     }
 
@@ -159,6 +162,7 @@ def project_evaluator_state(state: dict[str, Any]) -> dict[str, Any]:
         "scenario_public_context": _copy_dict(state.get("scenario_public_context")),
         "side_a_private_context": _copy_dict(state.get("side_a_private_context")),
         "side_b_private_context": _copy_dict(state.get("side_b_private_context")),
+        "evidence_ledger": _copy_dict(state.get("evidence_ledger")),
         "event_log": [],
     }
 
@@ -174,5 +178,6 @@ def project_intent_classifier_state(state: dict[str, Any]) -> dict[str, Any]:
     latest_message = _latest_user_message(state.get("messages"))
     return {
         "messages": [latest_message] if latest_message is not None else [],
+        "evidence_ledger": _copy_dict(state.get("evidence_ledger")),
         "event_log": [],
     }

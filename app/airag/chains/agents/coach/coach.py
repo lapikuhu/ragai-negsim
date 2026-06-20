@@ -92,6 +92,8 @@ def make_coach_node(coach_graph: Any):
 		updates = {"coach_advice": result.get("coach_advice", {})}
 		if result.get("event_log"):
 			updates["event_log"] = result["event_log"]
+		if result.get("evidence_ledger"):
+			updates["evidence_ledger"] = result["evidence_ledger"]
 		return updates
 
 	return coach_node

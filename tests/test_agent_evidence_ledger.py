@@ -1,8 +1,30 @@
 from app.airag.chains.agents.coach.coach_nodes import node_finalize_coach
+from app.airag.chains.agents.context_projections import (
+    project_coach_state,
+    project_counterpart_state,
+    project_evaluator_state,
+    project_intent_classifier_state,
+)
+from app.airag.chains.agents.coach.coach import make_coach_node
+from app.airag.chains.agents.counterpart.counterpart import make_counterpart_node
+from app.airag.chains.agents.evaluator.evaluator import make_evaluator_node
 from app.airag.chains.agents.evaluator.evaluator_nodes import node_finalize_evaluator
+from app.airag.chains.agents.intent_classifier.intent_classifier import (
+    make_intent_classifier_node,
+)
 from app.airag.chains.agents.intent_classifier.intent_classifier_nodes import (
     node_finalize_intent,
 )
+
+
+class FakeGraph:
+    def __init__(self, result):
+        self.result = result
+        self.payload = None
+
+    def invoke(self, payload, config=None):
+        self.payload = payload
+        return self.result
 
 
 def test_intent_finalize_preserves_evidence_ledger():
@@ -51,3 +73,82 @@ def test_evaluator_finalize_adds_agent_output_summary():
     )
 
     assert result["evidence_ledger"]["evaluator"]["output_summary"]["kind"] == "final_evaluation"
+
+
+def test_parent_agent_wrappers_propagate_evidence_ledgers():
+    cases = [
+        (
+            make_intent_classifier_node,
+            {"messages": [{"role": "user", "content": "Let's continue."}]},
+            {
+                "intent_classification": {"intent": "continue"},
+                "event_log": ["intent_classifier:completed"],
+                "evidence_ledger": {"intent_classifier": {"pipeline": {"steps": []}}},
+            },
+            "intent_classifier",
+        ),
+        (
+            make_counterpart_node,
+            {"user_side": "side_a"},
+            {
+                "counterpart_response": {
+                    "side": "side_b",
+                    "message": "I can do 95.",
+                    "offer": {"side": "side_b", "price": 95},
+                },
+                "event_log": ["counterpart:completed"],
+                "evidence_ledger": {"counterpart": {"pipeline": {"steps": []}}},
+            },
+            "counterpart",
+        ),
+        (
+            make_coach_node,
+            {"user_side": "side_a"},
+            {
+                "coach_advice": {"summary": "Hold price."},
+                "event_log": ["coach:completed"],
+                "evidence_ledger": {"coach": {"pipeline": {"steps": []}}},
+            },
+            "coach",
+        ),
+        (
+            make_evaluator_node,
+            {"evaluation_mode": "rolling"},
+            {
+                "evaluation": {"score": 0.5},
+                "event_log": ["evaluator:completed"],
+                "evidence_ledger": {"evaluator": {"pipeline": {"steps": []}}},
+            },
+            "evaluator",
+        ),
+    ]
+
+    for make_node, state, graph_result, agent_name in cases:
+        node = make_node(FakeGraph(graph_result))
+
+        updates = node(state)
+
+        assert agent_name in updates["evidence_ledger"]
+
+
+def test_agent_state_projections_preserve_existing_evidence_ledger():
+    state = {
+        "user_side": "side_a",
+        "messages": [{"role": "user", "content": "Let's continue."}],
+        "evidence_ledger": {
+            "counterpart": {
+                "pipeline": {"steps": [{"name": "generate"}]},
+            },
+        },
+    }
+
+    projections = [
+        project_intent_classifier_state(state),
+        project_counterpart_state(state),
+        project_coach_state(state),
+        project_evaluator_state(state),
+    ]
+
+    for projected in projections:
+        assert projected["evidence_ledger"] == state["evidence_ledger"]
+        assert projected["evidence_ledger"] is not state["evidence_ledger"]

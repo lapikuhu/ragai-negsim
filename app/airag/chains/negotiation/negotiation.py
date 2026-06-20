@@ -104,6 +104,7 @@ class ParentNegotiationRuntimeModel(BaseModel):
     max_turn_count: int = 12
     should_pause: bool = False
     pause_reason: str | None = None
+    evidence_ledger: dict[str, Any] = Field(default_factory=dict)
     event_log: list[str] = Field(default_factory=list)
 
 
@@ -151,6 +152,7 @@ class NegotiationGraphState(TypedDict, total=False):
     evaluation_mode: EvaluationMode
     terminal_reason: TerminalReason
     turn_count: int
+    evidence_ledger: dict[str, Any]
     event_log: Annotated[list[str], operator.add]
     should_pause: bool
     pause_reason: str
