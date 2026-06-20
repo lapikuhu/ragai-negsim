@@ -159,4 +159,104 @@ describe("SimulationInspector", () => {
     expect(screen.getByText("Accepting now leaves value on the table.")).toBeInTheDocument();
     expect(screen.getByText("Whether timing flexibility matters to the counterpart.")).toBeInTheDocument();
   });
+
+  it("renders the evidence ledger card between coach guidance and simulation state", () => {
+    render(
+      <SimulationInspector
+        simulation={{
+          ...baseSimulation,
+          evidence_ledgers: [
+            {
+              id: 1,
+              simulation_id: 12,
+              turn_index: 1,
+              agent_name: "coach",
+              sequence: 4,
+              visibility_level: "debug",
+              pipeline: { steps: [{ name: "retrieve", status: "success", detail: { query: "counteroffer" } }] },
+              sources: [
+                {
+                  rank: 1,
+                  document_chunk_id: 7,
+                  source: "negotiation-notes.md",
+                  excerpt: "Counteroffers should use objective standards.",
+                  score: 0.83
+                }
+              ],
+              quality_checks: [{ name: "groundedness", verdict: "yes", reasoning: "Supported." }],
+              model: {},
+              token_usage: { total_tokens: 50 },
+              output_summary: { kind: "coach_advice", confidence: "medium" },
+              raw_debug: { event_log: ["coach:generated_advice"] },
+              created_at: "2026-06-20T00:00:00Z"
+            }
+          ]
+        }}
+        latestTurn={null}
+      />
+    );
+
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.indexOf("Coach Guidance")).toBeLessThan(headings.indexOf("Evidence Ledger"));
+    expect(headings.indexOf("Evidence Ledger")).toBeLessThan(headings.indexOf("Simulation state"));
+    expect(screen.getByText("coach")).toBeInTheDocument();
+    expect(screen.getByText("retrieve")).toBeInTheDocument();
+    expect(screen.getByText("Counteroffers should use objective standards.")).toBeInTheDocument();
+  });
+
+  it("prefers latest turn evidence ledgers over persisted simulation ledgers", () => {
+    render(
+      <SimulationInspector
+        simulation={{
+          ...baseSimulation,
+          evidence_ledgers: [
+            {
+              id: 1,
+              simulation_id: 12,
+              turn_index: 1,
+              agent_name: "coach",
+              sequence: 1,
+              visibility_level: "debug",
+              pipeline: { steps: [] },
+              sources: [],
+              quality_checks: [],
+              model: {},
+              token_usage: {},
+              output_summary: { kind: "old" },
+              raw_debug: {},
+              created_at: "2026-06-20T00:00:00Z"
+            }
+          ]
+        }}
+        latestTurn={{
+          simulation_id: 12,
+          status: "active",
+          messages: [],
+          coach_advice: {},
+          final_evaluation: {},
+          evidence_ledgers: [
+            {
+              id: 2,
+              simulation_id: 12,
+              turn_index: 2,
+              agent_name: "counterpart",
+              sequence: 1,
+              visibility_level: "debug",
+              pipeline: { steps: [{ name: "generate", status: "success", detail: {} }] },
+              sources: [],
+              quality_checks: [],
+              model: {},
+              token_usage: {},
+              output_summary: { kind: "latest" },
+              raw_debug: {},
+              created_at: "2026-06-20T00:00:01Z"
+            }
+          ]
+        }}
+      />
+    );
+
+    expect(screen.getByText("counterpart")).toBeInTheDocument();
+    expect(screen.queryByText("coach")).not.toBeInTheDocument();
+  });
 });

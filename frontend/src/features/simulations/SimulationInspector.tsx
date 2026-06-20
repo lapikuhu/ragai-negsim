@@ -1,7 +1,12 @@
 import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/common/KeyValueList";
 import { stringifyJson } from "@/utils/format";
-import type { SimulationReadWithState, SimulationTokenUsage, SimulationTurnResponse } from "@/api/types";
+import type {
+  EvidenceLedger,
+  SimulationReadWithState,
+  SimulationTokenUsage,
+  SimulationTurnResponse
+} from "@/api/types";
 
 type CoachAdviceRecord = Record<string, unknown>;
 
@@ -52,6 +57,100 @@ function getTokenUsage(
 
   const persisted = simulation.negotiation_state?.data?.token_usage;
   return isRecord(persisted) ? (persisted as SimulationTokenUsage) : null;
+}
+
+function getEvidenceLedgers(
+  simulation: SimulationReadWithState,
+  latestTurn: SimulationTurnResponse | null
+): EvidenceLedger[] {
+  if (Array.isArray(latestTurn?.evidence_ledgers) && latestTurn.evidence_ledgers.length > 0) {
+    return latestTurn.evidence_ledgers;
+  }
+  return Array.isArray(simulation.evidence_ledgers) ? simulation.evidence_ledgers : [];
+}
+
+function asObjectList(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function EvidenceLedgerCard({ ledgers }: { ledgers: EvidenceLedger[] }) {
+  return (
+    <Card className="min-w-0">
+      <h2 className="text-lg font-semibold text-slate-950">Evidence Ledger</h2>
+      {!ledgers.length ? (
+        <p className="mt-3 text-sm text-slate-600">
+          Evidence records will appear after agent outputs are captured for a turn.
+        </p>
+      ) : (
+        <div className="mt-4 grid gap-4">
+          {ledgers.map((ledger) => {
+            const steps = asObjectList(ledger.pipeline.steps);
+            return (
+              <section key={`${ledger.id}-${ledger.agent_name}`} className="grid gap-3 rounded-lg border border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">{ledger.agent_name}</h3>
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                    turn {ledger.turn_index} / {ledger.visibility_level}
+                  </span>
+                </div>
+
+                {steps.length ? (
+                  <div className="grid gap-1">
+                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Pipeline</div>
+                    <div className="flex flex-wrap gap-2">
+                      {steps.map((step, index) => (
+                        <span key={`${ledger.id}-step-${index}`} className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">
+                          <span>{String(step.name ?? "step")}</span>
+                          <span className="text-slate-400"> / </span>
+                          <span>{String(step.status ?? "unknown")}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {ledger.sources.length ? (
+                  <div className="grid gap-2">
+                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Sources</div>
+                    {ledger.sources.slice(0, 3).map((source, index) => (
+                      <div key={`${ledger.id}-source-${index}`} className="rounded bg-slate-50 p-2 text-xs text-slate-700">
+                        <div className="font-medium text-slate-900">
+                          {String(source.source ?? `Chunk ${String(source.document_chunk_id ?? index + 1)}`)}
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap leading-5">{String(source.excerpt ?? "")}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {ledger.quality_checks.length ? (
+                  <div className="grid gap-1">
+                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Quality checks</div>
+                    {ledger.quality_checks.map((check, index) => (
+                      <p key={`${ledger.id}-check-${index}`} className="text-xs text-slate-700">
+                        {String(check.name ?? "check")}: {String(check.verdict ?? "unknown")}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+
+                <details>
+                  <summary className="cursor-pointer text-xs font-medium text-slate-600">Raw debug</summary>
+                  <pre className="mt-2 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-slate-100">
+                    {stringifyJson({
+                      output_summary: ledger.output_summary,
+                      token_usage: ledger.token_usage,
+                      raw_debug: ledger.raw_debug
+                    })}
+                  </pre>
+                </details>
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 function CoachGuidanceCard({
@@ -186,10 +285,13 @@ export function SimulationInspector({
   const state = simulation.negotiation_state ?? { current_phase: null, user_side: null, data: {} };
   const coachAdvice = getCoachAdvice(simulation, latestTurn);
   const tokenUsage = getTokenUsage(simulation, latestTurn);
+  const evidenceLedgers = getEvidenceLedgers(simulation, latestTurn);
 
   return (
     <div className="grid min-w-0 w-full gap-4">
       <CoachGuidanceCard advice={coachAdvice} coachTotalTokens={tokenUsage?.coach_total ?? null} />
+
+      <EvidenceLedgerCard ledgers={evidenceLedgers} />
 
       <Card className="min-w-0">
         <h2 className="text-lg font-semibold text-slate-950">Simulation state</h2>
