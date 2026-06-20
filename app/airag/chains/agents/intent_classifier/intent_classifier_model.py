@@ -22,4 +22,5 @@ class IntentClassifierGraphState(TypedDict, total=False):
     intent_prompt: str
     intent_classification: dict[str, Any]
     intent_validation_error: str
+    evidence_ledger: NotRequired[dict[str, Any]]
     event_log: NotRequired[Annotated[list[str], operator.add]]

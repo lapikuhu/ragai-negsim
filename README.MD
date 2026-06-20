@@ -194,8 +194,16 @@ and teacher users, negotiation scenarios, counterpart personas, chunking
 profiles, and vector-store configurations. Scenario creation uses the configured
 OpenAI model, so `OPENAI_API_KEY` must be valid.
 
-The script is safe to run again: existing records are reported as `skipped`,
-while newly created records and failures are printed in the terminal.
+
+To rebuild the database from scratch and then seed starter data in one step,
+run:
+
+```powershell
+uv run python scripts/flushdb_and_seed.py
+```
+
+This drops all existing tables, recreates the schema from the registered
+SQLModel metadata, and then runs the normal seeder.
 
 ## Starting FastAPI
 

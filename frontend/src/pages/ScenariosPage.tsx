@@ -31,6 +31,8 @@ type ScenarioFormState = {
   publicContext: string;
   sideAPrivateContext: string;
   sideBPrivateContext: string;
+  sideASummary: string;
+  sideBSummary: string;
   llmSelection: LLMSelection;
   advancedOpen: boolean;
   generatedOnce: boolean;
@@ -42,6 +44,8 @@ const EMPTY_FORM: ScenarioFormState = {
   publicContext: "{}",
   sideAPrivateContext: "{}",
   sideBPrivateContext: "{}",
+  sideASummary: "",
+  sideBSummary: "",
   llmSelection: { provider: "openai", model: "" },
   advancedOpen: false,
   generatedOnce: false
@@ -56,6 +60,8 @@ function applyGeneratedContext(
     publicContext: stringifyJson(generated.public_context ?? {}),
     sideAPrivateContext: stringifyJson(generated.side_a_private_context ?? {}),
     sideBPrivateContext: stringifyJson(generated.side_b_private_context ?? {}),
+    sideASummary: generated.side_a_summary ?? "",
+    sideBSummary: generated.side_b_summary ?? "",
     advancedOpen: true,
     generatedOnce: true
   };
@@ -95,7 +101,9 @@ export function ScenariosPage() {
               description: createForm.description || null,
               public_context: parseJsonInput(createForm.publicContext, {}),
               side_a_private_context: parseJsonInput(createForm.sideAPrivateContext, {}),
-              side_b_private_context: parseJsonInput(createForm.sideBPrivateContext, {})
+              side_b_private_context: parseJsonInput(createForm.sideBPrivateContext, {}),
+              side_a_summary: createForm.sideASummary,
+              side_b_summary: createForm.sideBSummary
             });
             setCreateForm(EMPTY_FORM);
           }}
@@ -218,6 +226,8 @@ function ScenarioEditorForm({
     publicContext: stringifyJson(scenario.public_context),
     sideAPrivateContext: stringifyJson(scenario.side_a_private_context),
     sideBPrivateContext: stringifyJson(scenario.side_b_private_context),
+    sideASummary: scenario.side_a_summary ?? "",
+    sideBSummary: scenario.side_b_summary ?? "",
     llmSelection: { provider: "openai", model: "" },
     advancedOpen: true,
     generatedOnce: true
@@ -234,7 +244,9 @@ function ScenarioEditorForm({
           description: form.description || null,
           public_context: parseJsonInput(form.publicContext, {}),
           side_a_private_context: parseJsonInput(form.sideAPrivateContext, {}),
-          side_b_private_context: parseJsonInput(form.sideBPrivateContext, {})
+          side_b_private_context: parseJsonInput(form.sideBPrivateContext, {}),
+          side_a_summary: form.sideASummary,
+          side_b_summary: form.sideBSummary
         });
         onClose();
       }}
@@ -325,7 +337,7 @@ function ScenarioForm({
           disabled={disabled || generateMutation.isPending || !canGenerate}
           onClick={async () => {
             const shouldReplace =
-              !form.generatedOnce || window.confirm("Replace the current generated context?");
+              !form.generatedOnce || window.confirm("Replace the current generated context and summaries?");
             if (!shouldReplace) {
               return;
             }
@@ -346,8 +358,8 @@ function ScenarioForm({
           {generateMutation.isPending
             ? "Generating..."
             : form.generatedOnce
-              ? "Regenerate context"
-              : "Generate context"}
+              ? "Regenerate context and summaries"
+              : "Generate context and summaries"}
         </Button>
         <Button
           type="button"
@@ -358,6 +370,18 @@ function ScenarioForm({
         </Button>
       </div>
       {message ? <p className="text-sm text-red-700">{message}</p> : null}
+      <Field label="Side A summary">
+        <Textarea
+          value={form.sideASummary}
+          onChange={(event) => onChange({ ...form, sideASummary: event.target.value })}
+        />
+      </Field>
+      <Field label="Side B summary">
+        <Textarea
+          value={form.sideBSummary}
+          onChange={(event) => onChange({ ...form, sideBSummary: event.target.value })}
+        />
+      </Field>
       {form.advancedOpen ? (
         <>
           <Field label="Public context JSON">

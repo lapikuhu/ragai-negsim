@@ -11,6 +11,8 @@ class ScenarioAuthoringBase(SQLModel):
     public_context: dict[str, Any] = Field(default_factory=dict)
     side_a_private_context: dict[str, Any] = Field(default_factory=dict)
     side_b_private_context: dict[str, Any] = Field(default_factory=dict)
+    side_a_summary: str = ""
+    side_b_summary: str = ""
 
 
 class ScenarioPublicBase(SQLModel):
@@ -49,6 +51,8 @@ class ScenarioUpdate(SQLModel):
     public_context: dict[str, Any] | None = None
     side_a_private_context: dict[str, Any] | None = None
     side_b_private_context: dict[str, Any] | None = None
+    side_a_summary: str | None = None
+    side_b_summary: str | None = None
     last_edit_by_user_id: int | None = None
 
 
@@ -58,6 +62,8 @@ class ScenarioUpdateRequest(SQLModel):
     public_context: dict[str, Any] | None = None
     side_a_private_context: dict[str, Any] | None = None
     side_b_private_context: dict[str, Any] | None = None
+    side_a_summary: str | None = None
+    side_b_summary: str | None = None
 
 
 class ScenarioCopyRequest(SQLModel):
@@ -80,12 +86,19 @@ class ScenarioContextGenerateResponse(SQLModel):
     public_context: dict[str, Any] = Field(default_factory=dict)
     side_a_private_context: dict[str, Any] = Field(default_factory=dict)
     side_b_private_context: dict[str, Any] = Field(default_factory=dict)
+    side_a_summary: str = ""
+    side_b_summary: str = ""
 
 
 class ScenarioContextGenerationModel(BaseModel):
     public_context: dict[str, Any] = Field(default_factory=dict)
     side_a_private_context: dict[str, Any] = Field(default_factory=dict)
     side_b_private_context: dict[str, Any] = Field(default_factory=dict)
+
+
+class ScenarioSummaryGenerationModel(BaseModel):
+    side_a_summary: str = ""
+    side_b_summary: str = ""
 
 
 class ScenarioAuthoringReadWithIds(ScenarioAuthoringRead):

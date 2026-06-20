@@ -81,6 +81,7 @@ class SimulationRead(SimulationBase):
 
 
 class SimulationReadWithState(SimulationRead):
+    scenario_summary: str | None = None
     negotiation_state: NegotiationStateSchema = Field(default_factory=NegotiationStateSchema)
     messages: list[SimulationMessageSchema] = Field(default_factory=list)
     evidence_ledgers: list[SimulationEvidenceLedgerRead] = Field(default_factory=list)

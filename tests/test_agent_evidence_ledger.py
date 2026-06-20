@@ -1,4 +1,5 @@
 from app.airag.chains.agents.coach.coach_nodes import node_finalize_coach
+from app.airag.chains.agents.coach.coach_model import CoachGraphState
 from app.airag.chains.agents.context_projections import (
     project_coach_state,
     project_counterpart_state,
@@ -7,14 +8,23 @@ from app.airag.chains.agents.context_projections import (
 )
 from app.airag.chains.agents.coach.coach import make_coach_node
 from app.airag.chains.agents.counterpart.counterpart import make_counterpart_node
+from app.airag.chains.agents.counterpart.counterpart_model import CounterpartGraphState
 from app.airag.chains.agents.evaluator.evaluator import make_evaluator_node
+from app.airag.chains.agents.evaluator.evaluator_model import EvaluatorGraphState
 from app.airag.chains.agents.evaluator.evaluator_nodes import node_finalize_evaluator
 from app.airag.chains.agents.intent_classifier.intent_classifier import (
     make_intent_classifier_node,
 )
+from app.airag.chains.agents.intent_classifier.intent_classifier_model import (
+    IntentClassifierGraphState,
+)
 from app.airag.chains.agents.intent_classifier.intent_classifier_nodes import (
     node_finalize_intent,
 )
+from app.airag.chains.agents.user_proxy_negotiator.user_proxy_model import (
+    UserProxyGraphState,
+)
+from langgraph.graph import END, START, StateGraph
 
 
 class FakeGraph:
@@ -25,6 +35,30 @@ class FakeGraph:
     def invoke(self, payload, config=None):
         self.payload = payload
         return self.result
+
+
+def _invoke_schema_probe(state_schema):
+    def node(state):
+        return {"evidence_ledger": {"probe": {"pipeline": {"steps": []}}}}
+
+    graph = StateGraph(state_schema)
+    graph.add_node("probe", node)
+    graph.add_edge(START, "probe")
+    graph.add_edge("probe", END)
+    return graph.compile().invoke({})
+
+
+def test_agent_graph_state_schemas_preserve_evidence_ledger_channel():
+    for state_schema in [
+        IntentClassifierGraphState,
+        CounterpartGraphState,
+        CoachGraphState,
+        EvaluatorGraphState,
+        UserProxyGraphState,
+    ]:
+        result = _invoke_schema_probe(state_schema)
+
+        assert result["evidence_ledger"]["probe"]["pipeline"]["steps"] == []
 
 
 def test_intent_finalize_preserves_evidence_ledger():

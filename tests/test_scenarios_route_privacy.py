@@ -39,6 +39,8 @@ def _authoring_scenario() -> ScenarioAuthoringReadWithIds:
         public_context={"issue": "late checkout fee"},
         side_a_private_context={"reservation": "SIDE-A-SECRET"},
         side_b_private_context={"reservation": "SIDE-B-SECRET"},
+        side_a_summary="Side A should avoid the fee.",
+        side_b_summary="Side B should protect policy.",
         created_by_user_id=1,
         last_edit_by_user_id=None,
         created_at=_now(),
@@ -106,12 +108,16 @@ def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
             assert get_response.status_code == 200
             assert get_response.json()["description"] == "PUBLIC-DESCRIPTION"
             assert "side_b_private_context" not in get_response.json()
+            assert "side_a_summary" not in get_response.json()
+            assert "side_b_summary" not in get_response.json()
 
             authoring_response = client.get("/scenarios/10/authoring")
             assert authoring_response.status_code == 200
             assert authoring_response.json()["description"] == "AUTHORING-DESCRIPTION"
             assert authoring_response.json()["side_a_private_context"]["reservation"] == "SIDE-A-SECRET"
             assert authoring_response.json()["side_b_private_context"]["reservation"] == "SIDE-B-SECRET"
+            assert authoring_response.json()["side_a_summary"] == "Side A should avoid the fee."
+            assert authoring_response.json()["side_b_summary"] == "Side B should protect policy."
     finally:
         app.dependency_overrides.clear()
 
@@ -135,6 +141,8 @@ def test_generate_context_route_returns_authoring_preview(monkeypatch):
             public_context={"issue": "late checkout"},
             side_a_private_context={"goal": "avoid fee"},
             side_b_private_context={"goal": "protect revenue"},
+            side_a_summary="You want to avoid the fee.",
+            side_b_summary="You want to protect revenue.",
         )
 
     app = main_module.app
@@ -161,5 +169,7 @@ def test_generate_context_route_returns_authoring_preview(monkeypatch):
         assert response.status_code == 200
         assert response.json()["public_context"]["issue"] == "late checkout"
         assert response.json()["side_a_private_context"]["goal"] == "avoid fee"
+        assert response.json()["side_a_summary"] == "You want to avoid the fee."
+        assert response.json()["side_b_summary"] == "You want to protect revenue."
     finally:
         app.dependency_overrides.clear()

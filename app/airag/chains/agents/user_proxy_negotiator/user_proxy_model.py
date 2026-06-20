@@ -32,6 +32,7 @@ class UserProxyGraphState(TypedDict, total=False):
     current_offer: Offer
     offer_history: Annotated[list[Offer], operator.add]
     turn_count: int
+    evidence_ledger: NotRequired[dict[str, Any]]
     event_log: NotRequired[Annotated[list[str], operator.add]]
 
     proxy_prompt: str

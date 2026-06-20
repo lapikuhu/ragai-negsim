@@ -899,6 +899,30 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/llm-models/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Llm Model Catalog
+         * @description Retrieve the catalog of available LLM models.
+         *     Args:
+         *         _current_user: The current user dependency.
+         *     Returns:
+         *         LLMModelCatalogResponse: The response containing the LLM model catalog.
+         */
+        get: operations["get_llm_model_catalog_llm_models_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/prompts/": {
         parameters: {
             query?: never;
@@ -2997,6 +3021,32 @@ export type components = {
             /** Name */
             name?: string | null;
         };
+        /** LLMModelCatalogItem */
+        LLMModelCatalogItem: {
+            /** Name */
+            name: string;
+            /** Size Gib */
+            size_gib?: number | null;
+        };
+        /** LLMModelCatalogResponse */
+        LLMModelCatalogResponse: {
+            /** Gpu Memory Gib */
+            gpu_memory_gib?: number | null;
+            /** Providers */
+            providers?: components["schemas"]["LLMProviderCatalog"][];
+        };
+        /** LLMProviderCatalog */
+        LLMProviderCatalog: {
+            /** Error */
+            error?: string | null;
+            /** Models */
+            models?: components["schemas"]["LLMModelCatalogItem"][];
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "openai" | "ollama";
+        };
         /** NegotiationStateSchema */
         NegotiationStateSchema: {
             /** Current Phase */
@@ -3273,10 +3323,20 @@ export type components = {
             side_a_private_context?: {
                 [key: string]: unknown;
             };
+            /**
+             * Side A Summary
+             * @default
+             */
+            side_a_summary: string;
             /** Side B Private Context */
             side_b_private_context?: {
                 [key: string]: unknown;
             };
+            /**
+             * Side B Summary
+             * @default
+             */
+            side_b_summary: string;
             /** Simulation Ids */
             simulation_ids?: number[];
         };
@@ -3297,10 +3357,20 @@ export type components = {
             side_a_private_context?: {
                 [key: string]: unknown;
             };
+            /**
+             * Side A Summary
+             * @default
+             */
+            side_a_summary: string;
             /** Side B Private Context */
             side_b_private_context?: {
                 [key: string]: unknown;
             };
+            /**
+             * Side B Summary
+             * @default
+             */
+            side_b_summary: string;
         };
         /** ScenarioCopyRequest */
         ScenarioCopyRequest: {
@@ -3323,10 +3393,20 @@ export type components = {
             side_a_private_context?: {
                 [key: string]: unknown;
             };
+            /**
+             * Side A Summary
+             * @default
+             */
+            side_a_summary: string;
             /** Side B Private Context */
             side_b_private_context?: {
                 [key: string]: unknown;
             };
+            /**
+             * Side B Summary
+             * @default
+             */
+            side_b_summary: string;
         };
         /** ScenarioPublicReadWithIds */
         ScenarioPublicReadWithIds: {
@@ -3337,6 +3417,8 @@ export type components = {
             created_at: string;
             /** Created By User Id */
             created_by_user_id: number;
+            /** Description */
+            description?: string | null;
             /** Id */
             id: number;
             /** Last Edit By User Id */
@@ -3369,10 +3451,14 @@ export type components = {
             side_a_private_context?: {
                 [key: string]: unknown;
             } | null;
+            /** Side A Summary */
+            side_a_summary?: string | null;
             /** Side B Private Context */
             side_b_private_context?: {
                 [key: string]: unknown;
             } | null;
+            /** Side B Summary */
+            side_b_summary?: string | null;
         };
         /** SessionCreateRequest */
         SessionCreateRequest: {
@@ -3524,6 +3610,61 @@ export type components = {
              */
             skip: number;
         };
+        /** SimulationEvidenceLedgerRead */
+        SimulationEvidenceLedgerRead: {
+            /** Agent Name */
+            agent_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Model */
+            model?: {
+                [key: string]: unknown;
+            };
+            /** Output Summary */
+            output_summary?: {
+                [key: string]: unknown;
+            };
+            /** Pipeline */
+            pipeline?: {
+                [key: string]: unknown;
+            };
+            /** Quality Checks */
+            quality_checks?: {
+                [key: string]: unknown;
+            }[];
+            /** Raw Debug */
+            raw_debug?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Sequence
+             * @default 0
+             */
+            sequence: number;
+            /** Simulation Id */
+            simulation_id: number;
+            /** Sources */
+            sources?: {
+                [key: string]: unknown;
+            }[];
+            /** Token Usage */
+            token_usage?: {
+                [key: string]: unknown;
+            };
+            /** Turn Index */
+            turn_index: number;
+            /**
+             * Visibility Level
+             * @default debug
+             * @enum {string}
+             */
+            visibility_level: "learner" | "teacher" | "debug";
+        };
         /** SimulationMessageSchema */
         SimulationMessageSchema: {
             /** Content */
@@ -3567,6 +3708,10 @@ export type components = {
             duration: "this_turn" | "remainder";
             /** Persona Id */
             persona_id?: number | null;
+            /** Proxy Llm Model */
+            proxy_llm_model?: string | null;
+            /** Proxy Llm Provider */
+            proxy_llm_provider?: ("openai" | "ollama") | null;
         };
         /** SimulationProxyTurnResponse */
         SimulationProxyTurnResponse: {
@@ -3581,6 +3726,8 @@ export type components = {
             };
             /** Counterpart Response */
             counterpart_response?: string | null;
+            /** Evidence Ledgers */
+            evidence_ledgers?: components["schemas"]["SimulationEvidenceLedgerRead"][];
             /** Final Evaluation */
             final_evaluation?: {
                 [key: string]: unknown;
@@ -3605,6 +3752,7 @@ export type components = {
              * @enum {string}
              */
             status: "created" | "active" | "paused" | "completed" | "cancelled" | "failed";
+            token_usage?: components["schemas"]["SimulationTokenUsageSchema"];
             /** User Proxy Persona */
             user_proxy_persona?: {
                 [key: string]: unknown;
@@ -3684,6 +3832,8 @@ export type components = {
             description?: string | null;
             /** Evaluator Prompt Id */
             evaluator_prompt_id?: number | null;
+            /** Evidence Ledgers */
+            evidence_ledgers?: components["schemas"]["SimulationEvidenceLedgerRead"][];
             /** Id */
             id: number;
             /**
@@ -3702,6 +3852,8 @@ export type components = {
             reviewed_at?: string | null;
             /** Scenario Id */
             scenario_id?: number | null;
+            /** Scenario Summary */
+            scenario_summary?: string | null;
             /** Session Id */
             session_id?: number | null;
             /** Status */
@@ -3721,6 +3873,14 @@ export type components = {
         };
         /** SimulationStartRequest */
         SimulationStartRequest: {
+            /** Counterpart Llm Model */
+            counterpart_llm_model?: string | null;
+            /** Counterpart Llm Provider */
+            counterpart_llm_provider?: ("openai" | "ollama") | null;
+            /** Evaluator Llm Model */
+            evaluator_llm_model?: string | null;
+            /** Evaluator Llm Provider */
+            evaluator_llm_provider?: ("openai" | "ollama") | null;
             /**
              * Max Turn Count
              * @default 12
@@ -3739,6 +3899,19 @@ export type components = {
         SimulationTeacherReviewRequest: {
             /** Teacher Feedback */
             teacher_feedback: string;
+        };
+        /** SimulationTokenUsageSchema */
+        SimulationTokenUsageSchema: {
+            /** Coach Total */
+            coach_total?: number | null;
+            /** Counterpart Latest */
+            counterpart_latest?: number | null;
+            /** Evaluator Total */
+            evaluator_total?: number | null;
+            /** Proxy Latest */
+            proxy_latest?: number | null;
+            /** Simulation Total */
+            simulation_total?: number | null;
         };
         /** SimulationTurnRequest */
         SimulationTurnRequest: {
@@ -3759,6 +3932,8 @@ export type components = {
             };
             /** Counterpart Response */
             counterpart_response?: string | null;
+            /** Evidence Ledgers */
+            evidence_ledgers?: components["schemas"]["SimulationEvidenceLedgerRead"][];
             /** Final Evaluation */
             final_evaluation?: {
                 [key: string]: unknown;
@@ -3781,6 +3956,7 @@ export type components = {
              * @enum {string}
              */
             status: "created" | "active" | "paused" | "completed" | "cancelled" | "failed";
+            token_usage?: components["schemas"]["SimulationTokenUsageSchema"];
         };
         /** SimulationUpdateRequest */
         SimulationUpdateRequest: {
@@ -5397,6 +5573,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_llm_model_catalog_llm_models_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LLMModelCatalogResponse"];
                 };
             };
         };

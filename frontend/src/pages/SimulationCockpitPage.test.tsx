@@ -198,6 +198,72 @@ describe("SimulationCockpitPage", () => {
     expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();
   });
 
+  it("renders a collapsible scenario summary before the transcript", async () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
+    queryState.simulation = {
+      ...simulation,
+      scenario_summary: [
+        "Your target is to negotiate a stronger salary package.",
+        "Keep the signing bonus private.",
+        "Protect your minimum acceptable base salary.",
+        "Trade vacation only for compensation.",
+        "Ask for a review cycle.",
+        "Do not reveal your alternative offer."
+      ].join("\n")
+    };
+
+    const user = userEvent.setup();
+    const { container } = render(<SimulationCockpitPage />);
+
+    const summary = screen.getByTestId("scenario-summary-preview");
+    expect(screen.getByRole("heading", { name: "Scenario summary" })).toBeInTheDocument();
+    expect(summary).toHaveClass("max-h-[7.5rem]", "overflow-hidden");
+    expect(screen.getByText("...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument();
+
+    const summaryCard = summary.closest("section");
+    const transcriptHeading = screen.getByRole("heading", { name: "Transcript" });
+    expect(
+      summaryCard && transcriptHeading.compareDocumentPosition(summaryCard) & Node.DOCUMENT_POSITION_PRECEDING
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Show more" }));
+
+    expect(summary).not.toHaveClass("max-h-[7.5rem]");
+    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
+    expect(container).not.toHaveTextContent("seller floor");
+  });
+
+  it("shows the scenario summary card with an empty state when no summary is available", () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
+    queryState.simulation = {
+      ...simulation,
+      scenario_summary: null
+    };
+
+    render(<SimulationCockpitPage />);
+
+    expect(screen.getByRole("heading", { name: "Scenario summary" })).toBeInTheDocument();
+    expect(screen.getByText("No scenario summary is available yet.")).toBeInTheDocument();
+    expect(screen.queryByTestId("scenario-summary-preview")).not.toBeInTheDocument();
+  });
+
+  it("hides the scenario summary card for simulations without a scenario", () => {
+    queryState.isLoading = false;
+    queryState.isError = false;
+    queryState.simulation = {
+      ...simulation,
+      scenario_id: null,
+      scenario_summary: null
+    };
+
+    render(<SimulationCockpitPage />);
+
+    expect(screen.queryByRole("heading", { name: "Scenario summary" })).not.toBeInTheDocument();
+  });
+
   it("enables evaluation for completed simulations with stored final evaluation", () => {
     queryState.isLoading = false;
     queryState.isError = false;

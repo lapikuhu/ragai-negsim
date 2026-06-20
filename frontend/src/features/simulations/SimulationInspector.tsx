@@ -84,7 +84,10 @@ function EvidenceLedgerCard({ ledgers }: { ledgers: EvidenceLedger[] }) {
       ) : (
         <div className="mt-4 grid gap-4">
           {ledgers.map((ledger) => {
-            const steps = asObjectList(ledger.pipeline.steps);
+            const pipeline = isRecord(ledger.pipeline) ? ledger.pipeline : {};
+            const sources = asObjectList(ledger.sources);
+            const qualityChecks = asObjectList(ledger.quality_checks);
+            const steps = asObjectList(pipeline.steps);
             return (
               <section key={`${ledger.id}-${ledger.agent_name}`} className="grid gap-3 rounded-lg border border-slate-200 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -109,10 +112,10 @@ function EvidenceLedgerCard({ ledgers }: { ledgers: EvidenceLedger[] }) {
                   </div>
                 ) : null}
 
-                {ledger.sources.length ? (
+                {sources.length ? (
                   <div className="grid gap-2">
                     <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Sources</div>
-                    {ledger.sources.slice(0, 3).map((source, index) => (
+                    {sources.slice(0, 3).map((source, index) => (
                       <div key={`${ledger.id}-source-${index}`} className="rounded bg-slate-50 p-2 text-xs text-slate-700">
                         <div className="font-medium text-slate-900">
                           {String(source.source ?? `Chunk ${String(source.document_chunk_id ?? index + 1)}`)}
@@ -123,10 +126,10 @@ function EvidenceLedgerCard({ ledgers }: { ledgers: EvidenceLedger[] }) {
                   </div>
                 ) : null}
 
-                {ledger.quality_checks.length ? (
+                {qualityChecks.length ? (
                   <div className="grid gap-1">
                     <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Quality checks</div>
-                    {ledger.quality_checks.map((check, index) => (
+                    {qualityChecks.map((check, index) => (
                       <p key={`${ledger.id}-check-${index}`} className="text-xs text-slate-700">
                         {String(check.name ?? "check")}: {String(check.verdict ?? "unknown")}
                       </p>

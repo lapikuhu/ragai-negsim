@@ -33,8 +33,12 @@ from app.services import (
     users_service,
     vector_stores_service,
 )
-from personas import PLACEHOLDER_PERSONAS
-from scenarios import PLACEHOLDER_SCENARIOS
+try:
+    from scripts.personas import PLACEHOLDER_PERSONAS
+    from scripts.scenarios import PLACEHOLDER_SCENARIOS
+except ModuleNotFoundError:
+    from personas import PLACEHOLDER_PERSONAS
+    from scenarios import PLACEHOLDER_SCENARIOS
 
 CHUNKING_PROFILES = [
     {"name": "Recursive", "strategy": "recursive"},
@@ -185,6 +189,8 @@ async def seed_scenario(
                 public_context=generated_context.public_context,
                 side_a_private_context=generated_context.side_a_private_context,
                 side_b_private_context=generated_context.side_b_private_context,
+                side_a_summary=generated_context.side_a_summary,
+                side_b_summary=generated_context.side_b_summary,
             ),
             session,
             admin_user,

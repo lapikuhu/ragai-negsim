@@ -236,9 +236,45 @@ def _read_simulation(simulation: Simulation) -> SimulationRead:
     )
 
 
+def _scenario_summary_for_simulation(simulation: Simulation, scenario: Any | None) -> str | None:
+    """
+    Get the scenario summary for a simulation based on the user's side.
+    Args:
+        simulation: The simulation instance.
+        scenario: The scenario instance or data.
+    Returns:
+        The scenario summary for the user's side, or None if not available.
+    """
+    if scenario is None:
+        return None
+
+    raw_state = getattr(simulation, "negotiation_state", None) or {}
+    state_side = raw_state.get("user_side") if isinstance(raw_state, dict) else None
+    if state_side is None and isinstance(raw_state, dict):
+        state_data = raw_state.get("data")
+        if isinstance(state_data, dict):
+            state_side = state_data.get("user_side")
+
+    user_side = getattr(simulation, "user_side", None) or state_side
+    field_name = {
+        "side_a": "side_a_summary",
+        "side_b": "side_b_summary",
+    }.get(str(user_side or ""))
+    if field_name is None:
+        return None
+
+    summary = getattr(scenario, field_name, None)
+    if not isinstance(summary, str):
+        return None
+
+    summary = summary.strip()
+    return summary or None
+
+
 def _read_simulation_with_state(
     simulation: Simulation,
     evidence_ledgers: list[SimulationEvidenceLedgerRead] | None = None,
+    scenario: Any | None = None,
 ) -> SimulationReadWithState:
     """
     Convert a Simulation model instance to a SimulationReadWithState schema.
@@ -257,6 +293,7 @@ def _read_simulation_with_state(
     raw_messages = simulation.messages or []
     return SimulationReadWithState(
         **base,
+        scenario_summary=_scenario_summary_for_simulation(simulation, scenario),
         negotiation_state=_public_state_schema_from_internal(raw_state),
         messages=[_message_to_schema(message) for message in raw_messages],
         evidence_ledgers=evidence_ledgers or [],
@@ -405,6 +442,23 @@ async def _get_scenario_name(scenario_id: int | None, session: AsyncSession) -> 
         return None
     scenario = await scenarios_repo.get_scenario_by_id(scenario_id, session)
     return getattr(scenario, "name", None) if scenario is not None else None
+
+
+async def _get_simulation_scenario(
+    simulation: Simulation,
+    session: AsyncSession | None,
+) -> Any | None:
+    """
+    Get the scenario associated with a simulation.
+    Args:
+        simulation: The simulation instance.
+        session: The database session.
+    Returns:
+        The scenario instance, or None if not found or session is None.
+    """
+    if session is None or simulation.scenario_id is None:
+        return None
+    return await scenarios_repo.get_scenario_by_id(simulation.scenario_id, session)
 
 
 async def _build_evaluation_list_response(
@@ -1937,7 +1991,12 @@ async def get_simulation_srvc(
         if session is not None and simulation.id is not None
         else []
     )
-    return _read_simulation_with_state(simulation, evidence_ledgers=evidence_ledgers)
+    scenario = await _get_simulation_scenario(simulation, session)
+    return _read_simulation_with_state(
+        simulation,
+        evidence_ledgers=evidence_ledgers,
+        scenario=scenario,
+    )
 
 # CHECK
 async def update_simulation_srvc(
@@ -2043,7 +2102,10 @@ async def start_simulation_srvc(
         update_in,
         session,
     )
-    return _read_simulation_with_state(updated_simulation)
+    return _read_simulation_with_state(
+        updated_simulation,
+        scenario=runtime_context.scenario,
+    )
 
 
 async def submit_simulation_turn_srvc(
@@ -2305,7 +2367,12 @@ async def get_simulation_state_srvc(
         if session is not None and simulation.id is not None
         else []
     )
-    return _read_simulation_with_state(simulation, evidence_ledgers=evidence_ledgers)
+    scenario = await _get_simulation_scenario(simulation, session)
+    return _read_simulation_with_state(
+        simulation,
+        evidence_ledgers=evidence_ledgers,
+        scenario=scenario,
+    )
 
 
 async def cancel_simulation_srvc(

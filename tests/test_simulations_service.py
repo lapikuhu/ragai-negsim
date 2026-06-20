@@ -314,6 +314,84 @@ def test_message_to_schema_flattens_recursively_nested_metadata():
     }
 
 
+def test_read_simulation_with_state_includes_assigned_side_summary_only():
+    scenario = SimpleNamespace(
+        side_a_summary="Side A knows the buyer target.",
+        side_b_summary="Side B knows the seller floor.",
+    )
+    simulation = _simulation(user_side="side_a")
+
+    result = simulations_service._read_simulation_with_state(
+        simulation,
+        scenario=scenario,
+    )
+
+    assert result.scenario_summary == "Side A knows the buyer target."
+    assert "seller floor" not in result.model_dump_json()
+
+
+def test_read_simulation_with_state_omits_missing_or_empty_summary():
+    scenario = SimpleNamespace(side_a_summary="   ", side_b_summary="Side B summary")
+    simulation = _simulation(user_side="side_a")
+
+    result = simulations_service._read_simulation_with_state(
+        simulation,
+        scenario=scenario,
+    )
+
+    assert result.scenario_summary is None
+
+
+def test_read_simulation_with_state_uses_negotiation_state_side_for_summary():
+    scenario = SimpleNamespace(
+        side_a_summary="Side A running summary.",
+        side_b_summary="Side B running summary.",
+    )
+    simulation = _simulation(
+        user_side=None,
+        negotiation_state={
+            "user_side": "side_b",
+            "data": {
+                "user_side": "side_b",
+            },
+        },
+    )
+
+    result = simulations_service._read_simulation_with_state(
+        simulation,
+        scenario=scenario,
+    )
+
+    assert result.scenario_summary == "Side B running summary."
+    assert "Side A running summary" not in result.model_dump_json()
+
+
+@pytest.mark.asyncio
+async def test_get_simulation_fetches_assigned_side_summary(monkeypatch):
+    simulation = _simulation(user_side="side_b")
+
+    async def fake_get_scenario_by_id(scenario_id, session):
+        return SimpleNamespace(
+            side_a_summary="Side A should remain private.",
+            side_b_summary="Side B cockpit summary.",
+        )
+
+    async def fake_list_evidence_ledgers_for_read(simulation_id, session):
+        return []
+
+    monkeypatch.setattr(simulations_service.scenarios_repo, "get_scenario_by_id", fake_get_scenario_by_id)
+    monkeypatch.setattr(
+        simulations_service,
+        "_list_evidence_ledgers_for_read",
+        fake_list_evidence_ledgers_for_read,
+    )
+
+    result = await simulations_service.get_simulation_srvc(simulation, object())
+
+    assert result.scenario_summary == "Side B cockpit summary."
+    assert "Side A should remain private" not in result.model_dump_json()
+
+
 def _patch_runtime_context_repositories(
     monkeypatch,
     *,

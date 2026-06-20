@@ -27,6 +27,8 @@ def _scenario(scenario_id=10, created_by_user_id=1, last_edit_by_user_id=None):
         public_context={"public_fact": f"PUBLIC-{scenario_id}"},
         side_a_private_context={"reservation": f"SIDE-A-SECRET-{scenario_id}"},
         side_b_private_context={"reservation": f"SIDE-B-SECRET-{scenario_id}"},
+        side_a_summary=f"Side A summary {scenario_id}",
+        side_b_summary=f"Side B summary {scenario_id}",
         created_by_user_id=created_by_user_id,
         last_edit_by_user_id=last_edit_by_user_id,
         created_at=now,
@@ -38,6 +40,8 @@ def _scenario(scenario_id=10, created_by_user_id=1, last_edit_by_user_id=None):
             "public_context": {"public_fact": f"PUBLIC-{scenario_id}"},
             "side_a_private_context": {"reservation": f"SIDE-A-SECRET-{scenario_id}"},
             "side_b_private_context": {"reservation": f"SIDE-B-SECRET-{scenario_id}"},
+            "side_a_summary": f"Side A summary {scenario_id}",
+            "side_b_summary": f"Side B summary {scenario_id}",
             "created_by_user_id": created_by_user_id,
             "last_edit_by_user_id": last_edit_by_user_id,
             "created_at": now,
@@ -64,6 +68,8 @@ def test_public_scenario_schema_excludes_authoring_and_private_fields():
     assert payload["description"] == "Practice checkout negotiation."
     assert "side_a_private_context" not in payload
     assert "side_b_private_context" not in payload
+    assert "side_a_summary" not in payload
+    assert "side_b_summary" not in payload
 
 
 @pytest.mark.asyncio
@@ -86,7 +92,12 @@ async def test_create_scenario_stamps_current_user(monkeypatch):
     )
 
     result = await scenarios_service.create_scenario_srvc(
-        ScenarioCreateRequest(name="Salary negotiation", description="Practice pay discussions"),
+        ScenarioCreateRequest(
+            name="Salary negotiation",
+            description="Practice pay discussions",
+            side_a_summary="You are the candidate.",
+            side_b_summary="You are the recruiter.",
+        ),
         object(),
         _user(7),
     )
@@ -94,6 +105,8 @@ async def test_create_scenario_stamps_current_user(monkeypatch):
     assert result.created_by_user_id == 7
     assert captured[0].created_by_user_id == 7
     assert captured[0].name == "Salary negotiation"
+    assert captured[0].side_a_summary == "You are the candidate."
+    assert captured[0].side_b_summary == "You are the recruiter."
 
 
 @pytest.mark.asyncio
@@ -126,6 +139,39 @@ async def test_update_scenario_stamps_last_editor(monkeypatch):
     assert result.simulation_ids == [33]
     assert captured[0][1].last_edit_by_user_id == 9
     assert captured[0][1].name == "Updated scenario"
+
+
+@pytest.mark.asyncio
+async def test_update_scenario_accepts_side_summaries(monkeypatch):
+    captured = []
+    updated = _scenario(created_by_user_id=2, last_edit_by_user_id=9)
+
+    async def fake_update_scenario(scenario, scenario_in, session):
+        captured.append(scenario_in)
+        return updated
+
+    async def fake_to_read_with_ids(scenario, session):
+        return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[])
+
+    monkeypatch.setattr(scenarios_service.scenarios_repo, "update_scenario", fake_update_scenario)
+    monkeypatch.setattr(
+        scenarios_service.scenarios_repo,
+        "to_scenario_authoring_read_with_ids",
+        fake_to_read_with_ids,
+    )
+
+    await scenarios_service.update_scenario_srvc(
+        _scenario(created_by_user_id=2),
+        ScenarioUpdateRequest(
+            side_a_summary="Updated side A summary",
+            side_b_summary="Updated side B summary",
+        ),
+        object(),
+        _user(9),
+    )
+
+    assert captured[0].side_a_summary == "Updated side A summary"
+    assert captured[0].side_b_summary == "Updated side B summary"
 
 
 @pytest.mark.asyncio
@@ -238,6 +284,8 @@ async def test_get_scenario_returns_public_view(monkeypatch):
     assert result.public_context["public_fact"] == "PUBLIC-10"
     assert result.description == "AUTHORING-DESCRIPTION"
     assert "side_a_private_context" not in result.model_dump()
+    assert "side_a_summary" not in result.model_dump()
+    assert "side_b_summary" not in result.model_dump()
 
 
 @pytest.mark.asyncio
@@ -253,20 +301,32 @@ async def test_delete_scenario_propagates_repo_guard(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_generate_scenario_context_returns_structured_preview():
+    calls = []
+
     class FakeStructuredModel:
+        def __init__(self, schema_name):
+            self.schema_name = schema_name
+
         def invoke(self, payload):
-            assert "Hotel late checkout" in payload
+            calls.append((self.schema_name, payload))
+            if self.schema_name == "ScenarioContextGenerationModel":
+                assert "Hotel late checkout" in payload
+                return SimpleNamespace(
+                    public_context={"issue": "late checkout"},
+                    side_a_private_context={"goal": "avoid paying a fee"},
+                    side_b_private_context={"goal": "protect policy"},
+                )
+            assert "avoid paying a fee" in payload
+            assert "protect policy" in payload
             return SimpleNamespace(
-                public_context={"issue": "late checkout"},
-                side_a_private_context={"goal": "avoid paying a fee"},
-                side_b_private_context={"goal": "protect policy"},
+                side_a_summary="You are trying to avoid a late checkout fee.",
+                side_b_summary="You are trying to protect hotel policy.",
             )
 
     class FakeModel:
         def with_structured_output(self, schema, **kwargs):
-            assert schema.__name__ == "ScenarioContextGenerationModel"
             assert kwargs == {"method": "function_calling"}
-            return FakeStructuredModel()
+            return FakeStructuredModel(schema.__name__)
 
     result = await scenarios_service.generate_scenario_context_srvc(
         ScenarioContextGenerateRequest(
@@ -279,6 +339,12 @@ async def test_generate_scenario_context_returns_structured_preview():
     assert result.public_context["issue"] == "late checkout"
     assert result.side_a_private_context["goal"] == "avoid paying a fee"
     assert result.side_b_private_context["goal"] == "protect policy"
+    assert result.side_a_summary == "You are trying to avoid a late checkout fee."
+    assert result.side_b_summary == "You are trying to protect hotel policy."
+    assert [call[0] for call in calls] == [
+        "ScenarioContextGenerationModel",
+        "ScenarioSummaryGenerationModel",
+    ]
 
 
 @pytest.mark.asyncio
@@ -303,23 +369,31 @@ async def test_generate_scenario_context_raises_value_error_on_model_failure():
 
 @pytest.mark.asyncio
 async def test_generate_scenario_context_uses_prompt_string_and_function_calling():
-    captured = {}
+    captured = {"schemas": [], "payloads": []}
 
     class FakeStructuredModel:
+        def __init__(self, schema_name):
+            self.schema_name = schema_name
+
         def invoke(self, payload, config=None):
-            captured["payload"] = payload
+            captured["payloads"].append(payload)
             captured["config"] = config
+            if self.schema_name == "ScenarioContextGenerationModel":
+                return SimpleNamespace(
+                    public_context={"issue": "late checkout"},
+                    side_a_private_context={"goal": "avoid paying a fee"},
+                    side_b_private_context={"goal": "protect policy"},
+                )
             return SimpleNamespace(
-                public_context={"issue": "late checkout"},
-                side_a_private_context={"goal": "avoid paying a fee"},
-                side_b_private_context={"goal": "protect policy"},
+                side_a_summary="Side A summary",
+                side_b_summary="Side B summary",
             )
 
     class FakeModel:
         def with_structured_output(self, schema, **kwargs):
-            captured["schema"] = schema.__name__
+            captured["schemas"].append(schema.__name__)
             captured["kwargs"] = kwargs
-            return FakeStructuredModel()
+            return FakeStructuredModel(schema.__name__)
 
     await scenarios_service.generate_scenario_context_srvc(
         ScenarioContextGenerateRequest(
@@ -333,9 +407,13 @@ async def test_generate_scenario_context_uses_prompt_string_and_function_calling
         },
     )
 
-    assert captured["schema"] == "ScenarioContextGenerationModel"
+    assert captured["schemas"] == [
+        "ScenarioContextGenerationModel",
+        "ScenarioSummaryGenerationModel",
+    ]
     assert captured["kwargs"] == {"method": "function_calling"}
-    assert isinstance(captured["payload"], str)
-    assert "Split the scenario into exactly three sections" in captured["payload"]
+    assert all(isinstance(payload, str) for payload in captured["payloads"])
+    assert "Split the scenario into exactly three sections" in captured["payloads"][0]
+    assert "Generate two free-text side summaries" in captured["payloads"][1]
     assert captured["config"]["tags"] == ["service:scenario_context"]
     assert captured["config"]["metadata"] == {"user_id": "7"}

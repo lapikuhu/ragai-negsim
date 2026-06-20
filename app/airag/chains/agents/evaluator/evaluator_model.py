@@ -117,6 +117,7 @@ class EvaluatorGraphState(TypedDict, total=False):
 	retrieval_result: RetrievalResult
 	evaluation_mode: EvaluationMode
 	turn_count: int
+	evidence_ledger: NotRequired[dict[str, Any]]
 	event_log: NotRequired[Annotated[list[str], operator.add]]
 
 	evaluator_query: str

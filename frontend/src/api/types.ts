@@ -6,22 +6,7 @@ export type ApiComponents = components;
 export type UserRead = components["schemas"]["UserRead"];
 export type Token = components["schemas"]["Token"];
 export type SimulationRead = components["schemas"]["SimulationRead"];
-export type EvidenceLedger = {
-  id: number;
-  simulation_id: number;
-  turn_index: number;
-  agent_name: string;
-  sequence: number;
-  visibility_level: "learner" | "teacher" | "debug";
-  pipeline: Record<string, unknown>;
-  sources: Array<Record<string, unknown>>;
-  quality_checks: Array<Record<string, unknown>>;
-  model: Record<string, unknown>;
-  token_usage: Record<string, unknown>;
-  output_summary: Record<string, unknown>;
-  raw_debug: Record<string, unknown>;
-  created_at: string;
-};
+export type EvidenceLedger = components["schemas"]["SimulationEvidenceLedgerRead"];
 export type SimulationReadWithState = components["schemas"]["SimulationReadWithState"] & {
   evidence_ledgers?: EvidenceLedger[];
 };

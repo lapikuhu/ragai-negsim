@@ -295,6 +295,8 @@ async def copy_scenario(
         public_context=source_scenario.public_context,
         side_a_private_context=source_scenario.side_a_private_context,
         side_b_private_context=source_scenario.side_b_private_context,
+        side_a_summary=source_scenario.side_a_summary,
+        side_b_summary=source_scenario.side_b_summary,
         created_by_user_id=copy_in.created_by_user_id,
     )
     return await commit_and_refresh(session, scenario)

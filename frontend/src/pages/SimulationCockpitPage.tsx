@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import type {
   CounterpartPersonaRead,
@@ -47,6 +47,84 @@ function getTokenUsage(
 
   const persisted = simulation?.negotiation_state?.data?.token_usage;
   return isRecord(persisted) ? (persisted as SimulationTokenUsage) : null;
+}
+
+function ScenarioSummaryCard({
+  value,
+  scenarioId
+}: {
+  value?: string | null;
+  scenarioId?: number | null;
+}) {
+  const content = value?.trim() ?? "";
+  const [expanded, setExpanded] = useState(false);
+  const [measuredOverflow, setMeasuredOverflow] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const hasScenario = scenarioId !== null && scenarioId !== undefined;
+  const hasSummary = Boolean(content);
+  const sourceSuggestsOverflow = hasSummary && (content.split(/\r?\n/).length > 5 || content.length > 300);
+  const canExpand = hasSummary && (sourceSuggestsOverflow || measuredOverflow);
+  const isCollapsed = canExpand && !expanded;
+
+  useEffect(() => {
+    setMeasuredOverflow(false);
+  }, [content]);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !hasSummary || expanded) {
+      return;
+    }
+
+    const measureOverflow = () => {
+      setMeasuredOverflow(preview.scrollHeight > preview.clientHeight + 1);
+    };
+
+    measureOverflow();
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measureOverflow);
+    resizeObserver?.observe(preview);
+    return () => resizeObserver?.disconnect();
+  }, [content, hasSummary, expanded]);
+
+  if (!hasScenario) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold text-slate-950">Scenario summary</h2>
+      {hasSummary ? (
+        <div className="mt-3">
+          <div className="relative rounded-xl bg-slate-100 px-3 py-3">
+            <div
+              ref={previewRef}
+              data-testid="scenario-summary-preview"
+              className={[
+                "max-w-none whitespace-pre-line text-sm leading-6 text-slate-700",
+                !expanded ? "max-h-[7.5rem] overflow-hidden" : ""
+              ].join(" ")}
+            >
+              {content}
+            </div>
+            {isCollapsed ? (
+              <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-end bg-gradient-to-t from-slate-100 via-slate-100/95 to-transparent pt-8 text-sm font-semibold text-slate-500">
+                ...
+              </div>
+            ) : null}
+          </div>
+          {canExpand ? (
+            <Button type="button" variant="secondary" className="mt-2" onClick={() => setExpanded((current) => !current)}>
+              {expanded ? "Show less" : "Show more"}
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-xl bg-slate-100 px-3 py-3 text-sm leading-6 text-slate-600">
+          No scenario summary is available yet.
+        </p>
+      )}
+    </Card>
+  );
 }
 
 export function SimulationCockpitPage() {
@@ -239,6 +317,7 @@ export function SimulationCockpitPage() {
               </form>
             </Card>
           ) : null}
+          <ScenarioSummaryCard value={simulation.scenario_summary} scenarioId={simulation.scenario_id} />
           <SimulationTranscript simulation={transcriptSimulation} />
           <SimulationInput
             disabled={!["active", "paused"].includes(effectiveStatus) || isTerminal || turnMutation.isPending}

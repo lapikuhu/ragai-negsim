@@ -12,6 +12,7 @@ from app.schemas.scenarios_schemas import (
     ScenarioContextGenerateRequest,
     ScenarioContextGenerateResponse,
     ScenarioContextGenerationModel,
+    ScenarioSummaryGenerationModel,
     ScenarioCopy,
     ScenarioCopyRequest,
     ScenarioCreate,
@@ -20,6 +21,24 @@ from app.schemas.scenarios_schemas import (
     ScenarioUpdate,
     ScenarioUpdateRequest,
 )
+
+# Helper candidate
+def _validated_payload(result, schema):
+    """
+    Validate the payload against the given schema.
+    Args:
+        result: The result to validate.
+        schema: The schema to validate against.
+    Returns:
+        The validated payload.
+    """
+    if hasattr(result, "model_dump"):
+        payload = result.model_dump()
+    elif hasattr(result, "__dict__"):
+        payload = result.__dict__
+    else:
+        payload = result
+    return schema.model_validate(payload)
 
 
 def _build_scenario_context_generation_prompt(
@@ -41,6 +60,49 @@ def _build_scenario_context_generation_prompt(
 
         Scenario description:
         {scenario_data.description}
+        """
+    ).strip()
+
+
+def _build_scenario_summary_generation_prompt(
+    scenario_data: ScenarioContextGenerateRequest,
+    generated_context: ScenarioContextGenerationModel,
+) -> str:
+    """
+    Build the prompt for generating scenario summaries.
+    Args:
+        scenario_data: The data for the scenario context generation.
+        generated_context: The generated scenario context.
+    Returns:
+        A string containing the prompt for the language model.
+    """
+    return dedent(
+        f"""
+        You are writing student-facing cockpit summaries for a negotiation simulator.
+
+        Generate two free-text side summaries:
+        1. side_a_summary: summarize the scenario, shared public context, and Side A private context.
+        2. side_b_summary: summarize the scenario, shared public context, and Side B private context.
+
+        Each summary should tell that side what the scenario is about and what they are aiming for.
+        Do not include Side B private context in side_a_summary.
+        Do not include Side A private context in side_b_summary.
+        Return plain text in each field, not markdown or JSON strings.
+
+        Scenario name:
+        {scenario_data.name}
+
+        Scenario description:
+        {scenario_data.description}
+
+        Public context:
+        {generated_context.public_context}
+
+        Side A private context:
+        {generated_context.side_a_private_context}
+
+        Side B private context:
+        {generated_context.side_b_private_context}
         """
     ).strip()
 
@@ -70,14 +132,25 @@ async def generate_scenario_context_srvc(
             _build_scenario_context_generation_prompt(scenario_data),
             config,
         )
-        if hasattr(result, "model_dump"):
-            payload = result.model_dump()
-        elif hasattr(result, "__dict__"):
-            payload = result.__dict__
-        else:
-            payload = result
-        validated = ScenarioContextGenerationModel.model_validate(payload)
-        return ScenarioContextGenerateResponse(**validated.model_dump())
+        validated_context = _validated_payload(result, ScenarioContextGenerationModel)
+
+        structured_summary_model = model.with_structured_output(
+            ScenarioSummaryGenerationModel,
+            method="function_calling",
+        )
+        summary_result = invoke_with_config(
+            structured_summary_model,
+            _build_scenario_summary_generation_prompt(scenario_data, validated_context),
+            config,
+        )
+        validated_summary = _validated_payload(
+            summary_result,
+            ScenarioSummaryGenerationModel,
+        )
+        return ScenarioContextGenerateResponse(
+            **validated_context.model_dump(),
+            **validated_summary.model_dump(),
+        )
     except Exception as exc:
         raise ValueError("Unable to generate scenario context right now") from exc
 

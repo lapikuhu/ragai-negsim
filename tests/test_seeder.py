@@ -125,6 +125,8 @@ async def test_seed_all_creates_requested_records(monkeypatch):
             public_context={"name": scenario_data.name, "description": scenario_data.description},
             side_a_private_context={"side": "A", "scenario": scenario_data.name},
             side_b_private_context={"side": "B", "scenario": scenario_data.name},
+            side_a_summary=f"Side A summary for {scenario_data.name}",
+            side_b_summary=f"Side B summary for {scenario_data.name}",
         )
 
     async def fake_create_scenario_srvc(scenario_data, current_session, current_user):
@@ -206,6 +208,12 @@ async def test_seed_all_creates_requested_records(monkeypatch):
         "side": "B",
         "scenario": seeder.PLACEHOLDER_SCENARIOS[0]["name"],
     }
+    assert created_scenarios[0][0].side_a_summary == (
+        f"Side A summary for {seeder.PLACEHOLDER_SCENARIOS[0]['name']}"
+    )
+    assert created_scenarios[0][0].side_b_summary == (
+        f"Side B summary for {seeder.PLACEHOLDER_SCENARIOS[0]['name']}"
+    )
 
     assert [payload.name for payload, _ in created_personas] == _persona_names()
     assert [payload.name for payload in created_profiles] == ["Recursive", "Semantic", "Hybrid"]
@@ -257,6 +265,8 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
             public_context={},
             side_a_private_context={},
             side_b_private_context={},
+            side_a_summary=f"Side A summary for {scenario_data.name}",
+            side_b_summary=f"Side B summary for {scenario_data.name}",
         )
 
     async def fake_create_scenario_srvc(scenario_data, current_session, current_user):

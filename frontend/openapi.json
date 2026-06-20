@@ -2669,6 +2669,33 @@
         }
       }
     },
+    "/llm-models/catalog": {
+      "get": {
+        "tags": [
+          "llm-models"
+        ],
+        "summary": "Get Llm Model Catalog",
+        "description": "Retrieve the catalog of available LLM models.\nArgs:\n    _current_user: The current user dependency.\nReturns:\n    LLMModelCatalogResponse: The response containing the LLM model catalog.",
+        "operationId": "get_llm_model_catalog_llm_models_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LLMModelCatalogResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/prompts/": {
       "post": {
         "tags": [
@@ -8593,6 +8620,90 @@
         "type": "object",
         "title": "KnowledgeGraphIndexUpdate"
       },
+      "LLMModelCatalogItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name"
+          },
+          "size_gib": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Gib"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "LLMModelCatalogItem"
+      },
+      "LLMModelCatalogResponse": {
+        "properties": {
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/LLMProviderCatalog"
+            },
+            "type": "array",
+            "title": "Providers"
+          },
+          "gpu_memory_gib": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Memory Gib"
+          }
+        },
+        "type": "object",
+        "title": "LLMModelCatalogResponse"
+      },
+      "LLMProviderCatalog": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "ollama"
+            ],
+            "title": "Provider"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/LLMModelCatalogItem"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "LLMProviderCatalog"
+      },
       "NegotiationStateSchema": {
         "properties": {
           "current_phase": {
@@ -9377,6 +9488,16 @@
             "type": "object",
             "title": "Side B Private Context"
           },
+          "side_a_summary": {
+            "type": "string",
+            "title": "Side A Summary",
+            "default": ""
+          },
+          "side_b_summary": {
+            "type": "string",
+            "title": "Side B Summary",
+            "default": ""
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -9460,6 +9581,16 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Side B Private Context"
+          },
+          "side_a_summary": {
+            "type": "string",
+            "title": "Side A Summary",
+            "default": ""
+          },
+          "side_b_summary": {
+            "type": "string",
+            "title": "Side B Summary",
+            "default": ""
           }
         },
         "type": "object",
@@ -9522,6 +9653,16 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Side B Private Context"
+          },
+          "side_a_summary": {
+            "type": "string",
+            "title": "Side A Summary",
+            "default": ""
+          },
+          "side_b_summary": {
+            "type": "string",
+            "title": "Side B Summary",
+            "default": ""
           }
         },
         "type": "object",
@@ -9536,6 +9677,17 @@
             "type": "string",
             "minLength": 3,
             "title": "Scenario name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "public_context": {
             "additionalProperties": true,
@@ -9649,6 +9801,28 @@
               }
             ],
             "title": "Side B Private Context"
+          },
+          "side_a_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side A Summary"
+          },
+          "side_b_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side B Summary"
           }
         },
         "type": "object",
@@ -10197,6 +10371,99 @@
         "type": "object",
         "title": "SimulationEvaluationListResponse"
       },
+      "SimulationEvidenceLedgerRead": {
+        "properties": {
+          "simulation_id": {
+            "type": "integer",
+            "title": "Simulation Id"
+          },
+          "turn_index": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Turn Index"
+          },
+          "agent_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Agent Name"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Sequence",
+            "default": 0
+          },
+          "visibility_level": {
+            "type": "string",
+            "enum": [
+              "learner",
+              "teacher",
+              "debug"
+            ],
+            "title": "Visibility Level",
+            "default": "debug"
+          },
+          "pipeline": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Pipeline"
+          },
+          "sources": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "quality_checks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Quality Checks"
+          },
+          "model": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Model"
+          },
+          "token_usage": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Token Usage"
+          },
+          "output_summary": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Output Summary"
+          },
+          "raw_debug": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Raw Debug"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "simulation_id",
+          "turn_index",
+          "agent_name",
+          "id",
+          "created_at"
+        ],
+        "title": "SimulationEvidenceLedgerRead"
+      },
       "SimulationMessageSchema": {
         "properties": {
           "metadata": {
@@ -10296,6 +10563,32 @@
               "remainder"
             ],
             "title": "Duration"
+          },
+          "proxy_llm_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Llm Provider"
+          },
+          "proxy_llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Llm Model"
           }
         },
         "type": "object",
@@ -10376,6 +10669,16 @@
               }
             ],
             "title": "Counterpart Response"
+          },
+          "token_usage": {
+            "$ref": "#/components/schemas/SimulationTokenUsageSchema"
+          },
+          "evidence_ledgers": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationEvidenceLedgerRead"
+            },
+            "type": "array",
+            "title": "Evidence Ledgers"
           },
           "proxy_response": {
             "type": "string",
@@ -10772,6 +11075,17 @@
             "format": "date-time",
             "title": "Last Updated"
           },
+          "scenario_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Summary"
+          },
           "negotiation_state": {
             "$ref": "#/components/schemas/NegotiationStateSchema"
           },
@@ -10781,6 +11095,13 @@
             },
             "type": "array",
             "title": "Messages"
+          },
+          "evidence_ledgers": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationEvidenceLedgerRead"
+            },
+            "type": "array",
+            "title": "Evidence Ledgers"
           }
         },
         "type": "object",
@@ -10816,6 +11137,58 @@
             "minimum": 1,
             "title": "Max Turn Count",
             "default": 12
+          },
+          "counterpart_llm_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterpart Llm Provider"
+          },
+          "counterpart_llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterpart Llm Model"
+          },
+          "evaluator_llm_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluator Llm Provider"
+          },
+          "evaluator_llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluator Llm Model"
           }
         },
         "type": "object",
@@ -10834,6 +11207,67 @@
           "teacher_feedback"
         ],
         "title": "SimulationTeacherReviewRequest"
+      },
+      "SimulationTokenUsageSchema": {
+        "properties": {
+          "simulation_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simulation Total"
+          },
+          "coach_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coach Total"
+          },
+          "counterpart_latest": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterpart Latest"
+          },
+          "proxy_latest": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Latest"
+          },
+          "evaluator_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluator Total"
+          }
+        },
+        "type": "object",
+        "title": "SimulationTokenUsageSchema"
       },
       "SimulationTurnRequest": {
         "properties": {
@@ -10948,6 +11382,16 @@
               }
             ],
             "title": "Counterpart Response"
+          },
+          "token_usage": {
+            "$ref": "#/components/schemas/SimulationTokenUsageSchema"
+          },
+          "evidence_ledgers": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationEvidenceLedgerRead"
+            },
+            "type": "array",
+            "title": "Evidence Ledgers"
           }
         },
         "type": "object",

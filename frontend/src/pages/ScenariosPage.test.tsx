@@ -51,7 +51,9 @@ describe("ScenariosPage", () => {
     const generateMutateAsync = vi.fn().mockResolvedValue({
       public_context: { issue: "late checkout" },
       side_a_private_context: { goal: "avoid fee" },
-      side_b_private_context: { goal: "protect policy" }
+      side_b_private_context: { goal: "protect policy" },
+      side_a_summary: "You want a later checkout without paying more.",
+      side_b_summary: "You want to protect hotel policy and revenue."
     });
     vi.spyOn(scenarioQueries, "useScenariosQuery").mockReturnValue({
       isLoading: false,
@@ -76,18 +78,61 @@ describe("ScenariosPage", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Guest and manager discuss checkout time and fees." }
     });
-    fireEvent.click(screen.getByRole("button", { name: "Generate context" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate context and summaries" }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Public context JSON")).toHaveValue('{\n  "issue": "late checkout"\n}');
       expect(screen.getByLabelText("Side A private context JSON")).toHaveValue('{\n  "goal": "avoid fee"\n}');
-      expect(screen.getByRole("button", { name: "Regenerate context" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Side A summary")).toHaveValue("You want a later checkout without paying more.");
+      expect(screen.getByLabelText("Side B summary")).toHaveValue("You want to protect hotel policy and revenue.");
+      expect(screen.getByRole("button", { name: "Regenerate context and summaries" })).toBeInTheDocument();
     });
     expect(generateMutateAsync).toHaveBeenCalledWith({
       name: "Hotel late checkout",
       description: "Guest and manager discuss checkout time and fees.",
       provider: "openai",
       modelName: "gpt-4o-mini",
+    });
+  });
+
+  it("sends side summaries when creating a scenario", async () => {
+    const createMutateAsync = vi.fn().mockResolvedValue({});
+    vi.spyOn(scenarioQueries, "useScenariosQuery").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [],
+      refetch: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useCreateScenarioMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: createMutateAsync
+    } as never);
+    vi.spyOn(scenarioQueries, "useGenerateScenarioContextMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Hotel late checkout" } });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Guest and manager discuss checkout time and fees." }
+    });
+    fireEvent.change(screen.getByLabelText("Side A summary"), {
+      target: { value: "Try to get more time without a fee." }
+    });
+    fireEvent.change(screen.getByLabelText("Side B summary"), {
+      target: { value: "Protect the policy while keeping the guest satisfied." }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create scenario" }));
+
+    await waitFor(() => {
+      expect(createMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          side_a_summary: "Try to get more time without a fee.",
+          side_b_summary: "Protect the policy while keeping the guest satisfied.",
+        })
+      );
     });
   });
 
@@ -140,7 +185,7 @@ describe("ScenariosPage", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Candidate and recruiter discuss compensation." }
     });
-    fireEvent.click(screen.getByRole("button", { name: "Generate context" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate context and summaries" }));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
     expect(screen.getByDisplayValue("Salary negotiation")).toBeInTheDocument();
@@ -151,8 +196,11 @@ describe("ScenariosPage", () => {
     const generateMutateAsync = vi.fn().mockResolvedValue({
       public_context: { issue: "updated issue" },
       side_a_private_context: { goal: "updated side a goal" },
-      side_b_private_context: { goal: "updated side b goal" }
+      side_b_private_context: { goal: "updated side b goal" },
+      side_a_summary: "Updated side A summary",
+      side_b_summary: "Updated side B summary"
     });
+    const updateMutateAsync = vi.fn();
 
     vi.spyOn(scenarioQueries, "useScenariosQuery").mockReturnValue({
       isLoading: false,
@@ -185,10 +233,91 @@ describe("ScenariosPage", () => {
       data: {
         id: 10,
         name: "Late checkout",
+          description: "Original description",
+          public_context: { issue: "old issue" },
+          side_a_private_context: { goal: "old side a goal" },
+          side_b_private_context: { goal: "old side b goal" },
+          side_a_summary: "Old side A summary",
+          side_b_summary: "Old side B summary",
+          created_by_user_id: 1,
+          last_edit_by_user_id: null,
+          created_at: "2026-06-09T00:00:00Z",
+        last_updated: "2026-06-09T00:00:00Z",
+        simulation_ids: []
+      },
+      refetch: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useUpdateScenarioMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: updateMutateAsync
+    } as never);
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await waitFor(() => {
+      const generatorModels = screen.getAllByLabelText("Generator model");
+      expect(generatorModels[generatorModels.length - 1]).toHaveValue("gpt-4o-mini");
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Regenerate context and summaries" }));
+
+    await waitFor(() => {
+      expect(generateMutateAsync).toHaveBeenCalledWith({
+        name: "Late checkout",
+        description: "Original description",
+        provider: "openai",
+        modelName: "gpt-4o-mini",
+      });
+      expect(screen.getByLabelText("Public context JSON")).toHaveValue('{\n  "issue": "updated issue"\n}');
+      const sideASummaries = screen.getAllByLabelText("Side A summary");
+      const sideBSummaries = screen.getAllByLabelText("Side B summary");
+      expect(sideASummaries[sideASummaries.length - 1]).toHaveValue("Updated side A summary");
+      expect(sideBSummaries[sideBSummaries.length - 1]).toHaveValue("Updated side B summary");
+    });
+    expect(updateMutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+
+  it("sends side summaries when saving an edited scenario", async () => {
+    const updateMutateAsync = vi.fn().mockResolvedValue({});
+
+    vi.spyOn(scenarioQueries, "useScenariosQuery").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [
+        {
+          id: 10,
+          name: "Late checkout",
+          public_context: { issue: "old issue" },
+          created_by_user_id: 1,
+          last_edit_by_user_id: null,
+          created_at: "2026-06-09T00:00:00Z",
+          last_updated: "2026-06-09T00:00:00Z",
+          simulation_ids: []
+        }
+      ],
+      refetch: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useCreateScenarioMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useGenerateScenarioContextMutation").mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    } as never);
+    vi.spyOn(scenarioQueries, "useScenarioAuthoringQuery").mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        id: 10,
+        name: "Late checkout",
         description: "Original description",
         public_context: { issue: "old issue" },
         side_a_private_context: { goal: "old side a goal" },
         side_b_private_context: { goal: "old side b goal" },
+        side_a_summary: "Old side A summary",
+        side_b_summary: "Old side B summary",
         created_by_user_id: 1,
         last_edit_by_user_id: null,
         created_at: "2026-06-09T00:00:00Z",
@@ -199,28 +328,31 @@ describe("ScenariosPage", () => {
     } as never);
     vi.spyOn(scenarioQueries, "useUpdateScenarioMutation").mockReturnValue({
       isPending: false,
-      mutateAsync: vi.fn()
+      mutateAsync: updateMutateAsync
     } as never);
 
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    await waitFor(() => {
-      const generatorModels = screen.getAllByLabelText("Generator model");
-      expect(generatorModels[generatorModels.length - 1]).toHaveValue("gpt-4o-mini");
+    await screen.findByDisplayValue("Old side A summary");
+    const sideASummaries = screen.getAllByLabelText("Side A summary");
+    const sideBSummaries = screen.getAllByLabelText("Side B summary");
+    fireEvent.change(sideASummaries[sideASummaries.length - 1], {
+      target: { value: "Edited side A summary" }
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Regenerate context" }));
+    fireEvent.change(sideBSummaries[sideBSummaries.length - 1], {
+      target: { value: "Edited side B summary" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
-      expect(generateMutateAsync).toHaveBeenCalledWith({
-        name: "Late checkout",
-        description: "Original description",
-        provider: "openai",
-        modelName: "gpt-4o-mini",
-      });
-      expect(screen.getByLabelText("Public context JSON")).toHaveValue('{\n  "issue": "updated issue"\n}');
+      expect(updateMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          side_a_summary: "Edited side A summary",
+          side_b_summary: "Edited side B summary",
+        })
+      );
     });
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
   it("shows the first five lines of the scenario description in list view", () => {
