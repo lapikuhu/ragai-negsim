@@ -21,6 +21,7 @@ from app.airag.observability.llm_usage import (
     summarize_agent_token_usage_handler,
     summarize_usage_handler,
 )
+from app.airag.observability.evidence_ledger import build_agent_ledger_record
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
     is_terminal_acceptance_message,
 )
@@ -43,6 +44,7 @@ from app.repositories import (
     document_chunks_repo,
     scenarios_repo,
     sessions_repo,
+    simulation_evidence_ledgers_repo,
     simulations_repo,
     vector_stores_repo,
 )
@@ -82,6 +84,7 @@ from app.schemas.simulations_schemas import (
     SimulationUpdateRequest,
     SimulationStartRequest,
 )
+from app.schemas.evidence_ledger_schemas import SimulationEvidenceLedgerRead
 
 # TODO: This is now a god file. It should be split into multiple modules.
 # First move the review to its own domain.
@@ -233,7 +236,10 @@ def _read_simulation(simulation: Simulation) -> SimulationRead:
     )
 
 
-def _read_simulation_with_state(simulation: Simulation) -> SimulationReadWithState:
+def _read_simulation_with_state(
+    simulation: Simulation,
+    evidence_ledgers: list[SimulationEvidenceLedgerRead] | None = None,
+) -> SimulationReadWithState:
     """
     Convert a Simulation model instance to a SimulationReadWithState schema.
     This function extracts the relevant fields from the Simulation model,
@@ -247,6 +253,7 @@ def _read_simulation_with_state(simulation: Simulation) -> SimulationReadWithSta
         **base,
         negotiation_state=_public_state_schema_from_internal(raw_state),
         messages=[_message_to_schema(message) for message in raw_messages],
+        evidence_ledgers=evidence_ledgers or [],
     )
 
 # Candidate for helpers module
@@ -1617,6 +1624,59 @@ def _base_turn_response(graph_state: dict[str, Any], user_side: str | None, simu
     }
 
 
+def _ledger_read_schema(row: Any) -> SimulationEvidenceLedgerRead:
+    return SimulationEvidenceLedgerRead.model_validate(row, from_attributes=True)
+
+
+async def _persist_evidence_ledgers(
+    *,
+    simulation_id: int,
+    graph_state: dict[str, Any],
+    session: AsyncSession,
+) -> list[SimulationEvidenceLedgerRead]:
+    raw_ledgers = graph_state.get("evidence_ledger")
+    if not isinstance(raw_ledgers, dict):
+        return []
+
+    turn_index = int(graph_state.get("turn_count") or 0)
+    token_usage = graph_state.get("token_usage") if isinstance(graph_state.get("token_usage"), dict) else {}
+    created: list[SimulationEvidenceLedgerRead] = []
+    for sequence, agent_name in enumerate(
+        ["intent_classifier", "user_proxy", "counterpart", "coach", "evaluator"],
+        start=1,
+    ):
+        ledger = raw_ledgers.get(agent_name)
+        if not isinstance(ledger, dict):
+            continue
+        output_summary = ledger.get("output_summary")
+        record = build_agent_ledger_record(
+            simulation_id=simulation_id,
+            turn_index=turn_index,
+            agent_name=agent_name,
+            sequence=sequence,
+            ledger=ledger,
+            output_summary=output_summary if isinstance(output_summary, dict) else {},
+            token_usage=token_usage,
+        )
+        row = await simulation_evidence_ledgers_repo.create_evidence_ledger(
+            record,
+            session,
+        )
+        created.append(_ledger_read_schema(row))
+    return created
+
+
+async def _list_evidence_ledgers_for_read(
+    simulation_id: int,
+    session: AsyncSession,
+) -> list[SimulationEvidenceLedgerRead]:
+    rows = await simulation_evidence_ledgers_repo.list_evidence_ledgers_for_simulation(
+        simulation_id,
+        session,
+    )
+    return [_ledger_read_schema(row) for row in rows]
+
+
 def _status_after_graph(graph_state: dict[str, Any]) -> SimulationStatus:
     """
     Determine the status of a simulation based on its graph state.
@@ -1828,7 +1888,10 @@ async def list_reviewed_simulations_srvc(
     )
 
 
-async def get_simulation_srvc(simulation: Simulation) -> SimulationReadWithState:
+async def get_simulation_srvc(
+    simulation: Simulation,
+    session: AsyncSession | None = None,
+) -> SimulationReadWithState:
     """
     Get a simulation with its state.
     Args:
@@ -1836,7 +1899,12 @@ async def get_simulation_srvc(simulation: Simulation) -> SimulationReadWithState
     Returns:
         The simulation with its state.
     """
-    return _read_simulation_with_state(simulation)
+    evidence_ledgers = (
+        await _list_evidence_ledgers_for_read(simulation.id, session)
+        if session is not None and simulation.id is not None
+        else []
+    )
+    return _read_simulation_with_state(simulation, evidence_ledgers=evidence_ledgers)
 
 # CHECK
 async def update_simulation_srvc(
@@ -2017,7 +2085,15 @@ async def submit_simulation_turn_srvc(
         session,
     )
 
-    return SimulationTurnResponse(**_base_turn_response(graph_state, state.get("user_side"), updated_simulation.id))
+    evidence_ledgers = await _persist_evidence_ledgers(
+        simulation_id=updated_simulation.id,
+        graph_state=graph_state,
+        session=session,
+    )
+    return SimulationTurnResponse(
+        **_base_turn_response(graph_state, state.get("user_side"), updated_simulation.id),
+        evidence_ledgers=evidence_ledgers,
+    )
 
 
 async def submit_simulation_proxy_turn_srvc(
@@ -2122,11 +2198,17 @@ async def submit_simulation_proxy_turn_srvc(
         session,
     )
 
+    evidence_ledgers = await _persist_evidence_ledgers(
+        simulation_id=updated_simulation.id,
+        graph_state=graph_state,
+        session=session,
+    )
     return SimulationProxyTurnResponse(
         **_base_turn_response(graph_state, state.get("user_side"), updated_simulation.id),
         proxy_response=proxy_message,
         auto_user_proxy_enabled=bool(graph_state.get("auto_user_proxy_enabled", False)),
         user_proxy_persona=_safe_public_proxy_persona(graph_state.get("user_proxy_persona")),
+        evidence_ledgers=evidence_ledgers,
     )
 
 
@@ -2173,7 +2255,10 @@ async def disable_simulation_proxy_srvc(
     )
 
 
-async def get_simulation_state_srvc(simulation: Simulation) -> SimulationReadWithState:
+async def get_simulation_state_srvc(
+    simulation: Simulation,
+    session: AsyncSession | None = None,
+) -> SimulationReadWithState:
     """
     Get the current state of a simulation.
     Args:
@@ -2182,7 +2267,12 @@ async def get_simulation_state_srvc(simulation: Simulation) -> SimulationReadWit
         A SimulationReadWithState containing the current state of the 
         simulation.
     """
-    return _read_simulation_with_state(simulation)
+    evidence_ledgers = (
+        await _list_evidence_ledgers_for_read(simulation.id, session)
+        if session is not None and simulation.id is not None
+        else []
+    )
+    return _read_simulation_with_state(simulation, evidence_ledgers=evidence_ledgers)
 
 
 async def cancel_simulation_srvc(

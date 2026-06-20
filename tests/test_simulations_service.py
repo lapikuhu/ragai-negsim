@@ -1055,6 +1055,87 @@ async def test_submit_turn_persists_hidden_llm_usage_summary(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_submit_turn_persists_evidence_ledgers(monkeypatch):
+    simulation = _simulation(
+        status="active",
+        user_id_owner=7,
+        negotiation_state={
+            "current_phase": "opening",
+            "user_side": "side_a",
+            "data": {
+                "simulation_id": "10",
+                "session_id": "10",
+                "user_id": "7",
+                "user_side": "side_a",
+                "phase": "opening",
+                "messages": [],
+                "event_log": [],
+            },
+        },
+    )
+    persisted = []
+
+    class FakeGraph:
+        def invoke(self, state, config=None):
+            return {
+                **state,
+                "turn_count": 1,
+                "phase": "bargaining",
+                "should_pause": True,
+                "pause_reason": "counterpart_response_ready",
+                "messages": state["messages"],
+                "evidence_ledger": {
+                    "coach": {
+                        "pipeline": {"steps": [{"name": "generate", "status": "success"}]},
+                        "output_summary": {"kind": "coach_advice", "confidence": "medium"},
+                    },
+                    "counterpart": {
+                        "pipeline": {"steps": [{"name": "generate", "status": "success"}]},
+                        "output_summary": {"kind": "counterpart_response"},
+                    },
+                },
+            }
+
+    async def fake_update_simulation(simulation_obj, simulation_in, session):
+        simulation_obj.negotiation_state = simulation_in.negotiation_state.model_dump()
+        simulation_obj.messages = [message.model_dump() for message in simulation_in.messages]
+        simulation_obj.status = simulation_in.status
+        return simulation_obj
+
+    async def fake_create_evidence_ledger(record, session):
+        persisted.append(record)
+        return SimpleNamespace(
+            id=len(persisted),
+            created_at=datetime.now(timezone.utc),
+            **record.model_dump(),
+        )
+
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        fake_update_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service.simulation_evidence_ledgers_repo,
+        "create_evidence_ledger",
+        fake_create_evidence_ledger,
+    )
+
+    result = await simulations_service.submit_simulation_turn_srvc(
+        simulation,
+        SimulationTurnRequest(message="Could you do 95?"),
+        object(),
+        _user(7),
+        FakeGraph(),
+    )
+
+    assert [record.agent_name for record in persisted] == ["counterpart", "coach"]
+    assert [record.turn_index for record in persisted] == [1, 1]
+    assert result.evidence_ledgers[0].agent_name == "counterpart"
+    assert result.evidence_ledgers[1].output_summary["kind"] == "coach_advice"
+
+
+@pytest.mark.asyncio
 async def test_submit_turn_returns_public_token_usage_and_stamps_counterpart_message(monkeypatch):
     simulation = _simulation(
         status="active",
