@@ -185,6 +185,7 @@ async def list_completed_simulations(
 )
 async def get_simulation(
     simulation: ReadableSimulationDep,
+    session: SessionDep,
 ) -> SimulationReadWithState:
     """
     Get a simulation by its ID.
@@ -193,7 +194,7 @@ async def get_simulation(
     Returns:
         A SimulationReadWithState containing the simulation data.
     """
-    return await simulations_service.get_simulation_srvc(simulation)
+    return await simulations_service.get_simulation_srvc(simulation, session)
 
 ### -------------------- UPDATE SIMULATION BY ID ------------------- ###
 @router.patch(
@@ -393,6 +394,7 @@ async def disable_simulation_proxy(
 )
 async def get_simulation_state(
     simulation: ReadableSimulationDep,
+    session: SessionDep,
 ) -> SimulationReadWithState:
     """
     Get the current state of a simulation.
@@ -403,7 +405,7 @@ async def get_simulation_state(
     Raises:
         ValueError: If the simulation state cannot be retrieved.
     """
-    return await simulations_service.get_simulation_state_srvc(simulation)
+    return await simulations_service.get_simulation_state_srvc(simulation, session)
 
 ### -------------------- CANCEL SIMULATION BY ID ------------------- ###
 @router.post(
