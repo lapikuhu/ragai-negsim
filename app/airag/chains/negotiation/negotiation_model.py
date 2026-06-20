@@ -183,3 +183,4 @@ class ParentNegotiationState(TypedDict, total=False):
 
     # Debug / observability
     event_log: Annotated[list[str], operator.add]
+    evidence_ledger: dict[str, object]

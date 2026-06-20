@@ -12,6 +12,7 @@ from app.airag.chains.agents.user_proxy_negotiator.user_proxy_model import (
     UserProxyGraphState,
     UserProxyResponseModel,
 )
+from app.airag.observability.evidence_ledger import update_agent_ledger
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
@@ -50,9 +51,17 @@ def make_generate_user_proxy_response_node(model: Any, prompt_template: str | No
             A dictionary containing the generated user proxy response.
         """
         if model is None:
+            ledger = update_agent_ledger(
+                state,
+                agent_name="user_proxy",
+                step_name="generate",
+                status="failed",
+                detail={"reason": "model_not_configured"},
+            )
             return {
                 "proxy_validation_error": "User proxy model is not configured.",
                 "event_log": ["user_proxy:generation_failed"],
+                "evidence_ledger": ledger,
             }
 
         prompt = render_user_proxy_prompt(state, prompt_template)
@@ -72,17 +81,37 @@ def make_generate_user_proxy_response_node(model: Any, prompt_template: str | No
                 state,
             )
         except Exception as exc:
+            ledger = update_agent_ledger(
+                state,
+                agent_name="user_proxy",
+                step_name="generate",
+                status="failed",
+                detail={"prompt_chars": len(prompt), "error": str(exc)},
+            )
             return {
                 "proxy_prompt": prompt,
                 "proxy_validation_error": str(exc),
                 "event_log": ["user_proxy:generation_failed"],
+                "evidence_ledger": ledger,
             }
 
+        ledger = update_agent_ledger(
+            state,
+            agent_name="user_proxy",
+            step_name="generate",
+            status="success",
+            detail={"prompt_chars": len(prompt)},
+            output_summary={
+                "kind": "proxy_response",
+                "confidence": response.get("confidence"),
+            },
+        )
         return {
             "proxy_prompt": prompt,
             "proxy_response": response,
             "proxy_validation_error": "",
             "event_log": ["user_proxy:generated_response"],
+            "evidence_ledger": ledger,
         }
 
     return node_generate_user_proxy_response
@@ -103,10 +132,18 @@ def make_repair_user_proxy_response_node(model: Any, prompt_template: str | None
         """
         retry_count = state.get("proxy_retry_count", 0) + 1
         if model is None:
+            ledger = update_agent_ledger(
+                state,
+                agent_name="user_proxy",
+                step_name="repair",
+                status="failed",
+                detail={"reason": "model_not_configured"},
+            )
             return {
                 "proxy_retry_count": retry_count,
                 "proxy_validation_error": "User proxy model is not configured for repair.",
                 "event_log": ["user_proxy:repair_failed"],
+                "evidence_ledger": ledger,
             }
 
         repair_prompt = "\n\n".join(
@@ -134,17 +171,37 @@ def make_repair_user_proxy_response_node(model: Any, prompt_template: str | None
                 state,
             )
         except Exception as exc:
+            ledger = update_agent_ledger(
+                state,
+                agent_name="user_proxy",
+                step_name="repair",
+                status="failed",
+                detail={"prompt_chars": len(repair_prompt), "error": str(exc)},
+            )
             return {
                 "proxy_retry_count": retry_count,
                 "proxy_validation_error": str(exc),
                 "event_log": ["user_proxy:repair_failed"],
+                "evidence_ledger": ledger,
             }
 
+        ledger = update_agent_ledger(
+            state,
+            agent_name="user_proxy",
+            step_name="repair",
+            status="success",
+            detail={"prompt_chars": len(repair_prompt)},
+            output_summary={
+                "kind": "proxy_response",
+                "confidence": response.get("confidence"),
+            },
+        )
         return {
             "proxy_response": response,
             "proxy_validation_error": "",
             "proxy_retry_count": retry_count,
             "event_log": ["user_proxy:repaired_response"],
+            "evidence_ledger": ledger,
         }
 
     return node_repair_user_proxy_response
@@ -158,12 +215,24 @@ def node_fallback_user_proxy_response(state: UserProxyGraphState) -> dict:
     Returns:
         A dictionary containing the fallback user proxy response.
     """
+    response = fallback_user_proxy_response(
+        state,
+        state.get("proxy_validation_error", "unknown proxy generation failure"),
+    )
+    ledger = update_agent_ledger(
+        state,
+        agent_name="user_proxy",
+        step_name="fallback",
+        status="used",
+        output_summary={
+            "kind": "proxy_response",
+            "confidence": response.get("confidence"),
+        },
+    )
     return {
-        "proxy_response": fallback_user_proxy_response(
-            state,
-            state.get("proxy_validation_error", "unknown proxy generation failure"),
-        ),
+        "proxy_response": response,
         "event_log": ["user_proxy:fallback"],
+        "evidence_ledger": ledger,
     }
 
 
@@ -179,9 +248,20 @@ def node_finalize_user_proxy(state: UserProxyGraphState) -> dict:
         state,
         "missing proxy_response at finalize",
     )
+    ledger = update_agent_ledger(
+        state,
+        agent_name="user_proxy",
+        step_name="finalize",
+        status="success",
+        output_summary={
+            "kind": "proxy_response",
+            "confidence": response.get("confidence"),
+        },
+    )
     return {
         "proxy_response": response,
         "event_log": ["user_proxy:completed"],
+        "evidence_ledger": ledger,
     }
 
 

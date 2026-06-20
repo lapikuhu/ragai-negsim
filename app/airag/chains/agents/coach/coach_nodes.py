@@ -13,6 +13,7 @@ from app.airag.chains.agents.coach.coach_helpers import (
 )
 from app.airag.chains.agents.helpers import json_dumps, format_messages
 from app.airag.chains.agents.coach.coach_model import CoachGraphState, CoachAdviceModel
+from app.airag.observability.evidence_ledger import update_agent_ledger
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
@@ -80,9 +81,17 @@ def make_call_crag_node(crag_graph: Any):
 			describing the CRAG invocation.  
 		"""
 		if crag_graph is None:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="coach",
+				step_name="crag",
+				status="skipped",
+				detail={"query": state.get("coach_query", "")},
+			)
 			return {
 				"retrieval_context": state.get("retrieval_context", ""),
 				"event_log": ["coach:crag_skipped"],
+				"evidence_ledger": ledger,
 			}
 
 		try: 
@@ -107,10 +116,18 @@ def make_call_crag_node(crag_graph: Any):
 				invoke_config,
 			)
 		except Exception as exc:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="coach",
+				step_name="crag",
+				status="failed",
+				detail={"query": state.get("coach_query", ""), "error": str(exc)},
+			)
 			return {
 				"retrieval_context": state.get("retrieval_context", ""),
 				"coach_validation_error": f"CRAG invocation failed: {exc}",
 				"event_log": ["coach:crag_failed"],
+				"evidence_ledger": ledger,
 			}
 
 		answer = result.get("answer", "") if isinstance(result, dict) else ""
@@ -119,9 +136,18 @@ def make_call_crag_node(crag_graph: Any):
 		if not retrieval_context:
 			retrieval_context = state.get("retrieval_context", "")
 
+		ledger = update_agent_ledger(
+			state,
+			agent_name="coach",
+			step_name="crag",
+			status="success",
+			detail={"query": state.get("coach_query", "")},
+			extra={"crag": result.get("evidence_ledger", {}) if isinstance(result, dict) else {}},
+		)
 		return {
 			"retrieval_context": retrieval_context,
 			"event_log": ["coach:crag_completed"],
+			"evidence_ledger": ledger,
 		}
 
 	return node_call_crag
@@ -171,9 +197,17 @@ def make_generate_coach_advice_node(
 		"""
 
 		if model is None:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="coach",
+				step_name="generate",
+				status="failed",
+				detail={"reason": "model_not_configured"},
+			)
 			return {
 				"coach_validation_error": "Coach model is not configured.",
 				"event_log": ["coach:generation_failed"],
+				"evidence_ledger": ledger,
 			}
 
 		prompt = render_coach_prompt(state, prompt_template)
@@ -186,17 +220,38 @@ def make_generate_coach_advice_node(
 				run_name="coach.generate",
 			)
 			advice = invoke_with_config(structured_model, prompt, invoke_config)
+			advice_payload = advice.model_dump()
+			ledger = update_agent_ledger(
+				state,
+				agent_name="coach",
+				step_name="generate",
+				status="success",
+				detail={"prompt_chars": len(prompt)},
+				output_summary={
+					"kind": "coach_advice",
+					"confidence": advice_payload.get("confidence"),
+				},
+			)
 			return {
 				"coach_prompt": prompt,
-				"coach_advice": advice.model_dump(),
+				"coach_advice": advice_payload,
 				"coach_validation_error": "",
 				"event_log": ["coach:generated_advice"],
+				"evidence_ledger": ledger,
 			}
 		except Exception as exc:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="coach",
+				step_name="generate",
+				status="failed",
+				detail={"prompt_chars": len(prompt), "error": str(exc)},
+			)
 			return {
 				"coach_prompt": prompt,
 				"coach_validation_error": str(exc),
 				"event_log": ["coach:generation_failed"],
+				"evidence_ledger": ledger,
 			}
 
 	return node_generate_coach_advice
@@ -236,9 +291,17 @@ def make_repair_coach_advice_node(
             }
 		"""
 		if model is None:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="coach",
+				step_name="repair",
+				status="failed",
+				detail={"reason": "model_not_configured"},
+			)
 			return {
 				"coach_retry_count": state.get("coach_retry_count", 0) + 1,
 				"event_log": ["coach:repair_skipped"],
+				"evidence_ledger": ledger,
 			}
 
 		repair_prompt = "\n\n".join(
@@ -259,17 +322,38 @@ def make_repair_coach_advice_node(
 				run_name="coach.repair",
 			)
 			advice = invoke_with_config(structured_model, repair_prompt, invoke_config)
+			advice_payload = advice.model_dump()
+			ledger = update_agent_ledger(
+				state,
+				agent_name="coach",
+				step_name="repair",
+				status="success",
+				detail={"prompt_chars": len(repair_prompt)},
+				output_summary={
+					"kind": "coach_advice",
+					"confidence": advice_payload.get("confidence"),
+				},
+			)
 			return {
-				"coach_advice": advice.model_dump(),
+				"coach_advice": advice_payload,
 				"coach_validation_error": "",
 				"coach_retry_count": state.get("coach_retry_count", 0) + 1,
 				"event_log": ["coach:repaired_advice"],
+				"evidence_ledger": ledger,
 			}
 		except Exception as exc:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="coach",
+				step_name="repair",
+				status="failed",
+				detail={"prompt_chars": len(repair_prompt), "error": str(exc)},
+			)
 			return {
 				"coach_validation_error": str(exc),
 				"coach_retry_count": state.get("coach_retry_count", 0) + 1,
 				"event_log": ["coach:repair_failed"],
+				"evidence_ledger": ledger,
 			}
 
 	return node_repair_coach_advice
@@ -292,12 +376,24 @@ def node_fallback_coach_advice(state: CoachGraphState) -> dict:
             "event_log": list[str],
         }	
 	"""
+	advice = fallback_advice(
+		state,
+		state.get("coach_validation_error", "unknown coach generation failure"),
+	)
+	ledger = update_agent_ledger(
+		state,
+		agent_name="coach",
+		step_name="fallback",
+		status="used",
+		output_summary={
+			"kind": "coach_advice",
+			"confidence": advice.get("confidence"),
+		},
+	)
 	return {
-		"coach_advice": fallback_advice(
-			state,
-			state.get("coach_validation_error", "unknown coach generation failure"),
-		),
+		"coach_advice": advice,
 		"event_log": ["coach:fallback"],
+		"evidence_ledger": ledger,
 	}
 
 
@@ -320,11 +416,34 @@ def node_finalize_coach(state: CoachGraphState) -> dict:
         }
 	"""
 	if state.get("coach_advice"):
-		return {"event_log": ["coach:completed"]}
+		advice = state["coach_advice"]
+		ledger = update_agent_ledger(
+			state,
+			agent_name="coach",
+			step_name="finalize",
+			status="success",
+			output_summary={
+				"kind": "coach_advice",
+				"confidence": advice.get("confidence"),
+			},
+		)
+		return {"event_log": ["coach:completed"], "evidence_ledger": ledger}
 
+	advice = fallback_advice(state, "missing coach_advice at finalize")
+	ledger = update_agent_ledger(
+		state,
+		agent_name="coach",
+		step_name="fallback",
+		status="used",
+		output_summary={
+			"kind": "coach_advice",
+			"confidence": advice.get("confidence"),
+		},
+	)
 	return {
-		"coach_advice": fallback_advice(state, "missing coach_advice at finalize"),
+		"coach_advice": advice,
 		"event_log": ["coach:fallback_at_finalize"],
+		"evidence_ledger": ledger,
 	}
 
 ### ROUTERS

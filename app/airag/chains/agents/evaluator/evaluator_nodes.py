@@ -21,6 +21,7 @@ from app.airag.chains.agents.evaluator.evaluator_helpers import (
 	fallback_final_evaluator_response,
 	final_evaluation_from_response,
 )
+from app.airag.observability.evidence_ledger import update_agent_ledger
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 def node_prepare_evaluator_context(state: EvaluatorGraphState) -> dict:
@@ -80,9 +81,17 @@ def make_call_crag_node(crag_graph: Any = None):
 		"""
 		existing_context = get_existing_retrieval_context(state)
 		if crag_graph is None:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="evaluator",
+				step_name="crag",
+				status="skipped",
+				detail={"query": state.get("evaluator_query", "negotiation evaluation")},
+			)
 			return {
 				"retrieval_context": existing_context,
 				"event_log": ["evaluator:crag_skipped"],
+				"evidence_ledger": ledger,
 			}
 
 		try:
@@ -107,10 +116,21 @@ def make_call_crag_node(crag_graph: Any = None):
 				invoke_config,
 			)
 		except Exception as exc:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="evaluator",
+				step_name="crag",
+				status="failed",
+				detail={
+					"query": state.get("evaluator_query", "negotiation evaluation"),
+					"error": str(exc),
+				},
+			)
 			return {
 				"retrieval_context": existing_context,
 				"evaluator_validation_error": f"CRAG grounding failed: {exc}",
 				"event_log": ["evaluator:crag_failed"],
+				"evidence_ledger": ledger,
 			}
 
 		answer = result.get("answer", "") if isinstance(result, dict) else ""
@@ -119,9 +139,18 @@ def make_call_crag_node(crag_graph: Any = None):
 			part for part in (answer, context, existing_context) if part
 		)
 
+		ledger = update_agent_ledger(
+			state,
+			agent_name="evaluator",
+			step_name="crag",
+			status="success",
+			detail={"query": state.get("evaluator_query", "negotiation evaluation")},
+			extra={"crag": result.get("evidence_ledger", {}) if isinstance(result, dict) else {}},
+		)
 		return {
 			"retrieval_context": retrieval_context,
 			"event_log": ["evaluator:crag_completed"],
+			"evidence_ledger": ledger,
 		}
 
 	return node_call_crag
@@ -148,9 +177,17 @@ def make_generate_evaluator_response_node(
 		config: RunnableConfig | None = None,
 	) -> dict:
 		if model is None:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="evaluator",
+				step_name="generate",
+				status="failed",
+				detail={"reason": "model_not_configured"},
+			)
 			return {
 				"evaluator_validation_error": "Evaluator model is not configured.",
 				"event_log": ["evaluator:generation_failed"],
+				"evidence_ledger": ledger,
 			}
 
 		final_mode = state.get("evaluation_mode") == "final"
@@ -173,17 +210,37 @@ def make_generate_evaluator_response_node(
 				final_mode=final_mode,
 			)
 		except Exception as exc:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="evaluator",
+				step_name="generate",
+				status="failed",
+				detail={"prompt_chars": len(prompt), "error": str(exc)},
+			)
 			return {
 				"evaluator_prompt": prompt,
 				"evaluator_validation_error": str(exc),
 				"event_log": ["evaluator:generation_failed"],
+				"evidence_ledger": ledger,
 			}
 
+		ledger = update_agent_ledger(
+			state,
+			agent_name="evaluator",
+			step_name="generate",
+			status="success",
+			detail={"prompt_chars": len(prompt)},
+			output_summary={
+				"kind": "final_evaluation" if final_mode else "rolling_evaluation",
+				"confidence": response.get("confidence"),
+			},
+		)
 		return {
 			"evaluator_prompt": prompt,
 			"evaluator_response": response,
 			"evaluator_validation_error": "",
 			"event_log": ["evaluator:generated_response"],
+			"evidence_ledger": ledger,
 		}
 
 	return node_generate_evaluator_response
@@ -209,10 +266,18 @@ def make_repair_evaluator_response_node(
 		"""
 		retry_count = state.get("evaluator_retry_count", 0) + 1
 		if model is None:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="evaluator",
+				step_name="repair",
+				status="failed",
+				detail={"reason": "model_not_configured"},
+			)
 			return {
 				"evaluator_retry_count": retry_count,
 				"evaluator_validation_error": "Evaluator model is not configured for repair.",
 				"event_log": ["evaluator:repair_failed"],
+				"evidence_ledger": ledger,
 			}
 
 		final_mode = state.get("evaluation_mode") == "final"
@@ -239,17 +304,37 @@ def make_repair_evaluator_response_node(
 				final_mode=final_mode,
 			)
 		except Exception as exc:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="evaluator",
+				step_name="repair",
+				status="failed",
+				detail={"prompt_chars": len(repair_prompt), "error": str(exc)},
+			)
 			return {
 				"evaluator_retry_count": retry_count,
 				"evaluator_validation_error": str(exc),
 				"event_log": ["evaluator:repair_failed"],
+				"evidence_ledger": ledger,
 			}
 
+		ledger = update_agent_ledger(
+			state,
+			agent_name="evaluator",
+			step_name="repair",
+			status="success",
+			detail={"prompt_chars": len(repair_prompt)},
+			output_summary={
+				"kind": "final_evaluation" if final_mode else "rolling_evaluation",
+				"confidence": response.get("confidence"),
+			},
+		)
 		return {
 			"evaluator_response": response,
 			"evaluator_validation_error": "",
 			"evaluator_retry_count": retry_count,
 			"event_log": ["evaluator:repaired_response"],
+			"evidence_ledger": ledger,
 		}
 
 	return node_repair_evaluator_response
@@ -264,25 +349,38 @@ def node_fallback_evaluator_response(state: EvaluatorGraphState) -> dict:
 	Returns:
 		A dictionary representation of the fallback evaluator response node.
 	"""
+	final_mode = state.get("evaluation_mode") == "final"
+	response = (
+		fallback_final_evaluator_response(
+			state,
+			state.get(
+				"evaluator_validation_error",
+				"unknown final evaluator generation failure",
+			),
+		)
+		if final_mode
+		else fallback_evaluator_response(
+			state,
+			state.get(
+				"evaluator_validation_error",
+				"unknown evaluator generation failure",
+			),
+		)
+	)
+	ledger = update_agent_ledger(
+		state,
+		agent_name="evaluator",
+		step_name="fallback",
+		status="used",
+		output_summary={
+			"kind": "final_evaluation" if final_mode else "rolling_evaluation",
+			"confidence": response.get("confidence"),
+		},
+	)
 	return {
-		"evaluator_response": (
-			fallback_final_evaluator_response(
-				state,
-				state.get(
-					"evaluator_validation_error",
-					"unknown final evaluator generation failure",
-				),
-			)
-			if state.get("evaluation_mode") == "final"
-			else fallback_evaluator_response(
-				state,
-				state.get(
-					"evaluator_validation_error",
-					"unknown evaluator generation failure",
-				),
-			)
-		),
+		"evaluator_response": response,
 		"event_log": ["evaluator:fallback"],
+		"evidence_ledger": ledger,
 	}
 
 
@@ -313,6 +411,16 @@ def node_finalize_evaluator(state: EvaluatorGraphState) -> dict:
 			f"evaluator:full_response {json_dumps(response)}",
 			"evaluator:completed",
 		],
+		"evidence_ledger": update_agent_ledger(
+			state,
+			agent_name="evaluator",
+			step_name="finalize",
+			status="success",
+			output_summary={
+				"kind": "final_evaluation" if final_mode else "rolling_evaluation",
+				"confidence": response.get("confidence"),
+			},
+		),
 	}
 	if final_mode:
 		updates["final_evaluation"] = final_evaluation_from_response(state, response)

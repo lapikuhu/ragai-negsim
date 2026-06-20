@@ -116,3 +116,28 @@ def build_agent_ledger_record(
         output_summary=output_summary or {},
         raw_debug=value.get("raw_debug", {}),
     )
+
+
+def update_agent_ledger(
+    state: dict[str, Any],
+    *,
+    agent_name: str,
+    step_name: str,
+    status: str,
+    detail: dict[str, Any] | None = None,
+    output_summary: dict[str, Any] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    ledger = dict(state.get("evidence_ledger") or {})
+    agent_ledger = append_pipeline_step(
+        ledger.get(agent_name),
+        name=step_name,
+        status=status,
+        detail=detail,
+    )
+    if output_summary is not None:
+        agent_ledger["output_summary"] = output_summary
+    if extra:
+        agent_ledger.update(extra)
+    ledger[agent_name] = agent_ledger
+    return ledger

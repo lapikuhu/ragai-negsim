@@ -13,6 +13,7 @@ from app.airag.chains.agents.intent_classifier.intent_classifier_model import (
     IntentClassificationModel,
     IntentClassifierGraphState,
 )
+from app.airag.observability.evidence_ledger import update_agent_ledger
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
@@ -33,10 +34,18 @@ def make_classify_intent_node(model: Any):
     ) -> dict:
         prompt = render_intent_prompt(state)
         if model is None:
+            ledger = update_agent_ledger(
+                state,
+                agent_name="intent_classifier",
+                step_name="generate",
+                status="failed",
+                detail={"reason": "model_not_configured", "prompt_chars": len(prompt)},
+            )
             return {
                 "intent_prompt": prompt,
                 "intent_validation_error": "Intent classifier model is not configured.",
                 "event_log": ["intent_classifier:generation_failed"],
+                "evidence_ledger": ledger,
             }
 
         try:
@@ -70,12 +79,32 @@ def make_classify_intent_node(model: Any):
                     ),
                 }
         except Exception as exc:
+            ledger = update_agent_ledger(
+                state,
+                agent_name="intent_classifier",
+                step_name="generate",
+                status="failed",
+                detail={"error": str(exc), "prompt_chars": len(prompt)},
+            )
             return {
                 "intent_prompt": prompt,
                 "intent_validation_error": str(exc),
                 "event_log": ["intent_classifier:generation_failed"],
+                "evidence_ledger": ledger,
             }
 
+        ledger = update_agent_ledger(
+            state,
+            agent_name="intent_classifier",
+            step_name="generate",
+            status="success",
+            detail={"prompt_chars": len(prompt)},
+            output_summary={
+                "kind": "intent_classification",
+                "intent": classification["intent"],
+                "confidence": classification["confidence"],
+            },
+        )
         return {
             "intent_prompt": prompt,
             "intent_classification": classification,
@@ -85,6 +114,7 @@ def make_classify_intent_node(model: Any):
                 f"intent={classification['intent']} "
                 f"confidence={classification['confidence']}"
             ],
+            "evidence_ledger": ledger,
         }
 
     return node_classify_intent
@@ -103,8 +133,32 @@ def node_finalize_intent(state: IntentClassifierGraphState) -> dict:
     """
     classification = state.get("intent_classification")
     if classification:
-        return {"intent_classification": classification}
+        ledger = update_agent_ledger(
+            state,
+            agent_name="intent_classifier",
+            step_name="finalize",
+            status="success",
+            output_summary={
+                "kind": "intent_classification",
+                "intent": classification.get("intent"),
+                "confidence": classification.get("confidence"),
+            },
+        )
+        return {"intent_classification": classification, "evidence_ledger": ledger}
+    fallback = fallback_intent_classification()
+    ledger = update_agent_ledger(
+        state,
+        agent_name="intent_classifier",
+        step_name="fallback",
+        status="used",
+        output_summary={
+            "kind": "intent_classification",
+            "intent": fallback.get("intent"),
+            "confidence": fallback.get("confidence"),
+        },
+    )
     return {
-        "intent_classification": fallback_intent_classification(),
+        "intent_classification": fallback,
         "event_log": ["intent_classifier:fallback_continue"],
+        "evidence_ledger": ledger,
     }

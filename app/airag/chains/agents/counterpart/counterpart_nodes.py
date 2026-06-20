@@ -15,6 +15,7 @@ from app.airag.chains.agents.counterpart.counterpart_helpers import (
     coerce_counterpart_response,
     fallback_counterpart_response,
 )
+from app.airag.observability.evidence_ledger import update_agent_ledger
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
@@ -64,9 +65,17 @@ def make_generate_counterpart_response_node(
 			error, and event log.
 		"""
 		if model is None:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="counterpart",
+				step_name="generate",
+				status="failed",
+				detail={"reason": "model_not_configured"},
+			)
 			return {
 				"counterpart_validation_error": "Counterpart model is not configured.",
 				"event_log": ["counterpart:generation_failed"],
+				"evidence_ledger": ledger,
 			}
 
 		prompt = render_counterpart_prompt(state, prompt_template)
@@ -89,17 +98,37 @@ def make_generate_counterpart_response_node(
 				invoke_with_config(structured_model, prompt, invoke_config)
 			)
 		except Exception as exc:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="counterpart",
+				step_name="generate",
+				status="failed",
+				detail={"prompt_chars": len(prompt), "error": str(exc)},
+			)
 			return {
 				"counterpart_prompt": prompt,
 				"counterpart_validation_error": str(exc),
 				"event_log": ["counterpart:generation_failed"],
+				"evidence_ledger": ledger,
 			}
 
+		ledger = update_agent_ledger(
+			state,
+			agent_name="counterpart",
+			step_name="generate",
+			status="success",
+			detail={"prompt_chars": len(prompt)},
+			output_summary={
+				"kind": "counterpart_response",
+				"side": response.get("side"),
+			},
+		)
 		return {
 			"counterpart_prompt": prompt,
 			"counterpart_response": response,
 			"counterpart_validation_error": "",
 			"event_log": ["counterpart:generated_response"],
+			"evidence_ledger": ledger,
 		}
 
 	return node_generate_counterpart_response
@@ -125,10 +154,18 @@ def make_repair_counterpart_response_node(
 		"""
 		retry_count = state.get("counterpart_retry_count", 0) + 1
 		if model is None:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="counterpart",
+				step_name="repair",
+				status="failed",
+				detail={"reason": "model_not_configured"},
+			)
 			return {
 				"counterpart_retry_count": retry_count,
 				"counterpart_validation_error": "Counterpart model is not configured for repair.",
 				"event_log": ["counterpart:repair_failed"],
+				"evidence_ledger": ledger,
 			}
 
 		repair_prompt = "\n\n".join(
@@ -159,17 +196,37 @@ def make_repair_counterpart_response_node(
 				invoke_with_config(structured_model, repair_prompt, invoke_config)
 			)
 		except Exception as exc:
+			ledger = update_agent_ledger(
+				state,
+				agent_name="counterpart",
+				step_name="repair",
+				status="failed",
+				detail={"prompt_chars": len(repair_prompt), "error": str(exc)},
+			)
 			return {
 				"counterpart_retry_count": retry_count,
 				"counterpart_validation_error": str(exc),
 				"event_log": ["counterpart:repair_failed"],
+				"evidence_ledger": ledger,
 			}
 
+		ledger = update_agent_ledger(
+			state,
+			agent_name="counterpart",
+			step_name="repair",
+			status="success",
+			detail={"prompt_chars": len(repair_prompt)},
+			output_summary={
+				"kind": "counterpart_response",
+				"side": response.get("side"),
+			},
+		)
 		return {
 			"counterpart_response": response,
 			"counterpart_validation_error": "",
 			"counterpart_retry_count": retry_count,
 			"event_log": ["counterpart:repaired_response"],
+			"evidence_ledger": ledger,
 		}
 
 	return node_repair_counterpart_response
@@ -184,12 +241,24 @@ def node_fallback_counterpart_response(state: CounterpartGraphState) -> dict:
 	Returns:
 		A dictionary with the fallback counterpart response and event log.
 	"""
+	response = fallback_counterpart_response(
+		state,
+		state.get("counterpart_validation_error", "unknown counterpart generation failure"),
+	)
+	ledger = update_agent_ledger(
+		state,
+		agent_name="counterpart",
+		step_name="fallback",
+		status="used",
+		output_summary={
+			"kind": "counterpart_response",
+			"side": response.get("side"),
+		},
+	)
 	return {
-		"counterpart_response": fallback_counterpart_response(
-			state,
-			state.get("counterpart_validation_error", "unknown counterpart generation failure"),
-		),
+		"counterpart_response": response,
 		"event_log": ["counterpart:fallback"],
+		"evidence_ledger": ledger,
 	}
 
 
@@ -219,6 +288,16 @@ def node_finalize_counterpart(state: CounterpartGraphState) -> dict:
 			f"counterpart:private_notes {json_dumps(private_notes)}",
 			"counterpart:completed",
 		],
+		"evidence_ledger": update_agent_ledger(
+			state,
+			agent_name="counterpart",
+			step_name="finalize",
+			status="success",
+			output_summary={
+				"kind": "counterpart_response",
+				"side": side,
+			},
+		),
 	}
 
 	if side == "side_a":
