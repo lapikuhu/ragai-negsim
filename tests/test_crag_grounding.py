@@ -46,9 +46,7 @@ def test_node_grade_accepts_general_theory_for_scenario_query(monkeypatch):
                 ),
             )
 
-    monkeypatch.setattr(crag_nodes, "document_grader", FakeDocumentGrader())
-
-    result = crag_nodes.node_grade(
+    result = crag_nodes.make_node_grade(FakeDocumentGrader())(
         {
             "question": "How should I negotiate a hotel late checkout fee?",
             "documents": [
@@ -63,7 +61,8 @@ def test_node_grade_accepts_general_theory_for_scenario_query(monkeypatch):
         }
     )
 
-    assert result == {"grade": "relevant"}
+    assert result["grade"] == "relevant"
+    assert result["evidence_ledger"]["quality_checks"][0]["name"] == "document_relevance"
     assert "hotel late checkout" in captured["question"]
     assert "ZOPA exists" in captured["context"]
 
@@ -76,9 +75,7 @@ def test_node_grade_rejects_unrelated_documents(monkeypatch):
                 reasoning="The context concerns database indexing, not negotiation.",
             )
 
-    monkeypatch.setattr(crag_nodes, "document_grader", FakeDocumentGrader())
-
-    result = crag_nodes.node_grade(
+    result = crag_nodes.make_node_grade(FakeDocumentGrader())(
         {
             "question": "How should I negotiate a hotel late checkout fee?",
             "documents": [
@@ -90,7 +87,8 @@ def test_node_grade_rejects_unrelated_documents(monkeypatch):
         }
     )
 
-    assert result == {"grade": "not_relevant"}
+    assert result["grade"] == "not_relevant"
+    assert result["evidence_ledger"]["quality_checks"][0]["verdict"] == "not_relevant"
 
 
 def test_node_grade_rejects_empty_documents_without_invoking_grader(monkeypatch):
@@ -98,16 +96,15 @@ def test_node_grade_rejects_empty_documents_without_invoking_grader(monkeypatch)
         def invoke(self, payload):
             raise AssertionError("document grader should not be invoked")
 
-    monkeypatch.setattr(crag_nodes, "document_grader", FailingDocumentGrader())
-
-    result = crag_nodes.node_grade(
+    result = crag_nodes.make_node_grade(FailingDocumentGrader())(
         {
             "question": "How should I negotiate a hotel late checkout fee?",
             "documents": [],
         }
     )
 
-    assert result == {"grade": "not_relevant"}
+    assert result["grade"] == "not_relevant"
+    assert result["evidence_ledger"]["quality_checks"][0]["reasoning"] == "No documents retrieved."
 
 
 def test_node_generate_passes_retrieval_and_trusted_context(monkeypatch):
@@ -118,9 +115,7 @@ def test_node_generate_passes_retrieval_and_trusted_context(monkeypatch):
             captured.update(payload)
             return "Grounded answer"
 
-    monkeypatch.setattr(crag_nodes, "generation_chain", FakeGenerationChain())
-
-    result = crag_nodes.node_generate(
+    result = crag_nodes.make_node_generate(FakeGenerationChain())(
         {
             "question": "What should I do?",
             "documents": [],
@@ -132,6 +127,7 @@ def test_node_generate_passes_retrieval_and_trusted_context(monkeypatch):
     assert captured["question"] == "What should I do?"
     assert captured["context"] == ""
     assert captured["trusted_context"] == "TRUSTED\nCurrent offer: EUR 40"
+    assert result["evidence_ledger"]["pipeline"]["steps"][0]["name"] == "generate"
 
 
 def test_node_quality_check_passes_both_evidence_sources(monkeypatch):
@@ -149,10 +145,10 @@ def test_node_quality_check_passes_both_evidence_sources(monkeypatch):
         def invoke(self, payload):
             return SimpleNamespace(addresses="yes")
 
-    monkeypatch.setattr(crag_nodes, "hallucination_grader", FakeHallucinationGrader())
-    monkeypatch.setattr(crag_nodes, "answer_grader", FakeAnswerGrader())
-
-    result = crag_nodes.node_quality_check(
+    result = crag_nodes.make_node_quality_check(
+        FakeHallucinationGrader(),
+        FakeAnswerGrader(),
+    )(
         {
             "question": "Is this offer inside the zone of possible agreement?",
             "context": "Context: ZOPA exists when reservation values overlap.",
@@ -166,6 +162,10 @@ def test_node_quality_check_passes_both_evidence_sources(monkeypatch):
     assert result["hallucination_grade"] == "yes"
     assert result["answer_grade"] == "yes"
     assert "grounded=yes" in result["quality_reasoning"]
+    assert [check["name"] for check in result["evidence_ledger"]["quality_checks"]] == [
+        "groundedness",
+        "answer_relevance",
+    ]
 
 
 def test_node_quality_check_fails_when_both_evidence_sources_missing():
@@ -178,11 +178,10 @@ def test_node_quality_check_fails_when_both_evidence_sources_missing():
         }
     )
 
-    assert result == {
-        "hallucination_grade": "no",
-        "answer_grade": "no",
-        "quality_reasoning": "Missing context or answer.",
-    }
+    assert result["hallucination_grade"] == "no"
+    assert result["answer_grade"] == "no"
+    assert result["quality_reasoning"] == "Missing context or answer."
+    assert result["evidence_ledger"]["pipeline"]["steps"][0]["status"] == "failed"
 
 
 def test_build_coach_trusted_context_contains_only_coach_safe_fields():

@@ -7,6 +7,11 @@ from app.airag.chains.crag.helpers import format_docs
 from app.airag.chains.crag.helpers import document_grader, rewrite_chain, generation_chain
 from app.airag.chains.crag.helpers import detect_injection, fallback_chain
 from app.airag.chains.crag.helpers import hallucination_grader, answer_grader
+from app.airag.observability.evidence_ledger import (
+    append_pipeline_step,
+    append_quality_check,
+    set_sources,
+)
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 #### --------------------------- RETRIEVE -------------------------- ###
@@ -36,10 +41,23 @@ def make_crag_retrieve_node(retriever):
         # Check for prompt injection in the query before retrieval
         if detect_injection(query):
             print("[retrieve] Prompt injection detected in query! Returning no documents.")
-            return {"documents": []}
+            ledger = append_pipeline_step(
+                state.get("evidence_ledger"),
+                name="retrieve",
+                status="blocked",
+                detail={"query": query, "reason": "prompt_injection_detected"},
+            )
+            return {"documents": [], "evidence_ledger": ledger}
         else:
             docs = retriever.invoke(query)
-            return {"documents": docs}
+            ledger = append_pipeline_step(
+                state.get("evidence_ledger"),
+                name="retrieve",
+                status="success",
+                detail={"query": query, "document_count": len(docs)},
+            )
+            ledger = set_sources(ledger, docs)
+            return {"documents": docs, "evidence_ledger": ledger}
     return node_retrieve
 
 ### ---------------------------- RERANK ---------------------------- ###
@@ -57,15 +75,35 @@ def make_crag_rerank_node(reranker, top_k: int = 3):
     def node_rerank(state) -> dict:
         docs = state.get("documents", [])
         if not docs:
-            return {"documents": docs}
+            ledger = append_pipeline_step(
+                state.get("evidence_ledger"),
+                name="rerank",
+                status="skipped",
+                detail={"reason": "no_documents"},
+            )
+            return {"documents": docs, "evidence_ledger": ledger}
 
         question = state.get("rewritten") or state["question"]
         try:
             reranked_docs = reranker(question, docs, top_k)
         except Exception as exc:
             print(f"[rerank] failed, preserving retrieval order: {exc}")
-            return {"documents": docs}
-        return {"documents": reranked_docs}
+            ledger = append_pipeline_step(
+                state.get("evidence_ledger"),
+                name="rerank",
+                status="failed",
+                detail={"error": str(exc), "preserved_input_order": True},
+            )
+            ledger = set_sources(ledger, docs)
+            return {"documents": docs, "evidence_ledger": ledger}
+        ledger = append_pipeline_step(
+            state.get("evidence_ledger"),
+            name="rerank",
+            status="success",
+            detail={"top_k": top_k, "input_count": len(docs), "output_count": len(reranked_docs)},
+        )
+        ledger = set_sources(ledger, reranked_docs)
+        return {"documents": reranked_docs, "evidence_ledger": ledger}
 
     return node_rerank
 
@@ -85,7 +123,19 @@ def make_node_grade(grader_chain=document_grader):
         docs = state.get("documents", [])
         if not docs:
             print("[grade] no documents retrieved → not_relevant")
-            return {"grade": "not_relevant"}
+            ledger = append_quality_check(
+                state.get("evidence_ledger"),
+                name="document_relevance",
+                verdict="not_relevant",
+                reasoning="No documents retrieved.",
+            )
+            ledger = append_pipeline_step(
+                ledger,
+                name="grade_documents",
+                status="success",
+                detail={"verdict": "not_relevant"},
+            )
+            return {"grade": "not_relevant", "evidence_ledger": ledger}
         question = state.get("rewritten") or state["question"]
         context = format_docs(docs)
         invoke_config = extend_runnable_config(
@@ -100,7 +150,19 @@ def make_node_grade(grader_chain=document_grader):
             invoke_config,
         )
         print(f"[grade] {verdict.relevance} | {verdict.reasoning}")
-        return {"grade": verdict.relevance}
+        ledger = append_quality_check(
+            state.get("evidence_ledger"),
+            name="document_relevance",
+            verdict=verdict.relevance,
+            reasoning=getattr(verdict, "reasoning", ""),
+        )
+        ledger = append_pipeline_step(
+            ledger,
+            name="grade_documents",
+            status="success",
+            detail={"verdict": verdict.relevance},
+        )
+        return {"grade": verdict.relevance, "evidence_ledger": ledger}
     return node_grade
 
 
@@ -159,7 +221,13 @@ def make_node_rewrite(chain=rewrite_chain):
         ).strip()
         attempts = state.get("attempts", 0) + 1
         print(f"[rewrite] attempt={attempts} | rewritten={rewritten!r}")
-        return {"rewritten": rewritten, "attempts": attempts}
+        ledger = append_pipeline_step(
+            state.get("evidence_ledger"),
+            name="rewrite",
+            status="success",
+            detail={"attempt": attempts, "rewritten": rewritten},
+        )
+        return {"rewritten": rewritten, "attempts": attempts, "evidence_ledger": ledger}
     return node_rewrite
 
 
@@ -213,10 +281,29 @@ def make_node_quality_check(hall_chain=hallucination_grader, ans_chain=answer_gr
         answer = state.get("answer", "")
 
         if not answer or (not context and not trusted_context):
+            ledger = append_quality_check(
+                state.get("evidence_ledger"),
+                name="groundedness",
+                verdict="no",
+                reasoning="Missing context or answer.",
+            )
+            ledger = append_quality_check(
+                ledger,
+                name="answer_relevance",
+                verdict="no",
+                reasoning="Missing context or answer.",
+            )
+            ledger = append_pipeline_step(
+                ledger,
+                name="quality_check",
+                status="failed",
+                detail={"reason": "missing_context_or_answer"},
+            )
             return {
                 "hallucination_grade": "no",
                 "answer_grade": "no",
                 "quality_reasoning": "Missing context or answer.",
+                "evidence_ledger": ledger,
             }
 
         hall_config = extend_runnable_config(
@@ -256,10 +343,29 @@ def make_node_quality_check(hall_chain=hallucination_grader, ans_chain=answer_gr
         )
         print(f"[quality_check] {reasoning}")
 
+        ledger = append_quality_check(
+            state.get("evidence_ledger"),
+            name="groundedness",
+            verdict=hall.grounded,
+            reasoning=hall.reasoning,
+        )
+        ledger = append_quality_check(
+            ledger,
+            name="answer_relevance",
+            verdict=ans.addresses,
+            reasoning="",
+        )
+        ledger = append_pipeline_step(
+            ledger,
+            name="quality_check",
+            status="success",
+            detail={"grounded": hall.grounded, "addresses": ans.addresses},
+        )
         return {
             "hallucination_grade": hall.grounded,
             "answer_grade": ans.addresses,
             "quality_reasoning": reasoning,
+            "evidence_ledger": ledger,
         }
     return node_quality_check
 
@@ -364,7 +470,16 @@ def make_node_generate(chain=generation_chain):
             },
             invoke_config,
         ).strip()
-        return {"answer": answer, "context": context}
+        ledger = append_pipeline_step(
+            state.get("evidence_ledger"),
+            name="generate",
+            status="success",
+            detail={
+                "context_chars": len(context),
+                "trusted_context_chars": len(trusted_context),
+            },
+        )
+        return {"answer": answer, "context": context, "evidence_ledger": ledger}
     return node_generate
 
 
@@ -434,10 +549,17 @@ def make_node_fallback(chain=fallback_chain):
             invoke_config,
         ).strip()
 
+        ledger = append_pipeline_step(
+            state.get("evidence_ledger"),
+            name="fallback",
+            status="success",
+            detail={"rewritten": rewritten},
+        )
         return {
             "answer": answer,
             "context": "",
             "documents": state.get("documents", []),
+            "evidence_ledger": ledger,
         }
     return node_fallback
 

@@ -32,6 +32,7 @@ class CRAGState(TypedDict):
     hallucination_grade: NotRequired[str]
     answer_grade: NotRequired[str]
     quality_reasoning: NotRequired[str]
+    evidence_ledger: NotRequired[dict]
 
 
 ### --------- Build the CRAG graph --------- ###
@@ -165,6 +166,7 @@ def make_crag_node(crag):
                 "question": state["question"],
                 "attempts": state.get("attempts", 0),
                 "trusted_context": state.get("trusted_context", ""),
+                "evidence_ledger": state.get("evidence_ledger", {}),
             },
             node_config,
         )
@@ -172,6 +174,8 @@ def make_crag_node(crag):
         return {
             "answer": crag_result["answer"],
             "documents": crag_result.get("documents", []),
+            "context": crag_result.get("context", ""),
+            "evidence_ledger": crag_result.get("evidence_ledger", {}),
         }
 
     return crag_node

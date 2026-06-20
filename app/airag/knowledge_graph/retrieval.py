@@ -303,6 +303,18 @@ Question: {query}
             A list of Document instances representing the retrieval results.
         """
         return [
-            Document(page_content=item.content, metadata=item.metadata)
+            Document(
+                page_content=item.content,
+                metadata={
+                    **item.metadata,
+                    "retrieval_strategy": "graphrag",
+                    "retrieval_mode": self.mode,
+                    "graph_id": self.graph_id,
+                    "graph_generation": self.generation,
+                    "document_chunk_id": item.document_chunk_id,
+                    "score": item.score,
+                    "evidence_path": self.mode,
+                },
+            )
             for item in self.retrieve(query)
         ]
