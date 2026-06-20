@@ -231,9 +231,12 @@ describe("SimulationInspector", () => {
         latestTurn={{
           simulation_id: 12,
           status: "active",
+          should_pause: false,
+          pause_reason: null,
           messages: [],
           coach_advice: {},
           final_evaluation: {},
+          counterpart_response: null,
           evidence_ledgers: [
             {
               id: 2,
