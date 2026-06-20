@@ -3,6 +3,8 @@ from typing import Any, Literal
 
 from sqlmodel import Field, SQLModel
 
+from app.schemas.evidence_ledger_schemas import SimulationEvidenceLedgerRead
+
 
 SimulationStatus = Literal["created", "active", "paused", "completed", "cancelled", "failed"]
 SimulationSide = Literal["side_a", "side_b"]
@@ -81,6 +83,7 @@ class SimulationRead(SimulationBase):
 class SimulationReadWithState(SimulationRead):
     negotiation_state: NegotiationStateSchema = Field(default_factory=NegotiationStateSchema)
     messages: list[SimulationMessageSchema] = Field(default_factory=list)
+    evidence_ledgers: list[SimulationEvidenceLedgerRead] = Field(default_factory=list)
 
 
 class SimulationUpdate(SQLModel):
@@ -166,6 +169,7 @@ class SimulationTurnResponse(SQLModel):
     final_evaluation: dict[str, Any] = Field(default_factory=dict)
     counterpart_response: str | None = None
     token_usage: SimulationTokenUsageSchema = Field(default_factory=SimulationTokenUsageSchema)
+    evidence_ledgers: list[SimulationEvidenceLedgerRead] = Field(default_factory=list)
 
 
 class SimulationProxyTurnRequest(SQLModel):

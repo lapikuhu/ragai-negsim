@@ -13,6 +13,7 @@ from . import rag_profiles
 from . import raw_documents
 from . import scenarios
 from . import sessions
+from . import simulation_evidence_ledgers
 from . import simulations
 from . import user_roles
 from . import users
@@ -34,6 +35,7 @@ __all__ = [
     "raw_documents",
     "scenarios",
     "sessions",
+    "simulation_evidence_ledgers",
     "simulations",
     "user_roles",
     "users",
