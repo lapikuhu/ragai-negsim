@@ -77,8 +77,8 @@ def make_call_crag_node(crag_graph: Any):
                 information about the negotiation, including the constructed coach query.
         Returns:
             A dictionary containing the updated retrieval context based on the 
-			CRAG results, any validation errors, and event log entries 
-			describing the CRAG invocation.  
+			CRAG results, any validation errors, event log entries describing 
+			the CRAG invocation, and an updated evidence ledger.
 		"""
 		if crag_graph is None:
 			ledger = update_agent_ledger(
@@ -116,7 +116,7 @@ def make_call_crag_node(crag_graph: Any):
 				invoke_config,
 			)
 		except Exception as exc:
-			ledger = update_agent_ledger(
+			ledger = update_agent_ledger( # Update the coach's ledger with the CRAG invocation failure
 				state,
 				agent_name="coach",
 				step_name="crag",
@@ -136,7 +136,7 @@ def make_call_crag_node(crag_graph: Any):
 		if not retrieval_context:
 			retrieval_context = state.get("retrieval_context", "")
 
-		ledger = update_agent_ledger(
+		ledger = update_agent_ledger( # Update the coach's ledger with the successful CRAG invocation
 			state,
 			agent_name="coach",
 			step_name="crag",
@@ -169,8 +169,9 @@ def make_generate_coach_advice_node(
         A node function that takes the current coach graph state, renders the 
 		    coach prompt, invokes the model to generate advice, validates the 
 		    output against the CoachAdviceModel schema, and returns the 
-			generated advice along with any validation errors and event log 
-			entries describing the generation step.
+			generated advice along with any validation errors, event log 
+			entries describing the generation step, and an updated evidence 
+			ledger.
 	"""
 	@traceable
 	def node_generate_coach_advice(
@@ -193,6 +194,7 @@ def make_generate_coach_advice_node(
                 "coach_advice": dict,
                 "coach_validation_error": str,
                 "event_log": list[str],
+				"evidence_ledger": dict,
             }
 		"""
 
@@ -240,7 +242,7 @@ def make_generate_coach_advice_node(
 				"evidence_ledger": ledger,
 			}
 		except Exception as exc:
-			ledger = update_agent_ledger(
+			ledger = update_agent_ledger( # Update the coach's ledger
 				state,
 				agent_name="coach",
 				step_name="generate",
@@ -279,8 +281,8 @@ def make_repair_coach_advice_node(
         Args:
             state: The current state of the coach graph, containing all 
 			    relevant information about the negotiation, the original 
-				    coach prompt, and any validation errors from the initial 
-					generation attempt.
+				    coach prompt, any validation errors from the initial 
+					generation attempt, and updated coach ledger.
         Returns:
             A dictionary containing the repaired coach advice if generation is successful, any validation errors if the repair attempt also fails, and event log entries describing the repair step.
             {
@@ -288,6 +290,7 @@ def make_repair_coach_advice_node(
                 "coach_validation_error": str,
                 "coach_retry_count": int,
                 "event_log": list[str],
+				"evidence_ledger": dict,
             }
 		"""
 		if model is None:
@@ -342,7 +345,7 @@ def make_repair_coach_advice_node(
 				"evidence_ledger": ledger,
 			}
 		except Exception as exc:
-			ledger = update_agent_ledger(
+			ledger = update_agent_ledger( # Log the repair failure in the coach's ledger
 				state,
 				agent_name="coach",
 				step_name="repair",
@@ -364,8 +367,9 @@ def node_fallback_coach_advice(state: CoachGraphState) -> dict:
 	Node function to provide fallback coach advice when all other generation and repair attempts have been exhausted, ensuring that the coach can still provide some level of guidance to the user even when ideal generation fails.
     Args:
         state: The current state of the coach graph, containing all relevant 
-            information about the negotiation, the original coach prompt, and
-            any validation errors from previous generation attempts.
+            information about the negotiation, the original coach prompt,
+            any validation errors from previous generation attempts, and
+			updated coach ledger.
     Returns:
         A dictionary containing generic fallback coach advice that provides 
 		safe and actionable guidance to the user, an explanation of the 
@@ -374,13 +378,14 @@ def node_fallback_coach_advice(state: CoachGraphState) -> dict:
         {
             "coach_advice": dict,
             "event_log": list[str],
+			"evidence_ledger": dict,
         }	
 	"""
 	advice = fallback_advice(
 		state,
 		state.get("coach_validation_error", "unknown coach generation failure"),
 	)
-	ledger = update_agent_ledger(
+	ledger = update_agent_ledger( # Update the coach's ledger with the fallback advice usage
 		state,
 		agent_name="coach",
 		step_name="fallback",
@@ -408,12 +413,14 @@ def node_finalize_coach(state: CoachGraphState) -> dict:
             information about the negotiation and the generated coach advice.
     Returns:
         A dictionary containing the finalized coach advice (which may be 
-		the generated advice or fallback advice if validation failed) and 
-		event log entries describing the finalization step.
+		the generated advice or fallback advice if validation failed), 
+		event log entries describing the finalization step and the updated 
+		evidence ledger.
         {
             "coach_advice": dict,
             "event_log": list[str],
-        }
+			"evidence_ledger": dict,
+        }	
 	"""
 	if state.get("coach_advice"):
 		advice = state["coach_advice"]

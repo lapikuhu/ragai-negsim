@@ -35,13 +35,14 @@ def make_crag_retrieve_node(retriever):
             state: The current RAG state containing the question and any 
                 rewritten versions.
         Returns:
-            A dictionary containing the retrieved documents.
+            A dictionary containing the retrieved documents, and the updated 
+            evidence ledger after the retrieval step.
     """
         query = state.get("rewritten") or state["question"]
         # Check for prompt injection in the query before retrieval
         if detect_injection(query):
             print("[retrieve] Prompt injection detected in query! Returning no documents.")
-            ledger = append_pipeline_step(
+            ledger = append_pipeline_step( # Include the blocked retrieval step in the evidence ledger
                 state.get("evidence_ledger"),
                 name="retrieve",
                 status="blocked",
@@ -73,6 +74,15 @@ def make_crag_rerank_node(reranker, top_k: int = 3):
     """
 
     def node_rerank(state) -> dict:
+        """
+        Rerank the retrieved documents based on their relevance to the query.
+        Args:
+            state: The current RAG state containing the question and retrieved
+                documents.
+        Returns:
+            A dictionary containing the reranked documents and the updated
+            evidence ledger after the reranking step.
+        """
         docs = state.get("documents", [])
         if not docs:
             ledger = append_pipeline_step(
@@ -118,7 +128,8 @@ def make_node_grade(grader_chain=document_grader):
             state: The current RAG state containing the original question 
                 and any previous rewritten versions.
         Returns:
-            A dictionary containing the grade of the documents' relevance.
+            A dictionary containing the grade of the documents' relevance,
+            and the updated evidence ledger after the grading step.
         """
         docs = state.get("documents", [])
         if not docs:
@@ -207,6 +218,13 @@ def make_node_rewrite(chain=rewrite_chain):
         """
         Define the rewrite node which attempts to reformulate the question if 
         the retrieved documents were not relevant.
+        Args:
+            state: The current RAG state containing the original question and any 
+                previous rewritten versions.
+        Returns:
+            A dictionary containing the rewritten question, the number of
+            rewrite attempts, and the updated evidence ledger after the 
+            rewrite step.
         """
         invoke_config = extend_runnable_config(
             config,
@@ -273,8 +291,11 @@ def make_node_quality_check(hall_chain=hallucination_grader, ans_chain=answer_gr
                 generated answer, and the context used for generation.
             config: Optional configuration for the runnable.
         Returns:
-            A dictionary containing the hallucination grade, answer 
-            relevance grade, and reasoning for the quality assessment.
+            A dictionary containing:
+            - the hallucination grade
+            - the answer relevance grade
+            - the reasoning for the quality assessment
+            - the updated evidence ledger after the quality check.
         """
         context = state.get("context") or format_docs(state.get("documents", []))
         trusted_context = state.get("trusted_context", "")
@@ -449,8 +470,10 @@ def make_node_generate(chain=generation_chain):
             state: The current CRAG state containing the question and 
                 retrieved documents.
         Returns:
-            A dictionary containing the generated answer and the context 
-            used for generation.
+            A dictionary containing:
+              - the generated answer
+              - the context used for generation
+              - the updated evidence ledger after the generation step
         """
         docs = state.get("documents", [])
         context = format_docs(docs)
@@ -529,7 +552,11 @@ def make_node_fallback(chain=fallback_chain):
             state: The current CRAG state containing the question and any
                 rewritten versions.
         Returns:
-            A dictionary containing the fallback answer and an empty context.
+            A dictionary containing:
+              - the fallback answer
+              - an empty context
+                - the documents used for generation
+              - the updated evidence ledger after the fallback step
         """
         question = state["question"]
         rewritten = state.get("rewritten", "")

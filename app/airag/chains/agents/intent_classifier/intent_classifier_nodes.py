@@ -1,3 +1,9 @@
+
+###
+# This intent classifier node is responsible for classifying the user's intent 
+# during the negotiation simulation, if they want to continue or stop.
+###
+
 from typing import Any
 from langchain_core.runnables.config import RunnableConfig
 from langsmith import traceable
@@ -16,7 +22,6 @@ from app.airag.chains.agents.intent_classifier.intent_classifier_model import (
 from app.airag.observability.evidence_ledger import update_agent_ledger
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
-
 def make_classify_intent_node(model: Any):
     """
     Create the generation node for classifying end intent.
@@ -25,8 +30,9 @@ def make_classify_intent_node(model: Any):
             which should support structured output with IntentClassificationModel.
     Returns:
         A function that takes the current graph state and returns a dictionary
-        containing the intent classification result, any validation errors, and
-        an event log."""
+        containing the intent classification result, any validation errors, 
+        an event log, and the updated evidence ledger.
+        """
     @traceable
     def node_classify_intent(
         state: IntentClassifierGraphState,
@@ -79,7 +85,7 @@ def make_classify_intent_node(model: Any):
                     ),
                 }
         except Exception as exc:
-            ledger = update_agent_ledger(
+            ledger = update_agent_ledger( # Log the failure in the evidence ledger for observability.
                 state,
                 agent_name="intent_classifier",
                 step_name="generate",
@@ -129,7 +135,7 @@ def node_finalize_intent(state: IntentClassifierGraphState) -> dict:
     Returns:         
         A dictionary containing either the valid intent classification from the
          state or a fallback classification if validation failed or was 
-         unavailable.
+         unavailable, along with event log entries and the updated evidence ledger.
     """
     classification = state.get("intent_classification")
     if classification:

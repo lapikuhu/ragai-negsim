@@ -22,6 +22,13 @@ SAFE_SOURCE_METADATA = (
 
 
 def ledger_empty() -> dict[str, Any]:
+    """
+    Create an empty ledger structure.
+    Args:
+        None
+    Returns:
+        dict: An empty ledger structure with default keys and values.
+    """
     return {
         "pipeline": {"steps": []},
         "sources": [],
@@ -38,6 +45,16 @@ def append_pipeline_step(
     status: str,
     detail: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """
+    Append a pipeline step to the ledger.
+    Args:
+        ledger (dict[str, Any] | None): The current ledger or None.
+        name (str): The name of the pipeline step.
+        status (str): The status of the pipeline step.
+        detail (dict[str, Any] | None): Additional details for the step.
+    Returns:
+        dict[str, Any]: The updated ledger with the new pipeline step.
+    """
     updated = deepcopy(ledger or ledger_empty())
     updated.setdefault("pipeline", {}).setdefault("steps", []).append(
         {
@@ -56,6 +73,16 @@ def append_quality_check(
     verdict: str,
     reasoning: str = "",
 ) -> dict[str, Any]:
+    """
+    Append a quality check to the ledger.
+    Args:
+        ledger (dict[str, Any] | None): The current ledger or None.
+        name (str): The name of the quality check.
+        verdict (str): The verdict of the quality check.
+        reasoning (str): The reasoning for the verdict.
+    Returns:
+        dict[str, Any]: The updated ledger with the new quality check.
+    """
     updated = deepcopy(ledger or ledger_empty())
     updated.setdefault("quality_checks", []).append(
         {
@@ -68,6 +95,14 @@ def append_quality_check(
 
 
 def document_source_card(doc: Document, *, rank: int) -> dict[str, Any]:
+    """
+    Create a source card from a document.
+    Args:
+        doc (Document): The document to create the source card from.
+        rank (int): The rank of the document.
+    Returns:
+        dict[str, Any]: The source card with metadata and excerpt.
+    """
     metadata = dict(doc.metadata or {})
     card = {"rank": rank}
     for key in SAFE_SOURCE_METADATA:
@@ -79,6 +114,13 @@ def document_source_card(doc: Document, *, rank: int) -> dict[str, Any]:
 
 
 def source_cards_from_documents(documents: list[Document]) -> list[dict[str, Any]]:
+    """
+    Create source cards from a list of documents.
+    Args:
+        documents (list[Document]): The list of documents to create source cards from.
+    Returns:
+        list[dict[str, Any]]: A list of source cards.
+    """
     return [document_source_card(doc, rank=index + 1) for index, doc in enumerate(documents)]
 
 
@@ -86,6 +128,14 @@ def set_sources(
     ledger: dict[str, Any] | None,
     documents: list[Document],
 ) -> dict[str, Any]:
+    """
+    Set the sources in the ledger from a list of documents.
+    Args:
+        ledger (dict[str, Any] | None): The current ledger or None.
+        documents (list[Document]): The list of documents to set as sources.
+    Returns:
+        dict[str, Any]: The updated ledger with the new sources.
+    """
     updated = deepcopy(ledger or ledger_empty())
     updated["sources"] = source_cards_from_documents(documents)
     return updated
@@ -101,6 +151,20 @@ def build_agent_ledger_record(
     output_summary: dict[str, Any] | None = None,
     token_usage: dict[str, Any] | None = None,
 ) -> SimulationEvidenceLedgerCreate:
+    """
+    Build a ledger record for an agent in a simulation.
+    Args:
+        simulation_id (int): The ID of the simulation.
+        turn_index (int): The index of the turn in the simulation.
+        agent_name (str): The name of the agent.
+        sequence (int): The sequence number of the ledger record.
+        ledger (dict[str, Any] | None): The current ledger or None.
+        output_summary (dict[str, Any] | None): A summary of the output.
+        token_usage (dict[str, Any] | None): Token usage information.
+    Returns:
+        SimulationEvidenceLedgerCreate: The constructed ledger record 
+        for the agent.
+    """
     value = deepcopy(ledger or ledger_empty())
     return SimulationEvidenceLedgerCreate(
         simulation_id=simulation_id,
@@ -128,6 +192,21 @@ def update_agent_ledger(
     output_summary: dict[str, Any] | None = None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """
+    Update the agent's ledger in the state with a new pipeline step and 
+    optional output summary.
+    Args:
+        state (dict[str, Any]): The current state containing the evidence 
+            ledger.
+        agent_name (str): The name of the agent whose ledger is being updated.
+        step_name (str): The name of the pipeline step to append.
+        status (str): The status of the pipeline step.
+        detail (dict[str, Any] | None): Additional details for the step.
+        output_summary (dict[str, Any] | None): Optional summary of the 
+            output to include in the agent's ledger.
+        extra (dict[str, Any] | None): Additional key-value pairs to update 
+            in the agent's ledger.
+    """
     ledger = dict(state.get("evidence_ledger") or {})
     agent_ledger = append_pipeline_step(
         ledger.get(agent_name),

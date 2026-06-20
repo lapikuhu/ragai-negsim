@@ -77,7 +77,8 @@ def make_call_crag_node(crag_graph: Any = None):
 			state: The current evaluator graph state containing negotiation 
 				context.
 		Returns:
-			A dictionary with the retrieval context and event log.
+			A dictionary with the retrieval context, event log entries, 
+			and updated evidence ledger after calling the CRAG graph.
 		"""
 		existing_context = get_existing_retrieval_context(state)
 		if crag_graph is None:
@@ -176,6 +177,17 @@ def make_generate_evaluator_response_node(
 		state: EvaluatorGraphState,
 		config: RunnableConfig | None = None,
 	) -> dict:
+		"""
+		Node function to generate evaluator responses using the specified model 
+		and prompt template.
+		Args:
+			state: The current evaluator graph state containing 
+				negotiation context.
+			config: Optional configuration for the runnable.
+		Returns:
+			A dictionary containing the generated evaluator response, 
+			event log entries, and updated evidence ledger.
+		"""
 		if model is None:
 			ledger = update_agent_ledger(
 				state,
@@ -196,7 +208,7 @@ def make_generate_evaluator_response_node(
 			if final_mode
 			else render_evaluator_prompt(state, prompt_template)
 		)
-		try:
+		try: # Pick the correct schema based on the evaluation mode.
 			schema = FinalEvaluatorResponseModel if final_mode else EvaluatorResponseModel
 			structured_model = model.with_structured_output(schema)
 			invoke_config = extend_runnable_config(
@@ -261,8 +273,11 @@ def make_repair_evaluator_response_node(
 			state: The current evaluator graph state containing negotiation 
 				context.
 		Returns:
-			A dictionary representation of the repaired evaluator response 
-			node.
+			A dictionary with:
+				- The repaired evaluator response if successful.
+				- Any validation errors if the repair attempt fails.
+				- Event log entries describing the repair step.
+				- Updated evidence ledger after the repair attempt.
 		"""
 		retry_count = state.get("evaluator_retry_count", 0) + 1
 		if model is None:
@@ -347,7 +362,10 @@ def node_fallback_evaluator_response(state: EvaluatorGraphState) -> dict:
 		state: The current evaluator graph state containing negotiation 
 			context.
 	Returns:
-		A dictionary representation of the fallback evaluator response node.
+		A dictionary with:
+			- The fallback evaluator response.
+			- Event log entries describing the fallback step.
+			- Updated evidence ledger after the fallback attempt.
 	"""
 	final_mode = state.get("evaluation_mode") == "final"
 	response = (
@@ -390,7 +408,10 @@ def node_finalize_evaluator(state: EvaluatorGraphState) -> dict:
 	Args:
 		state: The current graph state containing negotiation context.
 	Returns:
-		A dictionary representation of the finalized evaluator response node.
+		A dictionary with:
+			- The finalized evaluator response.
+			- Event log entries describing the finalization step.
+			- Updated evidence ledger after the finalization attempt.
 	"""
 	final_mode = state.get("evaluation_mode") == "final"
 	response = state.get("evaluator_response") or (
@@ -428,7 +449,7 @@ def node_finalize_evaluator(state: EvaluatorGraphState) -> dict:
 		updates["evaluation"] = compact_evaluation_from_response(state, response)
 	return updates
 
-
+### ROUTERS
 def decide_after_generate(state: EvaluatorGraphState) -> str:
 	"""
 	Decide the next action after generating an evaluator response.

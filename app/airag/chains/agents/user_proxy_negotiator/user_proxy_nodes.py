@@ -1,3 +1,8 @@
+###
+# The nodes for the user proxy negotiator agent are responsible for generating, 
+# repairing, and finalizing user proxy responses during the negotiation 
+# simulation.
+###
 from typing import Any
 from langchain_core.runnables.config import RunnableConfig
 from langsmith import traceable
@@ -48,7 +53,11 @@ def make_generate_user_proxy_response_node(model: Any, prompt_template: str | No
         Args:
             state: The graph state dictionary.
         Returns:
-            A dictionary containing the generated user proxy response.
+            A dictionary containing:
+            - the generated user proxy response.
+            - any validation errors encountered during generation.
+            - an event log describing the generation step.
+            - the updated evidence ledger after the generation step.
         """
         if model is None:
             ledger = update_agent_ledger(
@@ -128,7 +137,11 @@ def make_repair_user_proxy_response_node(model: Any, prompt_template: str | None
         Args:
             state: The graph state dictionary.
         Returns:
-            A dictionary containing the repaired user proxy response.
+            A dictionary containing:
+            - the repaired user proxy response.
+            - any validation errors encountered during repair.
+            - an event log describing the repair step.
+            - the updated evidence ledger after the repair step.
         """
         retry_count = state.get("proxy_retry_count", 0) + 1
         if model is None:
@@ -213,7 +226,10 @@ def node_fallback_user_proxy_response(state: UserProxyGraphState) -> dict:
     Args:
         state: The graph state dictionary.
     Returns:
-        A dictionary containing the fallback user proxy response.
+        A dictionary containing:
+        - the fallback user proxy response.
+        - an event log describing the fallback step.
+        - the updated evidence ledger after the fallback step.
     """
     response = fallback_user_proxy_response(
         state,
@@ -242,7 +258,10 @@ def node_finalize_user_proxy(state: UserProxyGraphState) -> dict:
     Args:
         state: The graph state dictionary.
     Returns:
-        A dictionary containing the finalized user proxy response.
+        A dictionary containing:
+        - the finalized user proxy response.
+        - an event log describing the finalize step.
+        - the updated evidence ledger after the finalize step.
     """
     response = state.get("proxy_response") or fallback_user_proxy_response(
         state,
@@ -264,7 +283,7 @@ def node_finalize_user_proxy(state: UserProxyGraphState) -> dict:
         "evidence_ledger": ledger,
     }
 
-
+### ROUTERS
 def decide_after_generate(state: UserProxyGraphState) -> str:
     """
     Decide the next action after generating a user proxy response.

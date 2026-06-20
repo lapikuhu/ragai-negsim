@@ -151,8 +151,11 @@ def make_crag_node(crag):
             state: The initial CRAGState containing the user's question and any 
                 other relevant information.
         Returns:
-            A dictionary containing the final answer and the documents used for
-                generation.        
+            A dictionary containing:
+              - the final answer 
+              - the documents used for generation.
+              - the context used for generation.
+              - the updated evidence ledger after execution.
         """
         node_config = extend_runnable_config(
             config,

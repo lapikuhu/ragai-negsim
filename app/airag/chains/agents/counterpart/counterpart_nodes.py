@@ -62,7 +62,7 @@ def make_generate_counterpart_response_node(
 			state: The current graph state containing negotiation context.
 		Returns:
 			A dictionary with the generated counterpart response, validation 
-			error, and event log.
+			error, event log, and an updated evidence ledger.
 		"""
 		if model is None:
 			ledger = update_agent_ledger(
@@ -97,7 +97,7 @@ def make_generate_counterpart_response_node(
 			response = coerce_counterpart_response(
 				invoke_with_config(structured_model, prompt, invoke_config)
 			)
-		except Exception as exc:
+		except Exception as exc: # Log the generation failure in the counterpart's ledger
 			ledger = update_agent_ledger(
 				state,
 				agent_name="counterpart",
@@ -150,7 +150,8 @@ def make_repair_counterpart_response_node(
 			state: The current graph state containing negotiation context.
 		Returns:
 			A dictionary with the repaired counterpart response, 
-			validation error, retry count, and event log.
+			validation error, retry count, event log, and an updated 
+			evidence ledger.
 		"""
 		retry_count = state.get("counterpart_retry_count", 0) + 1
 		if model is None:
@@ -195,7 +196,7 @@ def make_repair_counterpart_response_node(
 			response = coerce_counterpart_response(
 				invoke_with_config(structured_model, repair_prompt, invoke_config)
 			)
-		except Exception as exc:
+		except Exception as exc: # Log the repair failure in the counterpart's ledger
 			ledger = update_agent_ledger(
 				state,
 				agent_name="counterpart",
@@ -239,7 +240,8 @@ def node_fallback_counterpart_response(state: CounterpartGraphState) -> dict:
 	Args:
 		state: The current graph state containing negotiation context.
 	Returns:
-		A dictionary with the fallback counterpart response and event log.
+		A dictionary with the fallback counterpart response, event log 
+		and an updated evidence ledger.
 	"""
 	response = fallback_counterpart_response(
 		state,
@@ -310,7 +312,7 @@ def node_finalize_counterpart(state: CounterpartGraphState) -> dict:
 
 	return updates
 
-
+### ROUTERS
 def decide_after_generate(state: CounterpartGraphState) -> str:
 	"""
 	Node function to decide the next action after generating a 

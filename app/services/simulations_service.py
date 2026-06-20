@@ -245,6 +245,12 @@ def _read_simulation_with_state(
     This function extracts the relevant fields from the Simulation model,
     including the negotiation state and messages, and returns a 
     SimulationReadWithState schema instance.
+    Args:
+        simulation (Simulation): The Simulation model instance to convert.
+        evidence_ledgers (list[SimulationEvidenceLedgerRead] | None): Optional
+            list of evidence ledger entries associated with the simulation.
+    Returns:
+        SimulationReadWithState: The SimulationReadWithState schema instance.
     """
     base = _read_simulation(simulation).model_dump()
     raw_state = simulation.negotiation_state or {}
@@ -1625,6 +1631,13 @@ def _base_turn_response(graph_state: dict[str, Any], user_side: str | None, simu
 
 
 def _ledger_read_schema(row: Any) -> SimulationEvidenceLedgerRead:
+    """
+    Convert a database row to a SimulationEvidenceLedgerRead schema instance.
+    Args:
+        row: The database row to convert.
+    Returns:
+        SimulationEvidenceLedgerRead: The converted schema instance.
+    """
     return SimulationEvidenceLedgerRead.model_validate(row, from_attributes=True)
 
 
@@ -1634,6 +1647,16 @@ async def _persist_evidence_ledgers(
     graph_state: dict[str, Any],
     session: AsyncSession,
 ) -> list[SimulationEvidenceLedgerRead]:
+    """
+    Persist evidence ledger entries for a simulation.
+    Args:
+        simulation_id: The ID of the simulation.
+        graph_state: The current state of the graph.
+        session: The database session.
+    Returns:
+        A list of SimulationEvidenceLedgerRead instances representing the 
+        persisted entries.
+    """
     raw_ledgers = graph_state.get("evidence_ledger")
     if not isinstance(raw_ledgers, dict):
         return []
@@ -1670,6 +1693,16 @@ async def _list_evidence_ledgers_for_read(
     simulation_id: int,
     session: AsyncSession,
 ) -> list[SimulationEvidenceLedgerRead]:
+    """
+    List evidence ledger entries for a simulation and convert them to
+    SimulationEvidenceLedgerRead schema instances.
+    Args:
+        simulation_id: The ID of the simulation.
+        session: The database session.
+    Returns:
+        A list of SimulationEvidenceLedgerRead instances representing the
+        evidence ledger entries for the simulation.
+    """
     rows = await simulation_evidence_ledgers_repo.list_evidence_ledgers_for_simulation(
         simulation_id,
         session,
@@ -2197,7 +2230,7 @@ async def submit_simulation_proxy_turn_srvc(
         update_in,
         session,
     )
-
+    # Get the evidence ledgers
     evidence_ledgers = await _persist_evidence_ledgers(
         simulation_id=updated_simulation.id,
         graph_state=graph_state,
