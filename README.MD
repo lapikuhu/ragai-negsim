@@ -230,6 +230,10 @@ uv run python scripts/seeder.py
 This drops all existing tables, recreates the schema from the registered
 SQLModel metadata, and then runs the normal seeder.
 
+### Demo Raw Documents
+
+Demo pdf are provided under the demo_docs folder. These are publicly available reports from the Program On Negotiation of the Harvard Law of School: https://www.pon.harvard.edu/
+
 ## Starting FastAPI
 
 Day-0 alembic versioning:

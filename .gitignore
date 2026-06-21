@@ -25,7 +25,9 @@ specs/*
 # pdf files
 *.pdf
 # Include PDF files in the docs folder
-!docs/*.pdf 
+!docs/*.pdf
+# Include demo PDF file in the demo_docs folder
+!demo_docs/*.pdf
 
 # chroma vector store data
 chroma_db/
