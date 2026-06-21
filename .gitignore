@@ -47,8 +47,7 @@ frontend/node_modules/*
 frontend/node_modules/**
 frontend/dist/*
 frontend/dist/**
-frontend/scripts/*
-frontend/scripts/**
+
 
 # agents
 AGENTS.md
@@ -61,3 +60,6 @@ AGENTS.md
 # log files
 *.log
 *.log.*
+
+# github
+.github/*
