@@ -26,7 +26,7 @@ def make_dense_retriever(
 
     retriever = vector_store.as_retriever(search_kwargs=search_kwargs)
     return retriever
-
+# TODO: Integrate the bm25 retriever for completeness
 def make_bm25_retriever(documents: list[Document], k: int = 4):
     """Create a BM25Retriever from a list of langchain Documents.
     Args:

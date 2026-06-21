@@ -11,6 +11,15 @@ from app.schemas.vector_stores_schemas import (
 
 
 def _vector_store_create_payload(vector_store_data: VectorStoreCreate) -> VectorStoreCreate:
+    """
+    Create a payload for creating a VectorStore, ensuring that the 
+    embedding model is valid.
+    Args:
+        vector_store_data (VectorStoreCreate): The data for the vector 
+            store to create.
+    Returns:
+        VectorStoreCreate: The validated vector store data.
+    """
     from app.airag.embeddings.embeddings import get_embedding_model_info
 
     get_embedding_model_info(vector_store_data.embedding_model)
@@ -18,6 +27,14 @@ def _vector_store_create_payload(vector_store_data: VectorStoreCreate) -> Vector
 
 
 def _vector_store_embedding_dimensions(vector_store_data: VectorStoreCreate) -> int:
+    """
+    Get the dimensionality of the embedding model for a VectorStore.
+    Args:
+        vector_store_data (VectorStoreCreate): The data for the vector
+            store to create.
+    Returns:
+        int: The dimensionality of the embedding model.
+    """
     from app.airag.embeddings.embeddings import get_embedding_model_info
 
     embedding_info = get_embedding_model_info(vector_store_data.embedding_model)

@@ -24,14 +24,39 @@ RAW_DOCUMENT_SOURCE_STATUS_ERROR = "error"
 
 
 def _hash_bytes(file_bytes: bytes) -> str:
+    """
+    Hash the given bytes using SHA-256 and return the hexadecimal digest.
+    Args:
+        file_bytes: The bytes to hash.
+    Returns:
+        str: The hexadecimal digest of the SHA-256 hash.
+    """
     return sha256(file_bytes).hexdigest()
 
 
 def _to_utc_datetime(timestamp: float) -> datetime:
+    """
+    Convert a timestamp to a UTC datetime object.
+    Args:
+        timestamp: The timestamp to convert.
+    Returns:
+        datetime: The corresponding UTC datetime object.
+    """
     return datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
 
 def _normalize_upload_filename(filename: str) -> str:
+    """
+    Normalize the uploaded filename by removing unwanted characters and 
+    ensuring it has a valid format.
+    Args:
+        filename: The original filename of the uploaded file.
+    Returns:
+        str: The normalized filename.
+    Raises:
+        ValueError: If the filename is empty or contains no readable 
+        characters.
+    """
     candidate = Path(filename).name.strip()
     if not candidate:
         raise ValueError("Uploaded file must have a filename")
@@ -70,6 +95,14 @@ async def verify_raw_document_source_srvc(
     raw_document: RawDocument,
     session: AsyncSession,
 ) -> RawDocument:
+    """
+    Verify the source of a raw document and update its status accordingly.
+    Args:
+        raw_document: The raw document to verify.
+        session: The database session to use for the operation.
+    Returns:
+        The updated RawDocument instance.
+    """
     source_file = Path(raw_document.source_path)
     try:
         if not source_file.exists():
@@ -120,6 +153,18 @@ async def create_uploaded_raw_document_srvc(
 ) -> RawDocument:
     """
     Store an uploaded raw document on disk and persist its metadata.
+    Args:
+        name: The name of the raw document.
+        description: An optional description of the raw document.
+        corpus_ids: A list of corpus IDs associated with the raw document.
+        upload: The uploaded file to store.
+        session: The database session to use for the operation.
+        current_user: The user uploading the raw document.
+    Returns:
+        The created RawDocument instance.
+    Raises:
+        ValueError: If the uploaded file is not a PDF, is empty, or if a
+            document with the same name already exists.
     """
     original_name = upload.filename or ""
     extension = Path(original_name).suffix.lower()

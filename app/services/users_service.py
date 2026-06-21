@@ -174,7 +174,17 @@ async def get_all_users_service(
     skip: int = 0,
     limit: int = 100,
 ) -> list[User]:
-    """Get a list of users. Only admins can list users."""
+    """
+    Get a list of users. Only admins can list users.
+    Args:
+        session (AsyncSession): The database session for any necessary 
+            queries.
+        current_user (User): The user performing the operation.
+        skip (int): The number of users to skip for pagination.
+        limit (int): The maximum number of users to return.
+    Returns:
+        list[User]: A list of users.
+    """
     await _ensure_admin(current_user, session)
     return await users_repo.list_users(session, skip=skip, limit=limit)
 
@@ -183,7 +193,15 @@ async def list_roles_service(
     session: AsyncSession,
     current_user: User,
 ) -> list[Role]:
-    """List assignable roles. Only admins can list role options."""
+    """
+    List assignable roles. Only admins can list role options.
+    Args:
+        session (AsyncSession): The database session for any necessary 
+            queries.
+        current_user (User): The user performing the operation.
+    Returns:
+        list[Role]: A list of roles.
+    """
     await _ensure_admin(current_user, session)
     return await users_repo.list_roles(session)
 

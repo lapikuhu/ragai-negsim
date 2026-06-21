@@ -478,6 +478,19 @@ async def update_review_simulation(
     session: SessionDep,
     current_user: CurrentUserDep,
 ) -> SimulationRead:
+    """
+    Update a teacher review for a simulation.
+    Args:
+        review_data: The data for the teacher review, including feedback.
+        simulation: The simulation instance to update.
+        session: The database session.
+        current_user: The teacher submitting the review.
+    Returns:
+        A SimulationRead containing the updated simulation with the review.
+    Raises:
+        ValueError: If the current user is not a teacher or if the review 
+        cannot be updated due to the simulation's current status.
+    """
     try:
         return await simulations_service.update_review_simulation_srvc(
             simulation,

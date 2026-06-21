@@ -22,6 +22,8 @@ from app.schemas.sessions_schemas import (
 def _generate_session_token() -> str:
     """
     Generate a secure session token.
+    Args:
+        None
     Returns:
         str: A secure session token.
     """
@@ -31,6 +33,8 @@ def _generate_session_token() -> str:
 def _session_expires_at():
     """
     Calculate the expiration time for a session.
+    Args:
+        None
     Returns:
         datetime: The expiration time for the session.
     """

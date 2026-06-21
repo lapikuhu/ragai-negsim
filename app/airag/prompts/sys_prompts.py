@@ -1,5 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 
+# TODO: Reframe the prompts following the PCTF format
 DOC_GRADE_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
      "You are a document relevance grader for a RAG system that combines "

@@ -16,6 +16,15 @@ async def counterpart_persona_has_simulations(
     persona_id: int,
     session: AsyncSession,
 ) -> bool:
+    """
+    Checks if a counterpart persona has been used in any simulations.
+    Args:
+        persona_id (int): The ID of the counterpart persona.
+        session (AsyncSession): The database session.
+    Returns:
+        bool: True if the counterpart persona has been used in simulations, 
+        False otherwise.
+    """
     result = await session.exec(
         select(Simulation.id)
         .where(Simulation.counter_part_side_persona_id == persona_id)
@@ -28,6 +37,15 @@ async def ensure_counterpart_persona_unused(
     persona: CounterPartPersonas,
     session: AsyncSession,
 ) -> None:
+    """
+    Ensures that a counterpart persona has not been used in any simulations.
+    Args:
+        persona (CounterPartPersonas): The counterpart persona instance.
+        session (AsyncSession): The database session.
+    Raises:
+        ValueError: If the counterpart persona has been used in simulations 
+        or is not persisted.
+    """
     if persona.id is None:
         raise ValueError("Counterpart persona must be persisted before this operation")
 
@@ -39,6 +57,15 @@ async def get_counterpart_persona_by_id(
     persona_id: int,
     session: AsyncSession,
 ) -> CounterPartPersonas | None:
+    """
+    Retrieves a counterpart persona by its ID.
+    Args:
+        persona_id (int): The ID of the counterpart persona.
+        session (AsyncSession): The database session.
+    Returns:
+        CounterPartPersonas | None: The counterpart persona instance if 
+        found, None otherwise.
+    """
     return await session.get(CounterPartPersonas, persona_id)
 
 
@@ -46,6 +73,15 @@ async def get_counterpart_persona_by_name(
     name: str,
     session: AsyncSession,
 ) -> CounterPartPersonas | None:
+    """
+    Retrieves a counterpart persona by its name.
+    Args:
+        name (str): The name of the counterpart persona.
+        session (AsyncSession): The database session.
+    Returns:
+        CounterPartPersonas | None: The counterpart persona instance if 
+        found, None otherwise.
+    """
     result = await session.exec(select(CounterPartPersonas).where(CounterPartPersonas.name == name))
     return result.first()
 
@@ -55,6 +91,16 @@ async def ensure_counterpart_persona_name_available(
     session: AsyncSession,
     exclude_persona_id: int | None = None,
 ) -> None:
+    """
+    Ensures that a counterpart persona name is available for use.
+    Args:
+        name (str): The name of the counterpart persona.
+        session (AsyncSession): The database session.
+        exclude_persona_id (int | None): An optional persona ID to exclude 
+            from the check.
+    Raises:
+        ValueError: If the counterpart persona name already exists.
+    """
     existing_persona = await get_counterpart_persona_by_name(name, session)
     if existing_persona is None:
         return
@@ -73,6 +119,22 @@ async def list_counterpart_personas(
     name_contains: str | None = None,
     used: bool | None = None,
 ) -> list[CounterPartPersonas]:
+    """
+    Lists counterpart personas with optional filtering and pagination.
+    Args:
+        session (AsyncSession): The database session.
+        skip (int): The number of records to skip for pagination.
+        limit (int): The maximum number of records to return.
+        created_by_user_id (int | None): Optional filter by the user ID 
+            who created the persona.
+        name_contains (str | None): Optional filter by a substring in the 
+            persona name.
+        used (bool | None): Optional filter by whether the persona has been 
+            used in simulations.
+    Returns:
+        list[CounterPartPersonas]: A list of counterpart personas matching 
+        the filters.
+    """
     statement = select(CounterPartPersonas)
 
     if created_by_user_id is not None:
@@ -99,6 +161,16 @@ async def get_counterpart_persona_simulation_ids(
     persona_id: int,
     session: AsyncSession,
 ) -> list[int]:
+    """
+    Retrieves the IDs of simulations associated with a given counterpart 
+    persona.
+    Args:
+        persona_id (int): The ID of the counterpart persona.
+        session (AsyncSession): The database session.
+    Returns:
+        list[int]: A list of simulation IDs associated with the counterpart 
+        persona.
+    """
     result = await session.exec(
         select(Simulation.id).where(Simulation.counter_part_side_persona_id == persona_id)
     )
@@ -109,6 +181,19 @@ async def to_counterpart_persona_read_with_ids(
     persona: CounterPartPersonas,
     session: AsyncSession,
 ) -> CounterpartPersonaReadWithIds:
+    """
+    Converts a CounterPartPersonas instance to a CounterpartPersonaReadWithIds 
+    instance, including the IDs of associated simulations.
+    Args:
+        persona (CounterPartPersonas): The counterpart persona instance.
+        session (AsyncSession): The database session.
+    Returns:
+        CounterpartPersonaReadWithIds: The counterpart persona with 
+        associated simulation IDs.
+    Raises:
+        ValueError: If the counterpart persona is not persisted 
+        (i.e., has no ID).
+    """
     if persona.id is None:
         raise ValueError("Counterpart persona must be persisted before relationship ids can be loaded")
 
@@ -122,6 +207,15 @@ async def create_counterpart_persona(
     persona_in: CounterpartPersonaCreate,
     session: AsyncSession,
 ) -> CounterPartPersonas:
+    """
+    Creates a new counterpart persona.
+    Args:
+        persona_in (CounterpartPersonaCreate): The data for the new 
+            counterpart persona.
+        session (AsyncSession): The database session.
+    Returns:
+        CounterPartPersonas: The newly created counterpart persona.
+    """
     await ensure_counterpart_persona_name_available(persona_in.name, session)
     persona = CounterPartPersonas(**persona_in.model_dump())
     return await commit_and_refresh(session, persona)
@@ -132,6 +226,16 @@ async def update_counterpart_persona(
     persona_in: CounterpartPersonaUpdate,
     session: AsyncSession,
 ) -> CounterPartPersonas:
+    """
+    Updates an existing counterpart persona.
+    Args:
+        persona (CounterPartPersonas): The counterpart persona to update.
+        persona_in (CounterpartPersonaUpdate): The data to update the 
+            counterpart persona with.
+        session (AsyncSession): The database session.
+    Returns:
+        CounterPartPersonas: The updated counterpart persona.
+    """
     await ensure_counterpart_persona_unused(persona, session)
     update_data = persona_in.model_dump(exclude_unset=True)
 
@@ -151,6 +255,19 @@ async def copy_counterpart_persona(
     created_by_user_id: int,
     session: AsyncSession,
 ) -> CounterPartPersonas:
+    """
+    Copies an existing counterpart persona to create a new one.
+    Args:
+        source_persona (CounterPartPersonas): The counterpart persona to 
+            copy.
+        copy_in (CounterpartPersonaCopy): The data for the new counterpart 
+            persona.
+        created_by_user_id (int): The ID of the user creating the new 
+            counterpart persona.
+        session (AsyncSession): The database session.
+    Returns:
+        CounterPartPersonas: The newly created counterpart persona.
+    """
     await ensure_counterpart_persona_name_available(copy_in.name, session)
     persona = CounterPartPersonas(
         name=copy_in.name,
@@ -168,5 +285,11 @@ async def delete_counterpart_persona(
     persona: CounterPartPersonas,
     session: AsyncSession,
 ) -> None:
+    """
+    Deletes an existing counterpart persona.
+    Args:
+        persona (CounterPartPersonas): The counterpart persona to delete.
+        session (AsyncSession): The database session.
+    """
     await ensure_counterpart_persona_unused(persona, session)
     await commit_delete(session, persona)

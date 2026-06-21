@@ -93,6 +93,8 @@ def store_docs_to_faiss_store(docs: list[Document], vector_store):
         docs (list[Document]): A list of langchain Document objects to store.
         vector_store: The vector store instance to use for storing the 
             documents.
+    Returns:
+        None
     """
     ids = [str(uuid4()) for _ in docs]
     vector_store.add_documents(
@@ -107,6 +109,8 @@ def save_faiss_vector_store(vector_store, path: str = "./faiss_db"):
         vector_store: The FAISS vector store instance to persist.
         path (str): The path to the directory where the FAISS index should be 
             saved.
+    Returns:
+        None
     """
     vector_store.save_local(path)
 

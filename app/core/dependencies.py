@@ -12,6 +12,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import Settings
 
+# TODO: God file -> refactor into smaller dependency files
 
 # --------------- SETTINGS DEPENDENCY ---------------
 
@@ -271,6 +272,17 @@ async def get_chunking_profile_or_404(
     profile_id: int,
     session: SessionDep,
 ) -> ChunkingProfile:
+    """
+    Get a chunking profile by ID
+    Args:
+        profile_id (int): The ID of the chunking profile to retrieve.
+        session (AsyncSession): The database session for querying the 
+            chunking profile.
+    Returns:
+        ChunkingProfile: The retrieved chunking profile object.
+    Raises:
+        HTTPException: If the chunking profile is not found.
+    """
     profile = await chunking_profiles_repo.get_chunking_profile_by_id(profile_id, session)
     if profile is None:
         raise HTTPException(status_code=404, detail="Chunking profile not found")
@@ -288,6 +300,14 @@ def get_admin_chunking_profile(
     profile: ChunkingProfileDep,
     _admin: AdminDep,
 ) -> ChunkingProfile:
+    """
+    Get an admin chunking profile.
+    Args:
+        profile: The chunking profile dependency.
+        _admin: The admin dependency.
+    Returns:
+        ChunkingProfile: The admin chunking profile.
+    """
     return profile
 
 
@@ -307,6 +327,17 @@ async def get_document_chunk_or_404(
     chunk_id: int,
     session: SessionDep,
 ) -> DocumentChunk:
+    """
+    Get document chunk by ID or raise a 404 error if not found.
+    Args:
+        chunk_id (int): The ID of the document chunk to retrieve.
+        session (AsyncSession): The database session for querying the 
+        document chunk.
+    Returns:
+        DocumentChunk: The retrieved document chunk object.
+    Raises:
+        HTTPException: If the document chunk is not found.
+    """
     chunk = await document_chunks_repo.get_document_chunk_by_id(chunk_id, session)
     if chunk is None:
         raise HTTPException(status_code=404, detail="Document chunk not found")
@@ -324,6 +355,14 @@ def get_admin_document_chunk(
     chunk: DocumentChunkDep,
     _admin: AdminDep,
 ) -> DocumentChunk:
+    """
+    Get an admin document chunk.
+    Args:
+        chunk: The document chunk dependency.
+        _admin: The admin dependency.
+    Returns:
+        DocumentChunk: The admin document chunk.
+    """
     return chunk
 
 
@@ -343,6 +382,17 @@ async def get_corpus_index_or_404(
     index_id: int,
     session: SessionDep,
 ) -> CorpusIndex:
+    """
+    Get a corpus index by ID or raise a 404 error if not found.
+    Args:
+        index_id (int): The ID of the corpus index to retrieve.
+        session (AsyncSession): The database session for querying the 
+            corpus index.
+    Returns:
+        CorpusIndex: The retrieved corpus index object.
+    Raises:
+        HTTPException: If the corpus index is not found.
+    """
     index = await corpus_indices_repo.get_corpus_index_by_id(index_id, session)
     if index is None:
         raise HTTPException(status_code=404, detail="Corpus index not found")
@@ -360,6 +410,14 @@ def get_admin_corpus_index(
     index: CorpusIndexDep,
     _admin: AdminDep,
 ) -> CorpusIndex:
+    """
+    Get an admin corpus index.
+    Args:
+        index: The corpus index dependency.
+        _admin: The admin dependency.
+    Returns:
+        CorpusIndex: The admin corpus index.
+    """
     return index
 
 
@@ -380,6 +438,19 @@ async def get_indexed_chunk_or_404(
     document_chunk_id: int,
     session: SessionDep,
 ) -> IndexedChunk:
+    """
+    Get an indexed chunk by corpus index ID and document chunk ID or raise 
+    a 404 error if not found.
+    Args:
+        corpus_index_id (int): The ID of the corpus index.
+        document_chunk_id (int): The ID of the document chunk.
+        session (AsyncSession): The database session for querying the 
+            indexed chunk.
+    Returns:
+        IndexedChunk: The retrieved indexed chunk object.
+    Raises:
+        HTTPException: If the indexed chunk is not found.
+    """
     indexed_chunk = await indexed_chunks_repo.get_indexed_chunk(
         corpus_index_id,
         document_chunk_id,
@@ -401,6 +472,14 @@ def get_admin_indexed_chunk(
     indexed_chunk: IndexedChunkDep,
     _admin: AdminDep,
 ) -> IndexedChunk:
+    """
+    Get an admin indexed chunk.
+    Args:
+        indexed_chunk: The indexed chunk dependency.
+        _admin: The admin dependency.
+    Returns:
+        IndexedChunk: The admin indexed chunk.
+    """
     return indexed_chunk
 
 
@@ -476,6 +555,18 @@ async def get_writable_corpus(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> Corpus:
+    """
+    Dependency to ensure that the current user is either the owner of the 
+    corpus or has an admin role.
+    Args:
+        corpus (Corpus): The corpus being accessed.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user roles.
+    Returns:
+        Corpus: The corpus if the user is the owner or an admin.
+    Raises:
+        HTTPException: If the user is neither the owner nor an admin.
+    """
     if await user_has_role(current_user, "admin", session):
         return corpus
 
@@ -496,6 +587,19 @@ async def get_student_accessible_corpus(
     student: StudentDep,
     session: SessionDep,
 ) -> Corpus:
+    """
+    Dependency to ensure that the current user (student) has access to 
+    the corpus.
+    Args:
+        corpus (Corpus): The corpus being accessed.
+        student (User): The currently authenticated student.
+        session (AsyncSession): The database session for querying access 
+            permissions.
+    Returns:
+        Corpus: The corpus if the student has access.
+    Raises:
+        HTTPException: If the student does not have access to the corpus.
+    """
     if corpus.id is None:
         raise HTTPException(status_code=404, detail="Corpus not found")
 
@@ -520,6 +624,17 @@ async def get_raw_document_or_404(
     raw_document_id: int,
     session: SessionDep,
 ) -> RawDocument:
+    """
+    Get a raw document by ID or raise a 404 error if not found.
+    Args:
+        raw_document_id (int): The ID of the raw document to retrieve.
+        session (AsyncSession): The database session for querying the 
+            raw document.
+    Returns:
+        RawDocument: The retrieved raw document object.
+    Raises:
+        HTTPException: If the raw document is not found.    
+    """
     raw_document = await raw_documents_repo.get_raw_document_by_id(raw_document_id, session)
     if raw_document is None:
         raise HTTPException(status_code=404, detail="Raw document not found")
@@ -535,6 +650,18 @@ async def get_writable_raw_document(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> RawDocument:
+    """
+    Dependency to ensure that the current user is either the owner of the 
+    raw document or has an admin role.
+    Args:
+        raw_document (RawDocument): The raw document being accessed.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user roles.
+    Returns:
+        RawDocument: The raw document if the user is the owner or an admin.
+    Raises:
+        HTTPException: If the user is neither the owner nor an admin.
+    """
     if await user_has_role(current_user, "admin", session):
         return raw_document
 
@@ -563,6 +690,17 @@ async def get_counterpart_persona_or_404(
     persona_id: int,
     session: SessionDep,
 ) -> CounterPartPersonas:
+    """
+    Get a counterpart persona by ID or raise a 404 error if not found.
+    Args:
+        persona_id (int): The ID of the counterpart persona to retrieve.
+        session (AsyncSession): The database session for querying the 
+            counterpart persona.
+    Returns:
+        CounterPartPersonas: The retrieved counterpart persona object.
+    Raises:
+        HTTPException: If the counterpart persona is not found.
+    """
     persona = await counterpart_personas_repo.get_counterpart_persona_by_id(persona_id, session)
     if persona is None:
         raise HTTPException(status_code=404, detail="Counterpart persona not found")
@@ -580,6 +718,14 @@ def get_visible_counterpart_persona(
     persona: CounterpartPersonaDep,
     _current_user: CurrentUserDep,
 ) -> CounterPartPersonas:
+    """
+    Get a counterpart persona if it is visible to the current user.
+    Args:
+        persona (CounterPartPersonas): The counterpart persona being accessed.
+            _current_user (User): The currently authenticated user.
+    Returns:
+        CounterPartPersonas: The counterpart persona if it is visible to the user.
+    """
     return persona
 
 
@@ -594,6 +740,19 @@ async def get_writable_counterpart_persona(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> CounterPartPersonas:
+    """
+    Dependency to ensure that the current user is either the creator of the
+    counterpart persona or has an admin role.
+    Args:
+        persona (CounterPartPersonas): The counterpart persona being accessed.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user roles.
+    Returns:
+        CounterPartPersonas: The counterpart persona if the user is the 
+        creator or an admin.
+    Raises:
+        HTTPException: If the user is neither the creator nor an admin.
+    """
     if await user_has_role(current_user, "admin", session):
         return persona
 
@@ -617,6 +776,19 @@ async def get_copyable_counterpart_persona(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> CounterPartPersonas:
+    """
+    Dependency to ensure that the current user has the role of teacher or admin
+    to copy a counterpart persona.
+    Args:
+        persona (CounterPartPersonas): The counterpart persona being accessed.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user roles.
+    Returns:
+        CounterPartPersonas: The counterpart persona if the user has the 
+        required role.
+    Raises:
+        HTTPException: If the user does not have the required role.
+    """
     if await user_has_role(current_user, "admin", session):
         return persona
 
@@ -642,6 +814,18 @@ async def get_session_or_404(
     session_id: int,
     session: SessionDep,
 ) -> UserSession:
+    """
+    Dependency to retrieve a UserSession by ID or raise a 404 error if 
+    not found.
+    Args:
+        session_id (int): The ID of the UserSession to retrieve.
+        session (AsyncSession): The database session for querying the 
+            UserSession.
+    Returns:
+        UserSession: The retrieved UserSession object.
+    Raises:
+        HTTPException: If the UserSession is not found.
+    """
     user_session = await sessions_repo.get_session_by_id(session_id, session)
     if user_session is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -655,6 +839,14 @@ def get_admin_session(
     user_session: UserSessionDep,
     _admin: AdminDep,
 ) -> UserSession:
+    """
+    Dependency to retrieve an admin UserSession.
+    Args:
+        user_session (UserSession): The UserSession object.
+        _admin (User): The currently authenticated admin user.
+    Returns:
+        UserSession: The admin UserSession object.
+    """
     return user_session
 
 
@@ -671,6 +863,16 @@ async def get_scenario_or_404(
     scenario_id: int,
     session: SessionDep,
 ) -> Scenario:
+    """
+    Dependency to retrieve a Scenario by ID or raise a 404 error if not found.
+    Args:
+        scenario_id (int): The ID of the Scenario to retrieve.
+        session (AsyncSession): The database session for querying the Scenario.
+    Returns:
+        Scenario: The retrieved Scenario object.
+    Raises:
+        HTTPException: If the Scenario is not found.
+    """
     scenario = await scenarios_repo.get_scenario_by_id(scenario_id, session)
     if scenario is None:
         raise HTTPException(status_code=404, detail="Scenario not found")
@@ -685,6 +887,14 @@ def get_visible_scenario(
     scenario: ScenarioDep,
     _current_user: CurrentUserDep,
 ) -> Scenario:
+    """
+    Dependency to retrieve a visible Scenario.
+    Args:
+        scenario (Scenario): The Scenario object.
+        _current_user (User): The currently authenticated user.
+    Returns:
+        Scenario: The visible Scenario object.
+    """
     return scenario
 
 
@@ -696,6 +906,18 @@ async def get_writable_scenario(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> Scenario:
+    """
+    Dependency to retrieve a writable Scenario.
+    Args:
+        scenario (Scenario): The Scenario object.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user roles.
+    Returns:
+        Scenario: The writable Scenario object.
+    Raises:
+        HTTPException: If the user does not have permission to write to 
+        the Scenario.
+    """
     if await user_has_role(current_user, "admin", session):
         return scenario
 
@@ -790,6 +1012,16 @@ async def get_completed_accessible_simulation(
     simulation: SimulationDep,
     current_user: TeacherOrAdminDep,
 ) -> Simulation:
+    """
+    Dependency to retrieve a completed accessible Simulation.
+    Args:
+        simulation (Simulation): The Simulation object.
+        current_user (User): The currently authenticated user.
+    Returns:
+        Simulation: The completed accessible Simulation object.
+    Raises:
+        HTTPException: If the simulation is not completed.
+    """
     if simulation.status != "completed":
         raise HTTPException(status_code=403, detail="Completed simulation access required")
     return simulation
@@ -806,6 +1038,17 @@ async def get_readable_simulation(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> Simulation:
+    """
+    Dependency to retrieve a readable Simulation.
+    Args:
+        simulation (Simulation): The Simulation object.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user roles.
+    Returns:
+        Simulation: The readable Simulation object.
+    Raises:
+        HTTPException: If the user does not have access to the simulation.
+    """
     if simulation.status == "completed":
         if await user_has_role(current_user, "teacher", session) or await user_has_role(current_user, "admin", session):
             return simulation
@@ -822,6 +1065,16 @@ def get_teacher_review_simulation(
     simulation: SimulationDep,
     _reviewer: TeacherOrAdminDep,
 ) -> Simulation:
+    """
+    Dependency to retrieve a Simulation for teacher review.
+    Args:
+        simulation (Simulation): The Simulation object.
+        _reviewer (User): The currently authenticated teacher or admin.
+    Returns:
+        Simulation: The Simulation object for review.
+    Raises:
+        HTTPException: If the simulation is not completed.
+    """
     if simulation.status != "completed":
         raise HTTPException(status_code=409, detail="Only completed simulations can be reviewed")
     return simulation
@@ -837,6 +1090,16 @@ def get_student_mutable_simulation(
     simulation: SimulationDep,
     student: StudentDep,
 ) -> Simulation:
+    """
+    Dependency to retrieve a mutable Simulation for a student.
+    Args:
+        simulation (Simulation): The Simulation object.
+        student (User): The currently authenticated student.
+    Returns:
+        Simulation: The mutable Simulation object.
+    Raises:
+        HTTPException: If the student does not have permission to modify the Simulation.
+    """
     if student.id not in {simulation.user_id_owner, simulation.user_id_participant}:
         raise HTTPException(status_code=403, detail="Simulation owner or participant required")
 
@@ -923,6 +1186,18 @@ async def get_readable_prompt(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> Prompt:
+    """
+    Dependency to ensure that the current user can read the prompt.
+    Args:
+        prompt (Prompt): The prompt being accessed.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user 
+            roles.
+    Returns:
+        Prompt: The prompt if the user can read it.
+    Raises:
+        HTTPException: If the user cannot read the prompt.
+    """
     if await user_has_role(current_user, "admin", session):
         return prompt
 
@@ -976,6 +1251,17 @@ async def get_deletable_prompt(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> Prompt:
+    """
+    Dependency to ensure that the current user can delete the prompt.
+    Args:
+        prompt (Prompt): The prompt being accessed.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user roles.
+    Returns:
+        Prompt: The prompt if the user can delete it.
+    Raises:
+        HTTPException: If the user cannot delete the prompt.
+    """
     if await user_has_role(current_user, "admin", session):
         return prompt
 
@@ -999,6 +1285,17 @@ async def get_copyable_prompt(
     current_user: CurrentUserDep,
     session: SessionDep,
 ) -> Prompt:
+    """
+    Dependency to ensure that the current user can copy the prompt.
+    Args:
+        prompt (Prompt): The prompt being accessed.
+        current_user (User): The currently authenticated user.
+        session (AsyncSession): The database session for querying user roles.
+    Returns:
+        Prompt: The prompt if the user can copy it.
+    Raises:
+        HTTPException: If the user cannot copy the prompt.
+    """
     if await user_has_role(current_user, "admin", session):
         return prompt
 
@@ -1023,6 +1320,13 @@ from app.airag.embeddings.embeddings import choose_embedding_model
 def get_embedding_model(
     model_name: str = "mini-l6-v2",
 ) -> Embeddings:
+    """
+    Dependency to get the embedding model.
+    Args:
+        model_name (str): The name of the embedding model.
+    Returns:
+        Embeddings: The embedding model instance.
+    """
     embedding_model, _ = choose_embedding_model(model_name)
     return embedding_model
 
@@ -1031,6 +1335,13 @@ EmbeddingModelDep = Annotated[Embeddings, Depends(get_embedding_model)]
 # Metadata
 
 def get_embedding_config(model_name: str = "mini-l6-v2") -> dict[str, int | str]:
+    """
+    Dependency to get the embedding configuration.
+    Args:
+        model_name (str): The name of the embedding model.
+    Returns:
+        dict[str, int | str]: The embedding configuration.
+    """
     _, metadata = choose_embedding_model(model_name)
     return {
         "model_name": model_name,
@@ -1051,6 +1362,17 @@ def get_chat_model(
     model_name: str = "gpt-4o-mini",
     temperature: float = 0.0,
 ) -> ChatOpenAI | ChatOllama:
+    """
+    Dependency to get the chat model.
+    Args:
+        provider (str): The name of the LLM provider.
+        model_name (str): The name of the LLM model.
+        temperature (float): The temperature for the LLM.
+    Returns:
+        ChatOpenAI | ChatOllama: The chat model instance.
+    Raises:
+        HTTPException: If the LLM provider is unavailable.
+    """
     llm = get_llm(
         provider=provider,
         model_name=model_name,
@@ -1073,6 +1395,17 @@ async def get_vector_store_record_or_404(
     vector_store_id: int,
     session: SessionDep,
 ) -> VectorStore:
+    """
+    Dependency to get a vector store record by ID or raise a 404 error.
+    Args:
+        vector_store_id (int): The ID of the vector store.
+        session (AsyncSession): The database session for querying vector 
+            stores.
+    Returns:
+        VectorStore: The vector store record.
+    Raises:
+        HTTPException: If the vector store is not found.
+    """
     vector_store = await vector_stores_repo.get_vector_store_by_id(vector_store_id, session)
 
     if vector_store is None:
@@ -1091,6 +1424,14 @@ def get_admin_vector_store(
     vector_store: VectorStoreRecordDep,
     _admin: AdminDep,
 ) -> VectorStore:
+    """
+    Dependency to get the admin vector store.
+    Args:
+        vector_store (VectorStore): The vector store record.
+        _admin (AdminDep): The admin dependency.
+    Returns:
+        VectorStore: The admin vector store.
+    """
     return vector_store
 
 
@@ -1110,6 +1451,17 @@ async def get_runtime_vector_store(
     vector_store_record: VectorStoreRecordDep,
     embedding_model: EmbeddingModelDep,
 ):
+    """
+    Dependency to get the runtime vector store based on the vector store 
+    record and embedding model.
+    Args:
+        vector_store_record (VectorStoreRecordDep): The vector store record.
+        embedding_model (EmbeddingModelDep): The embedding model.
+    Returns:
+        object: The runtime vector store instance.
+    Raises:
+        HTTPException: If the vector store backend is unsupported.
+    """
     if vector_store_record.backend == "chroma":
         return instantiate_chroma_vector_store(
             embedding_model=embedding_model,
@@ -1136,6 +1488,11 @@ from sentence_transformers import CrossEncoder
 
 @lru_cache
 def get_cross_encoder() -> CrossEncoder:
+    """
+    Dependency to get the cross encoder model.
+    Returns:
+        CrossEncoder: The cross encoder model instance.
+    """
     return CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 
 
@@ -1156,6 +1513,15 @@ def get_retrieval_options(
     rerank: bool = Query(default=True),
     rerank_top_k: int = Query(default=3, ge=1, le=20),
 ) -> RetrievalOptions:
+    """
+    Dependency to get the retrieval options.
+    Args:
+        k (int): The number of top results to retrieve.
+        rerank (bool): Whether to rerank the retrieved results.
+        rerank_top_k (int): The number of top results to rerank.
+    Returns:
+        RetrievalOptions: The retrieval options instance.
+    """
     return RetrievalOptions(k=k, rerank=rerank, rerank_top_k=rerank_top_k)
 
 
@@ -1178,6 +1544,17 @@ def get_ingestion_options(
     chunk_overlap: int = Query(default=200, ge=0, le=2000),
     chunker: str = Query(default="recursive"),
 ) -> IngestionOptions:
+    """
+    Dependency to get the ingestion options.
+    Args:
+        header_depth (int): The header depth for ingestion.
+        dynamic_header_depth (bool): Whether to use dynamic header depth.
+        chunk_size (int): The size of each chunk.
+        chunk_overlap (int): The overlap between chunks.
+        chunker (str): The chunking method.
+    Returns:
+        IngestionOptions: The ingestion options instance.
+    """
     if chunk_overlap >= chunk_size:
         raise HTTPException(
             status_code=422,
@@ -1205,6 +1582,15 @@ def get_ingestion_execution_options(
     header_depth: int = Query(default=2, ge=1, le=6),
     dynamic_header_depth: bool = Query(default=False),
 ) -> IngestionExecutionOptions:
+    """
+    Get ingestion execution options.
+    Args:
+        header_depth (int): The header depth for ingestion execution.
+        dynamic_header_depth (bool): Whether to use dynamic header depth for 
+            ingestion execution.
+    Returns:
+        IngestionExecutionOptions: The ingestion execution options instance.
+    """
     return IngestionExecutionOptions(
         header_depth=header_depth,
         dynamic_header_depth=dynamic_header_depth,
@@ -1226,6 +1612,20 @@ def get_chunking_options(
     breakpoint_threshold_amount: int = Query(default=90, ge=1),
     buffer_size: int = Query(default=1, ge=0),
 ) -> ChunkingOptions:
+    """
+    Dependency to get the chunking options.
+    Args:
+        chunker (str): The chunking method.
+        chunk_size (int): The size of each chunk.
+        chunk_overlap (int): The overlap between chunks.
+        preview (bool): Whether to enable preview mode.
+        breakpoint_threshold_type (str): The type of breakpoint threshold.
+        breakpoint_threshold_amount (int): The amount for the breakpoint 
+            threshold.
+        buffer_size (int): The buffer size.
+    Returns:
+        ChunkingOptions: The chunking options instance.
+    """
     if chunk_overlap >= chunk_size:
         raise HTTPException(
             status_code=422,
@@ -1259,6 +1659,13 @@ class ChunkingExecutionOptions(BaseModel):
 def get_chunking_execution_options(
     preview: bool = Query(default=False),
 ) -> ChunkingExecutionOptions:
+    """
+    Dependency to get the chunking execution options.
+    Args:
+        preview (bool): Whether to enable preview mode.
+    Returns:
+        ChunkingExecutionOptions: The chunking execution options instance.
+    """
     return ChunkingExecutionOptions(preview=preview)
 
 

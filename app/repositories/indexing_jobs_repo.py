@@ -214,6 +214,14 @@ async def request_indexing_job_cancel(
     job: IndexingJob,
     session: AsyncSession,
 ) -> IndexingJob:
+    """
+    Request cancellation of an indexing job.
+    Args:
+        job: The indexing job to cancel.
+        session: The database session to use for the query.
+    Returns:
+        The updated indexing job with cancellation requested.
+    """
     job.cancel_requested = True
     return await commit_and_refresh(session, job)
 
@@ -222,6 +230,14 @@ async def mark_indexing_job_running(
     job: IndexingJob,
     session: AsyncSession,
 ) -> IndexingJob:
+    """
+    Mark an indexing job as running.
+    Args:
+        job: The indexing job to update.
+        session: The database session to use for the query.
+    Returns:
+        The updated indexing job.
+    """
     job.status = "running"
     job.cancel_requested = False
     job.started_at = utc_now()
@@ -288,6 +304,15 @@ async def mark_indexing_job_cancelled(
     *,
     detail: str | None = None,
 ) -> IndexingJob:
+    """
+    Mark an indexing job as cancelled.
+    Args:
+        job: The indexing job to update.
+        session: The database session to use for the query.
+        detail: The detail of the cancellation.
+    Returns:
+        The updated indexing job.
+    """
     job.status = "cancelled"
     job.stage = "finished"
     job.cancel_requested = True

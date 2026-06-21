@@ -169,6 +169,14 @@ def get_llm(model_name: str = "gpt-4o-mini",
     
 # TODO: Move ollama base URL to config file
 def _ollama_model_name(model) -> str:
+    """
+    Get the name of an Ollama model from its object or 
+    dictionary representation.
+    Args:
+        model: The Ollama model object or dictionary.
+    Returns:
+        str: The name of the Ollama model.
+    """
     name = getattr(model, "model", None) or getattr(model, "name", None)
     if name is None and isinstance(model, dict):
         name = model.get("model") or model.get("name")
@@ -178,6 +186,15 @@ def _ollama_model_name(model) -> str:
 
 
 def _ollama_model_size(model) -> int | float | None:
+    """
+    Get the size of an Ollama model from its object or dictionary 
+    representation.
+    Args:
+        model: The Ollama model object or dictionary.
+    Returns:
+        int | float | None: The size of the Ollama model in bytes, or 
+        None if not available.
+    """
     size = getattr(model, "size", None)
     if size is None and isinstance(model, dict):
         size = model.get("size")

@@ -47,15 +47,40 @@ def list_llm_model_catalog() -> LLMModelCatalogResponse:
 
 
 def clear_llm_model_catalog_cache() -> None:
+    """
+    Clear the cached LLM model catalog. This forces a refresh of the catalog 
+    on the next request.
+    Args:
+        None
+    Returns:
+        None
+    """
     _list_llm_model_catalog_cached.cache_clear()
 
 
 def _catalog_cache_bucket() -> int:
+    """
+    Calculate the current cache bucket identifier based on the current time and
+    the cache TTL.
+    Args:
+        None
+    Returns:
+        int: The current cache bucket identifier based on the current time and
+        the cache TTL.
+    """
     return int(monotonic() // CATALOG_CACHE_TTL_SECONDS)
 
 
 @lru_cache(maxsize=2)
 def _list_llm_model_catalog_cached(_cache_bucket: int) -> LLMModelCatalogResponse:
+    """
+    List the available LLM models from all supported providers, with caching.
+    Args:
+        _cache_bucket: The cache bucket identifier.
+    Returns:
+        LLMModelCatalogResponse: A response containing the available LLM 
+        models and their details.
+    """
     openai_models = [
         LLMModelCatalogItem(name=model)
         for model in settings.OPENAI_CHAT_MODELS
@@ -119,6 +144,12 @@ def validate_llm_model_selection(provider: LLMProvider, model: str) -> None:
 
 
 def _safe_gpu_memory_gib() -> float | None:
+    """
+    Safely get the GPU memory in GiB.
+    Returns:
+        float | None: The GPU memory in GiB, or None if it cannot be 
+        determined.
+    """
     try:
         return get_gpu_memory_gib()
     except Exception:

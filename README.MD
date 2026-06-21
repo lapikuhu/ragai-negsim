@@ -202,7 +202,7 @@ To inspect the current revision:
 alembic current
 ```
 
-The backend startup code in [app/db/db.py](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/app/db/db.py:73) assumes the schema has already been created and migrated before the app starts.
+The backend startup code in [app/db/db.py] assumes the schema has already been created and migrated before the app starts.
 
 ### Seed starter data
 
@@ -273,6 +273,10 @@ ReDoc:
 ```text
 http://127.0.0.1:8000/redoc
 ```
+
+## App DOC
+
+Greek DOC file in docs\DOC.pdf
 
 ## Main API Areas
 

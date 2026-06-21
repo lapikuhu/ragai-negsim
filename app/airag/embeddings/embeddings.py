@@ -70,8 +70,14 @@ def get_embedding_model_info(model_name: str) -> EmbeddingModelInfo:
         ) from exc
 
 def hf_mini_l6_v2_embeddings() -> HuggingFaceEmbeddings:
-    """Return HuggingFaceEmbeddings instance for MiniLM-L6-v2 model.
+    """
+    Return HuggingFaceEmbeddings instance for MiniLM-L6-v2 model.
     Dimensionality: 384
+    Args:
+        None
+    Returns:
+        HuggingFaceEmbeddings: An instance of HuggingFaceEmbeddings for the 
+        MiniLM-L6-v2 model.
     """
     return HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2",
@@ -79,16 +85,29 @@ def hf_mini_l6_v2_embeddings() -> HuggingFaceEmbeddings:
     )
 
 def hf_bge_base_embeddings() -> HuggingFaceEmbeddings:
-    """Return HuggingFaceEmbeddings instance for BGE-base model.
-    Dimensionality: 768"""
+    """
+    Return HuggingFaceEmbeddings instance for BGE-base model.
+    Dimensionality: 768
+    Args:
+        None
+    Returns:
+        HuggingFaceEmbeddings: An instance of HuggingFaceEmbeddings for 
+        the BGE-base model.
+    """
     return HuggingFaceEmbeddings(
         model_name="BAAI/bge-large-zh-v1.5",
         encode_kwargs={"normalize_embeddings": True},
     )
 
 def openai_text_embedding_3_small() -> OpenAIEmbeddings:
-    """Return OpenAIEmbeddings instance for text-embedding-3-small model.
+    """
+    Return OpenAIEmbeddings instance for text-embedding-3-small model.
     Dimensionality: 1536
+    Args:
+        None
+    Returns:
+        OpenAIEmbeddings: An instance of OpenAIEmbeddings for the 
+        text-embedding-3-small model.
     """
     return OpenAIEmbeddings(
         model="text-embedding-3-small",

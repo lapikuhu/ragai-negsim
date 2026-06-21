@@ -104,7 +104,7 @@ async def list_scenarios(
         used=used,
     )
 
-
+### -------------------- GENERATE SCENARIO CONTEXT ----------------- ###
 @router.post(
     "/generate-context",
     response_model=ScenarioContextGenerateResponse,
@@ -115,6 +115,17 @@ async def generate_scenario_context(
     model: ChatModelDep,
     _current_user: ScenarioCreatorDep,
 ) -> ScenarioContextGenerateResponse:
+    """
+    Generate scenario context.
+    Args:
+        scenario_data (ScenarioContextGenerateRequest): The data for 
+            generating the scenario context.
+        model (ChatModelDep): The chat model dependency.
+        _current_user (ScenarioCreatorDep): The current user dependency 
+            with scenario creation permissions.
+    Returns:
+        ScenarioContextGenerateResponse: The generated scenario context.
+    """
     try:
         return await scenarios_service.generate_scenario_context_srvc(
             scenario_data,
@@ -141,14 +152,15 @@ async def get_scenario(
     Returns:
         ScenarioPublicReadWithIds: The scenario with its IDs.
     Raises:
-        HTTPException: If the scenario is not found or if there is an error retrieving the scenario.
+        HTTPException: If the scenario is not found or if there is an error 
+        retrieving the scenario.
     """
     try:
         return await scenarios_service.get_scenario_srvc(scenario, session)
     except ValueError as exc:
         _raise_scenario_service_error(exc)
 
-
+### --------------------- GET SCENARIO AUTHORING ------------------- ###
 @router.get(
     "/{scenario_id}/authoring",
     response_model=ScenarioAuthoringReadWithIds,
@@ -158,6 +170,19 @@ async def get_scenario_authoring(
     scenario: WritableScenarioDep,
     session: SessionDep,
 ) -> ScenarioAuthoringReadWithIds:
+    """
+    Get the authoring details of a scenario by its ID.
+    Args:
+        scenario (WritableScenarioDep): The scenario dependency with 
+            write permissions.
+        session (SessionDep): The database session dependency.
+    Returns:
+        ScenarioAuthoringReadWithIds: The scenario authoring details with 
+        its IDs.
+    Raises:
+        HTTPException: If the scenario is not found or if there is an error 
+        retrieving the scenario authoring details.
+    """
     try:
         return await scenarios_service.get_scenario_authoring_srvc(scenario, session)
     except ValueError as exc:

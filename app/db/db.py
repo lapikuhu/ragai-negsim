@@ -90,6 +90,10 @@ async def create_admin_if_not_exists():
 async def startup_seed():
     """
     Seeds startup data after Alembic has created and migrated the schema.
+    Args:
+        None
+    Returns:
+        None
     """
     await seed_roles_if_not_exist()
     await create_admin_if_not_exists()

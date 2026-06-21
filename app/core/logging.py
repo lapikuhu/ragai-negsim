@@ -29,6 +29,13 @@ class SafeRotatingFileHandler(RotatingFileHandler):
 
 
 def configure_logging() -> None:
+    """
+    Configure logging for the application.
+    Args:
+        None
+    Returns:
+        None
+    """
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
 

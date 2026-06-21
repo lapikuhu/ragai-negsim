@@ -1331,6 +1331,14 @@ def _state_schema_from_graph_state(state: dict[str, Any]) -> NegotiationStateSch
 
 
 def _usage_metadata_for_state(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Get usage metadata from the simulation state.
+    Args:
+        state: The current state of the simulation.
+    Returns:
+        A dictionary containing usage metadata, including simulation ID,
+        session ID, app session ID, and user ID.
+    """
     metadata: dict[str, Any] = {}
     for key in ("simulation_id", "session_id", "app_session_id", "user_id"):
         value = state.get(key)
