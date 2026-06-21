@@ -11,14 +11,21 @@ venv/
 
 # cache and log files
 __pycache__/
+.pytest_cache/
+.ruff_cache/
 *.log
 
 # specs folder
 specs/
 specs/*
 
+# VS Code
+.vscode/
+
 # pdf files
 *.pdf
+# Include PDF files in the docs folder
+!docs/*.pdf 
 
 # chroma vector store data
 chroma_db/

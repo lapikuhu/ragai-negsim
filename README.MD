@@ -25,12 +25,36 @@ At a high level, the backend supports a workflow like this:
 5. A simulation is created and started for a learner.
 6. The learner submits turns and the system returns counterpart responses, coach advice, and updated simulation state.
 
+### Generative AI Features
+
 The system is designed around educational negotiation practice rather than a generic chat product. The RAG and agent graph layers are there to ground simulations in real course or domain material and to keep the negotiation flow structured.
 
-Two retrieval strategies are currently available:
+The generative-AI layer is built from three cooperating parts:
 
-- `CRAG` for corrective retrieval over the configured vector store
-- `GraphRAG` for knowledge-graph retrieval backed by Neo4j
+- Retrieval profiles define how course or domain material is selected for a simulation.
+- LangGraph-based agent graphs coordinate negotiation turns, coaching, counterpart responses, and evaluation.
+- Prompt templates keep each model call role-specific and aligned with the simulation context.
+
+Two retrieval strategies are currently available through reusable RAG profiles:
+
+- `CRAG` for corrective retrieval over the configured vector store. The CRAG graph retrieves candidate chunks, reranks them, grades their relevance, rewrites the query when evidence is weak, generates an answer from trusted context, checks answer quality, and falls back when the configured rewrite limit is reached.
+- `GraphRAG` for knowledge-graph retrieval backed by Neo4j. GraphRAG uses a built knowledge graph tied to a corpus index and can retrieve scoped evidence through semantic graph search, validated text-to-Cypher, or a hybrid mode that combines ranked evidence with reciprocal rank fusion.
+
+RAG profiles expose strategy-specific settings instead of hard-coding retrieval behavior. CRAG profiles configure values such as retrieved document count, reranker choice, reranked document count, and maximum rewrite attempts. GraphRAG profiles configure retrieval mode, evidence limits, traversal depth, and the hybrid ranking constant.
+
+The parent negotiation graph orchestrates each turn through dedicated agent nodes:
+
+- Intent classification decides whether the learner's input should continue the negotiation or move toward final evaluation.
+- The counterpart node produces the AI counterpart's negotiation response.
+- The rolling evaluator assesses the current turn while the simulation is still active.
+- The coach node returns learner-facing guidance after the counterpart and evaluator have run.
+- The final evaluator produces closing assessment when the negotiation reaches the final path.
+
+Retrieval is injected into the coaching and evaluation paths so feedback can be grounded in uploaded corpus material rather than relying only on conversation history. The counterpart remains persona- and scenario-driven, while coaching and evaluation can use retrieved evidence to support more specific advice and assessment.
+
+All agent and graph node prompts follow the Persona, Task, Context, Format (PTCF) framework. This keeps prompts explicit about role, job, grounding context, and output shape, which makes prompt changes easier to review and reduces accidental drift between counterpart, coach, evaluator, and classifier behavior.
+
+LangSmith tracing and the internal evidence ledger are used around the RAG and negotiation graphs so generated outputs can be inspected with the retrieval context, graph metadata, and evidence used during a turn.
 
 ## Folder Structure
 
@@ -118,7 +142,7 @@ pip install alembic
 
 ### 3. Configure environment variables
 
-Create or replace `.env` with your own local values. At minimum, configure:
+Create or replace `.env.example` with your own local values. At minimum, configure:
 
 - `ASYNC_DATABASE_URL`
 - `NEO4J_URI`
@@ -199,7 +223,8 @@ To rebuild the database from scratch and then seed starter data in one step,
 run:
 
 ```powershell
-uv run python scripts/flushdb_and_seed.py
+uv run python scripts/flushdb.py
+uv run python scripts/seeder.py
 ```
 
 This drops all existing tables, recreates the schema from the registered
@@ -286,7 +311,7 @@ The repository currently includes service-level coverage as well as an API-level
 
 Authored by CODEX.
 
-A React + Vite frontend now lives in [frontend/README.md](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/README.md:1).
+A React + Vite frontend now lives in [frontend/README.md]
 
 Typical local setup:
 
@@ -294,6 +319,10 @@ Typical local setup:
 
 ```powershell
 uv run uvicorn app.main:app --reload
+```
+or
+```powershell
+uv run uvicorn app.main:app --reload --reload-dir app
 ```
 
 2. Start Vite from `frontend/`:

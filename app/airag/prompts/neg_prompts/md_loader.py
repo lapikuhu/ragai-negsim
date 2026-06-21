@@ -1,6 +1,13 @@
 from importlib.resources import files
 
 def load_neg_prompt(filename: str) -> str:
+    """
+    Loads a negative prompt from the specified markdown file.
+    Args:
+        filename (str): The name of the markdown file to load.
+    Returns:
+        str: The content of the markdown file as a string.
+    """
     return files("app.airag.prompts").joinpath("neg_prompts", filename).read_text(encoding="utf-8")
 
 COACH_PROMPT = load_neg_prompt("coach_prompt.md")
