@@ -9,6 +9,7 @@ from app.schemas.raw_documents_schemas import (
     RawDocumentCreateDb,
     RawDocumentUpdate,
 )
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,7 +26,12 @@ async def get_raw_document_by_id(
         Returns:
             The RawDocument instance if found, else None.
     """
-    return await session.get(RawDocument, raw_document_id)
+    result = await session.exec(
+        select(RawDocument)
+        .options(selectinload(RawDocument.uploaded_by))
+        .where(RawDocument.id == raw_document_id)
+    )
+    return result.first()
 
 
 async def get_raw_document_by_source_path(
@@ -81,7 +87,7 @@ async def list_raw_documents(
         Returns:
             A list of RawDocument instances.
     """
-    statement = select(RawDocument)
+    statement = select(RawDocument).options(selectinload(RawDocument.uploaded_by))
 
     if corpus_id is not None:
         statement = statement.join(

@@ -7661,6 +7661,17 @@
             "type": "integer",
             "title": "Created By User Id"
           },
+          "created_by_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Username"
+          },
           "last_edit_by_user_id": {
             "anyOf": [
               {
@@ -7671,6 +7682,17 @@
               }
             ],
             "title": "Last Edit By User Id"
+          },
+          "last_edit_by_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Edit By Username"
           },
           "created_at": {
             "type": "string",
@@ -9420,6 +9442,17 @@
           "uploaded_by_user_id": {
             "type": "integer",
             "title": "Uploaded By User Id"
+          },
+          "uploaded_by_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded By Username"
           },
           "parsed_at": {
             "anyOf": [

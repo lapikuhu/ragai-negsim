@@ -214,6 +214,7 @@ export type RawDocumentRead = {
   source_status: RawDocumentSourceStatus;
   uploaded_at: string;
   uploaded_by_user_id: number;
+  uploaded_by_username?: string | null;
   parsed_at?: string | null;
 };
 
@@ -229,6 +230,7 @@ type LegacyRawDocumentRead = {
   source_status?: RawDocumentSourceStatus;
   uploaded_at: string;
   uploaded_by_user_id: number;
+  uploaded_by_username?: string | null;
   parsed_at?: string | null;
 };
 
@@ -244,6 +246,7 @@ export function coerceRawDocumentRead(document: LegacyRawDocumentRead): RawDocum
     source_status: document.source_status ?? "unverified",
     uploaded_at: document.uploaded_at,
     uploaded_by_user_id: document.uploaded_by_user_id,
+    uploaded_by_username: document.uploaded_by_username ?? null,
     parsed_at: document.parsed_at ?? null
   };
 }

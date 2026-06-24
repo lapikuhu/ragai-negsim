@@ -2683,12 +2683,16 @@ export type components = {
             created_at: string;
             /** Created By User Id */
             created_by_user_id: number;
+            /** Created By Username */
+            created_by_username?: string | null;
             /** Description */
             description?: string | null;
             /** Id */
             id: number;
             /** Last Edit By User Id */
             last_edit_by_user_id?: number | null;
+            /** Last Edit By Username */
+            last_edit_by_username?: string | null;
             /** Corpus name */
             name: string;
         };
@@ -3285,6 +3289,8 @@ export type components = {
             uploaded_at: string;
             /** Uploaded By User Id */
             uploaded_by_user_id: number;
+            /** Uploaded By Username */
+            uploaded_by_username?: string | null;
         };
         /** RoleRead */
         RoleRead: {
@@ -7678,4 +7684,3 @@ export interface operations {
         };
     };
 }
-

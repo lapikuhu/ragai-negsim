@@ -37,7 +37,7 @@ export function PromptsPage() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Prompts" description="Admin-only prompt registry using real create and update routes." />
+      <PageHeader title="Prompts" description="Admin-only prompt registry: custom prompts inject into system prompts. Experimental, use with caution." />
 
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">Create prompt</h2>

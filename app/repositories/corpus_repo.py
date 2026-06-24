@@ -4,6 +4,7 @@ from app.models.raw_documents import CorpusRawDocumentLink
 from app.models.simulations import Simulation
 from app.repositories.helpers import commit_and_refresh
 from app.schemas.corpus_schemas import CorpusCreate, CorpusReadWithIds, CorpusUpdate
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -114,7 +115,15 @@ async def get_corpus_by_id(corpus_id: int, session: AsyncSession) -> Corpus | No
     Returns:
         Corpus | None: The corpus if found, None otherwise.
     """
-    return await session.get(Corpus, corpus_id)
+    result = await session.exec(
+        select(Corpus)
+        .options(
+            selectinload(Corpus.created_by_user),
+            selectinload(Corpus.last_edit_by_user),
+        )
+        .where(Corpus.id == corpus_id)
+    )
+    return result.first()
 
 
 async def get_corpus_by_name(name: str, session: AsyncSession) -> Corpus | None:
@@ -155,7 +164,10 @@ async def list_corpora(
     Returns:
         list[Corpus]: A list of corpora matching the specified criteria.
     """
-    statement = select(Corpus)
+    statement = select(Corpus).options(
+        selectinload(Corpus.created_by_user),
+        selectinload(Corpus.last_edit_by_user),
+    )
 
     if raw_document_id is not None:
         statement = statement.join(

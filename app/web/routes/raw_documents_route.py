@@ -18,6 +18,24 @@ from app.core.dependencies import (
 
 router = APIRouter(prefix="/raw-documents", tags=["Raw Documents"])
 
+
+def _serialize_raw_document(raw_document, fallback_username: str | None = None) -> RawDocumentRead:
+    """
+    Serialize a raw document object into a RawDocumentRead schema, 
+    including the username of the uploader.
+    Args:
+        raw_document: The raw document object to serialize.
+        fallback_username: Optional fallback username to use if the 
+            uploader's username is not available.
+    Returns:
+        RawDocumentRead: The serialized raw document data.
+    """
+    payload = RawDocumentRead.model_validate(raw_document).model_dump()
+    uploaded_by = getattr(raw_document, "uploaded_by", None)
+    uploaded_by_username = getattr(uploaded_by, "username", None) or fallback_username
+    payload["uploaded_by_username"] = uploaded_by_username
+    return RawDocumentRead(**payload)
+
 ### ------------------ CREATE A NEW RAW DOCUMENT ------------------- ###
 @router.post("/", response_model=RawDocumentRead, status_code=status.HTTP_201_CREATED)
 async def create_raw_document(
@@ -53,7 +71,7 @@ async def create_raw_document(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    return RawDocumentRead.model_validate(raw_document)
+    return _serialize_raw_document(raw_document, fallback_username=current_user.username)
 
 ### ------------------ LIST RAW DOCUMENTS WITH FILTERS AND PAGINATION ------------------- ###
 @router.get("/", response_model=list[RawDocumentRead])
@@ -81,7 +99,7 @@ async def list_raw_documents(session: SessionDep,
                                                   uploaded_by_user_id,
                                                   corpus_id,
                                                   name_contains)
-    return [RawDocumentRead.model_validate(raw_document) for raw_document in raw_documents]
+    return [_serialize_raw_document(raw_document) for raw_document in raw_documents]
 
 ### ------------------ GET A RAW DOCUMENT BY ID ------------------- ###
 @router.get("/{raw_document_id}", response_model=RawDocumentRead)
@@ -97,7 +115,7 @@ async def get_raw_document_by_id(raw_document_id: int, session: SessionDep) -> R
     raw_document = await get_raw_document_by_id_srvc(session, raw_document_id)
     if not raw_document:
         raise HTTPException(status_code=404, detail="Raw document not found")
-    return RawDocumentRead.model_validate(raw_document)
+    return _serialize_raw_document(raw_document)
 
 
 ### ------------------ INGEST A RAW DOCUMENT ------------------- ###

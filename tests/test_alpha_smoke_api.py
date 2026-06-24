@@ -68,7 +68,9 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
             name=corpus_data.name,
             description=corpus_data.description,
             created_by_user_id=1,
+            created_by_username="admin",
             last_edit_by_user_id=None,
+            last_edit_by_username=None,
             created_at=_now(),
         )
 
@@ -268,6 +270,7 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
             )
             assert upload_response.status_code == 201
             assert upload_response.json()["id"] == 21
+            assert upload_response.json()["uploaded_by_username"] == "admin"
 
             corpus_response = client.post(
                 "/corpora/",
@@ -280,6 +283,7 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
             )
             assert corpus_response.status_code == 201
             assert corpus_response.json()["id"] == 11
+            assert corpus_response.json()["created_by_username"] == "admin"
 
             index_response = client.post(
                 "/corpora/11/chunking-profiles/3/vector-stores/5/embed-jobs",
@@ -425,5 +429,94 @@ def test_alpha_smoke_proxy_turn_and_disable_routes(monkeypatch):
             disable_response = client.post("/simulations/31/proxy/disable", json={})
             assert disable_response.status_code == 200
             assert disable_response.json()["auto_user_proxy_enabled"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_raw_document_detail_returns_uploader_username(monkeypatch):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_session():
+        yield object()
+
+    async def fake_get_raw_document_by_id_srvc(_session, raw_document_id):
+        assert raw_document_id == 21
+        return SimpleNamespace(
+            id=21,
+            name="alpha brief",
+            description="Uploaded for smoke testing",
+            source_path="app/raw_docs_store/alpha-brief.pdf",
+            source_hash="abc123",
+            source_size=2048,
+            source_mtime=_now(),
+            source_status="available",
+            uploaded_at=_now(),
+            uploaded_by_user_id=1,
+            uploaded_by=SimpleNamespace(username="teacher"),
+            parsed_at=None,
+        )
+
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+
+    from app.web.routes import raw_documents_route
+
+    monkeypatch.setattr(
+        raw_documents_route,
+        "get_raw_document_by_id_srvc",
+        fake_get_raw_document_by_id_srvc,
+    )
+
+    app = main_module.app
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/raw-documents/21")
+
+        assert response.status_code == 200
+        assert response.json()["uploaded_by_user_id"] == 1
+        assert response.json()["uploaded_by_username"] == "teacher"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_list_corpora_returns_creator_and_editor_usernames(monkeypatch):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_session():
+        yield object()
+
+    async def fake_list_corpora_srvc(*_args, **_kwargs):
+        return [
+            SimpleNamespace(
+                id=11,
+                name="alpha corpus",
+                description="Corpus for smoke testing",
+                created_by_user_id=1,
+                created_by_user=SimpleNamespace(username="teacher"),
+                last_edit_by_user_id=2,
+                last_edit_by_user=SimpleNamespace(username="coach"),
+                created_at=_now(),
+            )
+        ]
+
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+
+    from app.web.routes import corpus_route
+
+    monkeypatch.setattr(corpus_route, "list_corpora_srvc", fake_list_corpora_srvc)
+
+    app = main_module.app
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/corpora/")
+
+        assert response.status_code == 200
+        assert response.json()[0]["created_by_username"] == "teacher"
+        assert response.json()[0]["last_edit_by_username"] == "coach"
     finally:
         app.dependency_overrides.clear()

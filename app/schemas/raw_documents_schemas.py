@@ -31,6 +31,7 @@ class RawDocumentRead(RawDocumentBase, RawDocumentSourceMetadata):
     id: int
     uploaded_at: datetime
     uploaded_by_user_id: int
+    uploaded_by_username: str | None = None
     parsed_at: datetime | None = None
 
 

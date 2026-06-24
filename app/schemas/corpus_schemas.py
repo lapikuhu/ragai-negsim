@@ -15,7 +15,9 @@ class CorpusCreate(CorpusBase):
 class CorpusRead(CorpusBase):
 	id: int
 	created_by_user_id: int
+	created_by_username: str | None = None
 	last_edit_by_user_id: int | None = None
+	last_edit_by_username: str | None = None
 	created_at: datetime
 
 

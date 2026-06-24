@@ -48,7 +48,7 @@ export function DocumentDetailPage() {
             { label: "Source status", value: <StatusBadge status={document.source_status} /> },
             { label: "Source size", value: document.source_size ?? "Not available" },
             { label: "Source mtime", value: formatDateTime(document.source_mtime) },
-            { label: "Uploaded by", value: document.uploaded_by_user_id },
+            { label: "Uploaded by", value: document.uploaded_by_username ?? document.uploaded_by_user_id },
             { label: "Uploaded at", value: formatDateTime(document.uploaded_at) },
             { label: "Parsed at", value: formatDateTime(document.parsed_at) }
           ]}

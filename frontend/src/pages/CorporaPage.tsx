@@ -256,7 +256,11 @@ export function CorporaPage() {
                 </div>
               )
             },
-            { key: "owner", header: "Created by", render: (corpus) => corpus.created_by_user_id },
+            {
+              key: "owner",
+              header: "Created by",
+              render: (corpus) => corpus.created_by_username ?? corpus.created_by_user_id
+            },
             { key: "created", header: "Created", render: (corpus) => formatDateTime(corpus.created_at) }
           ]}
         />

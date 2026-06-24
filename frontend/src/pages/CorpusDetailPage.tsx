@@ -49,8 +49,11 @@ export function CorpusDetailPage() {
         <KeyValueList
           items={[
             { label: "Corpus ID", value: corpus.id },
-            { label: "Created by", value: corpus.created_by_user_id },
-            { label: "Last edited by", value: corpus.last_edit_by_user_id ?? "Not recorded" },
+            { label: "Created by", value: corpus.created_by_username ?? corpus.created_by_user_id },
+            {
+              label: "Last edited by",
+              value: corpus.last_edit_by_username ?? corpus.last_edit_by_user_id ?? "Not recorded"
+            },
             { label: "Created at", value: formatDateTime(corpus.created_at) }
           ]}
         />

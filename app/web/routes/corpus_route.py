@@ -30,6 +30,27 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 # Instantiate the API router for corpus-related endpoints
 router = APIRouter(prefix="/corpora", tags=["corpora"])
 
+
+def _serialize_corpus(corpus, fallback_created_by_username: str | None = None) -> CorpusRead:
+    """
+    Serialize a corpus object into a CorpusRead schema, including the 
+    usernames of the creator and last editor.
+    Args:
+        corpus: The corpus object to serialize.
+        fallback_created_by_username: Optional fallback username to use 
+            if the creator's username is not available.
+    Returns:
+        CorpusRead: The serialized corpus data.
+    """
+    payload = CorpusRead.model_validate(corpus).model_dump()
+    created_by_user = getattr(corpus, "created_by_user", None)
+    last_edit_by_user = getattr(corpus, "last_edit_by_user", None)
+    payload["created_by_username"] = (
+        getattr(created_by_user, "username", None) or fallback_created_by_username
+    )
+    payload["last_edit_by_username"] = getattr(last_edit_by_user, "username", None)
+    return CorpusRead(**payload)
+
 ### ------------------------ CREATE CORPUS ------------------------- ###
 @router.post("/", 
              response_model=CorpusRead,
@@ -49,7 +70,7 @@ async def create_corpus(
         The created CorpusRead instance.
     """
     corpus = await create_corpus_srvc(corpus_data, session, current_user)
-    return CorpusRead.model_validate(corpus)
+    return _serialize_corpus(corpus, fallback_created_by_username=current_user.username)
 
 ### ------------------------ LIST CORPORA -------------------------- ###
 @router.get("/", 
@@ -83,7 +104,7 @@ async def list_corpora(
                                       created_by_user_id=created_by_user_id,
                                       raw_document_id=raw_document_id,
                                       has_indices=has_indices)
-    return [CorpusRead.model_validate(corpus) for corpus in corpora]
+    return [_serialize_corpus(corpus) for corpus in corpora]
 
 
 ### ------------------------ INGEST CORPUS -------------------------- ###
