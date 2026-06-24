@@ -15,6 +15,7 @@ export const navigationItems: NavItem[] = [
   { label: "Scenarios", to: "/scenarios", description: "Scenario catalog", roles: ["teacher", "admin"] },
   { label: "Personas", to: "/personas", description: "Counterpart personas", roles: ["teacher", "admin"] },
   { label: "Prompts", to: "/prompts", description: "Prompt registry", roles: ["admin"] },
+  { label: "Document Chunks", to: "/document-chunks", description: "Persisted chunk inspection", roles: ["admin"] },
   { label: "Chunking Profiles", to: "/chunking-profiles", description: "Reusable ingestion profile management", roles: ["admin"] },
   { label: "RAG Profiles", to: "/rag-profiles", description: "Reusable retrieval strategy management", roles: ["admin"] },
   { label: "Knowledge Graphs", to: "/knowledge-graphs", description: "Build and monitor Neo4j GraphRAG indexes", roles: ["admin"] },

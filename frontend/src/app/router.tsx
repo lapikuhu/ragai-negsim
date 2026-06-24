@@ -10,6 +10,7 @@ import { SimulationsPage } from "@/pages/SimulationsPage";
 import { SimulationCockpitPage } from "@/pages/SimulationCockpitPage";
 import { DocumentsPage } from "@/pages/DocumentsPage";
 import { DocumentDetailPage } from "@/pages/DocumentDetailPage";
+import { DocumentChunksPage } from "@/pages/DocumentChunksPage";
 import { CorporaPage } from "@/pages/CorporaPage";
 import { CorpusDetailPage } from "@/pages/CorpusDetailPage";
 import { ScenariosPage } from "@/pages/ScenariosPage";
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
               { path: "sessions", element: <SessionsPage /> },
               { path: "sessions/:sessionId", element: <SessionDetailPage /> },
               { path: "prompts", element: <PromptsPage /> },
+              { path: "document-chunks", element: <DocumentChunksPage /> },
               { path: "chunking-profiles", element: <ChunkingProfilesPage /> },
               { path: "rag-profiles", element: <RagProfilesPage /> },
               { path: "knowledge-graphs", element: <KnowledgeGraphsPage /> },

@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -88,6 +89,14 @@ async def list_document_chunks_for_job(
     indexing_job_id: int,
     session: AsyncSession,
 ) -> list[DocumentChunk]:
+    """
+    List document chunks for a specific indexing job.
+        Args:
+            indexing_job_id: The ID of the indexing job.
+            session: The database session.
+        Returns:
+            A list of DocumentChunk instances.
+    """
     result = await session.exec(
         select(DocumentChunk)
         .where(DocumentChunk.indexing_job_id == indexing_job_id)
@@ -277,7 +286,10 @@ async def list_document_chunks(
         Returns:
             A list of DocumentChunk instances.
     """
-    statement = select(DocumentChunk)
+    statement = select(DocumentChunk).options(
+        selectinload(DocumentChunk.raw_document),
+        selectinload(DocumentChunk.chunking_profile),
+    )
 
     if raw_document_id is not None:
         statement = statement.where(DocumentChunk.raw_document_id == raw_document_id)
@@ -311,6 +323,13 @@ async def list_corpus_document_chunks_for_profile(
 ) -> list[DocumentChunk]:
     """
     List chunks linked to a corpus for a specific chunking profile.
+    Args:
+        corpus_id (int): The ID of the corpus.
+        chunking_profile_id (int): The ID of the chunking profile.
+        session (AsyncSession): The database session.
+    Returns:
+        list[DocumentChunk]: A list of DocumentChunk instances associated 
+        with the corpus and chunking profile.
     """
     result = await session.exec(
         select(DocumentChunk)

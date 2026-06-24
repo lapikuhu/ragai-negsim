@@ -44,3 +44,15 @@ class DocumentChunkIndexedChunkRead(SQLModel):
 
 class DocumentChunkReadWithIndexedChunks(DocumentChunkRead):
 	indexed_chunks: list[DocumentChunkIndexedChunkRead] = Field(default_factory=list)
+
+
+class DocumentChunkAdminRead(DocumentChunkBase):
+	id: int
+	raw_document_name: str | None = None
+	chunking_profile_name: str | None = None
+	chunking_strategy: str | None = None
+	corpus_index_ids: list[int] = Field(default_factory=list)
+	indexed_count: int = 0
+	is_indexed: bool = False
+	created_at: datetime
+	last_updated: datetime
