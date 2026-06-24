@@ -182,34 +182,7 @@ async def create_prompt(
     validate_prompt_messages(prompt_in.messages)
     prompt = Prompt(**prompt_in.model_dump())
     return await commit_and_refresh(session, prompt)
-
-
-async def create_owned_prompt(
-    prompt_in: PromptCreate,
-    owner_id: int,
-    session: AsyncSession,
-) -> Prompt:
-    # TODO: Probably should be abandoned in favor of just calling create_prompt and passing the owner_id in the prompt_in, but for now this is a convenient wrapper for creating prompts owned by a specific user without having to include the owner_id in the request body
-    """
-    Create a new prompt owned by a specific user.
-        Args:
-            prompt_in: The PromptCreate instance containing prompt data.
-            owner_id: The ID of the owner.
-            session: The database session.
-        Returns:
-            The created Prompt instance.
-        Raises:
-            ValueError: If the prompt name already exists or messages are invalid.
-    """
-    await ensure_prompt_name_available(prompt_in.name, session)
-    validate_prompt_messages(prompt_in.messages)
-    prompt_data = prompt_in.model_dump()
-    prompt_data["owner_id"] = owner_id
-    prompt_data["is_system"] = False
-    prompt = Prompt(**prompt_data)
-    return await commit_and_refresh(session, prompt)
-
-
+    
 async def update_prompt(
     prompt: Prompt,
     prompt_in: PromptUpdate,

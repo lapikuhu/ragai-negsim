@@ -247,25 +247,6 @@ async def list_users_by_role(
         role_name=role_name,
     )
 
-
-async def list_students(
-    session: AsyncSession,
-    skip: int = 0,
-    limit: int = 20,
-) -> list[User]:
-    # TODO: Probably redundant since list_users_by_role can be used with "student"
-    """
-    List all users with the role of "student".
-    Args:
-        session: The database session.
-        skip: The number of records to skip.
-        limit: The maximum number of records to return.
-    Returns:
-        A list of users with the role of "student".
-    """
-    return await list_users_by_role("student", session, skip=skip, limit=limit)
-
-
 async def ensure_roles_exist(
     role_ids: Sequence[int],
     session: AsyncSession,
