@@ -48,6 +48,7 @@ class DocumentChunkReadWithIndexedChunks(DocumentChunkRead):
 
 class DocumentChunkAdminRead(DocumentChunkBase):
 	id: int
+	content: str
 	raw_document_name: str | None = None
 	chunking_profile_name: str | None = None
 	chunking_strategy: str | None = None

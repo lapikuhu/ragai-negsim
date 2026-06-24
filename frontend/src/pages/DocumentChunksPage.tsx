@@ -10,6 +10,8 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { useDocumentChunksQuery, type DocumentChunkFilters } from "@/features/documentChunks/documentChunkQueries";
 import { usePaginationParams } from "@/utils/pagination";
 import { formatDateTime, stringifyJson } from "@/utils/format";
+import { useId, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 
 function parseOptionalNumber(value: string) {
@@ -29,6 +31,105 @@ function indexedStatusToFilter(value: string) {
     return false;
   }
   return undefined;
+}
+
+const chunkContentPreviewStyle: CSSProperties = {
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 3,
+  overflow: "hidden"
+};
+
+type TooltipPosition = {
+  top: number;
+  left: number;
+  width: number;
+};
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+export function getViewportBoundedTooltipPosition(
+  anchorRect: DOMRect,
+  viewport: { width: number; height: number },
+  tooltip: { width: number; height: number },
+): TooltipPosition {
+  const margin = 16;
+  const gap = 8;
+  const width = Math.min(tooltip.width, Math.max(0, viewport.width - margin * 2));
+  const maxLeft = Math.max(margin, viewport.width - width - margin);
+  const centeredLeft = anchorRect.left + anchorRect.width / 2 - width / 2;
+  const belowTop = anchorRect.bottom + gap;
+  const aboveTop = anchorRect.top - tooltip.height - gap;
+  const top = belowTop + tooltip.height + margin <= viewport.height
+    ? belowTop
+    : Math.max(margin, aboveTop);
+
+  return {
+    top,
+    left: clamp(centeredLeft, margin, maxLeft),
+    width
+  };
+}
+
+function TruncatedTextWithTooltip({ text }: { text: string }) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
+  const tooltipId = useId();
+
+  const showTooltip = () => {
+    const rect = previewRef.current?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+    setTooltipPosition(getViewportBoundedTooltipPosition(
+      rect,
+      {
+        width: window.innerWidth || 512,
+        height: window.innerHeight || 288
+      },
+      {
+        width: 512,
+        height: 288
+      },
+    ));
+  };
+
+  return (
+    <>
+      <div
+        ref={previewRef}
+        role="note"
+        tabIndex={0}
+        aria-label={`Chunk content: ${text}`}
+        aria-describedby={tooltipPosition ? tooltipId : undefined}
+        className="max-w-md whitespace-pre-wrap break-words text-xs leading-5 text-slate-700 outline-none focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-sky-500"
+        style={chunkContentPreviewStyle}
+        onMouseEnter={showTooltip}
+        onFocus={showTooltip}
+        onMouseLeave={() => setTooltipPosition(null)}
+        onBlur={() => setTooltipPosition(null)}
+      >
+        {text}
+      </div>
+      {tooltipPosition ? createPortal(
+        <div
+          id={tooltipId}
+          role="tooltip"
+          className="pointer-events-none fixed z-50 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-800 shadow-xl"
+          style={{
+            top: tooltipPosition.top,
+            left: tooltipPosition.left,
+            width: tooltipPosition.width
+          }}
+        >
+          {text}
+        </div>,
+        document.body
+      ) : null}
+    </>
+  );
 }
 
 export function DocumentChunksPage() {
@@ -171,6 +272,11 @@ export function DocumentChunksPage() {
                   {stringifyJson(chunk.chunk_metadata)}
                 </pre>
               )
+            },
+            {
+              key: "content",
+              header: "Content",
+              render: (chunk) => <TruncatedTextWithTooltip text={chunk.content} />
             },
             {
               key: "created",

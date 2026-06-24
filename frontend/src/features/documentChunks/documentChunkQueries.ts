@@ -20,6 +20,7 @@ export type DocumentChunkAdminRead = {
   chunking_strategy?: string | null;
   indexing_job_id?: number | null;
   chunk_index: number;
+  content: string;
   chunk_metadata: Record<string, unknown>;
   corpus_index_ids: number[];
   indexed_count: number;

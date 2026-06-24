@@ -22,12 +22,20 @@ def _related_name(chunk: DocumentChunk, relation_name: str, field_name: str) -> 
 
 
 def _chunk_payload(chunk: DocumentChunk) -> dict:
+    """
+    Get chunk payload from a DocumentChunk instance.
+        Args:
+            chunk: The DocumentChunk instance.
+        Returns:
+            A dictionary containing the chunk's attributes.
+    """
     return {
         "id": chunk.id,
         "raw_document_id": chunk.raw_document_id,
         "chunking_profile_id": chunk.chunking_profile_id,
         "indexing_job_id": chunk.indexing_job_id,
         "chunk_index": chunk.chunk_index,
+        "content": chunk.content,
         "chunk_metadata": chunk.chunk_metadata,
         "created_at": chunk.created_at,
         "last_updated": chunk.last_updated,

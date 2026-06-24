@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as documentChunkQueries from "@/features/documentChunks/documentChunkQueries";
 
-import { DocumentChunksPage } from "./DocumentChunksPage";
+import { DocumentChunksPage, getViewportBoundedTooltipPosition } from "./DocumentChunksPage";
 
 function renderPage(initialEntry = "/document-chunks") {
   return render(
@@ -33,7 +33,8 @@ describe("DocumentChunksPage", () => {
     expect(screen.getByText("No document chunks")).toBeInTheDocument();
   });
 
-  it("renders document chunk metadata without chunk content", () => {
+  it("renders document chunk content between metadata and created columns with a tooltip", () => {
+    const content = "secret chunk body\nsecond line\nthird line\nfourth hidden line";
     vi.spyOn(documentChunkQueries, "useDocumentChunksQuery").mockReturnValue({
       isLoading: false,
       isError: false,
@@ -48,6 +49,7 @@ describe("DocumentChunksPage", () => {
             chunking_strategy: "recursive",
             chunk_index: 2,
             indexing_job_id: 77,
+            content,
             chunk_metadata: { page: 4 },
             corpus_index_ids: [9, 10],
             indexed_count: 2,
@@ -71,7 +73,20 @@ describe("DocumentChunksPage", () => {
     expect(screen.getByText("Recursive 1k")).toBeInTheDocument();
     expect(screen.getByText("recursive")).toBeInTheDocument();
     expect(screen.getByText("2 indexed")).toBeInTheDocument();
-    expect(screen.queryByText("secret chunk body")).not.toBeInTheDocument();
+
+    const headers = screen.getAllByRole("columnheader").map((header) => header.textContent);
+    expect(headers.slice(headers.indexOf("Metadata"), headers.indexOf("Created") + 1)).toEqual([
+      "Metadata",
+      "Content",
+      "Created"
+    ]);
+
+    const preview = screen.getByRole("note", { name: `Chunk content: ${content}` });
+    expect(preview).toHaveStyle({ WebkitLineClamp: "3" });
+    expect(preview).toHaveTextContent("fourth hidden line");
+
+    fireEvent.focus(preview);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(content, { normalizeWhitespace: false });
   });
 
   it("passes filter values to the document chunks query", () => {
@@ -113,5 +128,27 @@ describe("DocumentChunksPage", () => {
       skip: 40,
       limit: 20
     });
+  });
+});
+
+describe("getViewportBoundedTooltipPosition", () => {
+  it("centers the tooltip on the trigger when it fits in the viewport", () => {
+    const position = getViewportBoundedTooltipPosition(
+      { left: 620, width: 80, bottom: 120, top: 80 } as DOMRect,
+      { width: 1200, height: 800 },
+      { width: 512, height: 288 }
+    );
+
+    expect(position).toEqual({ left: 404, top: 128, width: 512 });
+  });
+
+  it("keeps the tooltip inside the right and bottom viewport edges", () => {
+    const position = getViewportBoundedTooltipPosition(
+      { left: 1120, width: 80, bottom: 760, top: 720 } as DOMRect,
+      { width: 1200, height: 800 },
+      { width: 512, height: 288 }
+    );
+
+    expect(position).toEqual({ left: 672, top: 424, width: 512 });
   });
 });

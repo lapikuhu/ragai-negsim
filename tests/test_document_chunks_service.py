@@ -23,7 +23,7 @@ def _chunk(chunk_id=5):
 
 
 @pytest.mark.asyncio
-async def test_list_document_chunks_returns_enriched_rows_without_content(monkeypatch):
+async def test_list_document_chunks_returns_enriched_rows_with_content(monkeypatch):
     async def fake_list_document_chunks(**kwargs):
         return [_chunk()]
 
@@ -72,4 +72,4 @@ async def test_list_document_chunks_returns_enriched_rows_without_content(monkey
     assert row.corpus_index_ids == [9, 10]
     assert row.indexed_count == 2
     assert row.is_indexed is True
-    assert "content" not in row.model_dump()
+    assert row.content == "secret chunk body"
