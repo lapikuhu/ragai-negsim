@@ -8,7 +8,7 @@ from app.web.routes import document_chunks_route
 @pytest.mark.asyncio
 async def test_list_document_chunks_route_delegates_filters(monkeypatch):
     captured = {}
-    expected = [SimpleNamespace(id=1)]
+    expected = SimpleNamespace(items=[SimpleNamespace(id=1)], skip=10, limit=5, total=11, has_more=True)
 
     async def fake_list_document_chunks_srvc(**kwargs):
         captured.update(kwargs)

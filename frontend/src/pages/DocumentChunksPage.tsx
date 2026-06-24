@@ -1,14 +1,16 @@
-import { useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { DataTable } from "@/components/common/DataTable";
+import { PaginationControls } from "@/components/common/PaginationControls";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { useDocumentChunksQuery, type DocumentChunkFilters } from "@/features/documentChunks/documentChunkQueries";
+import { usePaginationParams } from "@/utils/pagination";
 import { formatDateTime, stringifyJson } from "@/utils/format";
+import { useSearchParams } from "react-router-dom";
 
 function parseOptionalNumber(value: string) {
   const trimmed = value.trim();
@@ -20,26 +22,51 @@ function parseOptionalNumber(value: string) {
 }
 
 function indexedStatusToFilter(value: string) {
-  if (value === "indexed") {
+  if (value === "true") {
     return true;
   }
-  if (value === "unindexed") {
+  if (value === "false") {
     return false;
   }
   return undefined;
 }
 
 export function DocumentChunksPage() {
-  const [documentId, setDocumentId] = useState("");
-  const [profileId, setProfileId] = useState("");
-  const [indexedStatus, setIndexedStatus] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pagination = usePaginationParams();
+  const documentId = searchParams.get("raw_document_id") ?? "";
+  const profileId = searchParams.get("chunking_profile_id") ?? "";
+  const indexedStatus = searchParams.get("has_indexed_chunks") ?? "all";
 
   const filters: DocumentChunkFilters = {
-    raw_document_id: parseOptionalNumber(documentId),
-    chunking_profile_id: parseOptionalNumber(profileId),
-    has_indexed_chunks: indexedStatusToFilter(indexedStatus)
+    skip: pagination.skip,
+    limit: pagination.limit
   };
+  const rawDocumentId = parseOptionalNumber(documentId);
+  const chunkingProfileId = parseOptionalNumber(profileId);
+  const hasIndexedChunks = indexedStatusToFilter(indexedStatus);
+  if (rawDocumentId !== undefined) {
+    filters.raw_document_id = rawDocumentId;
+  }
+  if (chunkingProfileId !== undefined) {
+    filters.chunking_profile_id = chunkingProfileId;
+  }
+  if (hasIndexedChunks !== undefined) {
+    filters.has_indexed_chunks = hasIndexedChunks;
+  }
   const query = useDocumentChunksQuery(filters);
+
+  const setFilterParam = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value && value !== "all") {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    next.set("page", "1");
+    next.set("limit", String(pagination.limit));
+    setSearchParams(next);
+  };
 
   return (
     <div className="grid gap-6">
@@ -55,7 +82,7 @@ export function DocumentChunksPage() {
               type="number"
               min={1}
               value={documentId}
-              onChange={(event) => setDocumentId(event.target.value)}
+              onChange={(event) => setFilterParam("raw_document_id", event.target.value)}
               placeholder="Any document"
             />
           </Field>
@@ -64,15 +91,15 @@ export function DocumentChunksPage() {
               type="number"
               min={1}
               value={profileId}
-              onChange={(event) => setProfileId(event.target.value)}
+              onChange={(event) => setFilterParam("chunking_profile_id", event.target.value)}
               placeholder="Any profile"
             />
           </Field>
           <Field label="Indexed status">
-            <Select value={indexedStatus} onChange={(event) => setIndexedStatus(event.target.value)}>
+            <Select value={indexedStatus} onChange={(event) => setFilterParam("has_indexed_chunks", event.target.value)}>
               <option value="all">All chunks</option>
-              <option value="indexed">Indexed only</option>
-              <option value="unindexed">Unindexed only</option>
+              <option value="true">Indexed only</option>
+              <option value="false">Unindexed only</option>
             </Select>
           </Field>
         </div>
@@ -82,10 +109,11 @@ export function DocumentChunksPage() {
         <LoadingState label="Loading document chunks..." />
       ) : query.isError ? (
         <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
-      ) : query.data?.length ? (
-        <DataTable
-          rows={query.data}
-          columns={[
+      ) : query.data?.items.length ? (
+        <div>
+          <DataTable
+            rows={query.data.items}
+            columns={[
             {
               key: "id",
               header: "Chunk",
@@ -154,8 +182,18 @@ export function DocumentChunksPage() {
               header: "Last updated",
               render: (chunk) => formatDateTime(chunk.last_updated)
             }
-          ]}
-        />
+            ]}
+          />
+          {query.data.total > query.data.limit ? (
+            <PaginationControls
+              page={pagination.page}
+              limit={query.data.limit}
+              total={query.data.total}
+              isBusy={query.isFetching}
+              onPageChange={pagination.setPage}
+            />
+          ) : null}
+        </div>
       ) : (
         <EmptyState
           title="No document chunks"

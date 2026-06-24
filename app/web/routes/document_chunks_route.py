@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from app.core.dependencies import DocumentChunkAdminDep, Page, SessionDep
-from app.schemas.document_chunks_schemas import DocumentChunkAdminRead
+from app.schemas.document_chunks_schemas import DocumentChunkListResponse
 from app.services import document_chunks_service
 
 # Instantiate the APIRouter with a prefix and tags for the document chunks routes
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/document-chunks", tags=["document-chunks"])
 ### ----------------------DOCUMENT CHUNKS LIST---------------------- ###
 @router.get(
     "/",
-    response_model=list[DocumentChunkAdminRead],
+    response_model=DocumentChunkListResponse,
     status_code=status.HTTP_200_OK,
 )
 async def list_document_chunks(
@@ -20,7 +20,7 @@ async def list_document_chunks(
     raw_document_id: int | None = None,
     chunking_profile_id: int | None = None,
     has_indexed_chunks: bool | None = None,
-) -> list[DocumentChunkAdminRead]:
+) -> DocumentChunkListResponse:
     """
     List document chunks with optional filters and pagination.
         Args:

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from sqlalchemy.orm import selectinload
-from sqlmodel import select
+from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
@@ -286,21 +286,15 @@ async def list_document_chunks(
         Returns:
             A list of DocumentChunk instances.
     """
-    statement = select(DocumentChunk).options(
-        selectinload(DocumentChunk.raw_document),
-        selectinload(DocumentChunk.chunking_profile),
+    statement = _apply_document_chunk_filters(
+        select(DocumentChunk).options(
+            selectinload(DocumentChunk.raw_document),
+            selectinload(DocumentChunk.chunking_profile),
+        ),
+        raw_document_id=raw_document_id,
+        chunking_profile_id=chunking_profile_id,
+        has_indexed_chunks=has_indexed_chunks,
     )
-
-    if raw_document_id is not None:
-        statement = statement.where(DocumentChunk.raw_document_id == raw_document_id)
-    if chunking_profile_id is not None:
-        statement = statement.where(DocumentChunk.chunking_profile_id == chunking_profile_id)
-    if has_indexed_chunks is not None:
-        indexed_chunk_subquery = select(IndexedChunk.document_chunk_id).distinct()
-        if has_indexed_chunks:
-            statement = statement.where(DocumentChunk.id.in_(indexed_chunk_subquery))
-        else:
-            statement = statement.where(DocumentChunk.id.not_in(indexed_chunk_subquery))
 
     statement = (
         statement
@@ -314,6 +308,63 @@ async def list_document_chunks(
     )
     result = await session.exec(statement)
     return list(result.all())
+
+
+def _apply_document_chunk_filters(
+    statement,
+    raw_document_id: int | None = None,
+    chunking_profile_id: int | None = None,
+    has_indexed_chunks: bool | None = None,
+):
+    """
+    Apply filters to a SQLAlchemy statement for querying document chunks.
+        Args:
+            statement: The SQLAlchemy statement to apply filters to.
+            raw_document_id: Optional filter for raw document ID.
+            chunking_profile_id: Optional filter for chunking profile ID.
+            has_indexed_chunks: Optional filter for whether the chunk has 
+                indexed chunks.
+        Returns:
+            The modified SQLAlchemy statement with the applied filters.
+    """
+    if raw_document_id is not None:
+        statement = statement.where(DocumentChunk.raw_document_id == raw_document_id)
+    if chunking_profile_id is not None:
+        statement = statement.where(DocumentChunk.chunking_profile_id == chunking_profile_id)
+    if has_indexed_chunks is not None:
+        indexed_chunk_subquery = select(IndexedChunk.document_chunk_id).distinct()
+        if has_indexed_chunks:
+            statement = statement.where(DocumentChunk.id.in_(indexed_chunk_subquery))
+        else:
+            statement = statement.where(DocumentChunk.id.not_in(indexed_chunk_subquery))
+    return statement
+
+
+async def count_document_chunks(
+    session: AsyncSession,
+    raw_document_id: int | None = None,
+    chunking_profile_id: int | None = None,
+    has_indexed_chunks: bool | None = None,
+) -> int:
+    """
+    Get the count of document chunks with optional filters.
+        Args:
+            session: The database session.
+            raw_document_id: Optional filter for raw document ID.
+            chunking_profile_id: Optional filter for chunking profile ID.
+            has_indexed_chunks: Optional filter for whether the chunk has 
+                indexed chunks.
+        Returns:
+            The count of document chunks matching the filters.
+    """
+    statement = _apply_document_chunk_filters(
+        select(func.count()).select_from(DocumentChunk),
+        raw_document_id=raw_document_id,
+        chunking_profile_id=chunking_profile_id,
+        has_indexed_chunks=has_indexed_chunks,
+    )
+    result = await session.exec(statement)
+    return result.one()
 
 
 async def list_corpus_document_chunks_for_profile(

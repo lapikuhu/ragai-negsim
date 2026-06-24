@@ -56,3 +56,11 @@ class DocumentChunkAdminRead(DocumentChunkBase):
 	is_indexed: bool = False
 	created_at: datetime
 	last_updated: datetime
+
+
+class DocumentChunkListResponse(SQLModel):
+	items: list[DocumentChunkAdminRead] = Field(default_factory=list)
+	skip: int = 0
+	limit: int = 20
+	total: int = 0
+	has_more: bool = False

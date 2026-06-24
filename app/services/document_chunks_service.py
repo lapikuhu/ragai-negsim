@@ -2,7 +2,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.document_chunks import DocumentChunk
 from app.repositories import document_chunks_repo
-from app.schemas.document_chunks_schemas import DocumentChunkAdminRead
+from app.schemas.document_chunks_schemas import DocumentChunkAdminRead, DocumentChunkListResponse
 
 
 def _related_name(chunk: DocumentChunk, relation_name: str, field_name: str) -> str | None:
@@ -74,7 +74,7 @@ async def list_document_chunks_srvc(
     raw_document_id: int | None = None,
     chunking_profile_id: int | None = None,
     has_indexed_chunks: bool | None = None,
-) -> list[DocumentChunkAdminRead]:
+) -> DocumentChunkListResponse:
     """
     List document chunks with optional filters and pagination.
         Args:
@@ -96,7 +96,20 @@ async def list_document_chunks_srvc(
         chunking_profile_id=chunking_profile_id,
         has_indexed_chunks=has_indexed_chunks,
     )
-    return [
+    items = [
         await _to_document_chunk_admin_read(chunk, session)
         for chunk in chunks
     ]
+    total = await document_chunks_repo.count_document_chunks(
+        session=session,
+        raw_document_id=raw_document_id,
+        chunking_profile_id=chunking_profile_id,
+        has_indexed_chunks=has_indexed_chunks,
+    )
+    return DocumentChunkListResponse(
+        items=items,
+        skip=skip,
+        limit=limit,
+        total=total,
+        has_more=skip + limit < total,
+    )

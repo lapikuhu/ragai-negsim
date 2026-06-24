@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
+import type { PaginatedResponse } from "@/utils/pagination";
 
 export type DocumentChunkFilters = {
+  skip?: number;
+  limit?: number;
   raw_document_id?: number;
   chunking_profile_id?: number;
   has_indexed_chunks?: boolean;
@@ -37,7 +40,10 @@ function appendOptionalNumber(params: URLSearchParams, key: string, value: numbe
 }
 
 async function listDocumentChunks(filters: DocumentChunkFilters) {
-  const params = new URLSearchParams({ skip: "0", limit: "50" });
+  const params = new URLSearchParams({
+    skip: String(filters.skip ?? 0),
+    limit: String(filters.limit ?? 20)
+  });
   appendOptionalNumber(params, "raw_document_id", filters.raw_document_id);
   appendOptionalNumber(params, "chunking_profile_id", filters.chunking_profile_id);
   if (typeof filters.has_indexed_chunks === "boolean") {
@@ -49,7 +55,7 @@ async function listDocumentChunks(filters: DocumentChunkFilters) {
   if (!response.ok) {
     throw new ApiError("Unable to load document chunks", response.status, detail);
   }
-  return detail as DocumentChunkAdminRead[];
+  return detail as PaginatedResponse<DocumentChunkAdminRead>;
 }
 
 export function useDocumentChunksQuery(filters: DocumentChunkFilters) {
