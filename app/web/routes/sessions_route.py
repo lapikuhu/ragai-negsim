@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Body, HTTPException, status
 
 from app.core.dependencies import AdminDep, AdminSessionDep, Page, SessionDep
 from app.schemas.sessions_schemas import (
@@ -153,9 +153,9 @@ async def update_session(
     status_code=status.HTTP_200_OK,
 )
 async def heartbeat_session(
-    heartbeat_data: SessionHeartbeat,
     user_session: AdminSessionDep,
     session: SessionDep,
+    heartbeat_data: SessionHeartbeat | None = Body(default=None),
 ) -> SessionRead:
     """
     Send a heartbeat for a session.
@@ -169,7 +169,7 @@ async def heartbeat_session(
     try:
         return await sessions_service.heartbeat_session_srvc(
             user_session,
-            heartbeat_data,
+            heartbeat_data or SessionHeartbeat(),
             session,
         )
     except ValueError as exc:

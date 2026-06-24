@@ -37,10 +37,9 @@ async function updateSession(sessionId: number, input: SessionUpdateRequest) {
   return unwrapResult<SessionRead>(result, "Unable to update session");
 }
 
-async function heartbeatSession(sessionId: number, input: SessionHeartbeat) {
+async function heartbeatSession(sessionId: number) {
   const result = await apiClient.POST("/sessions/{session_id}/heartbeat", {
-    params: { path: { session_id: sessionId } },
-    body: input
+    params: { path: { session_id: sessionId } }
   });
   return unwrapResult<SessionRead>(result, "Unable to heartbeat session");
 }
@@ -94,7 +93,7 @@ export function useUpdateSessionMutation(sessionId: number) {
 export function useHeartbeatSessionMutation(sessionId: number) {
   const invalidate = useInvalidateSessions();
   return useMutation({
-    mutationFn: (input: SessionHeartbeat) => heartbeatSession(sessionId, input),
+    mutationFn: () => heartbeatSession(sessionId),
     onSuccess: async () => invalidate(sessionId)
   });
 }

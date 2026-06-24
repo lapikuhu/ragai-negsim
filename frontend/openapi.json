@@ -6018,11 +6018,18 @@
           }
         ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SessionHeartbeat"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SessionHeartbeat"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Heartbeat Data"
               }
             }
           }

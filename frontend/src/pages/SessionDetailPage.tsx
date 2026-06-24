@@ -4,6 +4,7 @@ import {
   useHeartbeatSessionMutation,
   useSessionDetailQuery
 } from "@/features/sessions/sessionQueries";
+import { getErrorMessage } from "@/api/client";
 import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -17,6 +18,11 @@ export function SessionDetailPage() {
   const query = useSessionDetailQuery(sessionId);
   const heartbeatMutation = useHeartbeatSessionMutation(sessionId);
   const endMutation = useEndSessionMutation(sessionId);
+  const mutationError = heartbeatMutation.isError
+    ? getErrorMessage(heartbeatMutation.error, "Unable to heartbeat session")
+    : endMutation.isError
+      ? getErrorMessage(endMutation.error, "Unable to end session")
+      : null;
 
   if (query.isLoading) {
     return <LoadingState label="Loading session..." />;
@@ -39,7 +45,7 @@ export function SessionDetailPage() {
               type="button"
               variant="secondary"
               disabled={heartbeatMutation.isPending}
-              onClick={() => heartbeatMutation.mutate({ last_seen_at: new Date().toISOString() })}
+              onClick={() => heartbeatMutation.mutate()}
             >
               Heartbeat
             </Button>
@@ -54,6 +60,8 @@ export function SessionDetailPage() {
           </>
         }
       />
+
+      {mutationError ? <ErrorState title="Action failed" message={mutationError} /> : null}
 
       <Card>
         <KeyValueList

@@ -6655,9 +6655,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["SessionHeartbeat"];
+                "application/json": components["schemas"]["SessionHeartbeat"] | null;
             };
         };
         responses: {
