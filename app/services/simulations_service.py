@@ -1001,17 +1001,18 @@ async def _make_scoped_graph_retriever(
     )
 
 
-async def _get_negotiation_graph_for_simulation(
+async def _get_retrieval_runtime_for_simulation(
     simulation: Simulation,
     session: AsyncSession,
-) -> Any:
+) -> tuple[Any, Any, Any, Any | None]:
     """
-    Get the negotiation graph for a simulation.
+    Get the validated retrieval dependencies for a simulation.
     Args:
         simulation: The simulation object.
         session: The database session.
     Returns:
-        The negotiation graph.
+        A tuple containing the corpus index, vector store, RAG profile, and
+        knowledge graph (if applicable).
     """
     corpus_index = await _get_valid_built_corpus_index(
         simulation.corpus_id,
@@ -1040,7 +1041,94 @@ async def _get_negotiation_graph_for_simulation(
         corpus_index_id=corpus_index.id,
         session=session,
     )
+    return corpus_index, vector_store, rag_profile, knowledge_graph
+
+
+async def _build_retrieval_graph(
+    *,
+    corpus_index: Any,
+    vector_store: Any,
+    rag_profile: Any,
+    knowledge_graph: Any | None,
+    session: AsyncSession,
+) -> tuple[str, Any]:
+    """
+    Build the local retrieval graph for the configured RAG profile.
+    Args:
+        corpus_index: The corpus index object.
+        vector_store: The vector store object.
+        rag_profile: The RAG profile object.
+        knowledge_graph: The knowledge graph object, if applicable.
+        session: The database session.
+    Returns:
+        A tuple containing the strategy name and the constructed retrieval 
+        graph.
+    """
+    if rag_profile.strategy == "graphrag":
+        retriever = await _make_scoped_graph_retriever(
+            knowledge_graph,
+            rag_profile,
+            session,
+        )
+        return "graphrag", _make_graphrag_graph(retriever, rag_profile)
+
+    vector_store_runtime = await _instantiate_vector_store_for_index(
+        corpus_index,
+        vector_store,
+    )
+    retriever = make_dense_retriever(
+        vector_store_runtime,
+        k=rag_profile.config.get("top_k", 4),
+        metadata_filter={"corpus_index_id": corpus_index.id},
+    )
+    return "crag", _make_crag_graph(retriever, rag_profile)
+
+
+async def _get_retrieval_graph_for_simulation(
+    simulation: Simulation,
+    session: AsyncSession,
+) -> tuple[str, Any]:
+    """
+    Build the local retrieval graph for a simulation.
+    Args:
+        simulation: The simulation object.
+        session: The database session.
+    Returns:
+        A tuple containing the strategy name and the constructed 
+        retrieval graph.
+    """
+    corpus_index, vector_store, rag_profile, knowledge_graph = (
+        await _get_retrieval_runtime_for_simulation(simulation, session)
+    )
+    return await _build_retrieval_graph(
+        corpus_index=corpus_index,
+        vector_store=vector_store,
+        rag_profile=rag_profile,
+        knowledge_graph=knowledge_graph,
+        session=session,
+    )
+
+
+async def _get_negotiation_graph_for_simulation(
+    simulation: Simulation,
+    session: AsyncSession,
+) -> Any:
+    """
+    Get the negotiation graph for a simulation.
+    Args:
+        simulation: The simulation object.
+        session: The database session.
+    Returns:
+        The negotiation graph.
+    """
+    corpus_index, vector_store, rag_profile, knowledge_graph = (
+        await _get_retrieval_runtime_for_simulation(simulation, session)
+    )
     llm_selection = _llm_selection_from_simulation(simulation)
+    _prompt_records, prompt_templates = await _get_simulation_prompt_templates(
+        simulation,
+        session,
+    )
     cache_key = _graph_cache_key(
         corpus_index,
         vector_store,
@@ -1052,24 +1140,13 @@ async def _get_negotiation_graph_for_simulation(
     if cached_graph is not None:
         return cached_graph
 
-    if rag_profile.strategy == "graphrag":
-        retriever = await _make_scoped_graph_retriever(
-            knowledge_graph,
-            rag_profile,
-            session,
-        )
-        crag_graph = _make_graphrag_graph(retriever, rag_profile)
-    else:
-        vector_store_runtime = await _instantiate_vector_store_for_index(
-            corpus_index,
-            vector_store,
-        )
-        retriever = make_dense_retriever(
-            vector_store_runtime,
-            k=rag_profile.config.get("top_k", 4),
-            metadata_filter={"corpus_index_id": corpus_index.id},
-        )
-        crag_graph = _make_crag_graph(retriever, rag_profile)
+    _strategy, crag_graph = await _build_retrieval_graph(
+        corpus_index=corpus_index,
+        vector_store=vector_store,
+        rag_profile=rag_profile,
+        knowledge_graph=knowledge_graph,
+        session=session,
+    )
     graph = make_negotiation_graph(
         crag_graph=crag_graph,
         coach_prompt_template=prompt_templates["coach"],
@@ -1212,6 +1289,9 @@ async def _load_simulation_runtime_context(
         session: The database session.
     Returns:
         The runtime context of the simulation.
+    Raises:
+        ValueError: If any required component (corpus, scenario, 
+        counterpart persona, or app session) is not found.
     """
     corpus = await corpus_repo.get_corpus_by_id(simulation.corpus_id, session)
     if corpus is None:

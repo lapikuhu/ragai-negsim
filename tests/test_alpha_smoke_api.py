@@ -18,6 +18,7 @@ from app.schemas.simulations_schemas import (
     SimulationReadWithState,
     SimulationTurnResponse,
 )
+from app.schemas.simulation_learner_schemas import SimulationLearnerAskResponse
 
 
 def _now() -> datetime:
@@ -429,6 +430,69 @@ def test_alpha_smoke_proxy_turn_and_disable_routes(monkeypatch):
             disable_response = client.post("/simulations/31/proxy/disable", json={})
             assert disable_response.status_code == 200
             assert disable_response.json()["auto_user_proxy_enabled"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_alpha_smoke_learner_ask_route(monkeypatch):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username="student", roles=[])
+
+    async def fake_get_session():
+        yield object()
+
+    simulation_record = SimpleNamespace(
+        id=31,
+        status="paused",
+        user_id_owner=1,
+        user_id_participant=None,
+        teacher_id=None,
+        user_side="side_a",
+    )
+
+    async def fake_get_accessible_simulation():
+        return simulation_record
+
+    async def fake_learner_ask(simulation, ask_data, session, current_user):
+        assert simulation.id == 31
+        assert ask_data.query == "What should I focus on?"
+        assert ask_data.max_results == 2
+        assert current_user.id == 1
+        return SimulationLearnerAskResponse(
+            simulation_id=31,
+            status="paused",
+            answer="Focus on objective criteria.",
+            metadata={"tools_available": ["crag_tool"]},
+        )
+
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+
+    from app.services import simulation_learner_service
+
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "ask_simulation_learner_srvc",
+        fake_learner_ask,
+    )
+
+    app = main_module.app
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+    app.dependency_overrides[dependencies.get_accessible_simulation] = fake_get_accessible_simulation
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/simulations/31/learner/ask",
+                json={"query": "What should I focus on?", "max_results": 2},
+            )
+
+            assert response.status_code == 200
+            assert response.json()["answer"] == "Focus on objective criteria."
+            assert response.json()["metadata"]["tools_available"] == ["crag_tool"]
     finally:
         app.dependency_overrides.clear()
 

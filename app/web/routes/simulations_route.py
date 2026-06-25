@@ -24,7 +24,11 @@ from app.schemas.simulations_schemas import (
     SimulationTurnResponse,
     SimulationUpdateRequest,
 )
-from app.services import simulations_service
+from app.schemas.simulation_learner_schemas import (
+    SimulationLearnerAskRequest,
+    SimulationLearnerAskResponse,
+)
+from app.services import simulation_learner_service, simulations_service
 
 # TODO: Consider moving the review endpoints to a separate route file for 
 # better organization.
@@ -385,6 +389,43 @@ async def disable_simulation_proxy(
         )
     except ValueError as exc:
         _raise_simulation_service_error(exc)
+
+
+### ---------------------- SIMULATION LEARNER ASK ------------------ ###
+@router.post(
+    "/{simulation_id}/learner/ask",
+    response_model=SimulationLearnerAskResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def ask_simulation_learner(
+    ask_data: SimulationLearnerAskRequest,
+    simulation: AccessibleSimulationDep,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> SimulationLearnerAskResponse:
+    """
+    Ask the simulation learner for on-demand advice.
+    Args:
+        ask_data: The data for the learner ask request.
+        simulation: The simulation instance.
+        session: The database session.
+        current_user: The user asking the learner.
+    Returns:
+        A SimulationLearnerAskResponse containing the answer and metadata.
+    Raises:
+        ValueError: If the simulation is not active or paused, or if it 
+        has ended.
+    """
+    try:
+        return await simulation_learner_service.ask_simulation_learner_srvc(
+            simulation,
+            ask_data,
+            session,
+            current_user,
+        )
+    except ValueError as exc:
+        _raise_simulation_service_error(exc)
+
 
 ### ---------------------- GET SIMULATION STATE -------------------- ###
 @router.get(

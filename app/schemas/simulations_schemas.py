@@ -221,3 +221,5 @@ class SimulationReadWithIds(SimulationRead):
     # Mostly redundant because SimulationRead already exposes foreign keys,
     # but useful if you want an explicit relationship-summary convention.
     related_user_ids: list[int] = Field(default_factory=list)
+
+#

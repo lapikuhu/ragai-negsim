@@ -51,6 +51,33 @@ def _copy_fields(state: dict[str, Any], fields: tuple[str, ...]) -> dict[str, An
     }
 
 
+def _copy_learner_visible_evidence_ledger(value: Any) -> dict[str, Any]:
+    """
+    Copy only learner-visible evidence ledger content.
+    Args:
+        value: The evidence ledger to copy, expected to be a dictionary.
+    Returns:
+        A new dictionary containing only the learner-visible entries from
+        the evidence ledger.
+    """
+    if not isinstance(value, dict):
+        return {}
+    if value.get("visibility_level") not in {None, "learner"}:
+        return {}
+
+    copied = deepcopy(value)
+    for key, item in list(copied.items()):
+        if not isinstance(item, list):
+            continue
+        copied[key] = [
+            entry
+            for entry in item
+            if not isinstance(entry, dict)
+            or entry.get("visibility_level") in {None, "learner"}
+        ]
+    return copied
+
+
 def _latest_user_message(messages: Any) -> Any | None:
     """
     Helper function to extract the latest user message from a list of messages.
@@ -69,7 +96,7 @@ def _latest_user_message(messages: Any) -> Any | None:
             return deepcopy(message)
     return None
 
-
+### COUNTERPART PROJECTION ###
 def project_counterpart_state(state: dict[str, Any]) -> dict[str, Any]:
     """
     Projects the state for the counterpart in a negotiation scenario.
@@ -94,7 +121,7 @@ def project_counterpart_state(state: dict[str, Any]) -> dict[str, Any]:
         "event_log": [],
     }
 
-
+### COACH PROJECTION ###
 def project_coach_state(state: dict[str, Any]) -> dict[str, Any]:
     """
     Projects the state for the coach in a negotiation scenario.
@@ -116,7 +143,7 @@ def project_coach_state(state: dict[str, Any]) -> dict[str, Any]:
         "event_log": [],
     }
 
-
+### USER PROXY NEGOTIATOR PROJECTION ###
 def project_user_proxy_state(state: dict[str, Any]) -> dict[str, Any]:
     """
     Projects the state for the user proxy negotiator.
@@ -136,7 +163,7 @@ def project_user_proxy_state(state: dict[str, Any]) -> dict[str, Any]:
         "event_log": [],
     }
 
-
+### EVALUATOR PROJECTION ###
 def project_evaluator_state(state: dict[str, Any]) -> dict[str, Any]:
     """
     Projects the state for the evaluator in a negotiation scenario.
@@ -166,7 +193,7 @@ def project_evaluator_state(state: dict[str, Any]) -> dict[str, Any]:
         "event_log": [],
     }
 
-
+### INTENT CLASSIFIER PROJECTION ###
 def project_intent_classifier_state(state: dict[str, Any]) -> dict[str, Any]:
     """
     Projects the state for the intent classifier in a negotiation scenario.
@@ -179,5 +206,30 @@ def project_intent_classifier_state(state: dict[str, Any]) -> dict[str, Any]:
     return {
         "messages": [latest_message] if latest_message is not None else [],
         "evidence_ledger": _copy_dict(state.get("evidence_ledger")),
+        "event_log": [],
+    }
+
+### SIMULATION LEARNER PROJECTION ###
+def project_simulation_learner_state(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Projects the state for the simulation learner in a negotiation scenario.
+    Args:
+        state: The original state dictionary to project from.
+    Returns:
+        A new dictionary representing the projected state for the 
+        simulation learner.
+    """
+    private_key = (
+        "side_b_private_context"
+        if state.get("user_side") == "side_b"
+        else "side_a_private_context"
+    )
+    return {
+        **_copy_fields(state, IDENTIFIER_FIELDS + NEGOTIATION_FIELDS),
+        "scenario_public_context": _copy_dict(state.get("scenario_public_context")),
+        "student_private_context": _copy_dict(state.get(private_key)),
+        "evidence_ledger": _copy_learner_visible_evidence_ledger(
+            state.get("evidence_ledger")
+        ),
         "event_log": [],
     }

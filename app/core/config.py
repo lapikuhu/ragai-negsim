@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     LANGSMITH_TRACING: bool = False
     LANGSMITH_PROJECT: str | None = None
     LANGSMITH_ENDPOINT: str | None = None
+    COHERE_API_KEY: str | None = None
+    HF_TOKEN: str | None = None
+    TAVILY_API_KEY: str | None = None
 
 
 def _set_or_clear_env(name: str, value: str | None) -> None:

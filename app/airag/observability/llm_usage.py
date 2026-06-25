@@ -10,7 +10,7 @@ from langchain_core.outputs import ChatGeneration, LLMResult
 from langchain_core.runnables.config import RunnableConfig, ensure_config, merge_configs
 
 #TODO: Move to to config file
-PUBLIC_AGENT_NAMES = ("coach", "counterpart", "user_proxy", "evaluator")
+PUBLIC_AGENT_NAMES = ("coach", "counterpart", "user_proxy", "evaluator", "intent_classifier", "simulation_learner")
 
 
 class AgentTokenUsageCallbackHandler(BaseCallbackHandler):

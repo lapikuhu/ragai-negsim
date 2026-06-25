@@ -5,6 +5,7 @@ from app.airag.chains.agents.context_projections import (
     project_counterpart_state,
     project_evaluator_state,
     project_intent_classifier_state,
+    project_simulation_learner_state,
 )
 
 
@@ -30,6 +31,13 @@ def parent_state():
         "evaluation": {"sentinel": "EVALUATOR_SECRET"},
         "final_evaluation": {"sentinel": "FINAL_SECRET"},
         "retrieval_result": {"summary": "SHARED_RETRIEVAL"},
+        "evidence_ledger": {
+            "records": [
+                {"visibility_level": "learner", "summary": "LEARNER_VISIBLE"},
+                {"visibility_level": "teacher", "summary": "TEACHER_ONLY"},
+                {"visibility_level": "debug", "summary": "DEBUG_ONLY"},
+            ],
+        },
         "side_a_response": "COUNTERPART_RESPONSE",
         "turn_count": 2,
         "evaluation_mode": "rolling",
@@ -64,6 +72,27 @@ def test_coach_projection_contains_only_student_privileges():
     assert "PERSONA" not in serialized
 
 
+def test_simulation_learner_projection_contains_learner_safe_negotiation_context():
+    projected = project_simulation_learner_state(parent_state())
+    serialized = repr(projected)
+
+    assert projected["user_side"] == "side_b"
+    assert projected["messages"] == [{"role": "user", "content": "LATEST-STUDENT"}]
+    assert projected["phase"] == "bargaining"
+    assert projected["active_side"] == "side_b"
+    assert projected["current_offer"] == {"terms": {"sentinel": "OFFER"}}
+    assert projected["offer_history"] == [{"terms": {"sentinel": "HISTORY"}}]
+    assert projected["student_private_context"]["sentinel"] == "SIDE_B_SECRET"
+    assert "SIDE_A_SECRET" not in serialized
+    assert "EVALUATOR_SECRET" not in serialized
+    assert "PERSONA" not in serialized
+    assert "COACH_SECRET" not in serialized
+    assert "LEARNER_VISIBLE" in serialized
+    assert "TEACHER_ONLY" not in serialized
+    assert "DEBUG_ONLY" not in serialized
+    assert projected["event_log"] == []
+
+
 def test_evaluator_projection_is_omniscient():
     projected = project_evaluator_state(parent_state())
     serialized = repr(projected)
@@ -89,6 +118,7 @@ def test_intent_projection_contains_only_latest_student_message():
 
     assert projected == {
         "messages": [{"role": "user", "content": "LATEST-STUDENT"}],
+        "evidence_ledger": state["evidence_ledger"],
         "event_log": [],
     }
 
@@ -100,6 +130,7 @@ def test_intent_projection_contains_only_latest_student_message():
         project_coach_state,
         project_evaluator_state,
         project_intent_classifier_state,
+        project_simulation_learner_state,
     ],
 )
 def test_projections_do_not_share_mutable_parent_values(projector):
