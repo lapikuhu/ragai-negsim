@@ -13,6 +13,7 @@ aiohttp==3.13.5
     # via
     #   kubernetes
     #   langchain-community
+    #   langchain-tavily
     #   llama-index-core
     #   ragai-negsim
 aiosignal==1.4.0
@@ -370,7 +371,9 @@ jupyter-core==5.9.1
 kubernetes==36.0.1
     # via chromadb
 langchain==1.3.1
-    # via ragai-negsim
+    # via
+    #   langchain-tavily
+    #   ragai-negsim
 langchain-chroma==1.1.0
     # via ragai-negsim
 langchain-classic==1.0.7
@@ -396,6 +399,7 @@ langchain-core==1.4.0
     #   langchain-ollama
     #   langchain-openai
     #   langchain-postgres
+    #   langchain-tavily
     #   langchain-text-splitters
     #   langgraph
     #   langgraph-checkpoint
@@ -417,6 +421,8 @@ langchain-protocol==0.0.15
     # via
     #   langchain-core
     #   ragai-negsim
+langchain-tavily==0.2.18
+    # via ragai-negsim
 langchain-text-splitters==1.1.2
     # via
     #   langchain-classic
@@ -949,6 +955,7 @@ requests==2.33.1
     #   kubernetes
     #   langchain-classic
     #   langchain-community
+    #   langchain-tavily
     #   langsmith
     #   llama-index-core
     #   ragai-negsim

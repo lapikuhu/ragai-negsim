@@ -31,7 +31,7 @@ export function DashboardPage() {
     <div className="grid gap-6">
       <PageHeader
         title="Dashboard"
-        description="A schema-backed overview of recent simulations, documents, and admin session activity."
+        description="Overview of recent simulations, documents, and admin session activity."
         actions={
           <>
             <Link to="/simulations">

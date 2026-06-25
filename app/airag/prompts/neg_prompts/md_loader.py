@@ -2,7 +2,7 @@ from importlib.resources import files
 
 def load_neg_prompt(filename: str) -> str:
     """
-    Loads a negative prompt from the specified markdown file.
+    Loads a negotiation prompt from the specified markdown file.
     Args:
         filename (str): The name of the markdown file to load.
     Returns:
