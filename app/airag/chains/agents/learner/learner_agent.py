@@ -4,7 +4,7 @@ from typing import Any
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.agents import create_agent
-from pydantic import BaseModel, Field, conint
+from pydantic import BaseModel, Field, conint #!! warning "Discouragedin favor of using Annotated with [Field][pydantic.fields.Field] instead.
 
 # local imports
 from app.airag.llm_models.llm_models import get_openai_llm
@@ -29,7 +29,7 @@ class LearnerCragToolInput(BaseModel):
     """
     question: str = Field(description="The learner's negotiation-related question.")
 
-
+# Helper Candidate
 def _json_tool_payload(payload: dict[str, Any]) -> str:
     """
     Convert a dictionary payload into a JSON string.
@@ -40,7 +40,7 @@ def _json_tool_payload(payload: dict[str, Any]) -> str:
     """
     return json.dumps(payload, default=str, ensure_ascii=False)
 
-
+# Helper Candidate
 def _sources_from_crag_result(result: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Try to extract sources from a CRAG result dictionary.
@@ -90,7 +90,7 @@ def make_crag_tool(crag_graph: Any) -> StructuredTool:
                 },
                 invoke_config,
             )
-        except Exception as exc:
+        except Exception as exc: # Return a structured failure payload if the CRAG invocation fails
             return _json_tool_payload(
                 {
                     "status": "failed",
@@ -101,7 +101,7 @@ def make_crag_tool(crag_graph: Any) -> StructuredTool:
                 }
             )
 
-        if not isinstance(result, dict):
+        if not isinstance(result, dict): # Catch non-dict results and wrap them in a dict with default values
             result = {"answer": str(result), "context": "", "evidence_ledger": {}}
 
         return _json_tool_payload(
@@ -154,7 +154,7 @@ def make_graph_rag_tool(graph_rag_instance: Any) -> StructuredTool:
                 },
                 invoke_config,
             )
-        except Exception as exc:
+        except Exception as exc: # Return a structured failure payload if the GraphRAG invocation fails
             return _json_tool_payload(
                 {
                     "status": "failed",
@@ -165,7 +165,7 @@ def make_graph_rag_tool(graph_rag_instance: Any) -> StructuredTool:
                 }
             )
 
-        if not isinstance(result, dict):
+        if not isinstance(result, dict): # Catch non-dict results and wrap them in a dict with default values
             result = {"answer": str(result), "context": "", "evidence_ledger": {}}
 
         return _json_tool_payload(
@@ -238,7 +238,7 @@ def _coerce_summary_result(result: Any) -> dict[str, Any]:
     if isinstance(result, str):
         stripped = result.strip()
         if stripped:
-            try:
+            try: # Attempt to parse the string as JSON and coerce it into the expected format
                 decoded = json.loads(stripped)
             except json.JSONDecodeError:
                 return {
@@ -283,7 +283,14 @@ def make_summarize_negotiation_history_tool(
         A StructuredTool exposing only an optional focus argument.
     """
     def run_summary_tool(focus: str | None = None) -> str:
-        try:
+        """
+        Run the negotiation history summary tool with an optional focus.
+        Args:
+            focus: Optional area to emphasize in the negotiation summary.
+        Returns:
+            A JSON string with the summary, key points, and open questions.
+        """
+        try: # Render the final summarization prompt
             prompt = render_negotiation_summary_prompt(
                 messages=messages,
                 user_side=user_side,
@@ -310,7 +317,7 @@ def make_summarize_negotiation_history_tool(
                     **summary_payload,
                 }
             )
-        except Exception as exc:
+        except Exception as exc: # Return a structured failure payload if the summarization fails
             return _json_tool_payload(
                 {
                     "status": "failed",
@@ -514,7 +521,7 @@ def make_tavily_search_tool(
         args_schema=LearnerTavilySearchInput,
     )
 
-
+### ------------------ ASSEMBLE OF AVAILABLE TOOLS ------------------------ ###
 def build_learner_tools(crag_graph: Any = None,
                         graph_rag_graph: Any = None,
                         summarize_model: Any = None,

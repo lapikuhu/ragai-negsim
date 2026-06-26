@@ -132,6 +132,8 @@ def _make_tavily_search(ask_data: SimulationLearnerAskRequest) -> TavilySearch |
     Create a Tavily search runnable only when the API key is configured.
     Args:
         ask_data: The learner ask request data containing search parameters.
+        include_images: Whether to include images in the search results.
+        include_answers: Whether to include answers in the search results.
     Returns:
         A TavilySearch instance if the API key is configured, otherwise None.
     """
@@ -152,6 +154,7 @@ async def ask_simulation_learner_srvc(
 ) -> SimulationLearnerAskResponse:
     """
     Ask the learner agent for on-demand advice without mutating simulation state.
+    Agent re-built at each invocation, non-persistent mode.
     Args:
         simulation: The simulation object.
         ask_data: The learner ask request data.
@@ -198,7 +201,7 @@ async def ask_simulation_learner_srvc(
         learner_state.get("user_side")
         and (learner_state.get("messages") or learner_state.get("offer_history"))
     )
-    agent = make_learner_agent(
+    agent = make_learner_agent( # Build the learner agent with the appropriate configuration
         model=learner_model,
         crag_graph=crag_graph,
         graph_rag_graph=graph_rag_graph,

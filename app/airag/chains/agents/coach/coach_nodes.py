@@ -241,8 +241,8 @@ def make_generate_coach_advice_node(
 				"event_log": ["coach:generated_advice"],
 				"evidence_ledger": ledger,
 			}
-		except Exception as exc:
-			ledger = update_agent_ledger( # Update the coach's ledger
+		except Exception as exc: # Catch any exceptions during model invocation and return a structured failure payload to the ledger
+			ledger = update_agent_ledger( 
 				state,
 				agent_name="coach",
 				step_name="generate",
@@ -284,7 +284,9 @@ def make_repair_coach_advice_node(
 				    coach prompt, any validation errors from the initial 
 					generation attempt, and updated coach ledger.
         Returns:
-            A dictionary containing the repaired coach advice if generation is successful, any validation errors if the repair attempt also fails, and event log entries describing the repair step.
+            A dictionary containing the repaired coach advice if generation 
+			is successful, any validation errors if the repair attempt also 
+			fails, and event log entries describing the repair step.
             {
                 "coach_advice": dict,
                 "coach_validation_error": str,
@@ -344,8 +346,8 @@ def make_repair_coach_advice_node(
 				"event_log": ["coach:repaired_advice"],
 				"evidence_ledger": ledger,
 			}
-		except Exception as exc:
-			ledger = update_agent_ledger( # Log the repair failure in the coach's ledger
+		except Exception as exc: # Log the repair failure in the coach's ledger
+			ledger = update_agent_ledger( 
 				state,
 				agent_name="coach",
 				step_name="repair",

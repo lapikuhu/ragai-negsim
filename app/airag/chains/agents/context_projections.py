@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Any
 
-
+# Define useful collection of field names for state projections
 IDENTIFIER_FIELDS = (
     "simulation_id",
     "session_id",
