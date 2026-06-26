@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SimulationReadWithState } from "@/api/types";
 
@@ -153,7 +153,8 @@ const queryState = vi.hoisted(() => {
     simulation: baseSimulation,
     turnMutateAsync: vi.fn(),
     proxyTurnMutateAsync: vi.fn(),
-    disableProxyMutateAsync: vi.fn()
+    disableProxyMutateAsync: vi.fn(),
+    learnerAskMutateAsync: vi.fn()
   };
 });
 
@@ -168,10 +169,21 @@ vi.mock("@/features/simulations/simulationQueries", () => ({
   useStartSimulationMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useSimulationTurnMutation: () => ({ isPending: false, mutateAsync: queryState.turnMutateAsync }),
   useSimulationProxyTurnMutation: () => ({ isPending: false, mutateAsync: queryState.proxyTurnMutateAsync }),
-  useDisableSimulationProxyMutation: () => ({ isPending: false, mutateAsync: queryState.disableProxyMutateAsync })
+  useDisableSimulationProxyMutation: () => ({ isPending: false, mutateAsync: queryState.disableProxyMutateAsync }),
+  useSimulationLearnerAskMutation: () => ({ isPending: false, mutateAsync: queryState.learnerAskMutateAsync })
 }));
 
 describe("SimulationCockpitPage", () => {
+  beforeEach(() => {
+    queryState.isLoading = false;
+    queryState.isError = false;
+    queryState.simulation = simulation;
+    queryState.turnMutateAsync.mockReset();
+    queryState.proxyTurnMutateAsync.mockReset();
+    queryState.disableProxyMutateAsync.mockReset();
+    queryState.learnerAskMutateAsync.mockReset();
+  });
+
   it("does not change hook order when the query moves from loading to ready", () => {
     queryState.isLoading = true;
     queryState.isError = false;
@@ -187,15 +199,121 @@ describe("SimulationCockpitPage", () => {
   });
 
   it("keeps the composer enabled for paused simulations", () => {
-    queryState.isLoading = false;
-    queryState.isError = false;
-    queryState.simulation = simulation;
     render(<SimulationCockpitPage />);
 
     expect(screen.getByText("Simulation Total Tokens: 91")).toBeInTheDocument();
     expect(screen.getByLabelText("Your next turn")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send turn" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();
+  });
+
+  it("hides the learner agent action when learner config is disabled", () => {
+    queryState.simulation = simulation;
+
+    render(<SimulationCockpitPage />);
+
+    expect(screen.queryByRole("button", { name: "Ask Learning Agent" })).not.toBeInTheDocument();
+  });
+
+  it("opens a learner chat dialog and sends chat history", async () => {
+    queryState.simulation = {
+      ...simulation,
+      negotiation_state: {
+        current_phase: "bargaining",
+        user_side: "side_a",
+        data: {
+          learner_config: { enabled: true }
+        }
+      }
+    };
+    queryState.learnerAskMutateAsync.mockResolvedValueOnce({
+      simulation_id: 1,
+      status: "paused",
+      answer: "Hold your target and ask for objective criteria.",
+      metadata: {},
+      timestamp: "2026-06-10T09:01:00Z"
+    });
+
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Ask Learning Agent" }));
+
+    expect(screen.getByRole("dialog", { name: "Ask Learning Agent" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide Agent" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Question for learning agent"), "How should I respond?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(queryState.learnerAskMutateAsync).toHaveBeenCalledWith({
+        query: "How should I respond?",
+        chat_history: [{ role: "user", content: "How should I respond?" }]
+      });
+    });
+    expect(screen.getByText("How should I respond?")).toBeInTheDocument();
+    expect(screen.getByText("Hold your target and ask for objective criteria.")).toBeInTheDocument();
+  });
+
+  it("preserves learner chat while hiding and reopening the dialog", async () => {
+    queryState.simulation = {
+      ...simulation,
+      negotiation_state: {
+        current_phase: "bargaining",
+        user_side: "side_a",
+        data: {
+          learner_config: { enabled: true }
+        }
+      }
+    };
+    queryState.learnerAskMutateAsync.mockResolvedValueOnce({
+      simulation_id: 1,
+      status: "paused",
+      answer: "Ask for a salary-review date.",
+      metadata: {},
+      timestamp: "2026-06-10T09:01:00Z"
+    });
+
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Ask Learning Agent" }));
+    await user.type(screen.getByLabelText("Question for learning agent"), "What should I ask for?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Ask for a salary-review date.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Hide Agent" }));
+    expect(screen.queryByRole("dialog", { name: "Ask Learning Agent" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Ask Learning Agent" }));
+    expect(screen.getByText("What should I ask for?")).toBeInTheDocument();
+    expect(screen.getByText("Ask for a salary-review date.")).toBeInTheDocument();
+  });
+
+  it("shows learner ask errors inline", async () => {
+    queryState.simulation = {
+      ...simulation,
+      negotiation_state: {
+        current_phase: "bargaining",
+        user_side: "side_a",
+        data: {
+          learner_config: { enabled: true }
+        }
+      }
+    };
+    queryState.learnerAskMutateAsync.mockRejectedValueOnce(new Error("Learning agent is not enabled"));
+
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Ask Learning Agent" }));
+    await user.type(screen.getByLabelText("Question for learning agent"), "Can I ask?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Learning agent is not enabled")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Ask Learning Agent" })).toBeInTheDocument();
   });
 
   it("renders a collapsible scenario summary before the transcript", async () => {

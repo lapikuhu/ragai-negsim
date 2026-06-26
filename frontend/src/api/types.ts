@@ -49,6 +49,27 @@ export type SimulationProxyDisableResponse = {
   user_proxy_persona: Record<string, unknown>;
   messages: components["schemas"]["SimulationMessageSchema"][];
 };
+export type LearnerChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+export type SimulationLearnerAskRequest = {
+  query: string;
+  context?: Record<string, unknown>;
+  chat_history?: LearnerChatMessage[];
+  max_results?: number;
+  include_images?: boolean;
+  include_answers?: boolean;
+  learner_llm_provider?: LLMProvider | null;
+  learner_llm_model?: string | null;
+};
+export type SimulationLearnerAskResponse = {
+  simulation_id: number;
+  status: string;
+  answer: string;
+  metadata: Record<string, unknown>;
+  timestamp: string;
+};
 export type LLMProvider = "openai" | "ollama";
 export type LLMSelection = {
   provider: LLMProvider;

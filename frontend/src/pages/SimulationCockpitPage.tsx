@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams } from "react-router-dom";
 import type {
   CounterpartPersonaRead,
+  LearnerChatMessage,
   LLMSelection,
   SimulationReadWithState,
   SimulationTokenUsage,
   SimulationProxyTurnResponse,
   SimulationTurnResponse
 } from "@/api/types";
+import { getErrorMessage } from "@/api/client";
 import {
   useDisableSimulationProxyMutation,
   useSimulationDetailQuery,
+  useSimulationLearnerAskMutation,
   useSimulationProxyTurnMutation,
   useSimulationTurnMutation,
   useStartSimulationMutation
@@ -24,7 +28,7 @@ import { SimulationInspector } from "@/features/simulations/SimulationInspector"
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Field";
+import { Field, Input, Textarea } from "@/components/ui/Field";
 import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { usePersonasQuery } from "@/features/counterpartPersonas/personaQueries";
 import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
@@ -127,6 +131,94 @@ function ScenarioSummaryCard({
   );
 }
 
+function LearnerAgentDialog({
+  messages,
+  question,
+  error,
+  pending,
+  onQuestionChange,
+  onSend,
+  onHide
+}: {
+  messages: LearnerChatMessage[];
+  question: string;
+  error: string | null;
+  pending: boolean;
+  onQuestionChange: (value: string) => void;
+  onSend: () => Promise<void>;
+  onHide: () => void;
+}) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Ask Learning Agent"
+        className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-5 shadow-xl"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-950">Ask Learning Agent</h2>
+          <Button type="button" variant="ghost" onClick={onHide}>
+            Hide Agent
+          </Button>
+        </div>
+        <div className="mt-4 grid min-h-0 flex-1 gap-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+          {messages.length === 0 ? (
+            <p className="text-sm text-slate-600">No learner questions in this session yet.</p>
+          ) : (
+            messages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={[
+                  "max-w-[85%] rounded-xl px-3 py-2 text-sm leading-6",
+                  message.role === "user"
+                    ? "ml-auto bg-teal-700 text-white"
+                    : "mr-auto bg-white text-slate-800 shadow-sm"
+                ].join(" ")}
+              >
+                {message.content}
+              </div>
+            ))
+          )}
+        </div>
+        {error ? (
+          <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        ) : null}
+        <form
+          className="mt-4 grid gap-3"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            await onSend();
+          }}
+        >
+          <Field label="Question for learning agent">
+            <Textarea
+              value={question}
+              disabled={pending}
+              onChange={(event) => onQuestionChange(event.target.value)}
+              placeholder="Ask for negotiation guidance..."
+            />
+          </Field>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={pending || !question.trim()}>
+              {pending ? "Sending..." : "Send"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function SimulationCockpitPage() {
   const simulationId = Number(useParams().simulationId);
   const query = useSimulationDetailQuery(simulationId);
@@ -136,12 +228,17 @@ export function SimulationCockpitPage() {
   const turnMutation = useSimulationTurnMutation(simulationId);
   const proxyTurnMutation = useSimulationProxyTurnMutation(simulationId);
   const disableProxyMutation = useDisableSimulationProxyMutation(simulationId);
+  const learnerAskMutation = useSimulationLearnerAskMutation(simulationId);
   const [maxTurnCount, setMaxTurnCount] = useState("12");
   const [counterpartLlm, setCounterpartLlm] = useState<LLMSelection>({ provider: "openai", model: "" });
   const [evaluatorLlm, setEvaluatorLlm] = useState<LLMSelection>({ provider: "openai", model: "" });
   const [latestTurn, setLatestTurn] = useState<SimulationTurnResponse | SimulationProxyTurnResponse | null>(null);
   const [isEvaluationVisible, setIsEvaluationVisible] = useState(false);
   const [proxyOverride, setProxyOverride] = useState<{ active: boolean; personaId: number | null; personaName: string | null } | null>(null);
+  const [isLearnerDialogOpen, setIsLearnerDialogOpen] = useState(false);
+  const [learnerMessages, setLearnerMessages] = useState<LearnerChatMessage[]>([]);
+  const [learnerQuestion, setLearnerQuestion] = useState("");
+  const [learnerError, setLearnerError] = useState<string | null>(null);
   const simulation = query.data ?? null;
   const effectiveStatus = latestTurn?.status ?? simulation?.status ?? "created";
   const effectivePhase = latestTurn?.phase ?? simulation?.negotiation_state?.current_phase ?? null;
@@ -163,6 +260,13 @@ export function SimulationCockpitPage() {
         : null
   };
   const canSendTurn = ["active", "paused"].includes(effectiveStatus) && !isTerminal && !effectiveProxyState.active;
+  const learnerConfig = isRecord(simulation?.negotiation_state?.data?.learner_config)
+    ? simulation.negotiation_state.data.learner_config
+    : null;
+  const canAskLearner =
+    ["active", "paused"].includes(effectiveStatus) &&
+    !isTerminal &&
+    learnerConfig?.enabled === true;
   const persistedEvaluation = simulation?.negotiation_state?.data?.final_evaluation;
   const currentEvaluation = hasVisibleEvaluation(latestTurn?.final_evaluation)
     ? latestTurn.final_evaluation
@@ -238,6 +342,28 @@ export function SimulationCockpitPage() {
   if (query.isError || simulation === null) {
     return <ErrorState message={query.error?.message ?? "Simulation not found"} onRetry={() => query.refetch()} />;
   }
+
+  const submitLearnerQuestion = async () => {
+    const content = learnerQuestion.trim();
+    if (!content || learnerAskMutation.isPending) {
+      return;
+    }
+    const userMessage: LearnerChatMessage = { role: "user", content };
+    const nextHistory = [...learnerMessages, userMessage];
+    setLearnerMessages(nextHistory);
+    setLearnerQuestion("");
+    setLearnerError(null);
+
+    try {
+      const result = await learnerAskMutation.mutateAsync({
+        query: content,
+        chat_history: nextHistory
+      });
+      setLearnerMessages([...nextHistory, { role: "assistant", content: result.answer }]);
+    } catch (error) {
+      setLearnerError(getErrorMessage(error, "Unable to ask learning agent"));
+    }
+  };
 
   const transcriptSimulation =
     latestTurn === null
@@ -367,6 +493,11 @@ export function SimulationCockpitPage() {
                 setIsEvaluationVisible(true);
               }
             }}
+            canAskLearner={canAskLearner}
+            onOpenLearner={() => {
+              setLearnerError(null);
+              setIsLearnerDialogOpen(true);
+            }}
             onSubmit={async (message) => {
               setProxyOverride({ active: false, personaId: null, personaName: null });
               const result = await turnMutation.mutateAsync({ message, current_offer: null });
@@ -377,6 +508,17 @@ export function SimulationCockpitPage() {
 
         <SimulationInspector simulation={simulation} latestTurn={latestTurn ?? null} />
       </div>
+      {isLearnerDialogOpen ? (
+        <LearnerAgentDialog
+          messages={learnerMessages}
+          question={learnerQuestion}
+          error={learnerError}
+          pending={learnerAskMutation.isPending}
+          onQuestionChange={setLearnerQuestion}
+          onSend={submitLearnerQuestion}
+          onHide={() => setIsLearnerDialogOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

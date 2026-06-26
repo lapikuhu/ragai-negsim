@@ -8,6 +8,11 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class SimulationLearnerChatMessage(SQLModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1)
+
+
 class SimulationLearnerAskRequest(SQLModel):
     """
     Request schema for learner's ask in a simulation.
@@ -20,6 +25,10 @@ class SimulationLearnerAskRequest(SQLModel):
     context: dict[str, Any] = Field(
         default_factory=dict,
         title="Optional context for the query",
+    )
+    chat_history: list[SimulationLearnerChatMessage] = Field(
+        default_factory=list,
+        title="Ephemeral learner chat history",
     )
     max_results: int = Field(default=5, ge=1, title="Maximum web search results")
     include_images: bool = Field(default=False, title="Include Tavily images")

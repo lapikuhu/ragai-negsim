@@ -690,6 +690,40 @@ def test_initial_graph_state_preserves_created_learner_config():
     assert state["learner_config"] == learner_config
 
 
+def test_public_simulation_state_exposes_learner_config_for_cockpit():
+    learner_config = {
+        "enabled": True,
+        "models": {
+            "response": {"provider": "openai", "model": "gpt-4.1-mini"},
+            "negotiation_summary": {"provider": "openai", "model": "gpt-4o-mini"},
+            "tavily_summary": {"provider": "openai", "model": "gpt-4o-mini"},
+        },
+        "tavily": {
+            "max_results": 4,
+            "include_images": False,
+            "include_answers": True,
+        },
+    }
+    simulation = _simulation(
+        status="paused",
+        negotiation_state={
+            "current_phase": "bargaining",
+            "user_side": "side_a",
+            "data": {
+                "phase": "bargaining",
+                "user_side": "side_a",
+                "learner_config": learner_config,
+                "side_b_private_context": {"secret": "not public"},
+            },
+        },
+    )
+
+    result = simulations_service._read_simulation_with_state(simulation)
+
+    assert result.negotiation_state.data["learner_config"] == learner_config
+    assert "side_b_private_context" not in result.negotiation_state.data
+
+
 @pytest.mark.asyncio
 async def test_create_simulation_requires_matching_built_corpus_index(monkeypatch):
     async def fake_get_corpus_index_by_id(corpus_index_id, session):

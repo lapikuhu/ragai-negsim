@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.models.simulations import Simulation
 from app.models.users import User
 from app.schemas.simulation_learner_schemas import (
+    SimulationLearnerChatMessage,
     SimulationLearnerAskRequest,
     SimulationLearnerAskResponse,
 )
@@ -54,6 +55,29 @@ def _render_learner_context_prompt(state: dict[str, Any]) -> str:
     for placeholder, value in replacements.items():
         prompt = prompt.replace(placeholder, str(value))
     return prompt
+
+
+def _render_learner_chat_history(chat_history: list[SimulationLearnerChatMessage]) -> str:
+    """
+    Render the learner chat history into a string format for inclusion in
+    the prompt.
+    Args:
+        chat_history: A list of SimulationLearnerChatMessage objects representing
+            the chat history.
+    Returns:
+        A string containing the formatted chat history, or an empty string if
+        there are no messages.
+    """
+    lines: list[str] = []
+    for message in chat_history:
+        content = message.content.strip()
+        if not content:
+            continue
+        role_label = "User" if message.role == "user" else "Assistant"
+        lines.append(f"{role_label}: {content}")
+    if not lines:
+        return ""
+    return "\n\nPrevious learner conversation:\n" + "\n".join(lines)
 
 
 def _agent_message_content(message: Any) -> str:
@@ -225,20 +249,47 @@ def _ask_tavily_settings(
 
 
 def _make_configured_tavily_search(tavily_settings: dict[str, Any]) -> TavilySearch | None:
-    if not settings.TAVILY_API_KEY:
-        """
-        Create a TavilySearch instance based on the provided settings.
-        Args:
-            tavily_settings: A dictionary containing the Tavily settings.
-        Returns:
-            A TavilySearch instance or None if the API key is not set.
-        """
+    """
+    Create a TavilySearch instance when a Tavily API key is configured.
+    Args:
+        tavily_settings: A dictionary containing the Tavily settings.
+    Returns:
+        A TavilySearch instance if the API key is set, otherwise None.
+    """
+    tavily_api_key = (settings.TAVILY_API_KEY or "").strip()
+    if not tavily_api_key:
         return None
     return TavilySearch(
         max_results=int(tavily_settings["max_results"]),
         include_images=bool(tavily_settings["include_images"]),
         include_answer=bool(tavily_settings["include_answers"]),
+        tavily_api_key=tavily_api_key,
     )
+
+
+def _learner_invoke_config(
+    usage_config: dict[str, Any],
+    *,
+    simulation_id: int | None,
+    user_id: int | None,
+) -> dict[str, Any]:
+    """
+    Create a configuration dictionary for invoking the learner agent with
+    usage tracking and thread identification.
+    Args:
+        usage_config: The base usage configuration dictionary.
+        simulation_id: The ID of the simulation, used for thread
+            identification.
+        user_id: The ID of the user, used for thread identification.
+    Returns:
+        A dictionary containing the updated configuration for invoking
+        the learner agent.
+    """
+    config = dict(usage_config)
+    configurable = dict(config.get("configurable") or {})
+    configurable["thread_id"] = f"simulation-{simulation_id}-learner-user-{user_id}"
+    config["configurable"] = configurable
+    return config
 
 
 async def ask_simulation_learner_srvc(
@@ -305,6 +356,8 @@ async def ask_simulation_learner_srvc(
         learner_state.get("user_side")
         and (learner_state.get("messages") or learner_state.get("offer_history"))
     )
+    prompt_template = _render_learner_context_prompt(learner_state)
+    prompt_template += _render_learner_chat_history(ask_data.chat_history)
     agent = make_learner_agent( # Build the learner agent with the appropriate configuration
         model=learner_model,
         crag_graph=crag_graph,
@@ -320,12 +373,16 @@ async def ask_simulation_learner_srvc(
         tavily_summarizer_model=tavily_summarizer_model,
         include_images=bool(tavily_settings["include_images"]),
         include_answers=bool(tavily_settings["include_answers"]),
-        prompt_template=_render_learner_context_prompt(learner_state),
+        prompt_template=prompt_template,
     )
     agent_result = invoke_with_config(
         agent,
         {"messages": [{"role": "user", "content": ask_data.query}]},
-        usage_config,
+        _learner_invoke_config(
+            usage_config,
+            simulation_id=simulation.id,
+            user_id=current_user.id,
+        ),
     )
     answer = _extract_answer(agent_result)
     if not answer:
@@ -349,6 +406,7 @@ async def ask_simulation_learner_srvc(
         },
         "tavily": tavily_settings,
         "context": ask_data.context,
+        "chat_history_count": len(ask_data.chat_history),
     }
     return SimulationLearnerAskResponse(
         simulation_id=simulation.id,

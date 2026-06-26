@@ -112,6 +112,7 @@ PUBLIC_GRAPH_STATE_FIELDS = (
     "auto_user_proxy_enabled",
     "user_proxy_persona",
     "user_proxy_persona_id",
+    "learner_config",
     "token_usage",
 )
 LEARNER_CREATE_CONFIG_FIELDS = {
@@ -1091,10 +1092,6 @@ async def _get_retrieval_runtime_for_simulation(
     if vector_store is None:
         raise ValueError("Vector store not found")
 
-    _prompt_records, prompt_templates = await _get_simulation_prompt_templates(
-        simulation,
-        session,
-    )
     rag_profile = await rag_profiles_repo.get_rag_profile_by_id(
         simulation.rag_profile_id,
         session,

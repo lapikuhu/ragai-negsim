@@ -144,6 +144,10 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypat
             query="What should I do?",
             learner_llm_provider="openai",
             learner_llm_model="gpt-4o-mini",
+            chat_history=[
+                {"role": "user", "content": "Earlier question?"},
+                {"role": "assistant", "content": "Earlier answer."},
+            ],
         ),
         object(),
         _user(),
@@ -163,9 +167,13 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypat
     assert captured["agent_kwargs"]["student_private_context"]["target"] == "STUDENT_TARGET"
     assert "COUNTERPART_SECRET" not in repr(captured["agent_kwargs"])
     assert "EVALUATOR_ONLY" not in repr(captured["agent_kwargs"])
+    assert "Previous learner conversation" in captured["agent_kwargs"]["prompt_template"]
+    assert "User: Earlier question?" in captured["agent_kwargs"]["prompt_template"]
+    assert "Assistant: Earlier answer." in captured["agent_kwargs"]["prompt_template"]
     assert fake_agent.calls[0]["payload"] == {
         "messages": [{"role": "user", "content": "What should I do?"}]
     }
+    assert fake_agent.calls[0]["config"]["configurable"]["thread_id"] == "simulation-10-learner-user-7"
     assert result.metadata["tools_available"] == [
         "crag_tool",
         "summarize_negotiation_history_tool",
@@ -271,6 +279,7 @@ async def test_ask_simulation_learner_wires_graphrag_and_tavily(monkeypatch):
     assert captured["agent_kwargs"]["tavily_search"].kwargs["max_results"] == 3
     assert captured["agent_kwargs"]["tavily_search"].kwargs["include_images"] is True
     assert captured["agent_kwargs"]["tavily_search"].kwargs["include_answer"] is True
+    assert captured["agent_kwargs"]["tavily_search"].kwargs["tavily_api_key"] == "token"
     assert captured["agent_kwargs"]["include_images"] is True
     assert captured["agent_kwargs"]["include_answers"] is True
     assert "tavily_search_tool" in result.metadata["tools_available"]
@@ -347,4 +356,5 @@ async def test_ask_simulation_learner_uses_stored_models_and_tavily_defaults(mon
         "max_results": 2,
         "include_images": True,
         "include_answer": True,
+        "tavily_api_key": "token",
     }

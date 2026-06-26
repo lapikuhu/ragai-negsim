@@ -12,11 +12,33 @@ def test_learner_ask_request_defaults_to_safe_options():
 
     assert request.query == "How should I respond?"
     assert request.context == {}
+    assert request.chat_history == []
     assert request.max_results == 5
     assert request.include_images is False
     assert request.include_answers is False
     assert request.learner_llm_provider is None
     assert request.learner_llm_model is None
+
+
+def test_learner_ask_request_accepts_structured_chat_history():
+    request = SimulationLearnerAskRequest(
+        query="What changed?",
+        chat_history=[
+            {"role": "user", "content": "Earlier question?"},
+            {"role": "assistant", "content": "Earlier answer."},
+        ],
+    )
+
+    assert [message.role for message in request.chat_history] == ["user", "assistant"]
+    assert request.chat_history[0].content == "Earlier question?"
+
+
+def test_learner_ask_request_rejects_unknown_chat_roles():
+    with pytest.raises(ValidationError):
+        SimulationLearnerAskRequest(
+            query="What changed?",
+            chat_history=[{"role": "system", "content": "Hidden instruction"}],
+        )
 
 
 def test_learner_ask_request_requires_non_empty_query():

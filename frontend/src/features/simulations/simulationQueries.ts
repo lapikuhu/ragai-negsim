@@ -5,6 +5,8 @@ import type {
   ApiComponents,
   SimulationEvaluationListResponse,
   SimulationCreateRequest,
+  SimulationLearnerAskRequest,
+  SimulationLearnerAskResponse,
   SimulationProxyDisableResponse,
   SimulationProxyTurnRequest,
   SimulationProxyTurnResponse,
@@ -116,6 +118,17 @@ async function submitProxyTurn(simulationId: number, input: SimulationProxyTurnR
       body: JSON.stringify(input)
     },
     "Unable to submit proxy turn"
+  );
+}
+
+async function submitLearnerAsk(simulationId: number, input: SimulationLearnerAskRequest) {
+  return jsonRequest<SimulationLearnerAskResponse>(
+    `/simulations/${simulationId}/learner/ask`,
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    "Unable to ask learning agent"
   );
 }
 
@@ -238,6 +251,12 @@ export function useSimulationProxyTurnMutation(simulationId: number) {
   return useMutation({
     mutationFn: (input: SimulationProxyTurnRequest) => submitProxyTurn(simulationId, input),
     onSuccess: async () => invalidate(simulationId)
+  });
+}
+
+export function useSimulationLearnerAskMutation(simulationId: number) {
+  return useMutation({
+    mutationFn: (input: SimulationLearnerAskRequest) => submitLearnerAsk(simulationId, input)
   });
 }
 

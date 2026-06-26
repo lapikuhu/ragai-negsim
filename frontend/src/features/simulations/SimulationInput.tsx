@@ -27,6 +27,8 @@ export function SimulationInput({
   evaluatorTotalTokens = null,
   isEvaluationVisible = false,
   onEvaluate,
+  canAskLearner = false,
+  onOpenLearner,
   evaluationUnavailableMessage
 }: {
   disabled?: boolean;
@@ -45,6 +47,8 @@ export function SimulationInput({
   evaluatorTotalTokens?: number | null;
   isEvaluationVisible?: boolean;
   onEvaluate?: () => void;
+  canAskLearner?: boolean;
+  onOpenLearner?: () => void;
   evaluationUnavailableMessage?: string | null;
 }) {
   const [message, setMessage] = useState("");
@@ -190,6 +194,11 @@ export function SimulationInput({
           <Button type="button" disabled={!canEvaluate} onClick={onEvaluate}>
             Evaluate
           </Button>
+          {canAskLearner ? (
+            <Button type="button" variant="secondary" onClick={onOpenLearner}>
+              Ask Learning Agent
+            </Button>
+          ) : null}
           {isProxyActive ? null : (
             <Button
               type="button"
