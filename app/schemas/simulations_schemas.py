@@ -40,6 +40,16 @@ class SimulationCreateRequest(SimulationBase):
     scenario_id: int | None = None
     counter_part_side_persona_id: int | None = None
     user_side: SimulationSide | None = None
+    use_learner_agent: bool = False
+    learner_response_llm_provider: Literal["openai", "ollama"] | None = None
+    learner_response_llm_model: str | None = None
+    learner_summary_llm_provider: Literal["openai", "ollama"] | None = None
+    learner_summary_llm_model: str | None = None
+    learner_tavily_summary_llm_provider: Literal["openai", "ollama"] | None = None
+    learner_tavily_summary_llm_model: str | None = None
+    learner_tavily_max_results: int = Field(default=5, ge=1)
+    learner_tavily_include_images: bool = False
+    learner_tavily_include_answers: bool = False
 
 
 class SimulationCreate(SimulationBase):
@@ -55,6 +65,7 @@ class SimulationCreate(SimulationBase):
     scenario_id: int | None = None
     counter_part_side_persona_id: int | None = None
     user_side: SimulationSide | None = None
+    negotiation_state: NegotiationStateSchema = Field(default_factory=NegotiationStateSchema)
 
 
 class SimulationRead(SimulationBase):

@@ -127,22 +127,117 @@ def _tool_names_for_metadata(
     return tools
 
 
-def _make_tavily_search(ask_data: SimulationLearnerAskRequest) -> TavilySearch | None:
+def _learner_config_from_state(state: dict[str, Any]) -> dict[str, Any]:
     """
-    Create a Tavily search runnable only when the API key is configured.
+    Extract the learner configuration from the given state.
     Args:
-        ask_data: The learner ask request data containing search parameters.
-        include_images: Whether to include images in the search results.
-        include_answers: Whether to include answers in the search results.
+        state: The state dictionary containing the learner configuration.
     Returns:
-        A TavilySearch instance if the API key is configured, otherwise None.
+        A dictionary representing the learner configuration.
     """
+    raw_config = state.get("learner_config")
+    return raw_config if isinstance(raw_config, dict) else {"enabled": False}
+
+
+def _configured_model_selection(
+    learner_config: dict[str, Any],
+    model_key: str,
+) -> dict[str, str]:
+    """
+    Get the configured model selection for the given model key.
+    Args:
+        learner_config: The learner configuration dictionary.
+        model_key: The key representing the model selection.
+    Returns:
+        A dictionary representing the normalized model selection.
+    """
+    raw_models = learner_config.get("models")
+    raw_selection = raw_models.get(model_key) if isinstance(raw_models, dict) else None
+    if not isinstance(raw_selection, dict):
+        return normalize_llm_selection(None, None)
+    return normalize_llm_selection(
+        raw_selection.get("provider"),
+        raw_selection.get("model"),
+    )
+
+
+def _response_model_selection(
+    ask_data: SimulationLearnerAskRequest,
+    learner_config: dict[str, Any],
+) -> dict[str, str]:
+    """
+    Get the response model selection based on the ask data and learner 
+    configuration.
+    Args:
+        ask_data: The learner ask request data.
+        learner_config: The learner configuration dictionary.
+    Returns:
+        A dictionary representing the normalized model selection.
+    """
+    if ask_data.learner_llm_provider is not None or ask_data.learner_llm_model is not None:
+        return normalize_llm_selection(
+            ask_data.learner_llm_provider,
+            ask_data.learner_llm_model,
+        )
+    return _configured_model_selection(learner_config, "response")
+
+
+def _request_field_was_set(
+    ask_data: SimulationLearnerAskRequest,
+    field_name: str,
+) -> bool:
+    """
+    Check if a specific field was set in the ask data.
+    Args:
+        ask_data: The learner ask request data.
+        field_name: The name of the field to check.
+    Returns:
+        True if the field was set, False otherwise.
+    """
+    return field_name in ask_data.model_fields_set
+
+
+def _ask_tavily_settings(
+    ask_data: SimulationLearnerAskRequest,
+    learner_config: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Get the Tavily settings based on the ask data and learner configuration.
+    Args:
+        ask_data: The learner ask request data.
+        learner_config: The learner configuration dictionary.
+    Returns:
+        A dictionary representing the Tavily settings.
+    """
+    raw_tavily = learner_config.get("tavily")
+    stored = raw_tavily if isinstance(raw_tavily, dict) else {}
+    return {
+        "max_results": ask_data.max_results
+        if _request_field_was_set(ask_data, "max_results")
+        else stored.get("max_results", ask_data.max_results),
+        "include_images": ask_data.include_images
+        if _request_field_was_set(ask_data, "include_images")
+        else stored.get("include_images", ask_data.include_images),
+        "include_answers": ask_data.include_answers
+        if _request_field_was_set(ask_data, "include_answers")
+        else stored.get("include_answers", ask_data.include_answers),
+    }
+
+
+def _make_configured_tavily_search(tavily_settings: dict[str, Any]) -> TavilySearch | None:
     if not settings.TAVILY_API_KEY:
+        """
+        Create a TavilySearch instance based on the provided settings.
+        Args:
+            tavily_settings: A dictionary containing the Tavily settings.
+        Returns:
+            A TavilySearch instance or None if the API key is not set.
+        """
         return None
     return TavilySearch(
-        max_results=ask_data.max_results,
-        include_images=ask_data.include_images,
-        include_answer=ask_data.include_answers,
+        max_results=int(tavily_settings["max_results"]),
+        include_images=bool(tavily_settings["include_images"]),
+        include_answer=bool(tavily_settings["include_answers"]),
     )
 
 
@@ -176,6 +271,9 @@ async def ask_simulation_learner_srvc(
     state["user_id"] = str(current_user.id)
     state["user_side"] = simulation.user_side or state.get("user_side") or "side_a"
     state.setdefault("messages", [])
+    learner_config = _learner_config_from_state(state)
+    if learner_config.get("enabled") is not True:
+        raise ValueError("Learning agent is not enabled for this simulation")
     learner_state = project_simulation_learner_state(state)
 
     retrieval_strategy, retrieval_graph = await _get_retrieval_graph_for_simulation(
@@ -185,12 +283,18 @@ async def ask_simulation_learner_srvc(
     crag_graph = retrieval_graph if retrieval_strategy == "crag" else None
     graph_rag_graph = retrieval_graph if retrieval_strategy == "graphrag" else None
 
-    learner_selection = normalize_llm_selection(
-        ask_data.learner_llm_provider,
-        ask_data.learner_llm_model,
-    )
+    learner_selection = _response_model_selection(ask_data, learner_config)
+    summary_selection = _configured_model_selection(learner_config, "negotiation_summary")
+    tavily_summary_selection = _configured_model_selection(learner_config, "tavily_summary")
     learner_model = _build_selected_llm(learner_selection, "simulation.learner")
-    tavily_search = _make_tavily_search(ask_data)
+    summarize_model = _build_selected_llm(summary_selection, "simulation.learner.summary")
+    tavily_settings = _ask_tavily_settings(ask_data, learner_config)
+    tavily_search = _make_configured_tavily_search(tavily_settings)
+    tavily_summarizer_model = (
+        _build_selected_llm(tavily_summary_selection, "simulation.learner.tavily_summary")
+        if tavily_search is not None
+        else None
+    )
     usage_handler, public_usage_handler, usage_config = create_usage_tracking_context(
         tags=["service:simulation_learner", "agent:simulation_learner"],
         metadata=_usage_metadata_for_state(state),
@@ -205,7 +309,7 @@ async def ask_simulation_learner_srvc(
         model=learner_model,
         crag_graph=crag_graph,
         graph_rag_graph=graph_rag_graph,
-        summarize_model=learner_model,
+        summarize_model=summarize_model,
         messages=learner_state.get("messages", []),
         user_side=learner_state.get("user_side", ""),
         public_context=learner_state.get("scenario_public_context", {}),
@@ -213,9 +317,9 @@ async def ask_simulation_learner_srvc(
         current_offer=learner_state.get("current_offer", {}),
         offer_history=learner_state.get("offer_history", []),
         tavily_search=tavily_search,
-        tavily_summarizer_model=learner_model if tavily_search is not None else None,
-        include_images=ask_data.include_images,
-        include_answers=ask_data.include_answers,
+        tavily_summarizer_model=tavily_summarizer_model,
+        include_images=bool(tavily_settings["include_images"]),
+        include_answers=bool(tavily_settings["include_answers"]),
         prompt_template=_render_learner_context_prompt(learner_state),
     )
     agent_result = invoke_with_config(
@@ -238,6 +342,12 @@ async def ask_simulation_learner_srvc(
         "llm_usage": summarize_usage_handler(usage_handler),
         "token_usage": token_usage,
         "model_selection": learner_selection,
+        "model_selections": {
+            "response": learner_selection,
+            "negotiation_summary": summary_selection,
+            "tavily_summary": tavily_summary_selection,
+        },
+        "tavily": tavily_settings,
         "context": ask_data.context,
     }
     return SimulationLearnerAskResponse(

@@ -114,6 +114,18 @@ PUBLIC_GRAPH_STATE_FIELDS = (
     "user_proxy_persona_id",
     "token_usage",
 )
+LEARNER_CREATE_CONFIG_FIELDS = {
+    "use_learner_agent",
+    "learner_response_llm_provider",
+    "learner_response_llm_model",
+    "learner_summary_llm_provider",
+    "learner_summary_llm_model",
+    "learner_tavily_summary_llm_provider",
+    "learner_tavily_summary_llm_model",
+    "learner_tavily_max_results",
+    "learner_tavily_include_images",
+    "learner_tavily_include_answers",
+}
 
 
 @dataclass(frozen=True)
@@ -126,6 +138,59 @@ class SimulationRuntimeContext:
     scenario: Any | None = None
     counterpart_persona: Any | None = None
     app_session: Any | None = None
+
+
+def _learner_config_from_create_request(
+    simulation_data: SimulationCreateRequest,
+) -> dict[str, Any]:
+    """
+    Extract the learner configuration from the create request data.
+    Args:
+        simulation_data: The simulation create request data.
+    Returns:
+        A dictionary representing the learner configuration.
+    """
+    if not simulation_data.use_learner_agent:
+        return {"enabled": False}
+
+    return {
+        "enabled": True,
+        "models": {
+            "response": normalize_llm_selection(
+                simulation_data.learner_response_llm_provider,
+                simulation_data.learner_response_llm_model,
+            ),
+            "negotiation_summary": normalize_llm_selection(
+                simulation_data.learner_summary_llm_provider,
+                simulation_data.learner_summary_llm_model,
+            ),
+            "tavily_summary": normalize_llm_selection(
+                simulation_data.learner_tavily_summary_llm_provider,
+                simulation_data.learner_tavily_summary_llm_model,
+            ),
+        },
+        "tavily": {
+            "max_results": simulation_data.learner_tavily_max_results,
+            "include_images": simulation_data.learner_tavily_include_images,
+            "include_answers": simulation_data.learner_tavily_include_answers,
+        },
+    }
+
+
+def _learner_config_from_simulation(simulation: Simulation) -> dict[str, Any] | None:
+    """
+    Extract the learner configuration from the simulation data.
+    Args:
+        simulation: The simulation object.
+    Returns:
+        A dictionary representing the learner configuration or None if 
+        not available.
+    """
+    raw_state = simulation.negotiation_state or {}
+    raw_data = raw_state.get("data") if isinstance(raw_state, dict) else None
+    raw_config = raw_data.get("learner_config") if isinstance(raw_data, dict) else None
+    return _json_safe(raw_config) if isinstance(raw_config, dict) else None
+
 
 # Candidate for helpers module
 def _utc_timestamp() -> str:
@@ -1391,6 +1456,9 @@ def _initial_graph_state(
         "llm_selection": llm_selection,
     }
     state.update(_runtime_context_snapshot(runtime_context))
+    learner_config = _learner_config_from_simulation(simulation)
+    if learner_config is not None:
+        state["learner_config"] = learner_config
 
     return state
 
@@ -1917,9 +1985,13 @@ async def create_simulation_srvc(
         session,
     )
     await _get_prompt_template(simulation_data.evaluator_prompt_id, "evaluator", session)
+    learner_config = _learner_config_from_create_request(simulation_data)
     simulation_in = SimulationCreate(
-        **simulation_data.model_dump(),
+        **simulation_data.model_dump(exclude=LEARNER_CREATE_CONFIG_FIELDS),
         user_id_owner=current_user.id,
+        negotiation_state=NegotiationStateSchema(
+            data={"learner_config": learner_config},
+        ),
     )
     simulation = await simulations_repo.create_simulation(simulation_in, session)
     if knowledge_graph is not None:

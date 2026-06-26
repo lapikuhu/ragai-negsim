@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SimulationsPage } from "./SimulationsPage";
 
@@ -135,7 +136,32 @@ vi.mock("@/features/users/userQueries", () => ({
   useUsersQuery: () => ({ isLoading: false, isError: false, data: [], refetch: vi.fn() }),
 }));
 
+vi.mock("@/features/llmModels/llmModelQueries", () => ({
+  useLlmModelCatalogQuery: () => ({
+    isLoading: false,
+    isError: false,
+    data: {
+      providers: [
+        {
+          provider: "openai",
+          models: [{ name: "gpt-4o-mini" }, { name: "gpt-4.1-mini" }],
+        },
+        {
+          provider: "ollama",
+          models: [{ name: "qwen2.5:3b", size_gib: 2.3 }],
+        },
+      ],
+      gpu_memory_gib: 12,
+    },
+  }),
+}));
+
 describe("SimulationsPage", () => {
+  beforeEach(() => {
+    createSimulation.mockReset();
+    navigate.mockReset();
+  });
+
   it("renders a required RAG profile selector in the create form", () => {
     render(<SimulationsPage />);
 
@@ -156,5 +182,77 @@ describe("SimulationsPage", () => {
     expect(corpusIndex).toHaveValue("77");
     expect(corpus).toBeDisabled();
     expect(corpusIndex).toBeDisabled();
+  });
+
+  it("reveals learner agent model and search controls when enabled", async () => {
+    const user = userEvent.setup();
+    render(<SimulationsPage />);
+
+    expect(screen.getByRole("checkbox", { name: "Use Learning Agent" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Learner response LLM" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Use Learning Agent" }));
+
+    expect(screen.getByRole("combobox", { name: "Learner response LLM" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Negotiation summary LLM" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Tavily summary LLM" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Tavily max results" })).toHaveValue(5);
+    expect(screen.getByRole("checkbox", { name: "Include Tavily images" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Include Tavily answer" })).toBeInTheDocument();
+  });
+
+  it("submits learner configuration when enabled", async () => {
+    createSimulation.mockResolvedValueOnce({ id: 44 });
+    const user = userEvent.setup();
+    render(<SimulationsPage />);
+
+    await user.type(screen.getByLabelText("Name"), "Salary practice");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus index" }), "77");
+    await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "500");
+    await user.click(screen.getByRole("checkbox", { name: "Use Learning Agent" }));
+    const modelSelectors = screen.getAllByRole("combobox", { name: "Model" });
+    await user.selectOptions(modelSelectors[0], "gpt-4.1-mini");
+    await user.selectOptions(modelSelectors[1], "gpt-4.1-mini");
+    await user.selectOptions(modelSelectors[2], "gpt-4o-mini");
+    await user.clear(screen.getByRole("spinbutton", { name: "Tavily max results" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Tavily max results" }), "7");
+    await user.click(screen.getByRole("checkbox", { name: "Include Tavily images" }));
+    await user.click(screen.getByRole("checkbox", { name: "Include Tavily answer" }));
+    await user.click(screen.getByRole("button", { name: "Create simulation" }));
+
+    expect(createSimulation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        use_learner_agent: true,
+        learner_response_llm_provider: "openai",
+        learner_response_llm_model: "gpt-4.1-mini",
+        learner_summary_llm_provider: "openai",
+        learner_summary_llm_model: "gpt-4.1-mini",
+        learner_tavily_summary_llm_provider: "openai",
+        learner_tavily_summary_llm_model: "gpt-4o-mini",
+        learner_tavily_max_results: 7,
+        learner_tavily_include_images: true,
+        learner_tavily_include_answers: true,
+      }),
+    );
+  });
+
+  it("submits learner disabled when unchecked", async () => {
+    createSimulation.mockResolvedValueOnce({ id: 45 });
+    const user = userEvent.setup();
+    render(<SimulationsPage />);
+
+    await user.type(screen.getByLabelText("Name"), "Salary practice");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus index" }), "77");
+    await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "500");
+    await user.click(screen.getByRole("button", { name: "Create simulation" }));
+
+    expect(createSimulation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        use_learner_agent: false,
+      }),
+    );
+    expect(createSimulation.mock.calls[0][0]).not.toHaveProperty("learner_response_llm_model");
   });
 });

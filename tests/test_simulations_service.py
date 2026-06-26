@@ -5,6 +5,7 @@ import pytest
 from langchain_core.messages import HumanMessage
 
 from app.schemas.simulations_schemas import (
+    NegotiationStateSchema,
     SimulationCreate,
     SimulationCreateRequest,
     SimulationProxyDisableResponse,
@@ -559,8 +560,134 @@ async def test_create_simulation_stamps_current_user(monkeypatch):
             scenario_id=100,
             counter_part_side_persona_id=300,
             user_side="side_a",
+            negotiation_state=NegotiationStateSchema(
+                data={"learner_config": {"enabled": False}},
+            ),
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_create_simulation_stores_enabled_learner_config(monkeypatch):
+    captured = []
+    created = _simulation(user_id_owner=7)
+
+    async def fake_get_corpus_index_by_id(corpus_index_id, session):
+        return SimpleNamespace(id=corpus_index_id, corpus_id=200, status="built")
+
+    async def fake_get_prompt_by_id(prompt_id, session):
+        return None
+
+    async def fake_get_rag_profile_by_id(profile_id, session):
+        return SimpleNamespace(
+            id=profile_id,
+            strategy="crag",
+            config={
+                "top_k": 4,
+                "reranker": "cross_encoder",
+                "top_n": 3,
+                "max_rewrite_attempts": 2,
+            },
+        )
+
+    async def fake_create_simulation(simulation_in, session):
+        captured.append(simulation_in)
+        created.negotiation_state = simulation_in.negotiation_state.model_dump()
+        return created
+
+    monkeypatch.setattr(
+        simulations_service.corpus_indices_repo,
+        "get_corpus_index_by_id",
+        fake_get_corpus_index_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.prompts_repo,
+        "get_prompt_by_id",
+        fake_get_prompt_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "create_simulation",
+        fake_create_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "normalize_llm_selection",
+        lambda provider, model: {"provider": provider or "openai", "model": model or "gpt-4o-mini"},
+    )
+
+    await simulations_service.create_simulation_srvc(
+        SimulationCreateRequest(
+            name="Salary negotiation",
+            description="Practice pay discussions",
+            corpus_id=200,
+            corpus_index_id=77,
+            rag_profile_id=500,
+            use_learner_agent=True,
+            learner_response_llm_provider="openai",
+            learner_response_llm_model="gpt-4.1-mini",
+            learner_summary_llm_provider="ollama",
+            learner_summary_llm_model="qwen2.5:3b",
+            learner_tavily_summary_llm_provider="openai",
+            learner_tavily_summary_llm_model="gpt-4o-mini",
+            learner_tavily_max_results=7,
+            learner_tavily_include_images=True,
+            learner_tavily_include_answers=True,
+        ),
+        object(),
+        _user(7),
+    )
+
+    learner_config = captured[0].negotiation_state.data["learner_config"]
+    assert learner_config == {
+        "enabled": True,
+        "models": {
+            "response": {"provider": "openai", "model": "gpt-4.1-mini"},
+            "negotiation_summary": {"provider": "ollama", "model": "qwen2.5:3b"},
+            "tavily_summary": {"provider": "openai", "model": "gpt-4o-mini"},
+        },
+        "tavily": {
+            "max_results": 7,
+            "include_images": True,
+            "include_answers": True,
+        },
+    }
+
+
+def test_initial_graph_state_preserves_created_learner_config():
+    learner_config = {
+        "enabled": True,
+        "models": {
+            "response": {"provider": "openai", "model": "gpt-4.1-mini"},
+            "negotiation_summary": {"provider": "openai", "model": "gpt-4o-mini"},
+            "tavily_summary": {"provider": "openai", "model": "gpt-4o-mini"},
+        },
+        "tavily": {
+            "max_results": 4,
+            "include_images": False,
+            "include_answers": True,
+        },
+    }
+    simulation = _simulation(
+        negotiation_state={
+            "current_phase": None,
+            "user_side": "side_a",
+            "data": {"learner_config": learner_config},
+        },
+    )
+
+    state = simulations_service._initial_graph_state(
+        simulation,
+        SimulationStartRequest(max_turn_count=12),
+        _user(7),
+    )
+
+    assert state["learner_config"] == learner_config
 
 
 @pytest.mark.asyncio

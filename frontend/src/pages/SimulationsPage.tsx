@@ -14,6 +14,7 @@ import { usePersonasQuery } from "@/features/counterpartPersonas/personaQueries"
 import { usePromptsQuery } from "@/features/prompts/promptQueries";
 import { useSessionsQuery } from "@/features/sessions/sessionQueries";
 import { useUsersQuery } from "@/features/users/userQueries";
+import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
 import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingState } from "@/components/common/LoadingState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -23,8 +24,10 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { formatDateTime } from "@/utils/format";
 import { getErrorMessage } from "@/api/client";
+import type { LLMSelection } from "@/api/types";
 
 export function SimulationsPage() {
   const query = useSimulationsQuery();
@@ -39,6 +42,7 @@ export function SimulationsPage() {
   const prompts = usePromptsQuery();
   const sessions = useSessionsQuery();
   const users = useUsersQuery();
+  const llmCatalogQuery = useLlmModelCatalogQuery();
   const createMutation = useCreateSimulationMutation();
   const navigate = useNavigate();
 
@@ -55,8 +59,15 @@ export function SimulationsPage() {
     evaluatorPromptId: "",
     sessionId: "",
     participantId: "",
-    userSide: "side_a"
+    userSide: "side_a",
+    useLearnerAgent: false,
+    learnerTavilyMaxResults: "5",
+    learnerTavilyIncludeImages: false,
+    learnerTavilyIncludeAnswers: false
   });
+  const [learnerResponseLlm, setLearnerResponseLlm] = useState<LLMSelection>({ provider: "openai", model: "" });
+  const [learnerSummaryLlm, setLearnerSummaryLlm] = useState<LLMSelection>({ provider: "openai", model: "" });
+  const [learnerTavilySummaryLlm, setLearnerTavilySummaryLlm] = useState<LLMSelection>({ provider: "openai", model: "" });
   const [message, setMessage] = useState<string | null>(null);
 
   const corpusOptions = corpora.data ?? [];
@@ -88,6 +99,20 @@ export function SimulationsPage() {
     });
   }, [graphCorpusIndex]);
 
+  useEffect(() => {
+    const defaultModel = getDefaultCatalogModel(llmCatalogQuery.data, "openai");
+    if (!defaultModel) {
+      return;
+    }
+    setLearnerResponseLlm((current) => current.model ? current : { provider: "openai", model: defaultModel });
+    setLearnerSummaryLlm((current) => current.model ? current : { provider: "openai", model: defaultModel });
+    setLearnerTavilySummaryLlm((current) => current.model ? current : { provider: "openai", model: defaultModel });
+  }, [llmCatalogQuery.data]);
+
+  const canSubmitLearnerConfig =
+    !form.useLearnerAgent ||
+    Boolean(learnerResponseLlm.model && learnerSummaryLlm.model && learnerTavilySummaryLlm.model);
+
   return (
     <div className="grid gap-6">
       <PageHeader title="Simulations" description="Primary negotiation workflow from the `/simulations` domain." />
@@ -100,6 +125,20 @@ export function SimulationsPage() {
             event.preventDefault();
             setMessage(null);
             try {
+              const learnerPayload = form.useLearnerAgent
+                ? {
+                    use_learner_agent: true,
+                    learner_response_llm_provider: learnerResponseLlm.provider,
+                    learner_response_llm_model: learnerResponseLlm.model,
+                    learner_summary_llm_provider: learnerSummaryLlm.provider,
+                    learner_summary_llm_model: learnerSummaryLlm.model,
+                    learner_tavily_summary_llm_provider: learnerTavilySummaryLlm.provider,
+                    learner_tavily_summary_llm_model: learnerTavilySummaryLlm.model,
+                    learner_tavily_max_results: Number(form.learnerTavilyMaxResults || "5"),
+                    learner_tavily_include_images: form.learnerTavilyIncludeImages,
+                    learner_tavily_include_answers: form.learnerTavilyIncludeAnswers
+                  }
+                : { use_learner_agent: false };
               const simulation = await createMutation.mutateAsync({
                 name: form.name,
                 description: form.description || null,
@@ -113,7 +152,8 @@ export function SimulationsPage() {
                 user_id_participant: form.participantId ? Number(form.participantId) : null,
                 scenario_id: form.scenarioId ? Number(form.scenarioId) : null,
                 counter_part_side_persona_id: form.personaId ? Number(form.personaId) : null,
-                user_side: form.userSide === "side_b" ? "side_b" : "side_a"
+                user_side: form.userSide === "side_b" ? "side_b" : "side_a",
+                ...learnerPayload
               });
               navigate(`/simulations/${simulation.id}`);
             } catch (error) {
@@ -283,8 +323,77 @@ export function SimulationsPage() {
             </Select>
           </Field>
 
+          <div className="md:col-span-2 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-800">
+              <input
+                type="checkbox"
+                checked={form.useLearnerAgent}
+                onChange={(event) => setForm((current) => ({ ...current, useLearnerAgent: event.target.checked }))}
+              />
+              <span>Use Learning Agent</span>
+            </label>
+            {form.useLearnerAgent ? (
+              <div className="grid gap-3">
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <LlmModelSelector
+                    label="Learner response LLM"
+                    catalog={llmCatalogQuery.data}
+                    selection={learnerResponseLlm}
+                    onChange={setLearnerResponseLlm}
+                    disabled={llmCatalogQuery.isLoading || createMutation.isPending}
+                    metadataMode="error-only"
+                  />
+                  <LlmModelSelector
+                    label="Negotiation summary LLM"
+                    catalog={llmCatalogQuery.data}
+                    selection={learnerSummaryLlm}
+                    onChange={setLearnerSummaryLlm}
+                    disabled={llmCatalogQuery.isLoading || createMutation.isPending}
+                    metadataMode="error-only"
+                  />
+                  <LlmModelSelector
+                    label="Tavily summary LLM"
+                    catalog={llmCatalogQuery.data}
+                    selection={learnerTavilySummaryLlm}
+                    onChange={setLearnerTavilySummaryLlm}
+                    disabled={llmCatalogQuery.isLoading || createMutation.isPending}
+                    metadataMode="error-only"
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Field label="Tavily max results">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={form.learnerTavilyMaxResults}
+                      onChange={(event) => setForm((current) => ({ ...current, learnerTavilyMaxResults: event.target.value }))}
+                    />
+                  </Field>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.learnerTavilyIncludeImages}
+                      onChange={(event) => setForm((current) => ({ ...current, learnerTavilyIncludeImages: event.target.checked }))}
+                    />
+                    <span>Include Tavily images</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.learnerTavilyIncludeAnswers}
+                      onChange={(event) => setForm((current) => ({ ...current, learnerTavilyIncludeAnswers: event.target.checked }))}
+                    />
+                    <span>Include Tavily answer</span>
+                  </label>
+                </div>
+                {llmCatalogQuery.isLoading ? <p className="text-sm text-slate-500">Loading models...</p> : null}
+                {llmCatalogQuery.isError ? <p className="text-sm text-amber-700">LLM catalog is unavailable.</p> : null}
+              </div>
+            ) : null}
+          </div>
+
           <div className="md:col-span-2 flex items-center gap-3">
-            <Button type="submit" disabled={createMutation.isPending || !ragProfileOptions.length}>
+            <Button type="submit" disabled={createMutation.isPending || !ragProfileOptions.length || !canSubmitLearnerConfig}>
               {createMutation.isPending ? "Creating..." : "Create simulation"}
             </Button>
             {message ? <span className="text-sm text-red-700">{message}</span> : null}

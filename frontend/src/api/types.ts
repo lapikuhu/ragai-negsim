@@ -76,6 +76,18 @@ export type SimulationStartRequest = {
   evaluator_llm_provider?: LLMProvider | null;
   evaluator_llm_model?: string | null;
 };
+export type SimulationCreateRequest = components["schemas"]["SimulationCreateRequest"] & {
+  use_learner_agent?: boolean;
+  learner_response_llm_provider?: LLMProvider | null;
+  learner_response_llm_model?: string | null;
+  learner_summary_llm_provider?: LLMProvider | null;
+  learner_summary_llm_model?: string | null;
+  learner_tavily_summary_llm_provider?: LLMProvider | null;
+  learner_tavily_summary_llm_model?: string | null;
+  learner_tavily_max_results?: number;
+  learner_tavily_include_images?: boolean;
+  learner_tavily_include_answers?: boolean;
+};
 export type SessionRead = components["schemas"]["SessionRead"];
 export type CorpusRead = components["schemas"]["CorpusRead"];
 export type CorpusIndexRead = components["schemas"]["CorpusIndexReadWithIds"];

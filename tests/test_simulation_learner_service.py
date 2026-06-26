@@ -11,7 +11,25 @@ def _user(user_id=7):
     return SimpleNamespace(id=user_id, username=f"user-{user_id}", roles=[])
 
 
-def _simulation(status="paused", phase="bargaining"):
+def _learner_config(enabled=True):
+    return {
+        "enabled": enabled,
+        "models": {
+            "response": {"provider": "openai", "model": "gpt-4o-mini"},
+            "negotiation_summary": {"provider": "openai", "model": "gpt-4.1-mini"},
+            "tavily_summary": {"provider": "openai", "model": "gpt-4o-mini"},
+        },
+        "tavily": {
+            "max_results": 5,
+            "include_images": False,
+            "include_answers": False,
+        },
+    }
+
+
+def _simulation(status="paused", phase="bargaining", learner_config=None):
+    if learner_config is None:
+        learner_config = _learner_config()
     return SimpleNamespace(
         id=10,
         status=status,
@@ -42,6 +60,7 @@ def _simulation(status="paused", phase="bargaining"):
                 "offer_history": [{"price": 100}],
                 "evaluation": {"secret": "EVALUATOR_ONLY"},
                 "event_log": ["internal"],
+                "learner_config": learner_config,
             },
         },
         messages=[{"role": "user", "content": "Could you do 95?"}],
@@ -66,7 +85,7 @@ class FakeTavilySearch:
 
 @pytest.mark.asyncio
 async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypatch):
-    captured = {}
+    captured = {"builds": []}
     fake_agent = FakeLearnerAgent(
         {
             "messages": [
@@ -80,9 +99,8 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypat
         return "crag", "retrieval-graph"
 
     def fake_build_llm(selection, run_name):
-        captured["selection"] = selection
-        captured["run_name"] = run_name
-        return "learner-model"
+        captured["builds"].append((selection, run_name))
+        return f"{run_name}:{selection['model']}"
 
     def fake_make_agent(**kwargs):
         captured["agent_kwargs"] = kwargs
@@ -134,8 +152,10 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypat
     assert result.simulation_id == 10
     assert result.status == "paused"
     assert result.answer == "Anchor on objective criteria."
-    assert captured["selection"] == {"provider": "openai", "model": "gpt-4o-mini"}
-    assert captured["run_name"] == "simulation.learner"
+    assert captured["builds"][:2] == [
+        ({"provider": "openai", "model": "gpt-4o-mini"}, "simulation.learner"),
+        ({"provider": "openai", "model": "gpt-4.1-mini"}, "simulation.learner.summary"),
+    ]
     assert captured["agent_kwargs"]["crag_graph"] == "retrieval-graph"
     assert captured["agent_kwargs"]["graph_rag_graph"] is None
     assert captured["agent_kwargs"]["messages"] == [{"role": "user", "content": "Could you do 95?"}]
@@ -153,6 +173,17 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypat
     assert result.metadata["token_usage"] == {"simulation_learner": 12}
     assert repr(simulation.negotiation_state) == original_state
     assert simulation.messages == original_messages
+
+
+@pytest.mark.asyncio
+async def test_ask_simulation_learner_rejects_disabled_learner_config():
+    with pytest.raises(ValueError, match="Learning agent is not enabled"):
+        await simulation_learner_service.ask_simulation_learner_srvc(
+            _simulation(learner_config=_learner_config(enabled=False)),
+            SimulationLearnerAskRequest(query="Can I ask?"),
+            object(),
+            _user(),
+        )
 
 
 @pytest.mark.asyncio
@@ -243,3 +274,77 @@ async def test_ask_simulation_learner_wires_graphrag_and_tavily(monkeypatch):
     assert captured["agent_kwargs"]["include_images"] is True
     assert captured["agent_kwargs"]["include_answers"] is True
     assert "tavily_search_tool" in result.metadata["tools_available"]
+
+
+@pytest.mark.asyncio
+async def test_ask_simulation_learner_uses_stored_models_and_tavily_defaults(monkeypatch):
+    captured = {"builds": []}
+    fake_agent = FakeLearnerAgent({"messages": [{"role": "assistant", "content": "Stored config answer."}]})
+
+    async def fake_get_retrieval_graph(simulation, session):
+        return "crag", "retrieval"
+
+    def fake_build_llm(selection, run_name):
+        captured["builds"].append((selection, run_name))
+        return f"{run_name}:{selection['model']}"
+
+    def fake_make_agent(**kwargs):
+        captured["agent_kwargs"] = kwargs
+        return fake_agent
+
+    def fake_tavily(**kwargs):
+        captured["tavily_kwargs"] = kwargs
+        return FakeTavilySearch(**kwargs)
+
+    learner_config = _learner_config()
+    learner_config["tavily"] = {
+        "max_results": 2,
+        "include_images": True,
+        "include_answers": True,
+    }
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "_get_retrieval_graph_for_simulation",
+        fake_get_retrieval_graph,
+    )
+    monkeypatch.setattr(simulation_learner_service, "_build_selected_llm", fake_build_llm)
+    monkeypatch.setattr(simulation_learner_service, "make_learner_agent", fake_make_agent)
+    monkeypatch.setattr(simulation_learner_service, "TavilySearch", fake_tavily)
+    monkeypatch.setattr(simulation_learner_service.settings, "TAVILY_API_KEY", "token")
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "create_usage_tracking_context",
+        lambda **kwargs: (object(), object(), {}),
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "summarize_usage_handler",
+        lambda handler: {"totals": {"total_tokens": 0}, "models": {}},
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "summarize_agent_token_usage_handler",
+        lambda handler: {},
+    )
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(learner_config=learner_config),
+        SimulationLearnerAskRequest(query="Use stored config"),
+        object(),
+        _user(),
+    )
+
+    assert result.answer == "Stored config answer."
+    assert captured["builds"] == [
+        ({"provider": "openai", "model": "gpt-4o-mini"}, "simulation.learner"),
+        ({"provider": "openai", "model": "gpt-4.1-mini"}, "simulation.learner.summary"),
+        ({"provider": "openai", "model": "gpt-4o-mini"}, "simulation.learner.tavily_summary"),
+    ]
+    assert captured["agent_kwargs"]["model"] == "simulation.learner:gpt-4o-mini"
+    assert captured["agent_kwargs"]["summarize_model"] == "simulation.learner.summary:gpt-4.1-mini"
+    assert captured["agent_kwargs"]["tavily_summarizer_model"] == "simulation.learner.tavily_summary:gpt-4o-mini"
+    assert captured["tavily_kwargs"] == {
+        "max_results": 2,
+        "include_images": True,
+        "include_answer": True,
+    }

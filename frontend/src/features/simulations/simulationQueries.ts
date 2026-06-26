@@ -4,6 +4,7 @@ import { getApiBaseUrl } from "@/api/clientConfig";
 import type {
   ApiComponents,
   SimulationEvaluationListResponse,
+  SimulationCreateRequest,
   SimulationProxyDisableResponse,
   SimulationProxyTurnRequest,
   SimulationProxyTurnResponse,
@@ -13,7 +14,6 @@ import type {
   SimulationTurnResponse
 } from "@/api/types";
 
-type SimulationCreateRequest = ApiComponents["schemas"]["SimulationCreateRequest"];
 type SimulationTurnRequest = ApiComponents["schemas"]["SimulationTurnRequest"];
 type SimulationTeacherReviewRequest = ApiComponents["schemas"]["SimulationTeacherReviewRequest"];
 
