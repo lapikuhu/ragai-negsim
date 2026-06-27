@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from langchain_core.messages import BaseMessage
@@ -6,11 +7,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.airag.chains.agents.context_projections import project_simulation_learner_state
 from app.airag.chains.agents.helpers import json_dumps
-from app.airag.chains.agents.learner.learner_agent import make_learner_agent
+from app.airag.chains.agents.learner.learner_agent import (
+    invoke_simulation_learner_agent,
+    make_learner_agent,
+)
 from app.airag.chains.agents.learner.learner_helpers import LEARNER_AGENT_PROMPT
 from app.airag.observability.llm_usage import (
     create_usage_tracking_context,
-    invoke_with_config,
     summarize_agent_token_usage_handler,
     summarize_usage_handler,
 )
@@ -93,6 +96,8 @@ def _agent_message_content(message: Any) -> str:
         return str(message.content)
     if isinstance(message, dict):
         return str(message.get("content") or "")
+    if hasattr(message, "content"):
+        return str(getattr(message, "content") or "")
     return str(message)
 
 
@@ -121,6 +126,341 @@ def _extract_answer(agent_result: Any) -> str:
             if agent_result.get(key):
                 return str(agent_result[key]).strip()
     return str(agent_result).strip()
+
+
+def _message_role_or_type(message: Any) -> tuple[str | None, str | None]:
+    """
+    Return role name and message type for a LangGraph agent message.
+    Args:
+        message: The agent message, which can be a BaseMessage or a 
+            dictionary.
+    Returns:
+        A tuple containing the role name and message type, or None if not
+    available.
+    """
+    role = message.get("role") if isinstance(message, dict) else None
+    message_type = getattr(message, "type", None)
+    return role, message_type
+
+
+def _message_tool_call_id(message: Any) -> str:
+    """
+    Return the tool call ID for a LangGraph agent message.
+    Args:
+        message: The agent message, which can be a BaseMessage or a 
+            dictionary.
+    Returns:
+        A string containing the tool call ID, or an empty string if not
+    available.
+    """
+    value = message.get("tool_call_id") if isinstance(message, dict) else getattr(message, "tool_call_id", "")
+    return str(value or "")
+
+
+def _message_tool_name(message: Any) -> str:
+    """
+    Return the tool name for a LangGraph agent message.
+    Args:
+        message: The agent message, which can be a BaseMessage or a 
+            dictionary.
+    Returns:
+        A string containing the tool name, or an empty string if not
+    available.
+    """
+    value = message.get("name") if isinstance(message, dict) else getattr(message, "name", "")
+    return str(value or "")
+
+
+def _message_tool_calls(message: Any) -> list[dict[str, Any]]:
+    """
+    Return the tool calls for a LangGraph agent message.
+    Args:
+        message: The agent message, which can be a BaseMessage or a 
+            dictionary.
+    Returns:
+        A list of dictionaries containing the tool calls, or an empty list if not
+    available.
+    """
+    tool_calls = (
+        message.get("tool_calls")
+        if isinstance(message, dict)
+        else getattr(message, "tool_calls", None)
+    )
+    if not isinstance(tool_calls, list):
+        return []
+    return [tool_call for tool_call in tool_calls if isinstance(tool_call, dict)]
+
+
+def _normalize_learner_structured_output(value: Any, *, fallback_answer: str) -> dict[str, Any] | None:
+    """
+    Normalize the structured output from a learner.
+    Args:
+        value: The structured output value, which can be a dictionary or 
+            an object with a model_dump method.
+        fallback_answer: The fallback answer to use if the structured 
+            output does not contain an answer.
+    Returns:
+        A dictionary containing the normalized structured output, or 
+        None if the output is not valid.
+    """
+    if hasattr(value, "model_dump"):
+        value = value.model_dump()
+    if not isinstance(value, dict):
+        return None
+
+    answer = str(value.get("answer") or fallback_answer or "").strip()
+    if not answer:
+        return None
+
+    evidence_used = value.get("evidence_used", [])
+    if isinstance(evidence_used, list):
+        evidence = [str(item) for item in evidence_used if str(item).strip()]
+    elif isinstance(evidence_used, str) and evidence_used.strip():
+        evidence = [evidence_used.strip()]
+    else:
+        evidence = []
+
+    confidence = str(value.get("confidence") or "medium").strip().lower()
+    if confidence not in {"low", "medium", "high"}:
+        confidence = "medium"
+
+    return {
+        "answer": answer,
+        "tool_decision_summary": str(
+            value.get("tool_decision_summary")
+            or "Structured learner output did not include a tool decision summary."
+        ).strip(),
+        "evidence_used": evidence,
+        "confidence": confidence,
+    }
+
+# Candidate helper
+def _parse_structured_json_content(content: str) -> dict[str, Any] | None:
+    """
+    Parse a string as JSON and return it as a dictionary if valid.
+    Args:
+        content: The string content to parse as JSON.
+    Returns:
+        A dictionary if the content is valid JSON and is a dictionary,
+        otherwise None.
+    """
+    try:
+        decoded = json.loads(content)
+    except json.JSONDecodeError:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def _extract_learner_structured_output(agent_result: Any) -> dict[str, Any]:
+    """
+    Extract structured output from a learner's agent result.
+    Args:
+        agent_result: The result from a LangGraph agent, which can be a 
+            dictionary or other types.
+    Returns:
+        A dictionary containing the structured output, or a fallback answer
+        if the structured output is not available.
+    """
+    fallback_answer = _extract_answer(agent_result)
+    if isinstance(agent_result, dict):
+        structured = _normalize_learner_structured_output(
+            agent_result.get("structured_response"),
+            fallback_answer=fallback_answer,
+        )
+        if structured is not None:
+            return structured
+
+        parsed = _parse_structured_json_content(fallback_answer)
+        structured = _normalize_learner_structured_output(parsed, fallback_answer=fallback_answer)
+        if structured is not None:
+            return structured
+    # TODO: Define a schema for it
+    return {
+        "answer": fallback_answer,
+        "tool_decision_summary": "Structured learner output was not returned.",
+        "evidence_used": [],
+        "confidence": "medium",
+    }
+
+# TODO: Too brute, LLM should determine what tools are explicitly called for.
+def _extract_tool_call_names(agent_result: Any) -> list[str]:
+    """
+    Extract ordered tool call names from assistant messages in an agent result.
+    Args:
+        agent_result: The result from a LangGraph agent, which can be a 
+            dictionary or other types.
+    Returns:
+        A list of tool call names in the order they were called by the 
+        assistant.
+    """
+    if not isinstance(agent_result, dict):
+        return []
+    messages = agent_result.get("messages")
+    if not isinstance(messages, list):
+        return []
+
+    tool_call_names: list[str] = []
+    for message in messages:
+        role, message_type = _message_role_or_type(message)
+        if role not in {"assistant", "ai"} and message_type not in {"assistant", "ai"}:
+            continue
+
+        for tool_call in _message_tool_calls(message):
+            name = tool_call.get("name")
+            if isinstance(name, str) and name:
+                tool_call_names.append(name)
+    return tool_call_names
+
+
+TOOL_REQUEST_ALIASES = {
+    "crag_tool": ("crag", "crag_tool"),
+    "graph_rag_tool": ("graphrag", "graph rag", "graph_rag_tool"),
+    "summarize_negotiation_history_tool": (
+        "summary",
+        "summarize",
+        "summarize_negotiation_history_tool",
+    ),
+    "tavily_search_tool": (
+        "tavily",
+        "web search",
+        "search the web",
+        "tavily_search_tool",
+    ),
+}
+
+
+def _explicit_tool_request_metadata(query: str, tools_available: list[str]) -> dict[str, Any]:
+    """
+    Log explicit tool requests from the user query and check against available tools.
+    Args:
+        query: The user query string.
+        tools_available: A list of available tool names.
+    Returns:
+        A dictionary containing whether any tools were requested, the names of
+        requested tools that are available, and the names of requested tools that
+        are unavailable.
+    """
+    normalized_query = query.lower().replace("-", " ").replace("_", " ")
+    requested: list[str] = []
+    for tool_name, aliases in TOOL_REQUEST_ALIASES.items():
+        if any(alias.lower().replace("_", " ") in normalized_query for alias in aliases):
+            requested.append(tool_name)
+
+    available = set(tools_available)
+    return {
+        "requested": bool(requested),
+        "tool_names": [tool_name for tool_name in requested if tool_name in available],
+        "unavailable_tool_names": [tool_name for tool_name in requested if tool_name not in available],
+    }
+
+
+def _tool_result_status(content: str) -> str:
+    """
+    Determine the status of a tool result based on its content.
+    Args:
+        content: The content of the tool result message.
+    Returns:
+        A string representing the status of the tool result ("success" 
+        or "failed").
+    """
+    try:
+        decoded = json.loads(content)
+    except json.JSONDecodeError:
+        return "success"
+    if isinstance(decoded, dict):
+        status = str(decoded.get("status") or "").strip().lower()
+        if status in {"success", "failed"}:
+            return status
+    return "success"
+
+
+def _extract_learner_debug_events(agent_result: Any) -> list[dict[str, Any]]:
+    """
+    Extract debug events from the agent result.
+    Args:
+        agent_result: The result from the agent containing messages and 
+        tool calls.
+    Returns:
+        A list of dictionaries representing the debug events.
+    """
+    if not isinstance(agent_result, dict):
+        return []
+    messages = agent_result.get("messages")
+    if not isinstance(messages, list):
+        return []
+
+    events: list[dict[str, Any]] = []
+    tool_names_by_id: dict[str, str] = {}
+    for message in messages:
+        role, message_type = _message_role_or_type(message)
+        if role in {"assistant", "ai"} or message_type in {"assistant", "ai"}:
+            for tool_call in _message_tool_calls(message):
+                tool_name = str(tool_call.get("name") or "")
+                tool_call_id = str(tool_call.get("id") or "")
+                if tool_call_id and tool_name:
+                    tool_names_by_id[tool_call_id] = tool_name
+                events.append(
+                    {
+                        "type": "tool_call",
+                        "tool_name": tool_name,
+                        "tool_call_id": tool_call_id,
+                        "args": tool_call.get("args") if isinstance(tool_call.get("args"), dict) else {},
+                    }
+                )
+            continue
+
+        if role == "tool" or message_type == "tool":
+            content = _agent_message_content(message)
+            tool_call_id = _message_tool_call_id(message)
+            tool_name = _message_tool_name(message) or tool_names_by_id.get(tool_call_id, "")
+            events.append(
+                {
+                    "type": "tool_result",
+                    "tool_name": tool_name,
+                    "tool_call_id": tool_call_id,
+                    "status": _tool_result_status(content),
+                    "content": content,
+                    "content_length": len(content),
+                }
+            )
+    return events
+
+
+def _learner_debug_trace(
+    agent_result: Any,
+    *,
+    query: str,
+    tools_available: list[str],
+) -> dict[str, Any]:
+    """
+    Generate a debug trace for the learner.
+    Args:
+        agent_result: The result from the agent containing messages and 
+            tool calls.
+        query: The query string used in the learner.
+        tools_available: A list of available tool names.
+    Returns:
+        A dictionary containing the explicit tool request metadata and 
+        the extracted debug events.
+    """
+    return {
+        "explicit_tool_request": _explicit_tool_request_metadata(query, tools_available),
+        "events": _extract_learner_debug_events(agent_result),
+    }
+
+
+def _answer_token_usage_for_metadata(llm_usage: dict[str, Any]) -> dict[str, int]:
+    """
+    Extract the token usage from the LLM usage metadata.
+    Args:
+        llm_usage: The LLM usage metadata containing token counts.
+    Returns:
+        A dictionary containing the total token count.
+    """
+    totals = llm_usage.get("totals") if isinstance(llm_usage, dict) else None
+    total_tokens = totals.get("total_tokens") if isinstance(totals, dict) else 0
+    return {"total_tokens": int(total_tokens or 0)}
+
 
 # WATCH: Have to manually include the tool names in the metadata
 def _tool_names_for_metadata(
@@ -375,16 +715,18 @@ async def ask_simulation_learner_srvc(
         include_answers=bool(tavily_settings["include_answers"]),
         prompt_template=prompt_template,
     )
-    agent_result = invoke_with_config(
+    # Invoke the learner agent with the user's query and the configured settings
+    agent_result = invoke_simulation_learner_agent(
         agent,
-        {"messages": [{"role": "user", "content": ask_data.query}]},
-        _learner_invoke_config(
+        ask_data.query,
+        config=_learner_invoke_config(
             usage_config,
             simulation_id=simulation.id,
             user_id=current_user.id,
         ),
     )
-    answer = _extract_answer(agent_result)
+    learner_structured_output = _extract_learner_structured_output(agent_result)
+    answer = learner_structured_output["answer"]
     if not answer:
         raise ValueError("Learner response was empty")
 
@@ -394,11 +736,20 @@ async def ask_simulation_learner_srvc(
         tavily_available=tavily_search is not None,
     )
     token_usage = summarize_agent_token_usage_handler(public_usage_handler)
+    llm_usage = summarize_usage_handler(usage_handler)
     metadata = {
         "tools_available": tools_available,
-        "llm_usage": summarize_usage_handler(usage_handler),
+        "llm_usage": llm_usage,
         "token_usage": token_usage,
+        "answer_token_usage": _answer_token_usage_for_metadata(llm_usage),
+        "learner_structured_output": learner_structured_output,
+        "learner_debug_trace": _learner_debug_trace(
+            agent_result,
+            query=ask_data.query,
+            tools_available=tools_available,
+        ),
         "model_selection": learner_selection,
+        "tool_calls": _extract_tool_call_names(agent_result),
         "model_selections": {
             "response": learner_selection,
             "negotiation_summary": summary_selection,

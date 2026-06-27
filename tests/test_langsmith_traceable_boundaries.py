@@ -5,6 +5,7 @@ from app.airag.chains.agents.intent_classifier import (
     intent_classifier,
     intent_classifier_nodes,
 )
+from app.airag.chains.agents.learner import learner_agent
 from app.airag.chains.agents.user_proxy_negotiator import (
     user_proxy,
     user_proxy_nodes,
@@ -46,6 +47,7 @@ def test_public_invoke_wrappers_are_traceable():
     assert hasattr(evaluator.invoke_evaluator_response, "__wrapped__")
     assert hasattr(evaluator.invoke_compact_evaluation, "__wrapped__")
     assert hasattr(user_proxy.invoke_user_proxy_turn, "__wrapped__")
+    assert hasattr(learner_agent.invoke_simulation_learner_agent, "__wrapped__")
 
 
 def test_graph_wrapper_nodes_are_traceable():

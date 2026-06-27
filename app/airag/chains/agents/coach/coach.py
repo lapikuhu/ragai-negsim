@@ -105,7 +105,16 @@ def invoke_coach_advice(
 	state: ParentNegotiationState,
 	config: RunnableConfig | None = None,
 ) -> CoachAdvice:
-	"""Invoke the coach graph and return only the generated advice."""
+	"""
+	Invoke the coach graph and return only the generated advice.
+	Args:
+		coach_graph: The compiled coach graph to invoke.
+		state: The current negotiation state to pass to the coach graph.
+		config: Optional RunnableConfig for execution settings.
+	Returns:
+		A CoachAdvice object containing the generated advice and related 
+		information.
+	"""
 	graph_config = extend_runnable_config(
 		config,
 		tags=["agent:coach", "graph:coach"],

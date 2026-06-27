@@ -12,7 +12,7 @@ The current codebase focuses on the backend foundation for:
 - Reusable retrieval strategies with both CRAG and GraphRAG flows
 - Prompt, scenario, and counterpart persona management
 - Simulation lifecycle management
-- Agentic negotiation turns with coaching, counterpart response, and evaluation layers
+- Agentic negotiation turns with coaching, counterpart response, learning assistant, and evaluation layers
 
 ## Purpose And Functionality
 
@@ -49,6 +49,8 @@ The parent negotiation graph orchestrates each turn through dedicated agent node
 - The rolling evaluator assesses the current turn while the simulation is still active.
 - The coach node returns learner-facing guidance after the counterpart and evaluator have run.
 - The final evaluator produces closing assessment when the negotiation reaches the final path.
+- User can assign the negotiation to a proxy negotiator graph outside the main simulation graph, either for a single turn or for the whole negotiation.
+- At any given time, the user can ask a learning assistant autonomous agent for general advise on negotiation practice and theory. The agent has its own tools and decides which ones to use.
 
 Retrieval is injected into the coaching and evaluation paths so feedback can be grounded in uploaded corpus material rather than relying only on conversation history. The counterpart remains persona- and scenario-driven, while coaching and evaluation can use retrieved evidence to support more specific advice and assessment.
 

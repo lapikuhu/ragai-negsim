@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -83,6 +84,67 @@ class FakeTavilySearch:
         self.kwargs = kwargs
 
 
+class FakeAIMessageWithToolCalls:
+    type = "ai"
+
+    def __init__(self, content, tool_calls):
+        self.content = content
+        self.tool_calls = tool_calls
+
+
+class FakeToolMessage:
+    type = "tool"
+
+    def __init__(self, content, tool_call_id="tool-call-1", name="crag_tool"):
+        self.content = content
+        self.tool_call_id = tool_call_id
+        self.name = name
+
+
+def _patch_basic_learner_service(monkeypatch, agent_result, *, retrieval_strategy="crag", tavily_api_key=None):
+    fake_agent = object()
+
+    async def fake_get_retrieval_graph(simulation, session):
+        return retrieval_strategy, "retrieval-graph"
+
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "_get_retrieval_graph_for_simulation",
+        fake_get_retrieval_graph,
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "_build_selected_llm",
+        lambda selection, run_name: f"{run_name}:{selection['model']}",
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "make_learner_agent",
+        lambda **kwargs: fake_agent,
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "invoke_simulation_learner_agent",
+        lambda agent, question, config=None: agent_result,
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "create_usage_tracking_context",
+        lambda **kwargs: (object(), object(), {}),
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "summarize_usage_handler",
+        lambda handler: {"totals": {"total_tokens": 0}, "models": {}},
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "summarize_agent_token_usage_handler",
+        lambda handler: {},
+    )
+    monkeypatch.setattr(simulation_learner_service.settings, "TAVILY_API_KEY", tavily_api_key)
+
+
 @pytest.mark.asyncio
 async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypatch):
     captured = {"builds": []}
@@ -106,6 +168,14 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypat
         captured["agent_kwargs"] = kwargs
         return fake_agent
 
+    def fake_invoke_agent(agent, question, config=None):
+        captured["invoke"] = {
+            "agent": agent,
+            "question": question,
+            "config": config,
+        }
+        return fake_agent.result
+
     def fake_usage_context(**kwargs):
         captured["usage_context"] = kwargs
         return object(), object(), {"callbacks": ["usage"]}
@@ -119,13 +189,18 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypat
     monkeypatch.setattr(simulation_learner_service, "make_learner_agent", fake_make_agent)
     monkeypatch.setattr(
         simulation_learner_service,
+        "invoke_simulation_learner_agent",
+        fake_invoke_agent,
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
         "create_usage_tracking_context",
         fake_usage_context,
     )
     monkeypatch.setattr(
         simulation_learner_service,
         "summarize_usage_handler",
-        lambda handler: {"totals": {"total_tokens": 12}, "models": {}},
+        lambda handler: {"totals": {"total_tokens": 30}, "models": {}},
     )
     monkeypatch.setattr(
         simulation_learner_service,
@@ -170,17 +245,268 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(monkeypat
     assert "Previous learner conversation" in captured["agent_kwargs"]["prompt_template"]
     assert "User: Earlier question?" in captured["agent_kwargs"]["prompt_template"]
     assert "Assistant: Earlier answer." in captured["agent_kwargs"]["prompt_template"]
-    assert fake_agent.calls[0]["payload"] == {
-        "messages": [{"role": "user", "content": "What should I do?"}]
-    }
-    assert fake_agent.calls[0]["config"]["configurable"]["thread_id"] == "simulation-10-learner-user-7"
+    assert captured["invoke"]["agent"] is fake_agent
+    assert captured["invoke"]["question"] == "What should I do?"
+    assert captured["invoke"]["config"]["configurable"]["thread_id"] == "simulation-10-learner-user-7"
     assert result.metadata["tools_available"] == [
         "crag_tool",
         "summarize_negotiation_history_tool",
     ]
     assert result.metadata["token_usage"] == {"simulation_learner": 12}
+    assert result.metadata["llm_usage"] == {"totals": {"total_tokens": 30}, "models": {}}
+    assert result.metadata["answer_token_usage"] == {"total_tokens": 30}
     assert repr(simulation.negotiation_state) == original_state
     assert simulation.messages == original_messages
+
+
+@pytest.mark.asyncio
+async def test_ask_simulation_learner_includes_ordered_tool_call_names(monkeypatch):
+    fake_agent = object()
+
+    async def fake_get_retrieval_graph(simulation, session):
+        return "crag", "retrieval-graph"
+
+    def fake_invoke_agent(agent, question, config=None):
+        return {
+            "messages": [
+                FakeAIMessageWithToolCalls(
+                    "",
+                    [
+                        {"name": "crag_tool", "args": {"question": "ignored"}},
+                        {"name": "tavily_search_tool", "args": {"query": "ignored"}},
+                    ],
+                ),
+                FakeToolMessage("tool output must not be exposed"),
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"name": "crag_tool", "args": {"question": "ignored duplicate"}}
+                    ],
+                },
+                {"role": "tool", "content": "dict tool output must not be exposed"},
+                {"role": "assistant", "content": "Use objective criteria."},
+            ]
+        }
+
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "_get_retrieval_graph_for_simulation",
+        fake_get_retrieval_graph,
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "_build_selected_llm",
+        lambda selection, run_name: "learner-model",
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "make_learner_agent",
+        lambda **kwargs: fake_agent,
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "invoke_simulation_learner_agent",
+        fake_invoke_agent,
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "create_usage_tracking_context",
+        lambda **kwargs: (object(), object(), {}),
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "summarize_usage_handler",
+        lambda handler: {"totals": {"total_tokens": 0}, "models": {}},
+    )
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "summarize_agent_token_usage_handler",
+        lambda handler: {},
+    )
+    monkeypatch.setattr(simulation_learner_service.settings, "TAVILY_API_KEY", None)
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(),
+        SimulationLearnerAskRequest(query="What tools did you use?"),
+        object(),
+        _user(),
+    )
+
+    assert result.answer == "Use objective criteria."
+    assert result.metadata["tool_calls"] == [
+        "crag_tool",
+        "tavily_search_tool",
+        "crag_tool",
+    ]
+    assert "tool output must not be exposed" not in repr(result.metadata["tool_calls"])
+    assert result.metadata["tools_available"] == [
+        "crag_tool",
+        "summarize_negotiation_history_tool",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ask_simulation_learner_uses_structured_response_metadata(monkeypatch):
+    _patch_basic_learner_service(
+        monkeypatch,
+        {
+            "structured_response": {
+                "answer": "Use objective criteria from the role facts.",
+                "tool_decision_summary": "Used CRAG because the user requested retrieval.",
+                "evidence_used": ["student_private_context", "crag_tool"],
+                "confidence": "high",
+            },
+            "messages": [
+                {"role": "assistant", "content": "Raw structured content should not win."}
+            ],
+        },
+    )
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(),
+        SimulationLearnerAskRequest(query="Use CRAG to define BATNA."),
+        object(),
+        _user(),
+    )
+
+    assert result.answer == "Use objective criteria from the role facts."
+    assert result.metadata["learner_structured_output"] == {
+        "answer": "Use objective criteria from the role facts.",
+        "tool_decision_summary": "Used CRAG because the user requested retrieval.",
+        "evidence_used": ["student_private_context", "crag_tool"],
+        "confidence": "high",
+    }
+
+
+@pytest.mark.asyncio
+async def test_ask_simulation_learner_parses_structured_json_final_content(monkeypatch):
+    structured_json = {
+        "answer": "BATNA is your best available fallback if no deal is reached.",
+        "tool_decision_summary": "Answered from local knowledge because no tool was requested.",
+        "evidence_used": ["standard_negotiation_knowledge"],
+        "confidence": "medium",
+    }
+    _patch_basic_learner_service(
+        monkeypatch,
+        {
+            "messages": [
+                {"role": "assistant", "content": json.dumps(structured_json)}
+            ],
+        },
+    )
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(),
+        SimulationLearnerAskRequest(query="Define BATNA."),
+        object(),
+        _user(),
+    )
+
+    assert result.answer == "BATNA is your best available fallback if no deal is reached."
+    assert result.metadata["learner_structured_output"] == structured_json
+
+
+@pytest.mark.asyncio
+async def test_ask_simulation_learner_defaults_structured_output_for_plain_text(monkeypatch):
+    _patch_basic_learner_service(
+        monkeypatch,
+        {"messages": [{"role": "assistant", "content": "Plain answer."}]},
+    )
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(),
+        SimulationLearnerAskRequest(query="What should I do?"),
+        object(),
+        _user(),
+    )
+
+    assert result.answer == "Plain answer."
+    assert result.metadata["learner_structured_output"] == {
+        "answer": "Plain answer.",
+        "tool_decision_summary": "Structured learner output was not returned.",
+        "evidence_used": [],
+        "confidence": "medium",
+    }
+
+
+@pytest.mark.asyncio
+async def test_ask_simulation_learner_debug_trace_includes_tool_calls_results_and_request(monkeypatch):
+    _patch_basic_learner_service(
+        monkeypatch,
+        {
+            "messages": [
+                FakeAIMessageWithToolCalls(
+                    "",
+                    [
+                        {
+                            "id": "call-1",
+                            "name": "tavily_search_tool",
+                            "args": {"query": "BATNA definition negotiation", "max_results": 5},
+                        }
+                    ],
+                ),
+                FakeToolMessage(
+                    "full tavily output",
+                    tool_call_id="call-1",
+                    name="tavily_search_tool",
+                ),
+                {"role": "assistant", "content": "Use your BATNA as leverage."},
+            ],
+        },
+        tavily_api_key="token",
+    )
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(),
+        SimulationLearnerAskRequest(query="Please use Tavily to define BATNA."),
+        object(),
+        _user(),
+    )
+
+    debug_trace = result.metadata["learner_debug_trace"]
+    assert debug_trace["explicit_tool_request"] == {
+        "requested": True,
+        "tool_names": ["tavily_search_tool"],
+        "unavailable_tool_names": [],
+    }
+    assert debug_trace["events"] == [
+        {
+            "type": "tool_call",
+            "tool_name": "tavily_search_tool",
+            "tool_call_id": "call-1",
+            "args": {"query": "BATNA definition negotiation", "max_results": 5},
+        },
+        {
+            "type": "tool_result",
+            "tool_name": "tavily_search_tool",
+            "tool_call_id": "call-1",
+            "status": "success",
+            "content": "full tavily output",
+            "content_length": 18,
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ask_simulation_learner_records_unavailable_requested_tool(monkeypatch):
+    _patch_basic_learner_service(
+        monkeypatch,
+        {"messages": [{"role": "assistant", "content": "GraphRAG is unavailable here."}]},
+    )
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(),
+        SimulationLearnerAskRequest(query="Use GraphRAG to define BATNA."),
+        object(),
+        _user(),
+    )
+
+    assert result.metadata["learner_debug_trace"]["explicit_tool_request"] == {
+        "requested": True,
+        "tool_names": [],
+        "unavailable_tool_names": ["graph_rag_tool"],
+    }
 
 
 @pytest.mark.asyncio

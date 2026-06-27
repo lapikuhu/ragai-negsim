@@ -105,6 +105,17 @@ class AgentTokenUsageCallbackHandler(BaseCallbackHandler):
         run_id: Any,
         **kwargs: Any,
     ) -> Any:
+        """
+        Remember the agent associated with a specific run ID when an LLM
+        starts. This method is called when an LLM is initiated, and it
+        resolves the agent name from the provided tags and metadata.
+        Args:
+            serialized: The serialized representation of the LLM.
+            prompts: The list of prompts associated with the LLM.
+            run_id: The unique identifier for the current run.
+            **kwargs: Additional keyword arguments that may contain tags
+                and metadata for resolving the agent name.
+        """
         self._remember_agent(run_id, **kwargs)
 
     def on_llm_end(self, response: LLMResult, *, run_id: Any, **kwargs: Any) -> Any:
@@ -341,7 +352,13 @@ def summarize_usage_handler(handler: UsageMetadataCallbackHandler) -> dict[str, 
 def summarize_agent_token_usage_handler(
     handler: AgentTokenUsageCallbackHandler,
 ) -> dict[str, int]:
-    """Return public-safe total token counts by agent."""
+    """
+    Return public-safe total token counts by agent.
+    Args:
+        handler: The agent token usage callback handler.
+    Returns:
+        A dictionary containing the total token counts for each public agent.
+    """
     return {
         agent_name: int(total_tokens)
         for agent_name, total_tokens in handler.agent_total_tokens.items()

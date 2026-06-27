@@ -53,6 +53,37 @@ function getTokenUsage(
   return isRecord(persisted) ? (persisted as SimulationTokenUsage) : null;
 }
 
+const learnerToolLabels: Record<string, string> = {
+  crag_tool: "CRAG retrieval",
+  graph_rag_tool: "GraphRAG retrieval",
+  summarize_negotiation_history_tool: "Negotiation summary",
+  tavily_search_tool: "Web search"
+};
+
+function learnerToolLabel(toolName: string) {
+  return learnerToolLabels[toolName] ?? toolName;
+}
+
+function getMetadataToolCalls(metadata: Record<string, unknown>): string[] {
+  const toolCalls = metadata.tool_calls;
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+  return toolCalls.filter((toolCall): toolCall is string => typeof toolCall === "string" && toolCall.length > 0);
+}
+
+function getMetadataAnswerTokenUsage(metadata: Record<string, unknown>): LearnerChatMessage["token_usage"] {
+  const answerTokenUsage = metadata.answer_token_usage;
+  if (!isRecord(answerTokenUsage) || typeof answerTokenUsage.total_tokens !== "number") {
+    return undefined;
+  }
+  return { total_tokens: answerTokenUsage.total_tokens };
+}
+
+function learnerChatHistoryForRequest(messages: LearnerChatMessage[]): Pick<LearnerChatMessage, "role" | "content">[] {
+  return messages.map(({ role, content }) => ({ role, content }));
+}
+
 function ScenarioSummaryCard({
   value,
   scenarioId
@@ -131,6 +162,44 @@ function ScenarioSummaryCard({
   );
 }
 
+function LearnerToolCallsPanel({ messages }: { messages: LearnerChatMessage[] }) {
+  const assistantMessages = messages.filter((message) => message.role === "assistant");
+
+  return (
+    <aside className="rounded-xl border border-slate-200 bg-white p-3">
+      <h3 className="text-sm font-semibold text-slate-950">Tools used</h3>
+      {assistantMessages.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-600">No learner answers yet.</p>
+      ) : (
+        <div className="mt-3 grid gap-3">
+          {assistantMessages.map((message, index) => {
+            const toolCalls = message.tool_calls ?? [];
+            return (
+              <div key={`assistant-tools-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-medium uppercase text-slate-500">Answer {index + 1}</p>
+                {toolCalls.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-600">No tools called</p>
+                ) : (
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {toolCalls.map((toolName, toolIndex) => (
+                      <li
+                        key={`${toolName}-${toolIndex}`}
+                        className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-800"
+                      >
+                        {learnerToolLabel(toolName)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </aside>
+  );
+}
+
 function LearnerAgentDialog({
   messages,
   question,
@@ -162,7 +231,7 @@ function LearnerAgentDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Ask Learning Agent"
-        className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-5 shadow-xl"
+        className="flex max-h-[80vh] w-full max-w-5xl flex-col rounded-2xl bg-white p-5 shadow-xl"
       >
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-slate-950">Ask Learning Agent</h2>
@@ -170,24 +239,34 @@ function LearnerAgentDialog({
             Hide Agent
           </Button>
         </div>
-        <div className="mt-4 grid min-h-0 flex-1 gap-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
-          {messages.length === 0 ? (
-            <p className="text-sm text-slate-600">No learner questions in this session yet.</p>
-          ) : (
-            messages.map((message, index) => (
-              <div
-                key={`${message.role}-${index}`}
-                className={[
-                  "max-w-[85%] rounded-xl px-3 py-2 text-sm leading-6",
-                  message.role === "user"
-                    ? "ml-auto bg-teal-700 text-white"
-                    : "mr-auto bg-white text-slate-800 shadow-sm"
-                ].join(" ")}
-              >
-                {message.content}
-              </div>
-            ))
-          )}
+        <div className="mt-4 grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[minmax(0,1fr)_208px]">
+          <div className="grid min-h-0 gap-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+            {messages.length === 0 ? (
+              <p className="text-sm text-slate-600">No learner questions in this session yet.</p>
+            ) : (
+              messages.map((message, index) => (
+                <div
+                  key={`${message.role}-${index}`}
+                  className={[
+                    "max-w-[95%] rounded-xl px-3 py-2 text-sm leading-6",
+                    message.role === "user"
+                      ? "ml-auto bg-teal-700 text-white"
+                      : "mr-auto bg-white text-slate-800 shadow-sm"
+                  ].join(" ")}
+                >
+                  {message.content}
+                  {message.role === "assistant" && typeof message.token_usage?.total_tokens === "number" ? (
+                    <p className="mt-2 text-right text-xs font-medium text-slate-500">
+                      {message.token_usage.total_tokens} tokens
+                    </p>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+          <div className="min-h-0 overflow-y-auto">
+            <LearnerToolCallsPanel messages={messages} />
+          </div>
         </div>
         {error ? (
           <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
@@ -357,9 +436,17 @@ export function SimulationCockpitPage() {
     try {
       const result = await learnerAskMutation.mutateAsync({
         query: content,
-        chat_history: nextHistory
+        chat_history: learnerChatHistoryForRequest(nextHistory)
       });
-      setLearnerMessages([...nextHistory, { role: "assistant", content: result.answer }]);
+      setLearnerMessages([
+        ...nextHistory,
+        {
+          role: "assistant",
+          content: result.answer,
+          token_usage: getMetadataAnswerTokenUsage(result.metadata),
+          tool_calls: getMetadataToolCalls(result.metadata)
+        }
+      ]);
     } catch (error) {
       setLearnerError(getErrorMessage(error, "Unable to ask learning agent"));
     }

@@ -226,13 +226,26 @@ describe("SimulationCockpitPage", () => {
         }
       }
     };
-    queryState.learnerAskMutateAsync.mockResolvedValueOnce({
-      simulation_id: 1,
-      status: "paused",
-      answer: "Hold your target and ask for objective criteria.",
-      metadata: {},
-      timestamp: "2026-06-10T09:01:00Z"
-    });
+    queryState.learnerAskMutateAsync
+      .mockResolvedValueOnce({
+        simulation_id: 1,
+        status: "paused",
+        answer: "Hold your target and ask for objective criteria.",
+        metadata: {
+          answer_token_usage: { total_tokens: 123 },
+          tool_calls: ["crag_tool", "tavily_search_tool"]
+        },
+        timestamp: "2026-06-10T09:01:00Z"
+      })
+      .mockResolvedValueOnce({
+        simulation_id: 1,
+        status: "paused",
+        answer: "Then ask for a written rationale.",
+        metadata: {
+          answer_token_usage: { total_tokens: 45 }
+        },
+        timestamp: "2026-06-10T09:02:00Z"
+      });
 
     const user = userEvent.setup();
     render(<SimulationCockpitPage />);
@@ -254,6 +267,62 @@ describe("SimulationCockpitPage", () => {
     });
     expect(screen.getByText("How should I respond?")).toBeInTheDocument();
     expect(screen.getByText("Hold your target and ask for objective criteria.")).toBeInTheDocument();
+    expect(screen.getByText("123 tokens")).toBeInTheDocument();
+    expect(screen.getByText("Tools used")).toBeInTheDocument();
+    expect(screen.getByText("CRAG retrieval")).toBeInTheDocument();
+    expect(screen.getByText("Web search")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Question for learning agent"), "What next?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(queryState.learnerAskMutateAsync).toHaveBeenLastCalledWith({
+        query: "What next?",
+        chat_history: [
+          { role: "user", content: "How should I respond?" },
+          { role: "assistant", content: "Hold your target and ask for objective criteria." },
+          { role: "user", content: "What next?" }
+        ]
+      });
+    });
+    expect(screen.getByText("Then ask for a written rationale.")).toBeInTheDocument();
+    expect(screen.getByText("45 tokens")).toBeInTheDocument();
+  });
+
+  it("shows no tools called for learner answers without tool calls", async () => {
+    queryState.simulation = {
+      ...simulation,
+      negotiation_state: {
+        current_phase: "bargaining",
+        user_side: "side_a",
+        data: {
+          learner_config: { enabled: true }
+        }
+      }
+    };
+    queryState.learnerAskMutateAsync.mockResolvedValueOnce({
+      simulation_id: 1,
+      status: "paused",
+      answer: "You can answer this directly.",
+      metadata: {},
+      timestamp: "2026-06-10T09:01:00Z"
+    });
+
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Ask Learning Agent" }));
+    await user.type(screen.getByLabelText("Question for learning agent"), "Can I answer directly?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(queryState.learnerAskMutateAsync).toHaveBeenCalledWith({
+        query: "Can I answer directly?",
+        chat_history: [{ role: "user", content: "Can I answer directly?" }]
+      });
+    });
+    expect(screen.getByText("No tools called")).toBeInTheDocument();
+    expect(screen.queryByText(/\d+ tokens$/)).not.toBeInTheDocument();
   });
 
   it("preserves learner chat while hiding and reopening the dialog", async () => {

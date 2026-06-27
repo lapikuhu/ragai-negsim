@@ -1,9 +1,11 @@
 import json
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.agents import create_agent
+from langsmith import traceable
+from langchain_core.runnables.config import RunnableConfig
 from pydantic import BaseModel, Field, conint #!! warning "Discouragedin favor of using Annotated with [Field][pydantic.fields.Field] instead.
 
 # local imports
@@ -28,6 +30,21 @@ class LearnerCragToolInput(BaseModel):
     Input schema for the learner CRAG retrieval tool.
     """
     question: str = Field(description="The learner's negotiation-related question.")
+
+
+class LearnerStructuredOutput(BaseModel):
+    answer: str = Field(description="Learner-facing answer to show to the user.")
+    tool_decision_summary: str = Field(
+        description="Concise diagnostic summary of tool decisions, not chain-of-thought."
+    )
+    evidence_used: list[str] = Field(
+        default_factory=list,
+        description="Short labels for evidence sources used in the answer.",
+    )
+    confidence: Literal["low", "medium", "high"] = Field(
+        default="medium",
+        description="Confidence in the answer based on available context and tool results.",
+    )
 
 # Helper Candidate
 def _json_tool_payload(payload: dict[str, Any]) -> str:
@@ -667,6 +684,39 @@ def make_learner_agent(
         model=selected_model,
         tools=tools,
         system_prompt=system_prompt,
+        response_format=LearnerStructuredOutput,
         checkpointer=checkpointer or MemorySaver(),
-        name="Learner Agent",
+        name="learner_agent",
     )
+### ------------------------ INVOKE LEARNER AGENT ------------------------- ###
+
+@traceable
+def invoke_simulation_learner_agent(
+    agent: Any,
+    question: str,
+    config: RunnableConfig | None = None,
+) -> Any:
+    """
+    Invoke the simulation learner agent with a given question.
+    Args:
+        agent: The learner agent to invoke.
+        question: The question to ask the agent.
+        config: Optional RunnableConfig for execution settings.
+    Returns:
+        The learner agent's raw response.
+    """
+    invoke_config = extend_runnable_config(
+        config,
+        tags=["agent:simulation_learner", "node:invoke_agent"],
+        metadata={
+            "agent": "simulation_learner",
+            "node": "invoke_agent",
+        },
+        run_name="simulation_learner.invoke",
+    )
+    result = invoke_with_config(
+        agent,
+        {"messages": [{"role": "user", "content": question}]},
+        invoke_config,
+    )
+    return result
