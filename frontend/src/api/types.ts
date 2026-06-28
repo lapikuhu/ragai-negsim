@@ -52,6 +52,7 @@ export type SimulationProxyDisableResponse = {
 export type LearnerChatMessage = {
   role: "user" | "assistant";
   content: string;
+  debug_trace?: unknown;
   tool_calls?: string[];
   token_usage?: { total_tokens: number };
 };

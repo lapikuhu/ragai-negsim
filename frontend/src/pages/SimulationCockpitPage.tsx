@@ -80,6 +80,10 @@ function getMetadataAnswerTokenUsage(metadata: Record<string, unknown>): Learner
   return { total_tokens: answerTokenUsage.total_tokens };
 }
 
+function getMetadataLearnerDebugTrace(metadata: Record<string, unknown>): unknown {
+  return metadata.learner_debug_trace;
+}
+
 function learnerChatHistoryForRequest(messages: LearnerChatMessage[]): Pick<LearnerChatMessage, "role" | "content">[] {
   return messages.map(({ role, content }) => ({ role, content }));
 }
@@ -162,6 +166,25 @@ function ScenarioSummaryCard({
   );
 }
 
+function LearnerDebugTracePanel({ trace }: { trace: unknown }) {
+  const traceJson = trace === undefined ? "" : JSON.stringify(trace, null, 2);
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-slate-950 p-3" aria-label="Learner debug trace">
+      <h3 className="text-sm font-semibold text-slate-100">Debug trace</h3>
+      {traceJson ? (
+        <pre className="mt-2 h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900 p-2 font-mono text-xs leading-4 text-slate-100">
+          {traceJson}
+        </pre>
+      ) : (
+        <p className="mt-2 h-32 overflow-y-auto rounded-lg bg-slate-900 p-2 text-sm leading-6 text-slate-300">
+          No debug trace selected yet.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function LearnerToolCallsPanel({ messages }: { messages: LearnerChatMessage[] }) {
   const assistantMessages = messages.filter((message) => message.role === "assistant");
 
@@ -205,7 +228,9 @@ function LearnerAgentDialog({
   question,
   error,
   pending,
+  selectedMessageIndex,
   onQuestionChange,
+  onSelectAssistantMessage,
   onSend,
   onHide
 }: {
@@ -213,7 +238,9 @@ function LearnerAgentDialog({
   question: string;
   error: string | null;
   pending: boolean;
+  selectedMessageIndex: number | null;
   onQuestionChange: (value: string) => void;
+  onSelectAssistantMessage: (messageIndex: number) => void;
   onSend: () => Promise<void>;
   onHide: () => void;
 }) {
@@ -225,13 +252,16 @@ function LearnerAgentDialog({
     };
   }, []);
 
+  const selectedDebugTrace =
+    selectedMessageIndex === null ? undefined : messages[selectedMessageIndex]?.debug_trace;
+
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Ask Learning Agent"
-        className="flex max-h-[80vh] w-full max-w-5xl flex-col rounded-2xl bg-white p-5 shadow-xl"
+        className="flex max-h-[calc(84vh+3rem)] w-full max-w-5xl flex-col rounded-2xl bg-white p-5 shadow-xl"
       >
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-slate-950">Ask Learning Agent</h2>
@@ -239,28 +269,43 @@ function LearnerAgentDialog({
             Hide Agent
           </Button>
         </div>
-        <div className="mt-4 grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[minmax(0,1fr)_208px]">
+        <div
+          data-testid="learner-qa-panel"
+          className="mt-4 grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[minmax(0,1fr)_208px]"
+        >
           <div className="grid min-h-0 gap-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
             {messages.length === 0 ? (
               <p className="text-sm text-slate-600">No learner questions in this session yet.</p>
             ) : (
               messages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  className={[
-                    "max-w-[95%] rounded-xl px-3 py-2 text-sm leading-6",
-                    message.role === "user"
-                      ? "ml-auto bg-teal-700 text-white"
-                      : "mr-auto bg-white text-slate-800 shadow-sm"
-                  ].join(" ")}
-                >
-                  {message.content}
-                  {message.role === "assistant" && typeof message.token_usage?.total_tokens === "number" ? (
-                    <p className="mt-2 text-right text-xs font-medium text-slate-500">
-                      {message.token_usage.total_tokens} tokens
-                    </p>
-                  ) : null}
-                </div>
+                message.role === "assistant" ? (
+                  <button
+                    key={`${message.role}-${index}`}
+                    type="button"
+                    aria-pressed={selectedMessageIndex === index}
+                    onClick={() => onSelectAssistantMessage(index)}
+                    className={[
+                      "mr-auto max-w-[95%] rounded-xl bg-white px-3 py-2 text-left text-sm leading-6 text-slate-800 shadow-sm outline-none transition",
+                      selectedMessageIndex === index
+                        ? "ring-2 ring-teal-500"
+                        : "hover:bg-slate-100 focus:ring-2 focus:ring-teal-200"
+                    ].join(" ")}
+                  >
+                    {message.content}
+                    {typeof message.token_usage?.total_tokens === "number" ? (
+                      <span className="mt-2 block text-right text-xs font-medium text-slate-500">
+                        {message.token_usage.total_tokens} tokens
+                      </span>
+                    ) : null}
+                  </button>
+                ) : (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className="ml-auto max-w-[95%] rounded-xl bg-teal-700 px-3 py-2 text-sm leading-6 text-white"
+                  >
+                    {message.content}
+                  </div>
+                )
               ))
             )}
           </div>
@@ -278,10 +323,12 @@ function LearnerAgentDialog({
             await onSend();
           }}
         >
+          <LearnerDebugTracePanel trace={selectedDebugTrace} />
           <Field label="Question for learning agent">
             <Textarea
               value={question}
               disabled={pending}
+              style={{ minHeight: "6rem" }}
               onChange={(event) => onQuestionChange(event.target.value)}
               placeholder="Ask for negotiation guidance..."
             />
@@ -316,6 +363,7 @@ export function SimulationCockpitPage() {
   const [proxyOverride, setProxyOverride] = useState<{ active: boolean; personaId: number | null; personaName: string | null } | null>(null);
   const [isLearnerDialogOpen, setIsLearnerDialogOpen] = useState(false);
   const [learnerMessages, setLearnerMessages] = useState<LearnerChatMessage[]>([]);
+  const [selectedLearnerMessageIndex, setSelectedLearnerMessageIndex] = useState<number | null>(null);
   const [learnerQuestion, setLearnerQuestion] = useState("");
   const [learnerError, setLearnerError] = useState<string | null>(null);
   const simulation = query.data ?? null;
@@ -443,10 +491,12 @@ export function SimulationCockpitPage() {
         {
           role: "assistant",
           content: result.answer,
+          debug_trace: getMetadataLearnerDebugTrace(result.metadata),
           token_usage: getMetadataAnswerTokenUsage(result.metadata),
           tool_calls: getMetadataToolCalls(result.metadata)
         }
       ]);
+      setSelectedLearnerMessageIndex(nextHistory.length);
     } catch (error) {
       setLearnerError(getErrorMessage(error, "Unable to ask learning agent"));
     }
@@ -601,7 +651,9 @@ export function SimulationCockpitPage() {
           question={learnerQuestion}
           error={learnerError}
           pending={learnerAskMutation.isPending}
+          selectedMessageIndex={selectedLearnerMessageIndex}
           onQuestionChange={setLearnerQuestion}
+          onSelectAssistantMessage={setSelectedLearnerMessageIndex}
           onSend={submitLearnerQuestion}
           onHide={() => setIsLearnerDialogOpen(false)}
         />

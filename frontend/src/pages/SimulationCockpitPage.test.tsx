@@ -233,7 +233,11 @@ describe("SimulationCockpitPage", () => {
         answer: "Hold your target and ask for objective criteria.",
         metadata: {
           answer_token_usage: { total_tokens: 123 },
-          tool_calls: ["crag_tool", "tavily_search_tool"]
+          tool_calls: ["crag_tool", "tavily_search_tool"],
+          learner_debug_trace: {
+            explicit_tool_request: { requested: true, tool_names: ["crag_tool"] },
+            events: [{ type: "tool_call", tool_name: "crag_tool" }]
+          }
         },
         timestamp: "2026-06-10T09:01:00Z"
       })
@@ -242,7 +246,11 @@ describe("SimulationCockpitPage", () => {
         status: "paused",
         answer: "Then ask for a written rationale.",
         metadata: {
-          answer_token_usage: { total_tokens: 45 }
+          answer_token_usage: { total_tokens: 45 },
+          learner_debug_trace: {
+            explicit_tool_request: { requested: false, tool_names: [] },
+            events: [{ type: "tool_result", tool_name: "summarize_negotiation_history_tool", status: "success" }]
+          }
         },
         timestamp: "2026-06-10T09:02:00Z"
       });
@@ -271,6 +279,12 @@ describe("SimulationCockpitPage", () => {
     expect(screen.getByText("Tools used")).toBeInTheDocument();
     expect(screen.getByText("CRAG retrieval")).toBeInTheDocument();
     expect(screen.getByText("Web search")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Learner debug trace" })).toHaveTextContent(
+      '"explicit_tool_request": {'
+    );
+    expect(screen.getByRole("region", { name: "Learner debug trace" })).toHaveTextContent(
+      '"tool_name": "crag_tool"'
+    );
 
     await user.type(screen.getByLabelText("Question for learning agent"), "What next?");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -287,6 +301,102 @@ describe("SimulationCockpitPage", () => {
     });
     expect(screen.getByText("Then ask for a written rationale.")).toBeInTheDocument();
     expect(screen.getByText("45 tokens")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Learner debug trace" })).toHaveTextContent(
+      '"tool_name": "summarize_negotiation_history_tool"'
+    );
+  });
+
+  it("selects learner debug traces by clicking assistant answers", async () => {
+    queryState.simulation = {
+      ...simulation,
+      negotiation_state: {
+        current_phase: "bargaining",
+        user_side: "side_a",
+        data: {
+          learner_config: { enabled: true }
+        }
+      }
+    };
+    queryState.learnerAskMutateAsync
+      .mockResolvedValueOnce({
+        simulation_id: 1,
+        status: "paused",
+        answer: "First answer.",
+        metadata: {
+          learner_debug_trace: {
+            events: [{ type: "tool_call", tool_name: "crag_tool" }]
+          }
+        },
+        timestamp: "2026-06-10T09:01:00Z"
+      })
+      .mockResolvedValueOnce({
+        simulation_id: 1,
+        status: "paused",
+        answer: "Second answer.",
+        metadata: {
+          learner_debug_trace: {
+            events: [{ type: "tool_call", tool_name: "tavily_search_tool" }]
+          }
+        },
+        timestamp: "2026-06-10T09:02:00Z"
+      });
+
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Ask Learning Agent" }));
+    expect(screen.getByText("No debug trace selected yet.")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Question for learning agent"), "First?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: "Learner debug trace" })).toHaveTextContent(
+        '"tool_name": "crag_tool"'
+      );
+    });
+
+    await user.type(screen.getByLabelText("Question for learning agent"), "Second?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: "Learner debug trace" })).toHaveTextContent(
+        '"tool_name": "tavily_search_tool"'
+      );
+    });
+    expect(screen.getByRole("region", { name: "Learner debug trace" })).not.toHaveTextContent(
+      '"tool_name": "crag_tool"'
+    );
+
+    await user.click(screen.getByRole("button", { name: "First answer." }));
+
+    expect(screen.getByRole("region", { name: "Learner debug trace" })).toHaveTextContent(
+      '"tool_name": "crag_tool"'
+    );
+    expect(screen.getByRole("region", { name: "Learner debug trace" })).not.toHaveTextContent(
+      '"tool_name": "tavily_search_tool"'
+    );
+  });
+
+  it("sizes the learner dialog trace and question panels compactly", async () => {
+    queryState.simulation = {
+      ...simulation,
+      negotiation_state: {
+        current_phase: "bargaining",
+        user_side: "side_a",
+        data: {
+          learner_config: { enabled: true }
+        }
+      }
+    };
+
+    const user = userEvent.setup();
+    render(<SimulationCockpitPage />);
+
+    await user.click(screen.getByRole("button", { name: "Ask Learning Agent" }));
+
+    expect(screen.getByRole("dialog", { name: "Ask Learning Agent" })).toHaveClass("max-h-[calc(84vh+3rem)]");
+    expect(screen.getByTestId("learner-qa-panel")).toHaveClass("flex-1");
+    expect(screen.getByRole("region", { name: "Learner debug trace" }).querySelector("p")).toHaveClass("h-32");
+    expect(screen.getByLabelText("Question for learning agent")).toHaveStyle({ minHeight: "6rem" });
   });
 
   it("shows no tools called for learner answers without tool calls", async () => {
@@ -323,6 +433,7 @@ describe("SimulationCockpitPage", () => {
     });
     expect(screen.getByText("No tools called")).toBeInTheDocument();
     expect(screen.queryByText(/\d+ tokens$/)).not.toBeInTheDocument();
+    expect(screen.getByText("No debug trace selected yet.")).toBeInTheDocument();
   });
 
   it("preserves learner chat while hiding and reopening the dialog", async () => {
