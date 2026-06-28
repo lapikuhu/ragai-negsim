@@ -144,7 +144,7 @@ pip install alembic
 
 ### 3. Configure environment variables
 
-Create or replace `.env.example` with your own local values. At minimum, configure:
+Copy `.env.example` with your own local values in your `.env` file. At minimum, configure:
 
 - `ASYNC_DATABASE_URL`
 - `NEO4J_URI`
@@ -155,7 +155,6 @@ Create or replace `.env.example` with your own local values. At minimum, configu
 - `OPENAI_API_KEY`
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD`
-- `RAW_DOCS_DIR`
 - `HF_TOKEN`
 
 If you plan to use knowledge graph features, make sure the target Neo4j DBMS has the APOC plugin enabled before running a build.

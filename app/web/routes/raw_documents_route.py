@@ -73,7 +73,7 @@ async def create_raw_document(
 
     return _serialize_raw_document(raw_document, fallback_username=current_user.username)
 
-### ------------------ LIST RAW DOCUMENTS WITH FILTERS AND PAGINATION ------------------- ###
+### ----------- LIST RAW DOCUMENTS WITH FILTERS AND PAGINATION ------------ ###
 @router.get("/", response_model=list[RawDocumentRead])
 async def list_raw_documents(session: SessionDep,
                              skip: int = 0,
@@ -87,9 +87,12 @@ async def list_raw_documents(session: SessionDep,
         session: The database session to use for the query.
         skip: The number of records to skip for pagination.
         limit: The maximum number of records to return.
-        uploaded_by_user_id: Optional filter to return documents uploaded by a specific user.
-        corpus_id: Optional filter to return documents associated with a specific corpus.
-        name_contains: Optional filter to return documents whose names contain a specific substring.
+        uploaded_by_user_id: Optional filter to return documents uploaded 
+            by a specific user.
+        corpus_id: Optional filter to return documents associated with a 
+            specific corpus.
+        name_contains: Optional filter to return documents whose names contain 
+            a specific substring.
     Returns:
         A list of RawDocument instances matching the filters and pagination criteria.    
     """

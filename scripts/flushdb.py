@@ -40,6 +40,11 @@ async def flush_db() -> None:
     Returns:
         None
     """
+    # Small guardail to prevent accidental execution
+    user_input = input("Are you sure you want to flush the database? This will delete all data. (yes/no): ")
+    if user_input.lower() != "yes" and user_input.lower() != "y":
+        print("Database flush aborted.")
+        return
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
