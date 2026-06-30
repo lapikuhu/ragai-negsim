@@ -512,6 +512,7 @@ async def get_corpus_or_404(corpus_id: int, session: SessionDep) -> Corpus:
 
 CorpusDep: TypeAlias = Annotated[Corpus, Depends(get_corpus_or_404)]
 CorpusCreatorDep: TypeAlias = TeacherOrAdminDep
+CorpusViewerDep: TypeAlias = TeacherOrAdminDep
 
 async def get_owned_corpus(
     corpus: CorpusDep,
@@ -643,6 +644,10 @@ async def get_raw_document_or_404(
 
 RawDocumentDep: TypeAlias = Annotated[RawDocument, Depends(get_raw_document_or_404)]
 RawDocumentCreatorDep: TypeAlias = TeacherOrAdminDep
+RawDocumentViewerDep: TypeAlias = Annotated[
+    User,
+    Depends(require_any_role({"admin", "teacher", "student"})),
+]
 
 
 async def get_writable_raw_document(

@@ -13,6 +13,7 @@ from app.core.dependencies import (
     IngestionExecutionOptionsDep,
     SessionDep,
     RawDocumentCreatorDep,
+    RawDocumentViewerDep,
     WritableRawDocumentDep,
 )
 
@@ -76,6 +77,7 @@ async def create_raw_document(
 ### ----------- LIST RAW DOCUMENTS WITH FILTERS AND PAGINATION ------------ ###
 @router.get("/", response_model=list[RawDocumentRead])
 async def list_raw_documents(session: SessionDep,
+                             _current_user: RawDocumentViewerDep,
                              skip: int = 0,
                              limit: int = 10,
                              uploaded_by_user_id: int | None = None,
@@ -85,6 +87,8 @@ async def list_raw_documents(session: SessionDep,
     Endpoint to list raw documents with optional filters and pagination.
     Args:
         session: The database session to use for the query.
+        _current_user: The current user making the request, used for 
+            permission checks.
         skip: The number of records to skip for pagination.
         limit: The maximum number of records to return.
         uploaded_by_user_id: Optional filter to return documents uploaded 
@@ -106,12 +110,18 @@ async def list_raw_documents(session: SessionDep,
 
 ### ------------------ GET A RAW DOCUMENT BY ID ------------------- ###
 @router.get("/{raw_document_id}", response_model=RawDocumentRead)
-async def get_raw_document_by_id(raw_document_id: int, session: SessionDep) -> RawDocumentRead:
+async def get_raw_document_by_id(
+    raw_document_id: int,
+    session: SessionDep,
+    _current_user: RawDocumentViewerDep,
+) -> RawDocumentRead:
     """
     Endpoint to get a raw document by its ID.
     Args:
         raw_document_id: The ID of the raw document to retrieve.
         session: The database session to use for the query.
+        _current_user: The current user making the request, used for 
+            permission checks.
     Returns:
         The RawDocument instance if found, else raises a 404 HTTPException.
     """

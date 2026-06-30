@@ -3,6 +3,7 @@ from app.core.dependencies import (
     ChunkingProfileDep,
     ChunkingExecutionOptionsDep,
     CorpusCreatorDep,
+    CorpusViewerDep,
     IngestionExecutionOptionsDep,
     SessionDep,
     VectorStoreRecordDep,
@@ -78,6 +79,7 @@ async def create_corpus(
             status_code=200)
 async def list_corpora(
     session: SessionDep,
+    _current_user: CorpusViewerDep,
     skip: int = 0,
     limit: int = 20,
     created_by_user_id: int | None = None,
@@ -88,6 +90,8 @@ async def list_corpora(
     Endpoint to list all corpora.
     Args:
         session: The database session to use for the operation.
+        _current_user: The current user making the request, used for 
+            permission checks.
         skip: The number of records to skip for pagination.
         limit: The maximum number of records to return.
         created_by_user_id: Optional filter to return corpora created by a 

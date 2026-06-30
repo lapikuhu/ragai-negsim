@@ -501,8 +501,14 @@ def test_raw_document_detail_returns_uploader_username(monkeypatch):
     async def fake_startup_seed():
         return None
 
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
+
     async def fake_get_session():
         yield object()
+
+    async def fake_user_has_role(_user, role_name, _session):
+        return role_name == "teacher"
 
     async def fake_get_raw_document_by_id_srvc(_session, raw_document_id):
         assert raw_document_id == 21
@@ -532,7 +538,9 @@ def test_raw_document_detail_returns_uploader_username(monkeypatch):
     )
 
     app = main_module.app
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
     app.dependency_overrides[dependencies.get_session] = fake_get_session
+    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
 
     try:
         with TestClient(app) as client:
@@ -545,12 +553,154 @@ def test_raw_document_detail_returns_uploader_username(monkeypatch):
         app.dependency_overrides.clear()
 
 
+@pytest.mark.parametrize("role_name", ["admin", "teacher", "student"])
+@pytest.mark.parametrize(
+    ("path", "service_name"),
+    [
+        ("/raw-documents/", "list_raw_documents_srvc"),
+        ("/raw-documents/21", "get_raw_document_by_id_srvc"),
+    ],
+)
+def test_raw_document_read_routes_allow_all_roles(monkeypatch, path, service_name, role_name):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username=role_name, roles=[SimpleNamespace(name=role_name)])
+
+    async def fake_get_session():
+        yield object()
+
+    async def fake_user_has_role(_user, requested_role_name, _session):
+        return requested_role_name == role_name
+
+    async def fake_list_raw_documents_srvc(*_args, **_kwargs):
+        return []
+
+    async def fake_get_raw_document_by_id_srvc(_session, raw_document_id):
+        assert raw_document_id == 21
+        return SimpleNamespace(
+            id=21,
+            name="alpha brief",
+            description="Uploaded for smoke testing",
+            source_path="app/raw_docs_store/alpha-brief.pdf",
+            source_hash="abc123",
+            source_size=2048,
+            source_mtime=_now(),
+            source_status="available",
+            uploaded_at=_now(),
+            uploaded_by_user_id=1,
+            uploaded_by=SimpleNamespace(username=role_name),
+            parsed_at=None,
+        )
+
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+
+    from app.web.routes import raw_documents_route
+
+    service = (
+        fake_list_raw_documents_srvc
+        if service_name == "list_raw_documents_srvc"
+        else fake_get_raw_document_by_id_srvc
+    )
+    monkeypatch.setattr(raw_documents_route, service_name, service)
+    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+
+    app = main_module.app
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+
+    try:
+        with TestClient(app) as client:
+            response = client.get(path)
+
+        assert response.status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize(
+    ("path", "service_name"),
+    [
+        ("/raw-documents/", "list_raw_documents_srvc"),
+        ("/raw-documents/21", "get_raw_document_by_id_srvc"),
+    ],
+)
+def test_raw_document_read_routes_reject_authenticated_user_without_allowed_role(
+    monkeypatch,
+    path,
+    service_name,
+):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username="viewer", roles=[SimpleNamespace(name="viewer")])
+
+    async def fake_get_session():
+        yield object()
+
+    async def fake_user_has_role(_user, _requested_role_name, _session):
+        return False
+
+    async def fake_list_raw_documents_srvc(*_args, **_kwargs):
+        return []
+
+    async def fake_get_raw_document_by_id_srvc(_session, raw_document_id):
+        assert raw_document_id == 21
+        return SimpleNamespace(
+            id=21,
+            name="alpha brief",
+            description="Uploaded for smoke testing",
+            source_path="app/raw_docs_store/alpha-brief.pdf",
+            source_hash="abc123",
+            source_size=2048,
+            source_mtime=_now(),
+            source_status="available",
+            uploaded_at=_now(),
+            uploaded_by_user_id=1,
+            uploaded_by=SimpleNamespace(username="viewer"),
+            parsed_at=None,
+        )
+
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+
+    from app.web.routes import raw_documents_route
+
+    service = (
+        fake_list_raw_documents_srvc
+        if service_name == "list_raw_documents_srvc"
+        else fake_get_raw_document_by_id_srvc
+    )
+    monkeypatch.setattr(raw_documents_route, service_name, service)
+    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+
+    app = main_module.app
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+
+    try:
+        with TestClient(app) as client:
+            response = client.get(path)
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Insufficient permissions"
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_list_corpora_returns_creator_and_editor_usernames(monkeypatch):
     async def fake_startup_seed():
         return None
 
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
+
     async def fake_get_session():
         yield object()
+
+    async def fake_user_has_role(_user, role_name, _session):
+        return role_name == "teacher"
 
     async def fake_list_corpora_srvc(*_args, **_kwargs):
         return [
@@ -571,8 +721,10 @@ def test_list_corpora_returns_creator_and_editor_usernames(monkeypatch):
     from app.web.routes import corpus_route
 
     monkeypatch.setattr(corpus_route, "list_corpora_srvc", fake_list_corpora_srvc)
+    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
 
     app = main_module.app
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
     app.dependency_overrides[dependencies.get_session] = fake_get_session
 
     try:
@@ -582,5 +734,80 @@ def test_list_corpora_returns_creator_and_editor_usernames(monkeypatch):
         assert response.status_code == 200
         assert response.json()[0]["created_by_username"] == "teacher"
         assert response.json()[0]["last_edit_by_username"] == "coach"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize("role_name", ["admin", "teacher"])
+def test_list_corpora_allows_admin_and_teacher(monkeypatch, role_name):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username=role_name, roles=[SimpleNamespace(name=role_name)])
+
+    async def fake_get_session():
+        yield object()
+
+    async def fake_user_has_role(_user, requested_role_name, _session):
+        return requested_role_name == role_name
+
+    async def fake_list_corpora_srvc(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+
+    from app.web.routes import corpus_route
+
+    monkeypatch.setattr(corpus_route, "list_corpora_srvc", fake_list_corpora_srvc)
+    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+
+    app = main_module.app
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/corpora/")
+
+        assert response.status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize("role_name", ["student", "viewer"])
+def test_list_corpora_rejects_users_without_admin_or_teacher_role(monkeypatch, role_name):
+    async def fake_startup_seed():
+        return None
+
+    async def fake_get_current_user():
+        return SimpleNamespace(id=1, username=role_name, roles=[SimpleNamespace(name=role_name)])
+
+    async def fake_get_session():
+        yield object()
+
+    async def fake_user_has_role(_user, requested_role_name, _session):
+        return requested_role_name == role_name
+
+    async def fake_list_corpora_srvc(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+
+    from app.web.routes import corpus_route
+
+    monkeypatch.setattr(corpus_route, "list_corpora_srvc", fake_list_corpora_srvc)
+    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+
+    app = main_module.app
+    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+    app.dependency_overrides[dependencies.get_session] = fake_get_session
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/corpora/")
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Insufficient permissions"
     finally:
         app.dependency_overrides.clear()
