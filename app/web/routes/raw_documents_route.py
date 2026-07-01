@@ -5,7 +5,7 @@ from app.services.ingestion_service import ingest_raw_document_srvc
 from app.services.chunking_service import chunk_raw_document_srvc
 from app.schemas.chunking_schemas import RawDocumentChunkResult
 from app.schemas.ingestion_schemas import RawDocumentIngestResult
-from app.schemas.raw_documents_schemas import RawDocumentRead
+from app.schemas.raw_documents_schemas import RawDocumentDetailRead, RawDocumentRead
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from app.core.dependencies import (
     ChunkingProfileDep,
@@ -36,6 +36,21 @@ def _serialize_raw_document(raw_document, fallback_username: str | None = None) 
     uploaded_by_username = getattr(uploaded_by, "username", None) or fallback_username
     payload["uploaded_by_username"] = uploaded_by_username
     return RawDocumentRead(**payload)
+
+
+def _serialize_raw_document_detail(raw_document) -> RawDocumentDetailRead:
+    """
+    Serialize a raw document detail response with compact associated corpora.
+    Args:
+        raw_document: The raw document object to serialize.
+    Returns:
+        RawDocumentDetailRead: The serialized raw document detail data.
+    """
+    payload = RawDocumentDetailRead.model_validate(raw_document).model_dump()
+    uploaded_by = getattr(raw_document, "uploaded_by", None)
+    payload["uploaded_by_username"] = getattr(uploaded_by, "username", None)
+    payload["associated_corpora"] = getattr(raw_document, "associated_corpora", [])
+    return RawDocumentDetailRead(**payload)
 
 ### ------------------ CREATE A NEW RAW DOCUMENT ------------------- ###
 @router.post("/", response_model=RawDocumentRead, status_code=status.HTTP_201_CREATED)
@@ -109,12 +124,12 @@ async def list_raw_documents(session: SessionDep,
     return [_serialize_raw_document(raw_document) for raw_document in raw_documents]
 
 ### ------------------ GET A RAW DOCUMENT BY ID ------------------- ###
-@router.get("/{raw_document_id}", response_model=RawDocumentRead)
+@router.get("/{raw_document_id}", response_model=RawDocumentDetailRead)
 async def get_raw_document_by_id(
     raw_document_id: int,
     session: SessionDep,
     _current_user: RawDocumentViewerDep,
-) -> RawDocumentRead:
+) -> RawDocumentDetailRead:
     """
     Endpoint to get a raw document by its ID.
     Args:
@@ -128,7 +143,7 @@ async def get_raw_document_by_id(
     raw_document = await get_raw_document_by_id_srvc(session, raw_document_id)
     if not raw_document:
         raise HTTPException(status_code=404, detail="Raw document not found")
-    return _serialize_raw_document(raw_document)
+    return _serialize_raw_document_detail(raw_document)
 
 
 ### ------------------ INGEST A RAW DOCUMENT ------------------- ###

@@ -524,6 +524,9 @@ def test_raw_document_detail_returns_uploader_username(monkeypatch):
             uploaded_at=_now(),
             uploaded_by_user_id=1,
             uploaded_by=SimpleNamespace(username="teacher"),
+            associated_corpora=[
+                SimpleNamespace(id=11, name="Negotiation corpus", description="Practice briefs"),
+            ],
             parsed_at=None,
         )
 
@@ -547,8 +550,13 @@ def test_raw_document_detail_returns_uploader_username(monkeypatch):
             response = client.get("/raw-documents/21")
 
         assert response.status_code == 200
-        assert response.json()["uploaded_by_user_id"] == 1
-        assert response.json()["uploaded_by_username"] == "teacher"
+        payload = response.json()
+        assert payload["uploaded_by_user_id"] == 1
+        assert payload["uploaded_by_username"] == "teacher"
+        assert payload["associated_corpora"] == [
+            {"id": 11, "name": "Negotiation corpus", "description": "Practice briefs"}
+        ]
+        assert "parsed_at" not in payload
     finally:
         app.dependency_overrides.clear()
 

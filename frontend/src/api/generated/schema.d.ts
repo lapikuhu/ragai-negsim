@@ -171,6 +171,8 @@ export type paths = {
          * @description Endpoint to list all corpora.
          *     Args:
          *         session: The database session to use for the operation.
+         *         _current_user: The current user making the request, used for
+         *             permission checks.
          *         skip: The number of records to skip for pagination.
          *         limit: The maximum number of records to return.
          *         created_by_user_id: Optional filter to return corpora created by a
@@ -636,6 +638,36 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/document-chunks/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Document Chunks
+         * @description List document chunks with optional filters and pagination.
+         *         Args:
+         *             session: The database session.
+         *             _admin: Dependency to ensure the user has admin privileges.
+         *             page: Pagination parameters.
+         *             raw_document_id: Optional filter for raw document ID.
+         *             chunking_profile_id: Optional filter for chunking profile ID.
+         *             has_indexed_chunks: Optional filter for whether the chunk has
+         *                 indexed chunks.
+         *         Returns:
+         *             A list of DocumentChunkAdminRead instances.
+         */
+        get: operations["list_document_chunks_document_chunks__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/embeddings/models": {
         parameters: {
             query?: never;
@@ -784,7 +816,18 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List Knowledge Graph Build Jobs */
+        /**
+         * List Knowledge Graph Build Jobs
+         * @description List knowledge graph build jobs with optional filtering and pagination.
+         *     Args:
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency to ensure the user has admin privileges.
+         *         page (Page): The pagination parameters.
+         *         graph_id (int | None): Optional filter by knowledge graph index ID.
+         *         status_filter (str | None): Optional filter by job status.
+         *     Returns:
+         *         list[KnowledgeGraphBuildJobRead]: A list of knowledge graph build jobs.
+         */
         get: operations["list_knowledge_graph_build_jobs_knowledge_graph_build_jobs__get"];
         put?: never;
         post?: never;
@@ -801,7 +844,17 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get Knowledge Graph Build Job */
+        /**
+         * Get Knowledge Graph Build Job
+         * @description Get a knowledge graph build job by its ID.
+         *     Args:
+         *         job_id (int): The ID of the knowledge graph build job.
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency to ensure the user has
+         *             admin privileges.
+         *     Returns:
+         *         KnowledgeGraphBuildJobRead: The knowledge graph build job details.
+         */
         get: operations["get_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__get"];
         put?: never;
         post?: never;
@@ -820,7 +873,17 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Cancel Knowledge Graph Build Job */
+        /**
+         * Cancel Knowledge Graph Build Job
+         * @description Cancel a knowledge graph build job by its ID.
+         *     Args:
+         *         job_id (int): The ID of the knowledge graph build job.
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency to ensure the user has
+         *             admin privileges.
+         *     Returns:
+         *         KnowledgeGraphBuildJobRead: The updated knowledge graph build job details.
+         */
         post: operations["cancel_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__cancel_post"];
         delete?: never;
         options?: never;
@@ -835,10 +898,38 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List Knowledge Graph Indices */
+        /**
+         * List Knowledge Graph Indices
+         * @description List knowledge graph indices with optional filtering and pagination.
+         *     Args:
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency to ensure the user has
+         *             admin privileges.
+         *         page (Page): The pagination parameters.
+         *         corpus_index_id (int | None): Optional filter by corpus index ID.
+         *         status_filter (str | None): Optional filter by status.
+         *     Returns:
+         *         list[KnowledgeGraphIndexReadWithUsage]: A list of knowledge graph
+         *         indices with their usage details.
+         */
         get: operations["list_knowledge_graph_indices_knowledge_graph_indexes__get"];
         put?: never;
-        /** Create Knowledge Graph Index */
+        /**
+         * Create Knowledge Graph Index
+         * @description Create a new knowledge graph index.
+         *     Args:
+         *         graph_in (KnowledgeGraphIndexCreate): The data for the knowledge
+         *             graph index to create.
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency to ensure the user has
+         *             admin privileges.
+         *     Returns:
+         *         KnowledgeGraphIndexReadWithUsage: The created knowledge graph
+         *         index with its usage details.
+         *     Raises:
+         *         HTTPException: If there is a conflict or error during the creation
+         *         of the knowledge graph index
+         */
         post: operations["create_knowledge_graph_index_knowledge_graph_indexes__post"];
         delete?: never;
         options?: never;
@@ -853,15 +944,45 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get Knowledge Graph Index */
+        /**
+         * Get Knowledge Graph Index
+         * @description Get a knowledge graph index by its ID.
+         *     Args:
+         *         graph (AdminKnowledgeGraphIndexDep): The knowledge graph index
+         *             dependency.
+         *         session (SessionDep): The database session dependency.
+         *     Returns:
+         *         KnowledgeGraphIndexReadWithUsage: The knowledge graph index with its usage details.
+         */
         get: operations["get_knowledge_graph_index_knowledge_graph_indexes__graph_id__get"];
         put?: never;
         post?: never;
-        /** Delete Knowledge Graph Index */
+        /**
+         * Delete Knowledge Graph Index
+         * @description Delete a knowledge graph index.
+         *     Args:
+         *         graph (AdminKnowledgeGraphIndexDep): The knowledge graph index
+         *             dependency.
+         *         session (SessionDep): The database session dependency.
+         *     Returns:
+         *         Response: An empty response with HTTP 204 status code.
+         */
         delete: operations["delete_knowledge_graph_index_knowledge_graph_indexes__graph_id__delete"];
         options?: never;
         head?: never;
-        /** Update Knowledge Graph Index */
+        /**
+         * Update Knowledge Graph Index
+         * @description Update a knowledge graph index.
+         *     Args:
+         *         graph_in (KnowledgeGraphIndexUpdate): The data for updating the
+         *         knowledge graph index.
+         *         graph (AdminKnowledgeGraphIndexDep): The knowledge graph index
+         *             dependency.
+         *         session (SessionDep): The database session dependency.
+         *     Returns:
+         *         KnowledgeGraphIndexReadWithUsage: The updated knowledge graph
+         *         index with its usage details.
+         */
         patch: operations["update_knowledge_graph_index_knowledge_graph_indexes__graph_id__patch"];
         trace?: never;
     };
@@ -874,7 +995,16 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Build Knowledge Graph */
+        /**
+         * Build Knowledge Graph
+         * @description Build a knowledge graph index.
+         *     Args:
+         *         graph (AdminKnowledgeGraphIndexDep): The knowledge graph index
+         *             dependency.
+         *         session (SessionDep): The database session dependency.
+         *     Returns:
+         *         KnowledgeGraphBuildJobRead: The knowledge graph build job details.
+         */
         post: operations["build_knowledge_graph_knowledge_graph_indexes__graph_id__build_post"];
         delete?: never;
         options?: never;
@@ -891,7 +1021,16 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Rebuild Knowledge Graph */
+        /**
+         * Rebuild Knowledge Graph
+         * @description Rebuild a knowledge graph index.
+         *     Args:
+         *         graph (AdminKnowledgeGraphIndexDep): The knowledge graph index
+         *         dependency.
+         *         session (SessionDep): The database session dependency.
+         *     Returns:
+         *         KnowledgeGraphBuildJobRead: The knowledge graph build job details.
+         */
         post: operations["rebuild_knowledge_graph_knowledge_graph_indexes__graph_id__rebuild_post"];
         delete?: never;
         options?: never;
@@ -1194,11 +1333,16 @@ export type paths = {
          * @description Endpoint to list raw documents with optional filters and pagination.
          *     Args:
          *         session: The database session to use for the query.
+         *         _current_user: The current user making the request, used for
+         *             permission checks.
          *         skip: The number of records to skip for pagination.
          *         limit: The maximum number of records to return.
-         *         uploaded_by_user_id: Optional filter to return documents uploaded by a specific user.
-         *         corpus_id: Optional filter to return documents associated with a specific corpus.
-         *         name_contains: Optional filter to return documents whose names contain a specific substring.
+         *         uploaded_by_user_id: Optional filter to return documents uploaded
+         *             by a specific user.
+         *         corpus_id: Optional filter to return documents associated with a
+         *             specific corpus.
+         *         name_contains: Optional filter to return documents whose names contain
+         *             a specific substring.
          *     Returns:
          *         A list of RawDocument instances matching the filters and pagination criteria.
          */
@@ -1237,6 +1381,8 @@ export type paths = {
          *     Args:
          *         raw_document_id: The ID of the raw document to retrieve.
          *         session: The database session to use for the query.
+         *         _current_user: The current user making the request, used for
+         *             permission checks.
          *     Returns:
          *         The RawDocument instance if found, else raises a 404 HTTPException.
          */
@@ -1361,7 +1507,8 @@ export type paths = {
          *     Returns:
          *         ScenarioPublicReadWithIds: The scenario with its IDs.
          *     Raises:
-         *         HTTPException: If the scenario is not found or if there is an error retrieving the scenario.
+         *         HTTPException: If the scenario is not found or if there is an error
+         *         retrieving the scenario.
          */
         get: operations["get_scenario_scenarios__scenario_id__get"];
         put?: never;
@@ -1402,7 +1549,20 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get Scenario Authoring */
+        /**
+         * Get Scenario Authoring
+         * @description Get the authoring details of a scenario by its ID.
+         *     Args:
+         *         scenario (WritableScenarioDep): The scenario dependency with
+         *             write permissions.
+         *         session (SessionDep): The database session dependency.
+         *     Returns:
+         *         ScenarioAuthoringReadWithIds: The scenario authoring details with
+         *         its IDs.
+         *     Raises:
+         *         HTTPException: If the scenario is not found or if there is an error
+         *         retrieving the scenario authoring details.
+         */
         get: operations["get_scenario_authoring_scenarios__scenario_id__authoring_get"];
         put?: never;
         post?: never;
@@ -1451,7 +1611,18 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Generate Scenario Context */
+        /**
+         * Generate Scenario Context
+         * @description Generate scenario context.
+         *     Args:
+         *         scenario_data (ScenarioContextGenerateRequest): The data for
+         *             generating the scenario context.
+         *         model (ChatModelDep): The chat model dependency.
+         *         _current_user (ScenarioCreatorDep): The current user dependency
+         *             with scenario creation permissions.
+         *     Returns:
+         *         ScenarioContextGenerateResponse: The generated scenario context.
+         */
         post: operations["generate_scenario_context_scenarios_generate_context_post"];
         delete?: never;
         options?: never;
@@ -1694,6 +1865,36 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/simulations/{simulation_id}/learner/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask Simulation Learner
+         * @description Ask the simulation learner for on-demand advice.
+         *     Args:
+         *         ask_data: The data for the learner ask request.
+         *         simulation: The simulation instance.
+         *         session: The database session.
+         *         current_user: The user asking the learner.
+         *     Returns:
+         *         A SimulationLearnerAskResponse containing the answer and metadata.
+         *     Raises:
+         *         ValueError: If the simulation is not active or paused, or if it
+         *         has ended.
+         */
+        post: operations["ask_simulation_learner_simulations__simulation_id__learner_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/simulations/{simulation_id}/proxy-turn": {
         parameters: {
             query?: never;
@@ -1793,7 +1994,20 @@ export type paths = {
         delete: operations["delete_review_simulation_simulations__simulation_id__review_delete"];
         options?: never;
         head?: never;
-        /** Update Review Simulation */
+        /**
+         * Update Review Simulation
+         * @description Update a teacher review for a simulation.
+         *     Args:
+         *         review_data: The data for the teacher review, including feedback.
+         *         simulation: The simulation instance to update.
+         *         session: The database session.
+         *         current_user: The teacher submitting the review.
+         *     Returns:
+         *         A SimulationRead containing the updated simulation with the review.
+         *     Raises:
+         *         ValueError: If the current user is not a teacher or if the review
+         *         cannot be updated due to the simulation's current status.
+         */
         patch: operations["update_review_simulation_simulations__simulation_id__review_patch"];
         trace?: never;
     };
@@ -2696,6 +2910,15 @@ export type components = {
             /** Corpus name */
             name: string;
         };
+        /** CorpusSummaryRead */
+        CorpusSummaryRead: {
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: number;
+            /** Corpus name */
+            name: string;
+        };
         /** CounterpartPersonaCopyRequest */
         CounterpartPersonaCopyRequest: {
             /** Description */
@@ -2741,6 +2964,78 @@ export type components = {
             description?: string | null;
             /** Counterpart persona name */
             name?: string | null;
+        };
+        /** DocumentChunkAdminRead */
+        DocumentChunkAdminRead: {
+            /** Chunk Index */
+            chunk_index: number;
+            /** Chunk Metadata */
+            chunk_metadata?: {
+                [key: string]: unknown;
+            };
+            /** Chunking Profile Id */
+            chunking_profile_id: number;
+            /** Chunking Profile Name */
+            chunking_profile_name?: string | null;
+            /** Chunking Strategy */
+            chunking_strategy?: string | null;
+            /** Content */
+            content: string;
+            /** Corpus Index Ids */
+            corpus_index_ids?: number[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /**
+             * Indexed Count
+             * @default 0
+             */
+            indexed_count: number;
+            /** Indexing Job Id */
+            indexing_job_id?: number | null;
+            /**
+             * Is Indexed
+             * @default false
+             */
+            is_indexed: boolean;
+            /**
+             * Last Updated
+             * Format: date-time
+             */
+            last_updated: string;
+            /** Raw Document Id */
+            raw_document_id: number;
+            /** Raw Document Name */
+            raw_document_name?: string | null;
+        };
+        /** DocumentChunkListResponse */
+        DocumentChunkListResponse: {
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Items */
+            items?: components["schemas"]["DocumentChunkAdminRead"][];
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** EmbeddingModelRead */
         EmbeddingModelRead: {
@@ -3247,6 +3542,40 @@ export type components = {
             /** Raw Document Id */
             raw_document_id: number;
         };
+        /** RawDocumentDetailRead */
+        RawDocumentDetailRead: {
+            /** Associated Corpora */
+            associated_corpora?: components["schemas"]["CorpusSummaryRead"][];
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: number;
+            /** Raw document name */
+            name: string;
+            /** Source Hash */
+            source_hash?: string | null;
+            /** Source Mtime */
+            source_mtime?: string | null;
+            /** Raw document source path */
+            source_path: string;
+            /** Source Size */
+            source_size?: number | null;
+            /**
+             * Source Status
+             * @default unverified
+             * @enum {string}
+             */
+            source_status: "available" | "missing" | "changed" | "unverified" | "error";
+            /**
+             * Uploaded At
+             * Format: date-time
+             */
+            uploaded_at: string;
+            /** Uploaded By User Id */
+            uploaded_by_user_id: number;
+            /** Uploaded By Username */
+            uploaded_by_username?: string | null;
+        };
         /** RawDocumentIngestResult */
         RawDocumentIngestResult: {
             /** Chunk Ids */
@@ -3526,6 +3855,33 @@ export type components = {
             description?: string | null;
             /** Evaluator Prompt Id */
             evaluator_prompt_id?: number | null;
+            /** Learner Response Llm Model */
+            learner_response_llm_model?: string | null;
+            /** Learner Response Llm Provider */
+            learner_response_llm_provider?: ("openai" | "ollama") | null;
+            /** Learner Summary Llm Model */
+            learner_summary_llm_model?: string | null;
+            /** Learner Summary Llm Provider */
+            learner_summary_llm_provider?: ("openai" | "ollama") | null;
+            /**
+             * Learner Tavily Include Answers
+             * @default false
+             */
+            learner_tavily_include_answers: boolean;
+            /**
+             * Learner Tavily Include Images
+             * @default false
+             */
+            learner_tavily_include_images: boolean;
+            /**
+             * Learner Tavily Max Results
+             * @default 5
+             */
+            learner_tavily_max_results: number;
+            /** Learner Tavily Summary Llm Model */
+            learner_tavily_summary_llm_model?: string | null;
+            /** Learner Tavily Summary Llm Provider */
+            learner_tavily_summary_llm_provider?: ("openai" | "ollama") | null;
             /** Simulation name */
             name: string;
             /** Rag Profile Id */
@@ -3534,6 +3890,11 @@ export type components = {
             scenario_id?: number | null;
             /** Session Id */
             session_id?: number | null;
+            /**
+             * Use Learner Agent
+             * @default false
+             */
+            use_learner_agent: boolean;
             /** User Id Participant */
             user_id_participant?: number | null;
             /** User Side */
@@ -3670,6 +4031,84 @@ export type components = {
              * @enum {string}
              */
             visibility_level: "learner" | "teacher" | "debug";
+        };
+        /**
+         * SimulationLearnerAskRequest
+         * @description Request schema for learner's ask in a simulation.
+         *     Attributes:
+         *         query (str): The learner's query.
+         *         context (dict[str, Any]): Optional context for the query.
+         *         timestamp (datetime): The time of the request.
+         */
+        SimulationLearnerAskRequest: {
+            /** Ephemeral learner chat history */
+            chat_history?: components["schemas"]["SimulationLearnerChatMessage"][];
+            /** Optional context for the query */
+            context?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Include Tavily answer
+             * @default false
+             */
+            include_answers: boolean;
+            /**
+             * Include Tavily images
+             * @default false
+             */
+            include_images: boolean;
+            /** Learner Llm Model */
+            learner_llm_model?: string | null;
+            /** Learner Llm Provider */
+            learner_llm_provider?: ("openai" | "ollama") | null;
+            /**
+             * Maximum web search results
+             * @default 5
+             */
+            max_results: number;
+            /** Learner's query */
+            query: string;
+            /**
+             * Time of the request
+             * Format: date-time
+             */
+            timestamp?: string;
+        };
+        /**
+         * SimulationLearnerAskResponse
+         * @description Response schema for learner's ask in a simulation.
+         *     Attributes:
+         *         answer (str): The answer to the learner's query.
+         *         metadata (dict[str, Any]): Optional metadata related to the
+         *             response.
+         *         timestamp (datetime): The time of the response.
+         */
+        SimulationLearnerAskResponse: {
+            /** Answer to the learner's query */
+            answer: string;
+            /** Optional metadata related to the response */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Simulation Id */
+            simulation_id: number;
+            /** Status */
+            status: string;
+            /**
+             * Time of the response
+             * Format: date-time
+             */
+            timestamp?: string;
+        };
+        /** SimulationLearnerChatMessage */
+        SimulationLearnerChatMessage: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
         };
         /** SimulationMessageSchema */
         SimulationMessageSchema: {
@@ -5094,6 +5533,41 @@ export interface operations {
             };
         };
     };
+    list_document_chunks_document_chunks__get: {
+        parameters: {
+            query?: {
+                chunking_profile_id?: number | null;
+                has_indexed_chunks?: boolean | null;
+                limit?: number;
+                raw_document_id?: number | null;
+                skip?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentChunkListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_embedding_models_embeddings_models_get: {
         parameters: {
             query?: never;
@@ -6105,7 +6579,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RawDocumentRead"];
+                    "application/json": components["schemas"]["RawDocumentDetailRead"];
                 };
             };
             /** @description Validation Error */
@@ -6877,6 +7351,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimulationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_simulation_learner_simulations__simulation_id__learner_ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                simulation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulationLearnerAskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationLearnerAskResponse"];
                 };
             };
             /** @description Validation Error */

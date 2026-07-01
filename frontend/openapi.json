@@ -801,6 +801,116 @@
         }
       }
     },
+    "/document-chunks/": {
+      "get": {
+        "tags": [
+          "document-chunks"
+        ],
+        "summary": "List Document Chunks",
+        "description": "List document chunks with optional filters and pagination.\n    Args:\n        session: The database session.\n        _admin: Dependency to ensure the user has admin privileges.\n        page: Pagination parameters.\n        raw_document_id: Optional filter for raw document ID.\n        chunking_profile_id: Optional filter for chunking profile ID.\n        has_indexed_chunks: Optional filter for whether the chunk has \n            indexed chunks.\n    Returns:\n        A list of DocumentChunkAdminRead instances.",
+        "operationId": "list_document_chunks_document_chunks__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "raw_document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Raw Document Id"
+            }
+          },
+          {
+            "name": "chunking_profile_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Chunking Profile Id"
+            }
+          },
+          {
+            "name": "has_indexed_chunks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Indexed Chunks"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentChunkListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/corpus-indices/": {
       "post": {
         "tags": [
@@ -1408,8 +1518,13 @@
           "corpora"
         ],
         "summary": "List Corpora",
-        "description": "Endpoint to list all corpora.\nArgs:\n    session: The database session to use for the operation.\n    skip: The number of records to skip for pagination.\n    limit: The maximum number of records to return.\n    created_by_user_id: Optional filter to return corpora created by a \n        specific user.\n    raw_document_id: Optional filter to return corpora associated with a \n        specific raw document.\n    has_indices: Optional filter to return corpora that have indices.\nReturns:\n    A list of CorpusRead instances representing all corpora.",
+        "description": "Endpoint to list all corpora.\nArgs:\n    session: The database session to use for the operation.\n    _current_user: The current user making the request, used for \n        permission checks.\n    skip: The number of records to skip for pagination.\n    limit: The maximum number of records to return.\n    created_by_user_id: Optional filter to return corpora created by a \n        specific user.\n    raw_document_id: Optional filter to return corpora associated with a \n        specific raw document.\n    has_indices: Optional filter to return corpora that have indices.\nReturns:\n    A list of CorpusRead instances representing all corpora.",
         "operationId": "list_corpora_corpora__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "skip",
@@ -2109,6 +2224,7 @@
           "knowledge-graph-indexes"
         ],
         "summary": "Create Knowledge Graph Index",
+        "description": "Create a new knowledge graph index.\nArgs:\n    graph_in (KnowledgeGraphIndexCreate): The data for the knowledge \n        graph index to create.\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency to ensure the user has \n        admin privileges.\nReturns:\n    KnowledgeGraphIndexReadWithUsage: The created knowledge graph \n    index with its usage details.\nRaises:\n    HTTPException: If there is a conflict or error during the creation \n    of the knowledge graph index",
         "operationId": "create_knowledge_graph_index_knowledge_graph_indexes__post",
         "security": [
           {
@@ -2153,6 +2269,7 @@
           "knowledge-graph-indexes"
         ],
         "summary": "List Knowledge Graph Indices",
+        "description": "List knowledge graph indices with optional filtering and pagination.\nArgs:\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency to ensure the user has \n        admin privileges.\n    page (Page): The pagination parameters.\n    corpus_index_id (int | None): Optional filter by corpus index ID.\n    status_filter (str | None): Optional filter by status.\nReturns:\n    list[KnowledgeGraphIndexReadWithUsage]: A list of knowledge graph \n    indices with their usage details.",
         "operationId": "list_knowledge_graph_indices_knowledge_graph_indexes__get",
         "security": [
           {
@@ -2250,6 +2367,7 @@
           "knowledge-graph-indexes"
         ],
         "summary": "Get Knowledge Graph Index",
+        "description": "Get a knowledge graph index by its ID.\nArgs:\n    graph (AdminKnowledgeGraphIndexDep): The knowledge graph index \n        dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    KnowledgeGraphIndexReadWithUsage: The knowledge graph index with its usage details.",
         "operationId": "get_knowledge_graph_index_knowledge_graph_indexes__graph_id__get",
         "security": [
           {
@@ -2295,6 +2413,7 @@
           "knowledge-graph-indexes"
         ],
         "summary": "Update Knowledge Graph Index",
+        "description": "Update a knowledge graph index.\nArgs:\n    graph_in (KnowledgeGraphIndexUpdate): The data for updating the \n    knowledge graph index.\n    graph (AdminKnowledgeGraphIndexDep): The knowledge graph index \n        dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    KnowledgeGraphIndexReadWithUsage: The updated knowledge graph \n    index with its usage details.",
         "operationId": "update_knowledge_graph_index_knowledge_graph_indexes__graph_id__patch",
         "security": [
           {
@@ -2350,6 +2469,7 @@
           "knowledge-graph-indexes"
         ],
         "summary": "Delete Knowledge Graph Index",
+        "description": "Delete a knowledge graph index.\nArgs:\n    graph (AdminKnowledgeGraphIndexDep): The knowledge graph index \n        dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    Response: An empty response with HTTP 204 status code.",
         "operationId": "delete_knowledge_graph_index_knowledge_graph_indexes__graph_id__delete",
         "security": [
           {
@@ -2390,6 +2510,7 @@
           "knowledge-graph-indexes"
         ],
         "summary": "Build Knowledge Graph",
+        "description": "Build a knowledge graph index.\nArgs:\n    graph (AdminKnowledgeGraphIndexDep): The knowledge graph index \n        dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    KnowledgeGraphBuildJobRead: The knowledge graph build job details.",
         "operationId": "build_knowledge_graph_knowledge_graph_indexes__graph_id__build_post",
         "security": [
           {
@@ -2437,6 +2558,7 @@
           "knowledge-graph-indexes"
         ],
         "summary": "Rebuild Knowledge Graph",
+        "description": "Rebuild a knowledge graph index.\nArgs:\n    graph (AdminKnowledgeGraphIndexDep): The knowledge graph index \n    dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    KnowledgeGraphBuildJobRead: The knowledge graph build job details.",
         "operationId": "rebuild_knowledge_graph_knowledge_graph_indexes__graph_id__rebuild_post",
         "security": [
           {
@@ -2484,6 +2606,7 @@
           "knowledge-graph-build-jobs"
         ],
         "summary": "List Knowledge Graph Build Jobs",
+        "description": "List knowledge graph build jobs with optional filtering and pagination.\nArgs:\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency to ensure the user has admin privileges.\n    page (Page): The pagination parameters.\n    graph_id (int | None): Optional filter by knowledge graph index ID.\n    status_filter (str | None): Optional filter by job status.\nReturns:\n    list[KnowledgeGraphBuildJobRead]: A list of knowledge graph build jobs.",
         "operationId": "list_knowledge_graph_build_jobs_knowledge_graph_build_jobs__get",
         "security": [
           {
@@ -2581,6 +2704,7 @@
           "knowledge-graph-build-jobs"
         ],
         "summary": "Get Knowledge Graph Build Job",
+        "description": "Get a knowledge graph build job by its ID.\nArgs:\n    job_id (int): The ID of the knowledge graph build job.\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency to ensure the user has \n        admin privileges.\nReturns:\n    KnowledgeGraphBuildJobRead: The knowledge graph build job details.",
         "operationId": "get_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__get",
         "security": [
           {
@@ -2628,6 +2752,7 @@
           "knowledge-graph-build-jobs"
         ],
         "summary": "Cancel Knowledge Graph Build Job",
+        "description": "Cancel a knowledge graph build job by its ID.\nArgs:\n    job_id (int): The ID of the knowledge graph build job.\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency to ensure the user has \n        admin privileges.\nReturns:\n    KnowledgeGraphBuildJobRead: The updated knowledge graph build job details.",
         "operationId": "cancel_knowledge_graph_build_job_knowledge_graph_build_jobs__job_id__cancel_post",
         "security": [
           {
@@ -3514,8 +3639,13 @@
           "Raw Documents"
         ],
         "summary": "List Raw Documents",
-        "description": "Endpoint to list raw documents with optional filters and pagination.\nArgs:\n    session: The database session to use for the query.\n    skip: The number of records to skip for pagination.\n    limit: The maximum number of records to return.\n    uploaded_by_user_id: Optional filter to return documents uploaded by a specific user.\n    corpus_id: Optional filter to return documents associated with a specific corpus.\n    name_contains: Optional filter to return documents whose names contain a specific substring.\nReturns:\n    A list of RawDocument instances matching the filters and pagination criteria.",
+        "description": "Endpoint to list raw documents with optional filters and pagination.\nArgs:\n    session: The database session to use for the query.\n    _current_user: The current user making the request, used for \n        permission checks.\n    skip: The number of records to skip for pagination.\n    limit: The maximum number of records to return.\n    uploaded_by_user_id: Optional filter to return documents uploaded \n        by a specific user.\n    corpus_id: Optional filter to return documents associated with a \n        specific corpus.\n    name_contains: Optional filter to return documents whose names contain \n        a specific substring.\nReturns:\n    A list of RawDocument instances matching the filters and pagination criteria.",
         "operationId": "list_raw_documents_raw_documents__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "skip",
@@ -3620,8 +3750,13 @@
           "Raw Documents"
         ],
         "summary": "Get Raw Document By Id",
-        "description": "Endpoint to get a raw document by its ID.\nArgs:\n    raw_document_id: The ID of the raw document to retrieve.\n    session: The database session to use for the query.\nReturns:\n    The RawDocument instance if found, else raises a 404 HTTPException.",
+        "description": "Endpoint to get a raw document by its ID.\nArgs:\n    raw_document_id: The ID of the raw document to retrieve.\n    session: The database session to use for the query.\n    _current_user: The current user making the request, used for \n        permission checks.\nReturns:\n    The RawDocument instance if found, else raises a 404 HTTPException.",
         "operationId": "get_raw_document_by_id_raw_documents__raw_document_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "raw_document_id",
@@ -3639,7 +3774,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RawDocumentRead"
+                  "$ref": "#/components/schemas/RawDocumentDetailRead"
                 }
               }
             }
@@ -3965,6 +4100,7 @@
           "scenarios"
         ],
         "summary": "Generate Scenario Context",
+        "description": "Generate scenario context.\nArgs:\n    scenario_data (ScenarioContextGenerateRequest): The data for \n        generating the scenario context.\n    model (ChatModelDep): The chat model dependency.\n    _current_user (ScenarioCreatorDep): The current user dependency \n        with scenario creation permissions.\nReturns:\n    ScenarioContextGenerateResponse: The generated scenario context.",
         "operationId": "generate_scenario_context_scenarios_generate_context_post",
         "security": [
           {
@@ -4043,7 +4179,7 @@
           "scenarios"
         ],
         "summary": "Get Scenario",
-        "description": "Get a scenario by its ID.\nArgs:\n    scenario (ScenarioViewerDep): The scenario dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    ScenarioPublicReadWithIds: The scenario with its IDs.\nRaises:\n    HTTPException: If the scenario is not found or if there is an error retrieving the scenario.",
+        "description": "Get a scenario by its ID.\nArgs:\n    scenario (ScenarioViewerDep): The scenario dependency.\n    session (SessionDep): The database session dependency.\nReturns:\n    ScenarioPublicReadWithIds: The scenario with its IDs.\nRaises:\n    HTTPException: If the scenario is not found or if there is an error \n    retrieving the scenario.",
         "operationId": "get_scenario_scenarios__scenario_id__get",
         "security": [
           {
@@ -4186,6 +4322,7 @@
           "scenarios"
         ],
         "summary": "Get Scenario Authoring",
+        "description": "Get the authoring details of a scenario by its ID.\nArgs:\n    scenario (WritableScenarioDep): The scenario dependency with \n        write permissions.\n    session (SessionDep): The database session dependency.\nReturns:\n    ScenarioAuthoringReadWithIds: The scenario authoring details with \n    its IDs.\nRaises:\n    HTTPException: If the scenario is not found or if there is an error \n    retrieving the scenario authoring details.",
         "operationId": "get_scenario_authoring_scenarios__scenario_id__authoring_get",
         "security": [
           {
@@ -5443,6 +5580,64 @@
         }
       }
     },
+    "/simulations/{simulation_id}/learner/ask": {
+      "post": {
+        "tags": [
+          "simulations"
+        ],
+        "summary": "Ask Simulation Learner",
+        "description": "Ask the simulation learner for on-demand advice.\nArgs:\n    ask_data: The data for the learner ask request.\n    simulation: The simulation instance.\n    session: The database session.\n    current_user: The user asking the learner.\nReturns:\n    A SimulationLearnerAskResponse containing the answer and metadata.\nRaises:\n    ValueError: If the simulation is not active or paused, or if it \n    has ended.",
+        "operationId": "ask_simulation_learner_simulations__simulation_id__learner_ask_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Simulation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationLearnerAskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationLearnerAskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/simulations/{simulation_id}/state": {
       "get": {
         "tags": [
@@ -5601,6 +5796,7 @@
           "simulations"
         ],
         "summary": "Update Review Simulation",
+        "description": "Update a teacher review for a simulation.\nArgs:\n    review_data: The data for the teacher review, including feedback.\n    simulation: The simulation instance to update.\n    session: The database session.\n    current_user: The teacher submitting the review.\nReturns:\n    A SimulationRead containing the updated simulation with the review.\nRaises:\n    ValueError: If the current user is not a teacher or if the review \n    cannot be updated due to the simulation's current status.",
         "operationId": "update_review_simulation_simulations__simulation_id__review_patch",
         "security": [
           {
@@ -7709,6 +7905,36 @@
         ],
         "title": "CorpusRead"
       },
+      "CorpusSummaryRead": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Corpus name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "id"
+        ],
+        "title": "CorpusSummaryRead"
+      },
       "CounterpartPersonaCopyRequest": {
         "properties": {
           "name": {
@@ -7852,6 +8078,151 @@
         },
         "type": "object",
         "title": "CounterpartPersonaUpdateRequest"
+      },
+      "DocumentChunkAdminRead": {
+        "properties": {
+          "raw_document_id": {
+            "type": "integer",
+            "title": "Raw Document Id"
+          },
+          "chunking_profile_id": {
+            "type": "integer",
+            "title": "Chunking Profile Id"
+          },
+          "indexing_job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexing Job Id"
+          },
+          "chunk_index": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Chunk Index"
+          },
+          "chunk_metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Chunk Metadata"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "raw_document_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Document Name"
+          },
+          "chunking_profile_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunking Profile Name"
+          },
+          "chunking_strategy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunking Strategy"
+          },
+          "corpus_index_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Corpus Index Ids"
+          },
+          "indexed_count": {
+            "type": "integer",
+            "title": "Indexed Count",
+            "default": 0
+          },
+          "is_indexed": {
+            "type": "boolean",
+            "title": "Is Indexed",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_document_id",
+          "chunking_profile_id",
+          "chunk_index",
+          "id",
+          "content",
+          "created_at",
+          "last_updated"
+        ],
+        "title": "DocumentChunkAdminRead"
+      },
+      "DocumentChunkListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentChunkAdminRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip",
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "default": 20
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "DocumentChunkListResponse"
       },
       "EmbeddingModelRead": {
         "properties": {
@@ -9330,6 +9701,118 @@
         ],
         "title": "RawDocumentChunkResult"
       },
+      "RawDocumentDetailRead": {
+        "properties": {
+          "source_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Hash"
+          },
+          "source_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Size"
+          },
+          "source_mtime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Mtime"
+          },
+          "source_status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "missing",
+              "changed",
+              "unverified",
+              "error"
+            ],
+            "title": "Source Status",
+            "default": "unverified"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Raw document name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "source_path": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Raw document source path"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "uploaded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Uploaded At"
+          },
+          "uploaded_by_user_id": {
+            "type": "integer",
+            "title": "Uploaded By User Id"
+          },
+          "uploaded_by_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded By Username"
+          },
+          "associated_corpora": {
+            "items": {
+              "$ref": "#/components/schemas/CorpusSummaryRead"
+            },
+            "type": "array",
+            "title": "Associated Corpora"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "source_path",
+          "id",
+          "uploaded_at",
+          "uploaded_by_user_id"
+        ],
+        "title": "RawDocumentDetailRead"
+      },
       "RawDocumentIngestResult": {
         "properties": {
           "raw_document_id": {
@@ -10162,6 +10645,105 @@
               }
             ],
             "title": "User Side"
+          },
+          "use_learner_agent": {
+            "type": "boolean",
+            "title": "Use Learner Agent",
+            "default": false
+          },
+          "learner_response_llm_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learner Response Llm Provider"
+          },
+          "learner_response_llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learner Response Llm Model"
+          },
+          "learner_summary_llm_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learner Summary Llm Provider"
+          },
+          "learner_summary_llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learner Summary Llm Model"
+          },
+          "learner_tavily_summary_llm_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learner Tavily Summary Llm Provider"
+          },
+          "learner_tavily_summary_llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learner Tavily Summary Llm Model"
+          },
+          "learner_tavily_max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Learner Tavily Max Results",
+            "default": 5
+          },
+          "learner_tavily_include_images": {
+            "type": "boolean",
+            "title": "Learner Tavily Include Images",
+            "default": false
+          },
+          "learner_tavily_include_answers": {
+            "type": "boolean",
+            "title": "Learner Tavily Include Answers",
+            "default": false
           }
         },
         "type": "object",
@@ -10503,6 +11085,138 @@
           "created_at"
         ],
         "title": "SimulationEvidenceLedgerRead"
+      },
+      "SimulationLearnerAskRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Learner's query"
+          },
+          "context": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Optional context for the query"
+          },
+          "chat_history": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationLearnerChatMessage"
+            },
+            "type": "array",
+            "title": "Ephemeral learner chat history"
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Maximum web search results",
+            "default": 5
+          },
+          "include_images": {
+            "type": "boolean",
+            "title": "Include Tavily images",
+            "default": false
+          },
+          "include_answers": {
+            "type": "boolean",
+            "title": "Include Tavily answer",
+            "default": false
+          },
+          "learner_llm_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learner Llm Provider"
+          },
+          "learner_llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learner Llm Model"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time of the request"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SimulationLearnerAskRequest",
+        "description": "Request schema for learner's ask in a simulation.\nAttributes:\n    query (str): The learner's query.\n    context (dict[str, Any]): Optional context for the query.\n    timestamp (datetime): The time of the request."
+      },
+      "SimulationLearnerAskResponse": {
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Optional metadata related to the response"
+          },
+          "simulation_id": {
+            "type": "integer",
+            "title": "Simulation Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "answer": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Answer to the learner's query"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time of the response"
+          }
+        },
+        "type": "object",
+        "required": [
+          "simulation_id",
+          "status",
+          "answer"
+        ],
+        "title": "SimulationLearnerAskResponse",
+        "description": "Response schema for learner's ask in a simulation.\nAttributes:\n    answer (str): The answer to the learner's query.\n    metadata (dict[str, Any]): Optional metadata related to the \n        response.\n    timestamp (datetime): The time of the response."
+      },
+      "SimulationLearnerChatMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "SimulationLearnerChatMessage"
       },
       "SimulationMessageSchema": {
         "properties": {

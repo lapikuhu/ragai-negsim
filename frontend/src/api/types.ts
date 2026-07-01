@@ -239,6 +239,12 @@ export type KnowledgeGraphBuildJobRead = {
 
 export type RawDocumentSourceStatus = "available" | "missing" | "changed" | "unverified" | "error";
 
+export type CorpusSummaryRead = {
+  id: number;
+  name: string;
+  description?: string | null;
+};
+
 export type RawDocumentRead = {
   id: number;
   name: string;
@@ -252,6 +258,7 @@ export type RawDocumentRead = {
   uploaded_by_user_id: number;
   uploaded_by_username?: string | null;
   parsed_at?: string | null;
+  associated_corpora?: CorpusSummaryRead[];
 };
 
 type LegacyRawDocumentRead = {
@@ -268,6 +275,7 @@ type LegacyRawDocumentRead = {
   uploaded_by_user_id: number;
   uploaded_by_username?: string | null;
   parsed_at?: string | null;
+  associated_corpora?: CorpusSummaryRead[];
 };
 
 export function coerceRawDocumentRead(document: LegacyRawDocumentRead): RawDocumentRead {
@@ -283,6 +291,7 @@ export function coerceRawDocumentRead(document: LegacyRawDocumentRead): RawDocum
     uploaded_at: document.uploaded_at,
     uploaded_by_user_id: document.uploaded_by_user_id,
     uploaded_by_username: document.uploaded_by_username ?? null,
-    parsed_at: document.parsed_at ?? null
+    parsed_at: document.parsed_at ?? null,
+    associated_corpora: document.associated_corpora ?? []
   };
 }

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from app.models.corpus import Corpus
 from app.models.document_chunks import DocumentChunk
 from app.models.raw_documents import CorpusRawDocumentLink, RawDocument
 from app.repositories.helpers import commit_and_refresh
@@ -122,6 +123,30 @@ async def get_raw_document_corpus_ids(
         )
     )
     return [corpus_id for corpus_id in result.all() if corpus_id is not None]
+
+
+async def list_raw_document_corpora(
+    raw_document_id: int,
+    session: AsyncSession,
+) -> list[Corpus]:
+    """
+    List compact corpus records associated with a raw document.
+        Args:
+            raw_document_id: The ID of the raw document.
+            session: The database session.
+        Returns:
+            Corpora linked to the raw document.
+    """
+    result = await session.exec(
+        select(Corpus)
+        .join(
+            CorpusRawDocumentLink,
+            Corpus.id == CorpusRawDocumentLink.corpus_id,
+        )
+        .where(CorpusRawDocumentLink.raw_document_id == raw_document_id)
+        .order_by(Corpus.name)
+    )
+    return list(result.all())
 
 
 async def get_raw_document_document_chunk_ids(

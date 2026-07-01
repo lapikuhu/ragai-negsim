@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DocumentDetailPage } from "./DocumentDetailPage";
@@ -19,6 +20,7 @@ const state = vi.hoisted(() => ({
       uploaded_at: "2026-06-24T10:05:00Z",
       uploaded_by_user_id: 12,
       uploaded_by_username: "teacher" as string | null,
+      associated_corpora: [{ id: 4, name: "Negotiation corpus", description: "Practice briefs" }],
       parsed_at: null
     },
     error: null as Error | null,
@@ -37,9 +39,13 @@ const state = vi.hoisted(() => ({
   }
 }));
 
-vi.mock("react-router-dom", () => ({
-  useParams: () => ({ documentId: "7" })
-}));
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    useParams: () => ({ documentId: "7" })
+  };
+});
 
 vi.mock("@/features/documents/documentQueries", () => ({
   useDocumentDetailQuery: () => state.query,
@@ -73,12 +79,13 @@ describe("DocumentDetailPage", () => {
       uploaded_at: "2026-06-24T10:05:00Z",
       uploaded_by_user_id: 12,
       uploaded_by_username: "teacher" as string | null,
+      associated_corpora: [{ id: 4, name: "Negotiation corpus", description: "Practice briefs" }],
       parsed_at: null
     };
   });
 
   it("shows the uploader username when the API provides it", () => {
-    render(<DocumentDetailPage />);
+    render(<DocumentDetailPage />, { wrapper: MemoryRouter });
 
     expect(screen.getByText("teacher")).toBeInTheDocument();
     expect(screen.queryByText(/^12$/)).not.toBeInTheDocument();
@@ -90,8 +97,29 @@ describe("DocumentDetailPage", () => {
       uploaded_by_username: null
     };
 
-    render(<DocumentDetailPage />);
+    render(<DocumentDetailPage />, { wrapper: MemoryRouter });
 
     expect(screen.getByText("12")).toBeInTheDocument();
+  });
+
+  it("shows associated corpora as links and hides the parsed timestamp", () => {
+    render(<DocumentDetailPage />, { wrapper: MemoryRouter });
+
+    const corpusLink = screen.getByRole("link", { name: /Negotiation corpus/i });
+
+    expect(corpusLink).toHaveAttribute("href", "/corpora/4");
+    expect(screen.getByText("ID 4")).toBeInTheDocument();
+    expect(screen.queryByText("Parsed at")).not.toBeInTheDocument();
+  });
+
+  it("shows a neutral empty state when the document is not associated with any corpora", () => {
+    state.query.data = {
+      ...state.query.data,
+      associated_corpora: []
+    };
+
+    render(<DocumentDetailPage />, { wrapper: MemoryRouter });
+
+    expect(screen.getByText("No associated corpora")).toBeInTheDocument();
   });
 });

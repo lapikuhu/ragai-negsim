@@ -3,6 +3,8 @@ from typing import Literal
 
 from sqlmodel import Field, SQLModel
 
+from app.schemas.corpus_schemas import CorpusSummaryRead
+
 RawDocumentSourceStatus = Literal["available", "missing", "changed", "unverified", "error"]
 
 
@@ -33,6 +35,14 @@ class RawDocumentRead(RawDocumentBase, RawDocumentSourceMetadata):
     uploaded_by_user_id: int
     uploaded_by_username: str | None = None
     parsed_at: datetime | None = None
+
+
+class RawDocumentDetailRead(RawDocumentBase, RawDocumentSourceMetadata):
+    id: int
+    uploaded_at: datetime
+    uploaded_by_user_id: int
+    uploaded_by_username: str | None = None
+    associated_corpora: list[CorpusSummaryRead] = Field(default_factory=list)
 
 
 class RawDocumentUpdate(SQLModel):

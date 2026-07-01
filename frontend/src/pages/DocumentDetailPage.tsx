@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   useChunkDocumentMutation,
   useDocumentDetailQuery,
@@ -49,10 +49,27 @@ export function DocumentDetailPage() {
             { label: "Source size", value: document.source_size ?? "Not available" },
             { label: "Source mtime", value: formatDateTime(document.source_mtime) },
             { label: "Uploaded by", value: document.uploaded_by_username ?? document.uploaded_by_user_id },
-            { label: "Uploaded at", value: formatDateTime(document.uploaded_at) },
-            { label: "Parsed at", value: formatDateTime(document.parsed_at) }
+            { label: "Uploaded at", value: formatDateTime(document.uploaded_at) }
           ]}
         />
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold text-slate-950">Associated corpora</h2>
+        {document.associated_corpora?.length ? (
+          <ul className="mt-4 grid gap-3">
+            {document.associated_corpora.map((corpus) => (
+              <li key={corpus.id} className="rounded-xl bg-slate-50 px-3 py-2">
+                <Link className="font-medium text-accent" to={`/corpora/${corpus.id}`}>
+                  {corpus.name}
+                </Link>
+                <p className="mt-1 text-xs text-slate-500">ID {corpus.id}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">No associated corpora</p>
+        )}
       </Card>
 
       <Card>

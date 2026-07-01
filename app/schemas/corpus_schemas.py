@@ -21,6 +21,10 @@ class CorpusRead(CorpusBase):
 	created_at: datetime
 
 
+class CorpusSummaryRead(CorpusBase):
+	id: int
+
+
 class CorpusUpdate(SQLModel):
 	name: str | None = Field(default=None, min_length=3, title="Corpus name")
 	description: str | None = None

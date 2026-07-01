@@ -138,7 +138,12 @@ export function SimulationsPage() {
                     learner_tavily_include_images: form.learnerTavilyIncludeImages,
                     learner_tavily_include_answers: form.learnerTavilyIncludeAnswers
                   }
-                : { use_learner_agent: false };
+                : {
+                    use_learner_agent: false,
+                    learner_tavily_max_results: Number(form.learnerTavilyMaxResults || "5"),
+                    learner_tavily_include_images: false,
+                    learner_tavily_include_answers: false
+                  };
               const simulation = await createMutation.mutateAsync({
                 name: form.name,
                 description: form.description || null,

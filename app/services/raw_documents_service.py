@@ -11,6 +11,7 @@ from app.models.users import User
 from app.repositories.raw_documents_repo import (
     create_raw_document,
     get_raw_document_by_id,
+    list_raw_document_corpora,
     list_raw_documents,
 )
 from app.schemas.raw_documents_schemas import RawDocumentCreate, RawDocumentCreateDb
@@ -245,4 +246,10 @@ async def get_raw_document_by_id_srvc(
     raw_document = await get_raw_document_by_id(raw_document_id, session)
     if raw_document is None:
         return None
-    return await verify_raw_document_source_srvc(raw_document, session)
+    verified_document = await verify_raw_document_source_srvc(raw_document, session)
+    object.__setattr__(
+        verified_document,
+        "associated_corpora",
+        await list_raw_document_corpora(raw_document_id, session),
+    )
+    return verified_document
