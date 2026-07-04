@@ -154,9 +154,12 @@ def extract_source_cards(ledger: dict[str, Any] | None) -> list[dict[str, Any]]:
     if direct_sources:
         return direct_sources
 
-    crag = ledger.get("crag")
-    if isinstance(crag, dict):
-        return _source_list(crag.get("sources"))
+    for nested_key in ("crag", "graphrag"):
+        nested = ledger.get(nested_key)
+        if isinstance(nested, dict):
+            sources = _source_list(nested.get("sources"))
+            if sources:
+                return sources
     return []
 
 

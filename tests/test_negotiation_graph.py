@@ -2,6 +2,7 @@ from typing import get_args
 
 import pytest
 
+from app.airag.chains.negotiation import negotiation as negotiation_module
 from app.airag.chains.agents.evaluator.evaluator import make_evaluator_graph
 from app.airag.chains.negotiation.negotiation import make_negotiation_graph
 from app.airag.chains.negotiation.negotiation_model import (
@@ -172,6 +173,35 @@ def build_stubbed_negotiation_graph(
         evaluator_graph=StubGraph(evaluator),
         coach_graph=StubGraph(coach),
     )
+
+
+def test_make_negotiation_graph_passes_retrieval_strategy_to_agent_graphs(monkeypatch):
+    captured = {}
+
+    def fake_make_coach_graph(**kwargs):
+        captured["coach"] = kwargs
+        return StubGraph(lambda state: state)
+
+    def fake_make_evaluator_graph(**kwargs):
+        captured["evaluator"] = kwargs
+        return StubGraph(lambda state: state)
+
+    monkeypatch.setattr(negotiation_module, "make_coach_graph", fake_make_coach_graph)
+    monkeypatch.setattr(
+        negotiation_module,
+        "make_evaluator_graph",
+        fake_make_evaluator_graph,
+    )
+
+    negotiation_module.make_negotiation_graph(
+        crag_graph="retrieval-graph",
+        retrieval_strategy="graphrag",
+        counterpart_graph=StubGraph(lambda state: state),
+        intent_classifier_graph=StubGraph(lambda state: state),
+    )
+
+    assert captured["coach"]["retrieval_strategy"] == "graphrag"
+    assert captured["evaluator"]["retrieval_strategy"] == "graphrag"
 
 
 def test_normal_turn_is_counterpart_evaluator_coach_pause():

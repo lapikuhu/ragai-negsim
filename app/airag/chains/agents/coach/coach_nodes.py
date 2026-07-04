@@ -5,7 +5,7 @@ from langsmith import traceable
 
 # local imports
 from app.airag.chains.agents.coach.coach_helpers import (
-    build_crag_query,
+    build_rag_query,
     build_coach_trusted_context,
     fallback_advice,
     render_coach_prompt,
@@ -41,56 +41,69 @@ def node_prepare_coach_context(state: CoachGraphState) -> dict:
 	}
 
 
-def node_route_crag_queries(state: CoachGraphState) -> dict:
+def node_route_rag_queries(state: CoachGraphState) -> dict:
 	"""
-	Node function to build and route CRAG queries based on the current state, 
+	Node function to build and route RAG queries based on the current state, 
 	emphasizing key negotiation details and any missing information that 
 	could be relevant for retrieval.
 	Args:
         state: The current state of the coach graph, containing all relevant
             information about the negotiation.
 	Returns:
-        A dictionary containing the constructed coach query for CRAG, and an 
+        A dictionary containing the constructed coach query for RAG, and an 
 		    event log entry describing the routing step.
 	"""
 	return {
-		"coach_query": build_crag_query(state),
-		"event_log": ["coach:selected_crag_query"],
+		"coach_query": build_rag_query(state),
+		"event_log": ["coach:selected_rag_query"],
 	}
 
 
-def make_call_crag_node(crag_graph: Any):
+def make_call_rag_node(rag_graph: Any, retrieval_strategy: str = "crag"):
 	"""
-	Factory function to create a node function that calls the CRAG graph 
+	Factory function to create a node function that calls the RAG graph 
 	with the constructed query and updates the retrieval context based on 
-	the results."""
+	the results.
+	Args:
+		rag_graph: The RAG graph to use for context retrieval.
+		retrieval_strategy: The strategy to use for retrieving information 
+			from RAG, either "crag" or "graphrag".
+	Returns:
+		A node function that takes the current coach graph state, invokes the
+		RAG graph with the constructed query, and returns the updated
+		retrieval context along with any validation errors, event log entries
+		describing the RAG invocation, and an updated evidence ledger.
+	"""
+	retrieval_key = "graphrag" if retrieval_strategy == "graphrag" else "crag"
+	retrieval_label = "GraphRAG" if retrieval_key == "graphrag" else "CRAG"
+
 	@traceable
-	def node_call_crag(
+	def node_call_rag(
 		state: CoachGraphState,
 		config: RunnableConfig | None = None,
 	) -> dict:
 		"""
-		Node function to call the CRAG graph with the constructed query
+		Node function to call the RAG graph with the constructed query
 		and update the retrieval context based on the results.
 		Args:
             state: The current state of the coach graph, containing all relevant
                 information about the negotiation, including the constructed coach query.
         Returns:
             A dictionary containing the updated retrieval context based on the 
-			CRAG results, any validation errors, event log entries describing 
-			the CRAG invocation, and an updated evidence ledger.
+			RAG results, any validation errors, event log entries describing 
+			the RAG invocation, and an updated evidence ledger.
 		"""
-		if crag_graph is None:
+		if rag_graph is None:
 			ledger = update_agent_ledger(
 				state,
 				agent_name="coach",
-				step_name="crag",
+				step_name=retrieval_key,
 				status="skipped",
 				detail={"query": state.get("coach_query", "")},
 			)
 			return {
 				"retrieval_context": state.get("retrieval_context", ""),
-				"event_log": ["coach:crag_skipped"],
+				"event_log": [f"coach:{retrieval_key}_skipped"],
 				"evidence_ledger": ledger,
 			}
 
@@ -98,16 +111,16 @@ def make_call_crag_node(crag_graph: Any):
 			trusted_context = build_coach_trusted_context(state)
 			invoke_config = extend_runnable_config(
 				config,
-				tags=["agent:coach", "graph:crag", "node:retrieve_context"],
+				tags=["agent:coach", f"graph:{retrieval_key}", "node:retrieve_context"],
 				metadata={
 					"agent": "coach",
-					"graph": "crag",
+					"graph": retrieval_key,
 					"node": "retrieve_context",
 				},
-				run_name="coach.crag",
+				run_name=f"coach.{retrieval_key}",
 			)
 			result = invoke_with_config(
-				crag_graph,
+				rag_graph,
 				{
 					"question": state.get("coach_query", ""),
 					"attempts": 0,
@@ -116,17 +129,17 @@ def make_call_crag_node(crag_graph: Any):
 				invoke_config,
 			)
 		except Exception as exc:
-			ledger = update_agent_ledger( # Update the coach's ledger with the CRAG invocation failure
+			ledger = update_agent_ledger( # Update the coach's ledger with the RAG invocation failure
 				state,
 				agent_name="coach",
-				step_name="crag",
+				step_name=retrieval_key,
 				status="failed",
 				detail={"query": state.get("coach_query", ""), "error": str(exc)},
 			)
 			return {
 				"retrieval_context": state.get("retrieval_context", ""),
-				"coach_validation_error": f"CRAG invocation failed: {exc}",
-				"event_log": ["coach:crag_failed"],
+				"coach_validation_error": f"{retrieval_label} invocation failed: {exc}",
+				"event_log": [f"coach:{retrieval_key}_failed"],
 				"evidence_ledger": ledger,
 			}
 
@@ -136,13 +149,13 @@ def make_call_crag_node(crag_graph: Any):
 		if not retrieval_context:
 			retrieval_context = state.get("retrieval_context", "")
 
-		ledger = update_agent_ledger( # Update the coach's ledger with the successful CRAG invocation
+		ledger = update_agent_ledger( # Update the coach's ledger with the successful RAG invocation
 			state,
 			agent_name="coach",
-			step_name="crag",
+			step_name=retrieval_key,
 			status="success",
 			detail={"query": state.get("coach_query", "")},
-			extra={"crag": result.get("evidence_ledger", {}) if isinstance(result, dict) else {}},
+			extra={retrieval_key: result.get("evidence_ledger", {}) if isinstance(result, dict) else {}},
 		)
 		sources = (
 			extract_source_cards(result.get("evidence_ledger", {}))
@@ -152,11 +165,11 @@ def make_call_crag_node(crag_graph: Any):
 		return {
 			"retrieval_context": retrieval_context,
 			"sources": sources,
-			"event_log": ["coach:crag_completed"],
+			"event_log": [f"coach:{retrieval_key}_completed"],
 			"evidence_ledger": ledger,
 		}
 
-	return node_call_crag
+	return node_call_rag
 
 
 def make_generate_coach_advice_node(

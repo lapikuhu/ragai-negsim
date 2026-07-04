@@ -58,11 +58,11 @@ def _json_tool_payload(payload: dict[str, Any]) -> str:
     return json.dumps(payload, default=str, ensure_ascii=False)
 
 # Helper Candidate
-def _sources_from_crag_result(result: dict[str, Any]) -> list[dict[str, Any]]:
+def _sources_from_retrieval_result(result: dict[str, Any]) -> list[dict[str, Any]]:
     """
-    Try to extract sources from a CRAG result dictionary.
+    Try to extract sources from a retrieval result dictionary.
     Args:
-        result (dict): The result dictionary from a CRAG invocation.
+        result (dict): The result dictionary from a retrieval invocation.
     Returns:
         list: A list of source dictionaries, or an empty list if none found.
     """
@@ -126,7 +126,7 @@ def make_crag_tool(crag_graph: Any) -> StructuredTool:
                 "status": "success",
                 "answer": result.get("answer", ""),
                 "context": result.get("context", ""),
-                "sources": _sources_from_crag_result(result),
+                "sources": _sources_from_retrieval_result(result),
                 "evidence_ledger": result.get("evidence_ledger", {}),
             }
         )
@@ -190,7 +190,7 @@ def make_graph_rag_tool(graph_rag_instance: Any) -> StructuredTool:
                 "status": "success",
                 "answer": result.get("answer", ""),
                 "context": result.get("context", ""),
-                "sources": _sources_from_crag_result(result),
+                "sources": _sources_from_retrieval_result(result),
                 "evidence_ledger": result.get("evidence_ledger", {}),
             }
         )

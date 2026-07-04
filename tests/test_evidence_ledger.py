@@ -54,9 +54,11 @@ def test_document_source_card_keeps_safe_metadata_and_excerpt():
 def test_extract_source_cards_prefers_direct_sources_then_nested_crag_sources():
     direct = {"sources": [{"rank": 1, "source": "direct.pdf"}]}
     nested = {"crag": {"sources": [{"rank": 2, "source": "nested.pdf"}]}}
+    graphrag = {"graphrag": {"sources": [{"rank": 3, "source": "graph.pdf"}]}}
 
     assert extract_source_cards(direct) == [{"rank": 1, "source": "direct.pdf"}]
     assert extract_source_cards(nested) == [{"rank": 2, "source": "nested.pdf"}]
+    assert extract_source_cards(graphrag) == [{"rank": 3, "source": "graph.pdf"}]
 
 
 def test_build_agent_ledger_record_wraps_visibility_views():
@@ -115,5 +117,40 @@ def test_build_agent_ledger_record_promotes_nested_crag_sources():
             "raw_document_id": 3,
             "document_chunk_id": 7,
             "source": "negotiation-guide.pdf",
+        }
+    ]
+
+
+def test_build_agent_ledger_record_promotes_nested_graphrag_sources():
+    ledger = {
+        "pipeline": {"steps": []},
+        "graphrag": {
+            "sources": [
+                {
+                    "rank": 1,
+                    "raw_document_id": 4,
+                    "document_chunk_id": 8,
+                    "retrieval_strategy": "graphrag",
+                    "source": "graph-guide.pdf",
+                }
+            ]
+        },
+    }
+
+    record = build_agent_ledger_record(
+        simulation_id=42,
+        turn_index=3,
+        agent_name="coach",
+        sequence=4,
+        ledger=ledger,
+    )
+
+    assert record.sources == [
+        {
+            "rank": 1,
+            "raw_document_id": 4,
+            "document_chunk_id": 8,
+            "retrieval_strategy": "graphrag",
+            "source": "graph-guide.pdf",
         }
     ]

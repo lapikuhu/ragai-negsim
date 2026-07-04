@@ -556,6 +556,84 @@ async def test_ask_simulation_learner_returns_enriched_crag_sources(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_ask_simulation_learner_returns_enriched_graphrag_sources(monkeypatch):
+    source_payload = {
+        "status": "success",
+        "answer": "Graph evidence supports anchoring on objective criteria.",
+        "sources": [
+            {
+                "rank": 1,
+                "raw_document_id": 4,
+                "document_chunk_id": 8,
+                "chunk_index": 3,
+                "source": "C:/docs/graph-guide.pdf",
+                "score": 0.88,
+                "retrieval_strategy": "graphrag",
+                "retrieval_mode": "semantic",
+                "graph_id": 12,
+                "graph_generation": "gen-1",
+                "evidence_path": "semantic",
+                "excerpt": "Graph evidence supports objective criteria.",
+            }
+        ],
+    }
+    _patch_basic_learner_service(
+        monkeypatch,
+        {
+            "messages": [
+                FakeAIMessageWithToolCalls(
+                    "",
+                    [{"id": "call-1", "name": "graph_rag_tool", "args": {"question": "BATNA"}}],
+                ),
+                FakeToolMessage(
+                    json.dumps(source_payload),
+                    tool_call_id="call-1",
+                    name="graph_rag_tool",
+                ),
+                {"role": "assistant", "content": "Use objective criteria."},
+            ],
+        },
+        retrieval_strategy="graphrag",
+    )
+
+    async def fake_get_raw_document_by_id(raw_document_id, session):
+        assert raw_document_id == 4
+        return SimpleNamespace(id=4, name="Graph Guide")
+
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "raw_documents_repo",
+        SimpleNamespace(get_raw_document_by_id=fake_get_raw_document_by_id),
+        raising=False,
+    )
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(),
+        SimulationLearnerAskRequest(query="Use GraphRAG for BATNA."),
+        object(),
+        _user(),
+    )
+
+    assert result.sources == [
+        {
+            "rank": 1,
+            "raw_document_id": 4,
+            "raw_document_name": "Graph Guide",
+            "document_chunk_id": 8,
+            "chunk_index": 3,
+            "source": "C:/docs/graph-guide.pdf",
+            "score": 0.88,
+            "retrieval_strategy": "graphrag",
+            "retrieval_mode": "semantic",
+            "graph_id": 12,
+            "graph_generation": "gen-1",
+            "evidence_path": "semantic",
+            "excerpt": "Graph evidence supports objective criteria.",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ask_simulation_learner_records_unavailable_requested_tool(monkeypatch):
     _patch_basic_learner_service(
         monkeypatch,

@@ -72,7 +72,7 @@ def test_crag_invoke_nodes_are_traceable():
 
 
 def test_agent_model_and_subgraph_nodes_are_traceable():
-    assert hasattr(coach_nodes.make_call_crag_node(_DummyGraph()), "__wrapped__")
+    assert hasattr(coach_nodes.make_call_rag_node(_DummyGraph()), "__wrapped__")
     assert hasattr(
         coach_nodes.make_generate_coach_advice_node(_DummyStructuredModel()),
         "__wrapped__",
@@ -95,7 +95,7 @@ def test_agent_model_and_subgraph_nodes_are_traceable():
         "__wrapped__",
     )
 
-    assert hasattr(evaluator_nodes.make_call_crag_node(_DummyGraph()), "__wrapped__")
+    assert hasattr(evaluator_nodes.make_call_rag_node(_DummyGraph()), "__wrapped__")
     assert hasattr(
         evaluator_nodes.make_generate_evaluator_response_node(
             _DummyStructuredModel()

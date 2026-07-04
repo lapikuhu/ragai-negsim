@@ -16,8 +16,8 @@ from app.airag.prompts.neg_prompts.md_loader import EVALUATOR_PROMPT
 
 from app.airag.chains.agents.evaluator.evaluator_nodes import (
     node_prepare_evaluator_context,
-    node_build_evaluator_crag_query,
-    make_call_crag_node,
+    node_build_evaluator_rag_query,
+    make_call_rag_node,
     make_generate_evaluator_response_node,
     make_repair_evaluator_response_node,
     node_fallback_evaluator_response,
@@ -31,7 +31,8 @@ from app.airag.chains.agents.evaluator.evaluator_model import (
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 def make_evaluator_graph(
-	crag_graph: Any = None,
+	rag_graph: Any = None,
+	retrieval_strategy: str = "crag",
 	model: Any = None,
 	prompt_template: str | None = None,
 	state_schema: type[EvaluatorGraphState] = EvaluatorGraphState,
@@ -39,7 +40,9 @@ def make_evaluator_graph(
 	"""
 	Build and compile the evaluator graph.
 	Args:
-		crag_graph: The CRAG graph to use for context retrieval.
+		rag_graph: The RAG graph to use for context retrieval.
+		retrieval_strategy: The strategy to use for retrieving information 
+			from RAG.
 		model: The LLM model to use for generating evaluator responses.
 		prompt_template: The template to use for rendering the evaluator 
 			prompt.
@@ -51,8 +54,11 @@ def make_evaluator_graph(
 
 	evaluator_flow = StateGraph(state_schema)
 	evaluator_flow.add_node("prepare_context", node_prepare_evaluator_context)
-	evaluator_flow.add_node("build_crag_query", node_build_evaluator_crag_query)
-	evaluator_flow.add_node("call_crag", make_call_crag_node(crag_graph))
+	evaluator_flow.add_node("build_rag_query", node_build_evaluator_rag_query)
+	evaluator_flow.add_node(
+		"call_rag",
+		make_call_rag_node(rag_graph, retrieval_strategy=retrieval_strategy),
+	)
 	evaluator_flow.add_node(
 		"generate_evaluator_response",
 		make_generate_evaluator_response_node(evaluator_model, prompt_template),
@@ -65,9 +71,9 @@ def make_evaluator_graph(
 	evaluator_flow.add_node("finalize_evaluator", node_finalize_evaluator)
 
 	evaluator_flow.add_edge(START, "prepare_context")
-	evaluator_flow.add_edge("prepare_context", "build_crag_query")
-	evaluator_flow.add_edge("build_crag_query", "call_crag")
-	evaluator_flow.add_edge("call_crag", "generate_evaluator_response")
+	evaluator_flow.add_edge("prepare_context", "build_rag_query")
+	evaluator_flow.add_edge("build_rag_query", "call_rag")
+	evaluator_flow.add_edge("call_rag", "generate_evaluator_response")
 	evaluator_flow.add_conditional_edges(
 		"generate_evaluator_response",
 		decide_after_generate,

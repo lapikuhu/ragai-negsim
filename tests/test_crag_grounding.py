@@ -3,12 +3,12 @@ from types import SimpleNamespace
 from langchain_core.documents import Document
 
 from app.airag.chains.agents.coach.coach_helpers import build_coach_trusted_context
-from app.airag.chains.agents.coach.coach_nodes import make_call_crag_node as make_call_coach_crag_node
+from app.airag.chains.agents.coach.coach_nodes import make_call_rag_node as make_call_coach_rag_node
 from app.airag.chains.agents.evaluator.evaluator_helpers import (
     build_evaluator_trusted_context,
 )
 from app.airag.chains.agents.evaluator.evaluator_nodes import (
-    make_call_crag_node as make_call_evaluator_crag_node,
+    make_call_rag_node as make_call_evaluator_rag_node,
 )
 from app.airag.chains.crag import crag_nodes
 from app.airag.prompts.sys_prompts import DOC_GRADE_PROMPT
@@ -232,7 +232,7 @@ def test_coach_crag_call_passes_coach_safe_trusted_context():
             captured.update(payload)
             return {"answer": "retrieved answer", "context": "retrieved context"}
 
-    node = make_call_coach_crag_node(CapturingCrag())
+    node = make_call_coach_rag_node(CapturingCrag())
     node(
         {
             "coach_query": "query",
@@ -251,6 +251,42 @@ def test_coach_crag_call_passes_coach_safe_trusted_context():
     assert "SIDE_A_SECRET" not in captured["trusted_context"]
 
 
+def test_coach_graphrag_call_records_graphrag_sources():
+    class CapturingGraphRag:
+        def invoke(self, payload):
+            return {
+                "answer": "retrieved answer",
+                "context": "retrieved context",
+                "evidence_ledger": {
+                    "sources": [
+                        {
+                            "rank": 1,
+                            "source": "graph-guide.md",
+                            "retrieval_strategy": "graphrag",
+                        }
+                    ]
+                },
+            }
+
+    node = make_call_coach_rag_node(CapturingGraphRag(), retrieval_strategy="graphrag")
+    result = node(
+        {
+            "coach_query": "query",
+            "user_side": "side_b",
+            "phase": "bargaining",
+            "scenario_public_context": {"name": "Late checkout"},
+            "student_private_context": {"reservation_value": 25.0},
+            "current_offer": {"price": 40.0},
+            "offer_history": [{"price": 45.0}],
+        }
+    )
+
+    coach_ledger = result["evidence_ledger"]["coach"]
+    assert coach_ledger["pipeline"]["steps"][0]["name"] == "graphrag"
+    assert coach_ledger["graphrag"]["sources"][0]["retrieval_strategy"] == "graphrag"
+    assert result["sources"] == coach_ledger["graphrag"]["sources"]
+
+
 def test_evaluator_crag_call_passes_full_authorized_trusted_context():
     captured = {}
 
@@ -259,7 +295,7 @@ def test_evaluator_crag_call_passes_full_authorized_trusted_context():
             captured.update(payload)
             return {"answer": "retrieved answer", "context": "retrieved context"}
 
-    node = make_call_evaluator_crag_node(CapturingCrag())
+    node = make_call_evaluator_rag_node(CapturingCrag())
     node(
         {
             "evaluator_query": "query",
@@ -281,3 +317,47 @@ def test_evaluator_crag_call_passes_full_authorized_trusted_context():
     assert "Late checkout" in captured["trusted_context"]
     assert '"reservation_value": 18.0' in captured["trusted_context"]
     assert '"reservation_value": 25.0' in captured["trusted_context"]
+
+
+def test_evaluator_graphrag_call_records_graphrag_sources():
+    class CapturingGraphRag:
+        def invoke(self, payload):
+            return {
+                "answer": "retrieved answer",
+                "context": "retrieved context",
+                "evidence_ledger": {
+                    "sources": [
+                        {
+                            "rank": 1,
+                            "source": "graph-guide.md",
+                            "retrieval_strategy": "graphrag",
+                        }
+                    ]
+                },
+            }
+
+    node = make_call_evaluator_rag_node(
+        CapturingGraphRag(),
+        retrieval_strategy="graphrag",
+    )
+    result = node(
+        {
+            "evaluator_query": "query",
+            "user_side": "side_b",
+            "phase": "closing",
+            "evaluation_mode": "final",
+            "scenario_public_context": {"name": "Late checkout"},
+            "side_a_private_context": {"reservation_value": 18.0},
+            "side_b_private_context": {"reservation_value": 25.0},
+            "side_a": {"name": "Hotel"},
+            "side_b": {"name": "Guest"},
+            "current_offer": {"price": 40.0},
+            "offer_history": [{"price": 45.0}],
+            "retrieval_result": {"summary": "Shared retrieval summary"},
+        }
+    )
+
+    evaluator_ledger = result["evidence_ledger"]["evaluator"]
+    assert evaluator_ledger["pipeline"]["steps"][0]["name"] == "graphrag"
+    assert evaluator_ledger["graphrag"]["sources"][0]["retrieval_strategy"] == "graphrag"
+    assert result["sources"] == evaluator_ledger["graphrag"]["sources"]

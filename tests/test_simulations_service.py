@@ -2461,6 +2461,7 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
 
     def fake_make_negotiation_graph(
         crag_graph=None,
+        retrieval_strategy="crag",
         coach_prompt_template=None,
         counterpart_prompt_template=None,
         evaluator_prompt_template=None,
@@ -2471,6 +2472,7 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         build_calls.append(
             (
                 crag_graph,
+                retrieval_strategy,
                 coach_prompt_template,
                 counterpart_prompt_template,
                 evaluator_prompt_template,
@@ -2521,12 +2523,13 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
     assert first is second
     assert len(build_calls) == 1
     assert build_calls[0][0] == ("crag", ("dense", {"corpus_index_id": 77}), 500, "none")
-    assert build_calls[0][1] == "DB coach {phase}"
-    assert build_calls[0][2] == "DB counterpart {phase}"
-    assert build_calls[0][3] == "DB evaluator {phase}"
-    assert build_calls[0][4] is None
-    assert build_calls[0][5] is not None
+    assert build_calls[0][1] == "crag"
+    assert build_calls[0][2] == "DB coach {phase}"
+    assert build_calls[0][3] == "DB counterpart {phase}"
+    assert build_calls[0][4] == "DB evaluator {phase}"
+    assert build_calls[0][5] is None
     assert build_calls[0][6] is not None
+    assert build_calls[0][7] is not None
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,7 @@ import json
 from app.airag.chains.agents.learner.learner_agent import (
     build_learner_tools,
     make_crag_tool,
+    make_graph_rag_tool,
 )
 from app.airag.chains.agents.learner.learner_helpers import (
     render_learner_agent_prompt,
@@ -60,6 +61,56 @@ def test_make_crag_tool_returns_failed_json_when_graph_raises():
         "context": "",
         "sources": [],
         "error": "retriever unavailable",
+    }
+
+
+def test_make_graph_rag_tool_returns_structured_json_with_sources():
+    graph = CapturingCrag(
+        result={
+            "answer": "Graph evidence says use objective criteria.",
+            "context": "Graph context",
+            "evidence_ledger": {
+                "sources": [
+                    {
+                        "rank": 1,
+                        "source": "graph-guide.md",
+                        "retrieval_strategy": "graphrag",
+                        "graph_id": 12,
+                    }
+                ]
+            },
+        }
+    )
+    tool = make_graph_rag_tool(graph)
+
+    payload = json.loads(tool.invoke({"question": "What does the graph say?"}))
+
+    assert graph.calls[0]["payload"] == {
+        "question": "What does the graph say?",
+        "attempts": 0,
+    }
+    assert payload == {
+        "status": "success",
+        "answer": "Graph evidence says use objective criteria.",
+        "context": "Graph context",
+        "sources": [
+            {
+                "rank": 1,
+                "source": "graph-guide.md",
+                "retrieval_strategy": "graphrag",
+                "graph_id": 12,
+            }
+        ],
+        "evidence_ledger": {
+            "sources": [
+                {
+                    "rank": 1,
+                    "source": "graph-guide.md",
+                    "retrieval_strategy": "graphrag",
+                    "graph_id": 12,
+                }
+            ]
+        },
     }
 
 

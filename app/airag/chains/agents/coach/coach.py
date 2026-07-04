@@ -10,8 +10,8 @@ from app.airag.chains.agents.coach.coach_nodes import (
 	decide_after_generate,
 	decide_after_repair,
 	node_prepare_coach_context,
-	node_route_crag_queries,
-	make_call_crag_node,
+	node_route_rag_queries,
+	make_call_rag_node,
 	make_generate_coach_advice_node,
 	make_repair_coach_advice_node,
 	node_fallback_coach_advice,
@@ -25,18 +25,32 @@ from app.airag.observability.llm_usage import extend_runnable_config, invoke_wit
 
 ### ---------------------- GRAPH CONSTRUCTION ---------------------- ###
 def make_coach_graph(
-	crag_graph: Any = None,
+	rag_graph: Any = None,
+	retrieval_strategy: str = "crag",
 	model: Any = None,
 	prompt_template: str | None = None,
 	state_schema: type[CoachGraphState] = CoachGraphState,
 ):
-	"""Build and compile the coach graph."""
+	"""
+	Build and compile the coach graph.
+	Args:
+		rag_graph: Optional RAG graph to use for retrieval.
+		retrieval_strategy: Strategy for retrieving information from RAG.
+		model: Optional model to use for the coach.
+		prompt_template: Optional prompt template for the coach.
+		state_schema: Schema for the coach graph state.
+	Returns:
+		The compiled coach graph.
+	"""
 	coach_model = model or get_default_coach_model()
 
 	coach_flow = StateGraph(state_schema)
 	coach_flow.add_node("prepare_context", node_prepare_coach_context)
-	coach_flow.add_node("route_crag_queries", node_route_crag_queries)
-	coach_flow.add_node("call_crag", make_call_crag_node(crag_graph))
+	coach_flow.add_node("route_rag_queries", node_route_rag_queries)
+	coach_flow.add_node(
+		"call_rag",
+		make_call_rag_node(rag_graph, retrieval_strategy=retrieval_strategy),
+	)
 	coach_flow.add_node(
 		"generate_coach_advice",
 		make_generate_coach_advice_node(coach_model, prompt_template),
@@ -49,9 +63,9 @@ def make_coach_graph(
 	coach_flow.add_node("finalize_coach", node_finalize_coach)
 
 	coach_flow.add_edge(START, "prepare_context")
-	coach_flow.add_edge("prepare_context", "route_crag_queries")
-	coach_flow.add_edge("route_crag_queries", "call_crag")
-	coach_flow.add_edge("call_crag", "generate_coach_advice")
+	coach_flow.add_edge("prepare_context", "route_rag_queries")
+	coach_flow.add_edge("route_rag_queries", "call_rag")
+	coach_flow.add_edge("call_rag", "generate_coach_advice")
 	coach_flow.add_conditional_edges(
 		"generate_coach_advice",
 		decide_after_generate,
@@ -76,7 +90,9 @@ def make_coach_graph(
 
 
 def make_coach_node(coach_graph: Any):
-	"""Wrap the coach graph as a parent negotiation graph node."""
+	"""
+	Wrap the coach graph as a parent negotiation graph node.
+	"""
 	@traceable
 	def coach_node(
 		state: ParentNegotiationState,
@@ -123,4 +139,3 @@ def invoke_coach_advice(
 	)
 	result = invoke_with_config(coach_graph, state, graph_config)
 	return result.get("coach_advice", {})
-

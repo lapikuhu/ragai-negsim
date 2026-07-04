@@ -431,7 +431,8 @@ def make_negotiation_graph(
     counterpart_graph: Any = None,
     evaluator_graph: Any = None,
     intent_classifier_graph: Any = None,
-    crag_graph: Any = None,
+    rag_graph: Any = None,
+    retrieval_strategy: str = "crag",
     coach_model: Any = None,
     counterpart_model: Any = None,
     evaluator_model: Any = None,
@@ -453,7 +454,7 @@ def make_negotiation_graph(
         intent_classifier_graph: An optional pre-compiled graph for the intent
 			classifier node. If not provided, a default intent classifier 
             graph will be created.
-        crag_graph: An optional CRAG graph to use as a retrieval backend 
+        rag_graph: An optional RAG graph to use as a retrieval backend 
         	for the negotiation nodes.
         coach_model: An optional language model to use in the coach graph,
         	which should be compatible with the prompts used in the 
@@ -484,7 +485,8 @@ def make_negotiation_graph(
         flow.
     """
     coach_graph = coach_graph or make_coach_graph(
-        crag_graph=crag_graph,
+        rag_graph=rag_graph,
+        retrieval_strategy=retrieval_strategy,
         model=coach_model,
         prompt_template=coach_prompt_template,
     )
@@ -493,7 +495,8 @@ def make_negotiation_graph(
         prompt_template=counterpart_prompt_template,
     )
     evaluator_graph = evaluator_graph or make_evaluator_graph(
-        crag_graph=crag_graph,
+        rag_graph=rag_graph,
+        retrieval_strategy=retrieval_strategy,
         model=evaluator_model,
         prompt_template=evaluator_prompt_template,
     )

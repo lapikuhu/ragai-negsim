@@ -65,7 +65,19 @@ def node_build_evaluator_crag_query(state: EvaluatorGraphState) -> dict:
 	}
 
 
-def make_call_crag_node(crag_graph: Any = None):
+def make_call_rag_node(rag_graph: Any = None, retrieval_strategy: str = "crag"):
+	"""
+	Create a node for calling the RAG graph based on the specified retrieval strategy.
+	Args:
+		rag_graph: An optional RAG graph to use for retrieval.
+		retrieval_strategy: The strategy to use for retrieval, either "crag" 
+		or "graphrag".
+	Returns:
+		A traceable node function for calling the RAG graph.
+	"""
+	retrieval_key = "graphrag" if retrieval_strategy == "graphrag" else "crag"
+	retrieval_label = "GraphRAG" if retrieval_key == "graphrag" else "CRAG"
+
 	@traceable
 	def node_call_crag(
 		state: EvaluatorGraphState,
@@ -85,13 +97,13 @@ def make_call_crag_node(crag_graph: Any = None):
 			ledger = update_agent_ledger(
 				state,
 				agent_name="evaluator",
-				step_name="crag",
+				step_name=retrieval_key,
 				status="skipped",
 				detail={"query": state.get("evaluator_query", "negotiation evaluation")},
 			)
 			return {
 				"retrieval_context": existing_context,
-				"event_log": ["evaluator:crag_skipped"],
+				"event_log": [f"evaluator:{retrieval_key}_skipped"],
 				"evidence_ledger": ledger,
 			}
 
@@ -99,13 +111,13 @@ def make_call_crag_node(crag_graph: Any = None):
 			trusted_context = build_evaluator_trusted_context(state)
 			invoke_config = extend_runnable_config(
 				config,
-				tags=["agent:evaluator", "graph:crag", "node:retrieve_context"],
+				tags=["agent:evaluator", f"graph:{retrieval_key}", "node:retrieve_context"],
 				metadata={
 					"agent": "evaluator",
-					"graph": "crag",
+					"graph": retrieval_key,
 					"node": "retrieve_context",
 				},
-				run_name="evaluator.crag",
+				run_name=f"evaluator.{retrieval_key}",
 			)
 			result = invoke_with_config(
 				crag_graph,
@@ -120,7 +132,7 @@ def make_call_crag_node(crag_graph: Any = None):
 			ledger = update_agent_ledger(
 				state,
 				agent_name="evaluator",
-				step_name="crag",
+				step_name=retrieval_key,
 				status="failed",
 				detail={
 					"query": state.get("evaluator_query", "negotiation evaluation"),
@@ -129,8 +141,8 @@ def make_call_crag_node(crag_graph: Any = None):
 			)
 			return {
 				"retrieval_context": existing_context,
-				"evaluator_validation_error": f"CRAG grounding failed: {exc}",
-				"event_log": ["evaluator:crag_failed"],
+				"evaluator_validation_error": f"{retrieval_label} grounding failed: {exc}",
+				"event_log": [f"evaluator:{retrieval_key}_failed"],
 				"evidence_ledger": ledger,
 			}
 
@@ -143,10 +155,10 @@ def make_call_crag_node(crag_graph: Any = None):
 		ledger = update_agent_ledger(
 			state,
 			agent_name="evaluator",
-			step_name="crag",
+			step_name=retrieval_key,
 			status="success",
 			detail={"query": state.get("evaluator_query", "negotiation evaluation")},
-			extra={"crag": result.get("evidence_ledger", {}) if isinstance(result, dict) else {}},
+			extra={retrieval_key: result.get("evidence_ledger", {}) if isinstance(result, dict) else {}},
 		)
 		sources = (
 			extract_source_cards(result.get("evidence_ledger", {}))
@@ -156,7 +168,7 @@ def make_call_crag_node(crag_graph: Any = None):
 		return {
 			"retrieval_context": retrieval_context,
 			"sources": sources,
-			"event_log": ["evaluator:crag_completed"],
+			"event_log": [f"evaluator:{retrieval_key}_completed"],
 			"evidence_ledger": ledger,
 		}
 

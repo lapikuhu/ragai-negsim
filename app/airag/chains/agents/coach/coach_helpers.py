@@ -93,13 +93,13 @@ def collect_missing_information(state: CoachGraphState) -> list[str]:
 	return missing
 
 
-def build_crag_query(state: CoachGraphState) -> str:
+def build_rag_query(state: CoachGraphState) -> str:
 	"""
-	Build a coach-local CRAG query without evaluator or counterpart secrets.
+	Build a coach-local RAG query without evaluator or counterpart secrets.
 	Args:
 		state: The current state of the coach graph.
 	Returns:
-		A string containing the CRAG query.
+		A string containing the RAG query.
 	"""
 	user_side = state.get("user_side", "the user-controlled side")
 	phase = state.get("phase", "unknown")

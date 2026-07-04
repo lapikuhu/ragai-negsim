@@ -1203,7 +1203,7 @@ async def _get_negotiation_graph_for_simulation(
     if cached_graph is not None:
         return cached_graph
 
-    _strategy, crag_graph = await _build_retrieval_graph(
+    retrieval_strategy, crag_graph = await _build_retrieval_graph(
         corpus_index=corpus_index,
         vector_store=vector_store,
         rag_profile=rag_profile,
@@ -1212,6 +1212,7 @@ async def _get_negotiation_graph_for_simulation(
     )
     graph = make_negotiation_graph(
         crag_graph=crag_graph,
+        retrieval_strategy=retrieval_strategy,
         coach_prompt_template=prompt_templates["coach"],
         counterpart_prompt_template=prompt_templates["counterpart"],
         evaluator_prompt_template=prompt_templates["evaluator"],
