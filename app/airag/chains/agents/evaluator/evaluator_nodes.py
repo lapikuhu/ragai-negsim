@@ -12,7 +12,7 @@ from app.airag.chains.agents.evaluator.evaluator_helpers import (
     build_evaluator_trusted_context,
     get_existing_retrieval_context,
     collect_missing_information,
-    build_evaluator_crag_query,
+    build_evaluator_rag_query,
 	render_evaluator_prompt,
 	render_final_evaluator_prompt,
 	coerce_evaluator_response,
@@ -50,18 +50,18 @@ def node_prepare_evaluator_context(state: EvaluatorGraphState) -> dict:
 	}
 
 
-def node_build_evaluator_crag_query(state: EvaluatorGraphState) -> dict:
+def node_build_evaluator_rag_query(state: EvaluatorGraphState) -> dict:
 	"""
-	Build a CRAG query for the evaluator based on the current state.
+	Build a RAG query for the evaluator based on the current state.
 	Args:
 		state: The current evaluator graph state containing negotiation 
 			context.
 	Returns:
-		A dictionary with the constructed CRAG query for retrieval.
+		A dictionary with the constructed RAG query for retrieval.
 	"""
 	return {
-		"evaluator_query": build_evaluator_crag_query(state),
-		"event_log": ["evaluator:selected_crag_query"],
+		"evaluator_query": build_evaluator_rag_query(state),
+		"event_log": ["evaluator:selected_rag_query"],
 	}
 
 
@@ -79,21 +79,21 @@ def make_call_rag_node(rag_graph: Any = None, retrieval_strategy: str = "crag"):
 	retrieval_label = "GraphRAG" if retrieval_key == "graphrag" else "CRAG"
 
 	@traceable
-	def node_call_crag(
+	def node_call_rag(
 		state: EvaluatorGraphState,
 		config: RunnableConfig | None = None,
 	) -> dict:
 		"""
-		Call the CRAG graph to retrieve additional context for the evaluator.
+		Call the RAG graph to retrieve additional context for the evaluator.
 		Args:
 			state: The current evaluator graph state containing negotiation 
 				context.
 		Returns:
 			A dictionary with the retrieval context, event log entries, 
-			and updated evidence ledger after calling the CRAG graph.
+			and updated evidence ledger after calling the RAG graph.
 		"""
 		existing_context = get_existing_retrieval_context(state)
-		if crag_graph is None:
+		if rag_graph is None:
 			ledger = update_agent_ledger(
 				state,
 				agent_name="evaluator",
@@ -120,7 +120,7 @@ def make_call_rag_node(rag_graph: Any = None, retrieval_strategy: str = "crag"):
 				run_name=f"evaluator.{retrieval_key}",
 			)
 			result = invoke_with_config(
-				crag_graph,
+				rag_graph,
 				{
 					"question": state.get("evaluator_query", "negotiation evaluation"),
 					"attempts": 0,
@@ -172,7 +172,7 @@ def make_call_rag_node(rag_graph: Any = None, retrieval_strategy: str = "crag"):
 			"evidence_ledger": ledger,
 		}
 
-	return node_call_crag
+	return node_call_rag
 
 
 def make_generate_evaluator_response_node(

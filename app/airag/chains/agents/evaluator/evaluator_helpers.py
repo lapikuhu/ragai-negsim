@@ -214,7 +214,7 @@ def collect_missing_information(state: EvaluatorGraphState) -> list[str]:
 	return missing
 
 # Check prompts quality
-def build_evaluator_crag_query(state: EvaluatorGraphState) -> str:
+def build_evaluator_rag_query(state: EvaluatorGraphState) -> str:
 	"""
 	Build a concise grounding query for negotiation evaluation theory.
 	Args:
