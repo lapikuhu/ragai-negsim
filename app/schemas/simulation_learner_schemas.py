@@ -50,6 +50,10 @@ class SimulationLearnerAskResponse(SQLModel):
     simulation_id: int
     status: str
     answer: str = Field(min_length=1, title="Answer to the learner's query")
+    sources: list[dict[str, Any]] = Field(
+        default_factory=list,
+        title="Structured source references used by retrieval tools",
+    )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
         title="Optional metadata related to the response",

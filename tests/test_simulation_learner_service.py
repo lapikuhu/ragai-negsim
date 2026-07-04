@@ -489,6 +489,73 @@ async def test_ask_simulation_learner_debug_trace_includes_tool_calls_results_an
 
 
 @pytest.mark.asyncio
+async def test_ask_simulation_learner_returns_enriched_crag_sources(monkeypatch):
+    source_payload = {
+        "status": "success",
+        "answer": "Use objective criteria.",
+        "sources": [
+            {
+                "rank": 1,
+                "raw_document_id": 3,
+                "document_chunk_id": 7,
+                "chunk_index": 2,
+                "source": "C:/docs/negotiation-guide.pdf",
+                "rerank_score": 0.91,
+                "excerpt": "Objective criteria can anchor negotiation choices.",
+            }
+        ],
+    }
+    _patch_basic_learner_service(
+        monkeypatch,
+        {
+            "messages": [
+                FakeAIMessageWithToolCalls(
+                    "",
+                    [{"id": "call-1", "name": "crag_tool", "args": {"question": "BATNA"}}],
+                ),
+                FakeToolMessage(
+                    json.dumps(source_payload),
+                    tool_call_id="call-1",
+                    name="crag_tool",
+                ),
+                {"role": "assistant", "content": "Use objective criteria."},
+            ],
+        },
+    )
+
+    async def fake_get_raw_document_by_id(raw_document_id, session):
+        assert raw_document_id == 3
+        return SimpleNamespace(id=3, name="Negotiation Guide")
+
+    monkeypatch.setattr(
+        simulation_learner_service,
+        "raw_documents_repo",
+        SimpleNamespace(get_raw_document_by_id=fake_get_raw_document_by_id),
+        raising=False,
+    )
+
+    result = await simulation_learner_service.ask_simulation_learner_srvc(
+        _simulation(),
+        SimulationLearnerAskRequest(query="Use CRAG for BATNA."),
+        object(),
+        _user(),
+    )
+
+    assert result.sources == [
+        {
+            "rank": 1,
+            "raw_document_id": 3,
+            "raw_document_name": "Negotiation Guide",
+            "document_chunk_id": 7,
+            "chunk_index": 2,
+            "source": "C:/docs/negotiation-guide.pdf",
+            "rerank_score": 0.91,
+            "excerpt": "Objective criteria can anchor negotiation choices.",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ask_simulation_learner_records_unavailable_requested_tool(monkeypatch):
     _patch_basic_learner_service(
         monkeypatch,

@@ -13,7 +13,7 @@ from app.airag.chains.agents.coach.coach_helpers import (
 )
 from app.airag.chains.agents.helpers import json_dumps, format_messages
 from app.airag.chains.agents.coach.coach_model import CoachGraphState, CoachAdviceModel
-from app.airag.observability.evidence_ledger import update_agent_ledger
+from app.airag.observability.evidence_ledger import extract_source_cards, update_agent_ledger
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 
@@ -144,8 +144,14 @@ def make_call_crag_node(crag_graph: Any):
 			detail={"query": state.get("coach_query", "")},
 			extra={"crag": result.get("evidence_ledger", {}) if isinstance(result, dict) else {}},
 		)
+		sources = (
+			extract_source_cards(result.get("evidence_ledger", {}))
+			if isinstance(result, dict)
+			else []
+		)
 		return {
 			"retrieval_context": retrieval_context,
+			"sources": sources,
 			"event_log": ["coach:crag_completed"],
 			"evidence_ledger": ledger,
 		}
@@ -425,7 +431,9 @@ def node_finalize_coach(state: CoachGraphState) -> dict:
         }	
 	"""
 	if state.get("coach_advice"):
-		advice = state["coach_advice"]
+		advice = dict(state["coach_advice"])
+		if state.get("sources"):
+			advice["sources"] = state["sources"]
 		ledger = update_agent_ledger(
 			state,
 			agent_name="coach",
@@ -436,9 +444,15 @@ def node_finalize_coach(state: CoachGraphState) -> dict:
 				"confidence": advice.get("confidence"),
 			},
 		)
-		return {"event_log": ["coach:completed"], "evidence_ledger": ledger}
+		return {
+			"coach_advice": advice,
+			"event_log": ["coach:completed"],
+			"evidence_ledger": ledger,
+		}
 
 	advice = fallback_advice(state, "missing coach_advice at finalize")
+	if state.get("sources"):
+		advice["sources"] = state["sources"]
 	ledger = update_agent_ledger(
 		state,
 		agent_name="coach",

@@ -88,6 +88,7 @@ class CoachAdvice(TypedDict, total=False):
     reasoning: str
     confidence: Confidence
     missing_information: list[str]
+    sources: list[dict[str, object]]
 
 
 class IntentClassification(TypedDict, total=False):
@@ -107,6 +108,7 @@ class Evaluation(TypedDict, total=False):
     next_best_action: EvaluatorStrategy
     confidence: Confidence
     missing_information: list[str]
+    sources: list[dict[str, object]]
 
 
 class FinalEvaluation(TypedDict, total=False):
@@ -124,6 +126,7 @@ class FinalEvaluation(TypedDict, total=False):
     reasoning: str
     confidence: Confidence
     missing_information: list[str]
+    sources: list[dict[str, object]]
 
 
 class RetrievalResult(TypedDict, total=False):

@@ -71,6 +71,7 @@ class CoachGraphState(TypedDict, total=False):
 	side_b_response: str
 	turn_count: int
 	evidence_ledger: NotRequired[dict[str, Any]]
+	sources: NotRequired[list[dict[str, Any]]]
 	event_log: NotRequired[Annotated[list[str], operator.add]]
 
 	coach_query: str

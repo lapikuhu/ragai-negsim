@@ -20,6 +20,7 @@ from app.airag.observability.llm_usage import (
 from app.core.config import settings
 from app.models.simulations import Simulation
 from app.models.users import User
+from app.repositories import raw_documents_repo
 from app.schemas.simulation_learner_schemas import (
     SimulationLearnerChatMessage,
     SimulationLearnerAskRequest,
@@ -426,6 +427,111 @@ def _extract_learner_debug_events(agent_result: Any) -> list[dict[str, Any]]:
     return events
 
 
+def _tool_result_sources(content: str) -> list[dict[str, Any]]:
+    """
+    Extract sources from the tool result content.
+    Args:
+        content (str): The content of the tool result.
+    Returns:
+        list[dict[str, Any]]: A list of source dictionaries extracted from 
+        the content.
+    """
+    try:
+        decoded = json.loads(content)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(decoded, dict):
+        return []
+    sources = decoded.get("sources")
+    if not isinstance(sources, list):
+        return []
+    return [dict(source) for source in sources if isinstance(source, dict)]
+
+
+def _extract_retrieval_sources_from_agent_result(agent_result: Any) -> list[dict[str, Any]]:
+    """
+    Extract retrieval sources from an agent result.
+    Args:
+        agent_result (Any): The agent result to extract sources from.
+    Returns:
+        list[dict[str, Any]]: A list of source dictionaries extracted from 
+        the agent result.
+    """
+    if not isinstance(agent_result, dict):
+        return []
+    messages = agent_result.get("messages")
+    if not isinstance(messages, list):
+        return []
+
+    sources: list[dict[str, Any]] = []
+    seen: set[tuple[Any, Any, Any]] = set()
+    tool_names_by_id: dict[str, str] = {}
+    for message in messages:
+        role, message_type = _message_role_or_type(message)
+        if role in {"assistant", "ai"} or message_type in {"assistant", "ai"}:
+            for tool_call in _message_tool_calls(message):
+                tool_name = str(tool_call.get("name") or "")
+                tool_call_id = str(tool_call.get("id") or "")
+                if tool_name and tool_call_id:
+                    tool_names_by_id[tool_call_id] = tool_name
+            continue
+        if role != "tool" and message_type != "tool":
+            continue
+        tool_name = _message_tool_name(message) or tool_names_by_id.get(
+            _message_tool_call_id(message),
+            "",
+        )
+        if tool_name not in {"crag_tool", "graph_rag_tool"}:
+            continue
+        for source in _tool_result_sources(_agent_message_content(message)):
+            key = (
+                source.get("raw_document_id"),
+                source.get("document_chunk_id"),
+                source.get("rank"),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            sources.append(source)
+    return sources
+
+
+async def _enrich_source_cards(
+    sources: list[dict[str, Any]],
+    session: AsyncSession,
+) -> list[dict[str, Any]]:
+    """
+    Enrich source cards with additional metadata from the database.
+    Args:
+        sources (list[dict[str, Any]]): The list of source dictionaries 
+            to enrich.
+        session (AsyncSession): The database session to use for fetching 
+            additional data.
+    Returns:
+        list[dict[str, Any]]: A list of enriched source dictionaries.
+    """
+    raw_document_names: dict[int, str] = {}
+    enriched: list[dict[str, Any]] = []
+
+    for source in sources:
+        card = dict(source)
+        raw_document_id = card.get("raw_document_id")
+        if isinstance(raw_document_id, int):
+            if raw_document_id not in raw_document_names: # Fetch raw document name from db
+                raw_document = await raw_documents_repo.get_raw_document_by_id(
+                    raw_document_id,
+                    session,
+                )
+                raw_document_names[raw_document_id] = str(
+                    getattr(raw_document, "name", "") or ""
+                )
+            raw_document_name = raw_document_names.get(raw_document_id)
+            if raw_document_name:
+                card["raw_document_name"] = raw_document_name
+        enriched.append(card)
+    return enriched
+
+
 def _learner_debug_trace(
     agent_result: Any,
     *,
@@ -729,7 +835,11 @@ async def ask_simulation_learner_srvc(
     answer = learner_structured_output["answer"]
     if not answer:
         raise ValueError("Learner response was empty")
-
+    # Get sources
+    sources = await _enrich_source_cards(
+        _extract_retrieval_sources_from_agent_result(agent_result),
+        session,
+    )
     tools_available = _tool_names_for_metadata(
         retrieval_strategy=retrieval_strategy,
         summary_available=summary_available,
@@ -763,5 +873,6 @@ async def ask_simulation_learner_srvc(
         simulation_id=simulation.id,
         status=simulation.status,
         answer=answer,
+        sources=sources,
         metadata=metadata,
     )

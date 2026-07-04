@@ -124,6 +124,42 @@ def source_cards_from_documents(documents: list[Document]) -> list[dict[str, Any
     return [document_source_card(doc, rank=index + 1) for index, doc in enumerate(documents)]
 
 
+def _source_list(value: Any) -> list[dict[str, Any]]:
+    """
+    Convert a value to a list of dictionaries if possible.
+    Args:
+        value (Any): The value to convert.
+    Returns:
+        list[dict[str, Any]]: A list of dictionaries.
+    """
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def extract_source_cards(ledger: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """
+    Extract source cards from a direct ledger or a nested CRAG ledger.
+    Args:
+        ledger (dict[str, Any] | None): The ledger to extract source 
+            cards from.
+    Returns:
+        list[dict[str, Any]]: A list of source cards extracted from the 
+        ledger.
+    """
+    if not isinstance(ledger, dict):
+        return []
+
+    direct_sources = _source_list(ledger.get("sources"))
+    if direct_sources:
+        return direct_sources
+
+    crag = ledger.get("crag")
+    if isinstance(crag, dict):
+        return _source_list(crag.get("sources"))
+    return []
+
+
 def set_sources(
     ledger: dict[str, Any] | None,
     documents: list[Document],
@@ -166,6 +202,7 @@ def build_agent_ledger_record(
         for the agent.
     """
     value = deepcopy(ledger or ledger_empty())
+    sources = extract_source_cards(value)
     return SimulationEvidenceLedgerCreate(
         simulation_id=simulation_id,
         turn_index=turn_index,
@@ -173,7 +210,7 @@ def build_agent_ledger_record(
         sequence=sequence,
         visibility_level="debug",
         pipeline=value.get("pipeline", {"steps": []}),
-        sources=value.get("sources", []),
+        sources=sources,
         quality_checks=value.get("quality_checks", []),
         model=value.get("model", {}),
         token_usage=token_usage or {},

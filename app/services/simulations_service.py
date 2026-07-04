@@ -42,6 +42,7 @@ from app.repositories import (
     rag_profiles_repo,
     knowledge_graph_indices_repo,
     document_chunks_repo,
+    raw_documents_repo,
     scenarios_repo,
     sessions_repo,
     simulation_evidence_ledgers_repo,
@@ -1848,6 +1849,74 @@ def _ledger_read_schema(row: Any) -> SimulationEvidenceLedgerRead:
     return SimulationEvidenceLedgerRead.model_validate(row, from_attributes=True)
 
 
+async def _enrich_source_cards_with_raw_document_names(
+    sources: list[dict[str, Any]],
+    session: AsyncSession,
+) -> list[dict[str, Any]]:
+    """
+    Enrich source cards with raw document names from the database.
+    Args:
+        sources (list[dict[str, Any]]): The list of source dictionaries 
+            to enrich.
+        session (AsyncSession): The database session to use for fetching 
+            raw document names.
+    Returns:
+        list[dict[str, Any]]: A list of enriched source dictionaries.
+    """
+    raw_document_names: dict[int, str] = {}
+    enriched: list[dict[str, Any]] = []
+
+    for source in sources:
+        card = dict(source)
+        raw_document_id = card.get("raw_document_id")
+        if isinstance(raw_document_id, int):
+            if raw_document_id not in raw_document_names: # Get the raw document id from db
+                raw_document = await raw_documents_repo.get_raw_document_by_id(
+                    raw_document_id,
+                    session,
+                )
+                raw_document_names[raw_document_id] = str(
+                    getattr(raw_document, "name", "") or ""
+                )
+            raw_document_name = raw_document_names.get(raw_document_id)
+            if raw_document_name:
+                card["raw_document_name"] = raw_document_name
+        enriched.append(card)
+    return enriched
+
+
+async def _enrich_graph_state_source_payloads(
+    graph_state: dict[str, Any],
+    session: AsyncSession,
+) -> None:
+    """
+    Enrich the graph state with raw document names for source payloads.
+    Args:
+        graph_state: The current state of the graph.
+        session: The database session.
+    Returns:
+        None. The graph_state is modified in place.
+    """
+    for key in ("sources",):
+        if isinstance(graph_state.get(key), list):
+            graph_state[key] = await _enrich_source_cards_with_raw_document_names(
+                graph_state[key],
+                session,
+            )
+
+    for key in ("coach_advice", "evaluation", "final_evaluation"):
+        payload = graph_state.get(key)
+        if not isinstance(payload, dict):
+            continue
+        sources = payload.get("sources")
+        if not isinstance(sources, list):
+            continue
+        payload["sources"] = await _enrich_source_cards_with_raw_document_names(
+            sources,
+            session,
+        )
+
+
 async def _persist_evidence_ledgers(
     *,
     simulation_id: int,
@@ -1887,6 +1956,10 @@ async def _persist_evidence_ledgers(
             ledger=ledger,
             output_summary=output_summary if isinstance(output_summary, dict) else {},
             token_usage=token_usage,
+        )
+        record.sources = await _enrich_source_cards_with_raw_document_names(
+            record.sources,
+            session,
         )
         row = await simulation_evidence_ledgers_repo.create_evidence_ledger(
             record,
@@ -2324,6 +2397,7 @@ async def submit_simulation_turn_srvc(
         summarize_agent_token_usage_handler(public_usage_handler),
     )
     _attach_generated_message_token_usage(graph_state)
+    await _enrich_graph_state_source_payloads(graph_state, session)
     graph_state.pop("requested_action", None)
     next_status = _status_after_graph(graph_state)
     update_in = SimulationUpdate(
@@ -2436,6 +2510,7 @@ async def submit_simulation_proxy_turn_srvc(
         summarize_agent_token_usage_handler(public_usage_handler),
     )
     _attach_generated_message_token_usage(graph_state)
+    await _enrich_graph_state_source_payloads(graph_state, session)
     graph_state.pop("requested_action", None)
     _carry_forward_proxy_state(state, graph_state)
     next_status = _status_after_graph(graph_state)

@@ -84,10 +84,12 @@ def test_coach_finalize_adds_agent_output_summary():
                 "summary": "Hold price.",
                 "confidence": "medium",
             },
+            "sources": [{"rank": 1, "source": "guide.pdf"}],
             "evidence_ledger": {"coach": {"pipeline": {"steps": []}}},
         }
     )
 
+    assert result["coach_advice"]["sources"] == [{"rank": 1, "source": "guide.pdf"}]
     assert result["evidence_ledger"]["coach"]["output_summary"]["kind"] == "coach_advice"
     assert result["evidence_ledger"]["coach"]["output_summary"]["confidence"] == "medium"
 
@@ -101,11 +103,13 @@ def test_evaluator_finalize_adds_agent_output_summary():
                 "confidence": "high",
                 "reasoning": "Strong outcome.",
             },
+            "sources": [{"rank": 1, "source": "guide.pdf"}],
             "evidence_ledger": {"evaluator": {"pipeline": {"steps": []}}},
             "user_side": "side_a",
         }
     )
 
+    assert result["final_evaluation"]["sources"] == [{"rank": 1, "source": "guide.pdf"}]
     assert result["evidence_ledger"]["evaluator"]["output_summary"]["kind"] == "final_evaluation"
 
 

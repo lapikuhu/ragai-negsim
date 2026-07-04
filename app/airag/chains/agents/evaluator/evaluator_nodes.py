@@ -21,7 +21,7 @@ from app.airag.chains.agents.evaluator.evaluator_helpers import (
 	fallback_final_evaluator_response,
 	final_evaluation_from_response,
 )
-from app.airag.observability.evidence_ledger import update_agent_ledger
+from app.airag.observability.evidence_ledger import extract_source_cards, update_agent_ledger
 from app.airag.observability.llm_usage import extend_runnable_config, invoke_with_config
 
 def node_prepare_evaluator_context(state: EvaluatorGraphState) -> dict:
@@ -148,8 +148,14 @@ def make_call_crag_node(crag_graph: Any = None):
 			detail={"query": state.get("evaluator_query", "negotiation evaluation")},
 			extra={"crag": result.get("evidence_ledger", {}) if isinstance(result, dict) else {}},
 		)
+		sources = (
+			extract_source_cards(result.get("evidence_ledger", {}))
+			if isinstance(result, dict)
+			else []
+		)
 		return {
 			"retrieval_context": retrieval_context,
+			"sources": sources,
 			"event_log": ["evaluator:crag_completed"],
 			"evidence_ledger": ledger,
 		}
@@ -444,9 +450,15 @@ def node_finalize_evaluator(state: EvaluatorGraphState) -> dict:
 		),
 	}
 	if final_mode:
-		updates["final_evaluation"] = final_evaluation_from_response(state, response)
+		final_evaluation = final_evaluation_from_response(state, response)
+		if state.get("sources"): # Add sources to final evaluation if available
+			final_evaluation["sources"] = state["sources"]
+		updates["final_evaluation"] = final_evaluation
 	else:
-		updates["evaluation"] = compact_evaluation_from_response(state, response)
+		evaluation = compact_evaluation_from_response(state, response)
+		if state.get("sources"): # Add sources to rolling evaluation if available
+			evaluation["sources"] = state["sources"]
+		updates["evaluation"] = evaluation
 	return updates
 
 ### ROUTERS

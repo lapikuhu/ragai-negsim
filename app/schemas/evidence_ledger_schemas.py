@@ -7,6 +7,23 @@ from sqlmodel import Field, SQLModel
 EvidenceVisibilityLevel = Literal["learner", "teacher", "debug"]
 
 
+class SourceCard(SQLModel):
+    rank: int | None = None
+    raw_document_id: int | None = None
+    raw_document_name: str | None = None
+    document_chunk_id: int | None = None
+    chunk_index: int | None = None
+    source: str | None = None
+    score: float | None = None
+    rerank_score: float | None = None
+    retrieval_strategy: str | None = None
+    retrieval_mode: str | None = None
+    graph_id: int | str | None = None
+    graph_generation: int | str | None = None
+    evidence_path: str | None = None
+    excerpt: str | None = None
+
+
 class SimulationEvidenceLedgerBase(SQLModel):
     simulation_id: int
     turn_index: int = Field(ge=0)

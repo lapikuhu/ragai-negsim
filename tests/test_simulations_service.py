@@ -1323,10 +1323,31 @@ async def test_submit_turn_persists_evidence_ledgers(monkeypatch):
                 "should_pause": True,
                 "pause_reason": "counterpart_response_ready",
                 "messages": state["messages"],
+                "coach_advice": {
+                    "summary": "Hold price.",
+                    "sources": [
+                        {
+                            "rank": 1,
+                            "raw_document_id": 3,
+                            "document_chunk_id": 7,
+                            "source": "C:/docs/negotiation-guide.pdf",
+                        }
+                    ],
+                },
                 "evidence_ledger": {
                     "coach": {
                         "pipeline": {"steps": [{"name": "generate", "status": "success"}]},
                         "output_summary": {"kind": "coach_advice", "confidence": "medium"},
+                        "crag": {
+                            "sources": [
+                                {
+                                    "rank": 1,
+                                    "raw_document_id": 3,
+                                    "document_chunk_id": 7,
+                                    "source": "C:/docs/negotiation-guide.pdf",
+                                }
+                            ]
+                        },
                     },
                     "counterpart": {
                         "pipeline": {"steps": [{"name": "generate", "status": "success"}]},
@@ -1349,6 +1370,10 @@ async def test_submit_turn_persists_evidence_ledgers(monkeypatch):
             **record.model_dump(),
         )
 
+    async def fake_get_raw_document_by_id(raw_document_id, session):
+        assert raw_document_id == 3
+        return SimpleNamespace(id=3, name="Negotiation Guide")
+
     monkeypatch.setattr(
         simulations_service.simulations_repo,
         "update_simulation",
@@ -1358,6 +1383,11 @@ async def test_submit_turn_persists_evidence_ledgers(monkeypatch):
         simulations_service.simulation_evidence_ledgers_repo,
         "create_evidence_ledger",
         fake_create_evidence_ledger,
+    )
+    monkeypatch.setattr(
+        simulations_service.raw_documents_repo,
+        "get_raw_document_by_id",
+        fake_get_raw_document_by_id,
     )
 
     result = await simulations_service.submit_simulation_turn_srvc(
@@ -1370,7 +1400,18 @@ async def test_submit_turn_persists_evidence_ledgers(monkeypatch):
 
     assert [record.agent_name for record in persisted] == ["counterpart", "coach"]
     assert [record.turn_index for record in persisted] == [1, 1]
+    assert persisted[1].sources == [
+        {
+            "rank": 1,
+            "raw_document_id": 3,
+            "raw_document_name": "Negotiation Guide",
+            "document_chunk_id": 7,
+            "source": "C:/docs/negotiation-guide.pdf",
+        }
+    ]
+    assert result.coach_advice["sources"] == persisted[1].sources
     assert result.evidence_ledgers[0].agent_name == "counterpart"
+    assert result.evidence_ledgers[1].sources == persisted[1].sources
     assert result.evidence_ledgers[1].output_summary["kind"] == "coach_advice"
 
 
