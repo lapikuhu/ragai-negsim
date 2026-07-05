@@ -15,7 +15,10 @@ export class ApiError extends Error {
 }
 
 async function authFetch(input: RequestInfo | URL, init?: RequestInit) {
-  const headers = new Headers(init?.headers);
+  const headers = new Headers(input instanceof Request ? input.headers : undefined);
+  new Headers(init?.headers).forEach((value, key) => {
+    headers.set(key, value);
+  });
   const token = getAccessToken();
 
   if (token) {

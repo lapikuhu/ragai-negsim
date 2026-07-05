@@ -5,6 +5,10 @@ import { coerceRawDocumentRead, type ApiComponents, type RawDocumentRead } from 
 
 type RawDocumentChunkResult = ApiComponents["schemas"]["RawDocumentChunkResult"];
 type RawDocumentIngestResult = ApiComponents["schemas"]["RawDocumentIngestResult"];
+type RawDocumentUpdate = Pick<
+  ApiComponents["schemas"]["RawDocumentUpdate"],
+  "name" | "description" | "document_title" | "document_author" | "document_year"
+>;
 
 export const documentKeys = {
   all: ["documents"] as const,
@@ -20,6 +24,8 @@ export type RawDocumentUploadInput = {
   corpusIds: number[];
   file: File;
 };
+
+export type RawDocumentUpdateInput = RawDocumentUpdate;
 
 export async function listDocuments() {
   const result = await apiClient.GET("/raw-documents/", { params: { query: { skip: 0, limit: 50 } } });
@@ -84,6 +90,14 @@ async function chunkDocument(documentId: number, profileId: number) {
   return unwrapResult<RawDocumentChunkResult>(result, "Unable to chunk document");
 }
 
+async function updateDocument(documentId: number, input: RawDocumentUpdateInput) {
+  const result = await apiClient.PATCH("/raw-documents/{raw_document_id}", {
+    params: { path: { raw_document_id: documentId } },
+    body: input
+  });
+  return coerceRawDocumentRead(unwrapResult(result, "Unable to update document"));
+}
+
 export function useDocumentsQuery() {
   return useQuery({ queryKey: documentKeys.all, queryFn: listDocuments });
 }
@@ -127,5 +141,13 @@ export function useChunkDocumentMutation(documentId: number) {
   return useMutation({
     mutationFn: (profileId: number) => chunkDocument(documentId, profileId),
     onSuccess: async () => invalidate(documentId)
+  });
+}
+
+export function useUpdateDocumentMutation(documentId: number) {
+  const invalidate = useInvalidateDocuments();
+  return useMutation({
+    mutationFn: (input: RawDocumentUpdateInput) => updateDocument(documentId, input),
+    onSuccess: async (document) => invalidate(document.id)
   });
 }
