@@ -1,0 +1,72 @@
+# Testing and operations
+
+This repository has a substantial automated test suite and several operational scripts. Future changes should usually touch both code and tests because many business rules are already asserted directly.
+
+## Test strategy
+The project uses pytest for backend coverage and component/page tests in the frontend.
+
+### Backend tests
+Backend tests cover:
+- route behavior
+- service logic
+- repository and schema behavior
+- negotiation graph routing
+- retrieval and evidence ledger behavior
+- authentication and role boundaries
+- startup and seed scripts
+
+### Frontend tests
+Frontend tests cover:
+- route rendering
+- page behavior
+- pagination helpers
+- sidebar and layout behavior
+- API wiring and proxy behavior
+
+## High-signal backend test files
+- `tests/test_simulations_service.py`
+- `tests/test_simulation_learner_service.py`
+- `tests/test_negotiation_graph.py`
+- `tests/test_evidence_ledger.py`
+- `tests/test_crag_grounding.py`
+- `tests/test_graphrag_retrieval.py`
+- `tests/test_raw_documents_service.py`
+- `tests/test_document_chunks_service.py`
+- `tests/test_langsmith_traceable_boundaries.py`
+- `tests/test_alpha_smoke_api.py`
+
+## Operational scripts
+- `scripts/seeder.py` seeds roles, users, scenarios, personas, chunking profiles, and vector-store configs.
+- `scripts/flushdb.py` clears local data during development.
+- `scripts/bootstrap.py` provides bootstrap support.
+- `scripts/scenarios.py` and `scripts/personas.py` are larger content-generation helpers.
+
+## Migrations
+Alembic is configured at the repository root via `alembic.ini` and `migrations/env.py`.
+
+When changing database-backed models or schemas:
+1. update the model/schema/service code
+2. generate or edit the migration
+3. run the relevant service/API tests
+4. verify the app still starts with seeded data
+
+## Environment and local setup notes
+- Use `.env.example` as the configuration template; do not treat `.env` as documentation because it may contain secrets.
+- PostgreSQL is expected for the main app data store.
+- Neo4j is required for graph retrieval features.
+- `RAW_DOCS_DIR` controls where uploaded raw documents are written on disk.
+- LangSmith tracing is optional but wired through `app/core/config.py`.
+
+## When editing behavior
+Use the tests to decide how far a change must propagate:
+- retrieval changes usually require evidence- and grounding-related tests
+- simulation changes usually require service, route, and graph tests
+- frontend page changes usually require page tests and router/sidebar updates
+- config or dependency changes often require startup or auth tests
+
+## Source pointers
+- `tests/`
+- `scripts/seeder.py`
+- `scripts/flushdb.py`
+- `migrations/env.py`
+- `alembic.ini`

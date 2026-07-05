@@ -60,6 +60,7 @@ frontend/dist/**
 # agents
 AGENTS.md
 .agents/
+CLAUDE.md
 
 # gitnexus
 .gitnexus/
