@@ -387,3 +387,4 @@ You should browse to the frontend URL, not the backend URL, for normal UI work.
 - Decouple chunking from indexing, keep complete pipeline as a feature.
 - Implement HippoRAG2 knowledge graphs (Unix-Linux only support).
 - Abstract RAG strategies: CRAG and GraphRAG cohabitate in a disjointed manner, a 3rd RAG option would further complicate things. Need abstraction for isolation and reusability.
+- Refactor project folder architecture to vertical slicing.
