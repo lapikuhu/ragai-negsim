@@ -20,9 +20,20 @@ export function DocumentsPage() {
   const uploadMutation = useUploadDocumentMutation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [documentTitle, setDocumentTitle] = useState("");
+  const [documentAuthor, setDocumentAuthor] = useState("");
+  const [documentDate, setDocumentDate] = useState("");
   const [corpusIds, setCorpusIds] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const formatDocumentDateForApi = (value: string) => {
+    if (!value) {
+      return "";
+    }
+    const [year, month, day] = value.split("-");
+    return `${day}-${month}-${year}`;
+  };
 
   return (
     <div className="grid gap-6">
@@ -51,11 +62,17 @@ export function DocumentsPage() {
               await uploadMutation.mutateAsync({
                 name,
                 description,
+                documentTitle,
+                documentAuthor,
+                documentDate: formatDocumentDateForApi(documentDate),
                 corpusIds: parsedCorpusIds.map(Number),
                 file
               });
               setName("");
               setDescription("");
+              setDocumentTitle("");
+              setDocumentAuthor("");
+              setDocumentDate("");
               setCorpusIds("");
               setFile(null);
               setMessage("Upload complete.");
@@ -64,8 +81,17 @@ export function DocumentsPage() {
             }
           }}
         >
-          <Field label="Name">
+          <Field label="Name-Alias" hint="This is the display name for the document.">
             <Input value={name} onChange={(event) => setName(event.target.value)} required />
+          </Field>
+          <Field label="Title">
+            <Input value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} />
+          </Field>
+          <Field label="Author">
+            <Input value={documentAuthor} onChange={(event) => setDocumentAuthor(event.target.value)} />
+          </Field>
+          <Field label="Date">
+            <Input type="date" value={documentDate} onChange={(event) => setDocumentDate(event.target.value)} />
           </Field>
           <Field label="Linked corpus IDs" hint={`Available corpora: ${(corpora.data ?? []).map((corpus) => corpus.id).join(", ") || "none"}`}>
             <Input
@@ -106,6 +132,11 @@ export function DocumentsPage() {
                     {document.name}
                   </Link>
                   <p className="mt-1 text-xs text-slate-500">{document.description ?? "No description"}</p>
+                  <div className="mt-2 grid gap-1 text-xs text-slate-500">
+                    {document.document_title ? <span>{document.document_title}</span> : null}
+                    {document.document_author ? <span>{document.document_author}</span> : null}
+                    {document.document_date ? <span>{document.document_date}</span> : null}
+                  </div>
                 </div>
               )
             },

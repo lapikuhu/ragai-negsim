@@ -249,6 +249,9 @@ export type RawDocumentRead = {
   id: number;
   name: string;
   description?: string | null;
+  document_title?: string | null;
+  document_author?: string | null;
+  document_date?: string | null;
   source_path: string;
   source_hash?: string | null;
   source_size?: number | null;
@@ -265,6 +268,9 @@ type LegacyRawDocumentRead = {
   id: number;
   name: string;
   description?: string | null;
+  document_title?: string | null;
+  document_author?: string | null;
+  document_date?: string | null;
   path?: string;
   source_path?: string;
   source_hash?: string | null;
@@ -283,6 +289,9 @@ export function coerceRawDocumentRead(document: LegacyRawDocumentRead): RawDocum
     id: document.id,
     name: document.name,
     description: document.description ?? null,
+    document_title: document.document_title ?? null,
+    document_author: document.document_author ?? null,
+    document_date: document.document_date ?? null,
     source_path: document.source_path ?? document.path ?? "",
     source_hash: document.source_hash ?? null,
     source_size: document.source_size ?? null,

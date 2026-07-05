@@ -1354,6 +1354,9 @@ export type paths = {
          *     Args:
          *         name: Display name for the raw document.
          *         description: Optional description.
+         *         document_title: Optional title of the document.
+         *         document_author: Optional author of the document.
+         *         document_date: Optional date of the document.
          *         corpus_ids: Optional corpora to link during creation.
          *         file: Uploaded PDF source file.
          *         session: The database session to use for the operation.
@@ -1392,7 +1395,17 @@ export type paths = {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Raw Document
+         * @description Update editable raw document metadata.
+         *     Args:
+         *         raw_document: The writable raw document dependency.
+         *         update_data: The raw document fields to update.
+         *         session: The database session to use for persistence.
+         *     Returns:
+         *         The updated raw document detail.
+         */
+        patch: operations["update_raw_document_raw_documents__raw_document_id__patch"];
         trace?: never;
     };
     "/raw-documents/{raw_document_id}/chunking-profiles/{profile_id}/chunk": {
@@ -2489,6 +2502,12 @@ export type components = {
             corpus_ids: number[];
             /** Description */
             description?: string | null;
+            /** Document Author */
+            document_author?: string | null;
+            /** Document Date */
+            document_date?: string | null;
+            /** Document Title */
+            document_title?: string | null;
             /** File */
             file: string;
             /** Name */
@@ -3548,6 +3567,12 @@ export type components = {
             associated_corpora?: components["schemas"]["CorpusSummaryRead"][];
             /** Description */
             description?: string | null;
+            /** Document Author */
+            document_author?: string | null;
+            /** Document Date */
+            document_date?: string | null;
+            /** Document Title */
+            document_title?: string | null;
             /** Id */
             id: number;
             /** Raw document name */
@@ -3591,6 +3616,12 @@ export type components = {
         RawDocumentRead: {
             /** Description */
             description?: string | null;
+            /** Document Author */
+            document_author?: string | null;
+            /** Document Date */
+            document_date?: string | null;
+            /** Document Title */
+            document_title?: string | null;
             /** Id */
             id: number;
             /** Raw document name */
@@ -3620,6 +3651,29 @@ export type components = {
             uploaded_by_user_id: number;
             /** Uploaded By Username */
             uploaded_by_username?: string | null;
+        };
+        /** RawDocumentUpdate */
+        RawDocumentUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Document Author */
+            document_author?: string | null;
+            /** Document Date */
+            document_date?: string | null;
+            /** Document Title */
+            document_title?: string | null;
+            /** Raw document name */
+            name?: string | null;
+            /** Source Hash */
+            source_hash?: string | null;
+            /** Source Mtime */
+            source_mtime?: string | null;
+            /** Raw document source path */
+            source_path?: string | null;
+            /** Source Size */
+            source_size?: number | null;
+            /** Source Status */
+            source_status?: ("available" | "missing" | "changed" | "unverified" | "error") | null;
         };
         /** RoleRead */
         RoleRead: {
@@ -4092,6 +4146,10 @@ export type components = {
             };
             /** Simulation Id */
             simulation_id: number;
+            /** Structured source references used by retrieval tools */
+            sources?: {
+                [key: string]: unknown;
+            }[];
             /** Status */
             status: string;
             /**
@@ -6593,6 +6651,41 @@ export interface operations {
             };
         };
     };
+    update_raw_document_raw_documents__raw_document_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                raw_document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RawDocumentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawDocumentDetailRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chunk_raw_document_raw_documents__raw_document_id__chunking_profiles__profile_id__chunk_post: {
         parameters: {
             query?: {
@@ -8193,3 +8286,4 @@ export interface operations {
         };
     };
 }
+

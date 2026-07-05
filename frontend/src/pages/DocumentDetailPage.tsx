@@ -44,6 +44,9 @@ export function DocumentDetailPage() {
       <Card>
         <KeyValueList
           items={[
+            { label: "Document title", value: document.document_title ?? "Not available" },
+            { label: "Author", value: document.document_author ?? "Not available" },
+            { label: "Document date", value: document.document_date ?? "Not available" },
             { label: "Source path", value: document.source_path },
             { label: "Source status", value: <StatusBadge status={document.source_status} /> },
             { label: "Source size", value: document.source_size ?? "Not available" },

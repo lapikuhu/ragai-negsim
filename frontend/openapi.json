@@ -3594,7 +3594,7 @@
           "Raw Documents"
         ],
         "summary": "Create Raw Document",
-        "description": "Upload and register a new raw document.\nArgs:\n    name: Display name for the raw document.\n    description: Optional description.\n    corpus_ids: Optional corpora to link during creation.\n    file: Uploaded PDF source file.\n    session: The database session to use for the operation.\n    current_user: The user creating the raw document.\nReturns:\n    The created raw document metadata.",
+        "description": "Upload and register a new raw document.\nArgs:\n    name: Display name for the raw document.\n    description: Optional description.\n    document_title: Optional title of the document.\n    document_author: Optional author of the document.\n    document_date: Optional date of the document.\n    corpus_ids: Optional corpora to link during creation.\n    file: Uploaded PDF source file.\n    session: The database session to use for the operation.\n    current_user: The user creating the raw document.\nReturns:\n    The created raw document metadata.",
         "operationId": "create_raw_document_raw_documents__post",
         "security": [
           {
@@ -3745,6 +3745,62 @@
       }
     },
     "/raw-documents/{raw_document_id}": {
+      "patch": {
+        "tags": [
+          "Raw Documents"
+        ],
+        "summary": "Update Raw Document",
+        "description": "Update editable raw document metadata.\nArgs:\n    raw_document: The writable raw document dependency.\n    update_data: The raw document fields to update.\n    session: The database session to use for persistence.\nReturns:\n    The updated raw document detail.",
+        "operationId": "update_raw_document_raw_documents__raw_document_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "raw_document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Raw Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RawDocumentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawDocumentDetailRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "tags": [
           "Raw Documents"
@@ -6680,6 +6736,39 @@
               }
             ],
             "title": "Description"
+          },
+          "document_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Title"
+          },
+          "document_author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Author"
+          },
+          "document_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Date"
           },
           "corpus_ids": {
             "items": {
@@ -9766,6 +9855,39 @@
             ],
             "title": "Description"
           },
+          "document_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Title"
+          },
+          "document_author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Author"
+          },
+          "document_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Date"
+          },
           "source_path": {
             "type": "string",
             "minLength": 1,
@@ -9908,6 +10030,39 @@
             ],
             "title": "Description"
           },
+          "document_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Title"
+          },
+          "document_author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Author"
+          },
+          "document_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Date"
+          },
           "source_path": {
             "type": "string",
             "minLength": 1,
@@ -9959,6 +10114,134 @@
           "uploaded_by_user_id"
         ],
         "title": "RawDocumentRead"
+      },
+      "RawDocumentUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw document name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "document_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Title"
+          },
+          "document_author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Author"
+          },
+          "document_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Date"
+          },
+          "source_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw document source path"
+          },
+          "source_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Hash"
+          },
+          "source_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Size"
+          },
+          "source_mtime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Mtime"
+          },
+          "source_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "missing",
+                  "changed",
+                  "unverified",
+                  "error"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Status"
+          }
+        },
+        "type": "object",
+        "title": "RawDocumentUpdate"
       },
       "RoleRead": {
         "properties": {
@@ -11179,6 +11462,14 @@
             "type": "string",
             "minLength": 1,
             "title": "Answer to the learner's query"
+          },
+          "sources": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Structured source references used by retrieval tools"
           },
           "timestamp": {
             "type": "string",

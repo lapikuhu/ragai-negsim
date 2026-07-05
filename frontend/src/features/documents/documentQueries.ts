@@ -14,6 +14,9 @@ export const documentKeys = {
 export type RawDocumentUploadInput = {
   name: string;
   description?: string;
+  documentTitle?: string;
+  documentAuthor?: string;
+  documentDate?: string;
   corpusIds: number[];
   file: File;
 };
@@ -35,6 +38,15 @@ async function uploadDocument(input: RawDocumentUploadInput) {
   form.set("name", input.name);
   if (input.description) {
     form.set("description", input.description);
+  }
+  if (input.documentTitle) {
+    form.set("document_title", input.documentTitle);
+  }
+  if (input.documentAuthor) {
+    form.set("document_author", input.documentAuthor);
+  }
+  if (input.documentDate) {
+    form.set("document_date", input.documentDate);
   }
   input.corpusIds.forEach((id) => form.append("corpus_ids", String(id)));
   form.set("file", input.file);
