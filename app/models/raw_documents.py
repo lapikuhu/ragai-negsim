@@ -18,6 +18,9 @@ class RawDocument(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True, min_length=3, title="Raw document name")         # e.g. "employee_handbook"
     description: str | None = None
+    document_title: str | None = None
+    document_author: str | None = None
+    document_date: str | None = None
     source_path: str = Field(index=True, unique=True, min_length=1, title="Raw document source path")
     source_hash: str | None = Field(default=None, min_length=1, title="Raw document source hash")
     source_size: int | None = Field(default=None, ge=0, title="Raw document source size")

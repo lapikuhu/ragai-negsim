@@ -3,9 +3,14 @@ from app.services.raw_documents_service import(create_uploaded_raw_document_srvc
                                            get_raw_document_by_id_srvc,)
 from app.services.ingestion_service import ingest_raw_document_srvc
 from app.services.chunking_service import chunk_raw_document_srvc
+from app.repositories import raw_documents_repo
 from app.schemas.chunking_schemas import RawDocumentChunkResult
 from app.schemas.ingestion_schemas import RawDocumentIngestResult
-from app.schemas.raw_documents_schemas import RawDocumentDetailRead, RawDocumentRead
+from app.schemas.raw_documents_schemas import (
+    RawDocumentDetailRead,
+    RawDocumentRead,
+    RawDocumentUpdate,
+)
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from app.core.dependencies import (
     ChunkingProfileDep,
@@ -58,6 +63,9 @@ async def create_raw_document(
     *,
     name: str = Form(...),
     description: str | None = Form(default=None),
+    document_title: str | None = Form(default=None),
+    document_author: str | None = Form(default=None),
+    document_date: str | None = Form(default=None),
     corpus_ids: list[int] = Form(default=[]),
     file: UploadFile = File(...),
     session: SessionDep,
@@ -68,6 +76,9 @@ async def create_raw_document(
     Args:
         name: Display name for the raw document.
         description: Optional description.
+        document_title: Optional title of the document.
+        document_author: Optional author of the document.
+        document_date: Optional date of the document.
         corpus_ids: Optional corpora to link during creation.
         file: Uploaded PDF source file.
         session: The database session to use for the operation.
@@ -79,6 +90,9 @@ async def create_raw_document(
         raw_document = await create_uploaded_raw_document_srvc(
             name=name,
             description=description,
+            document_title=document_title,
+            document_author=document_author,
+            document_date=document_date,
             corpus_ids=corpus_ids,
             upload=file,
             session=session,
@@ -88,6 +102,32 @@ async def create_raw_document(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return _serialize_raw_document(raw_document, fallback_username=current_user.username)
+
+### ----------------- UPDATE RAW DOCUMENT METADATA ----------------- ###
+@router.patch("/{raw_document_id}", response_model=RawDocumentDetailRead)
+async def update_raw_document(
+    raw_document: WritableRawDocumentDep,
+    update_data: RawDocumentUpdate,
+    session: SessionDep,
+) -> RawDocumentDetailRead:
+    """
+    Update editable raw document metadata.
+    Args:
+        raw_document: The writable raw document dependency.
+        update_data: The raw document fields to update.
+        session: The database session to use for persistence.
+    Returns:
+        The updated raw document detail.
+    """
+    try:
+        updated = await raw_documents_repo.update_raw_document(
+            raw_document,
+            update_data,
+            session,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return _serialize_raw_document_detail(updated)
 
 ### ----------- LIST RAW DOCUMENTS WITH FILTERS AND PAGINATION ------------ ###
 @router.get("/", response_model=list[RawDocumentRead])
