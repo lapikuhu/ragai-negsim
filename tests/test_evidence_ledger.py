@@ -7,6 +7,7 @@ from app.airag.observability.evidence_ledger import (
     extract_source_cards,
     ledger_empty,
 )
+from app.schemas.evidence_ledger_schemas import SourceCard
 
 
 def test_append_pipeline_step_is_non_mutating():
@@ -49,6 +50,20 @@ def test_document_source_card_keeps_safe_metadata_and_excerpt():
     assert card["rerank_score"] == 0.72
     assert "counteroffer" in card["excerpt"]
     assert "private" not in card
+
+
+def test_source_card_accepts_bibliographic_metadata():
+    card = SourceCard(
+        raw_document_id=3,
+        raw_document_name="Negotiation Guide",
+        document_title="Getting to Yes",
+        document_author="Roger Fisher and William Ury",
+        document_year=1981,
+    )
+
+    assert card.document_title == "Getting to Yes"
+    assert card.document_author == "Roger Fisher and William Ury"
+    assert card.document_year == 1981
 
 
 def test_extract_source_cards_prefers_direct_sources_then_nested_crag_sources():

@@ -62,6 +62,7 @@ from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
 from app.core.config import settings
 from app.airag.llm_models.llm_models import get_llm
 from app.services.llm_models_service import normalize_llm_selection
+from app.services.source_cards_service import enrich_source_cards_with_raw_document_metadata
 from app.schemas.simulations_schemas import (
     NegotiationStateSchema,
     SimulationCreate,
@@ -1203,7 +1204,7 @@ async def _get_negotiation_graph_for_simulation(
     if cached_graph is not None:
         return cached_graph
 
-    retrieval_strategy, crag_graph = await _build_retrieval_graph(
+    retrieval_strategy, rag_graph = await _build_retrieval_graph(
         corpus_index=corpus_index,
         vector_store=vector_store,
         rag_profile=rag_profile,
@@ -1211,7 +1212,7 @@ async def _get_negotiation_graph_for_simulation(
         session=session,
     )
     graph = make_negotiation_graph(
-        crag_graph=crag_graph,
+        rag_graph=rag_graph,
         retrieval_strategy=retrieval_strategy,
         coach_prompt_template=prompt_templates["coach"],
         counterpart_prompt_template=prompt_templates["counterpart"],
@@ -1850,40 +1851,21 @@ def _ledger_read_schema(row: Any) -> SimulationEvidenceLedgerRead:
     return SimulationEvidenceLedgerRead.model_validate(row, from_attributes=True)
 
 
-async def _enrich_source_cards_with_raw_document_names(
+async def _enrich_source_cards_with_raw_document_metadata(
     sources: list[dict[str, Any]],
     session: AsyncSession,
 ) -> list[dict[str, Any]]:
     """
-    Enrich source cards with raw document names from the database.
+    Enrich source cards with public raw-document metadata from the database.
     Args:
         sources (list[dict[str, Any]]): The list of source dictionaries 
             to enrich.
         session (AsyncSession): The database session to use for fetching 
-            raw document names.
+            raw document metadata.
     Returns:
         list[dict[str, Any]]: A list of enriched source dictionaries.
     """
-    raw_document_names: dict[int, str] = {}
-    enriched: list[dict[str, Any]] = []
-
-    for source in sources:
-        card = dict(source)
-        raw_document_id = card.get("raw_document_id")
-        if isinstance(raw_document_id, int):
-            if raw_document_id not in raw_document_names: # Get the raw document id from db
-                raw_document = await raw_documents_repo.get_raw_document_by_id(
-                    raw_document_id,
-                    session,
-                )
-                raw_document_names[raw_document_id] = str(
-                    getattr(raw_document, "name", "") or ""
-                )
-            raw_document_name = raw_document_names.get(raw_document_id)
-            if raw_document_name:
-                card["raw_document_name"] = raw_document_name
-        enriched.append(card)
-    return enriched
+    return await enrich_source_cards_with_raw_document_metadata(sources, session)
 
 
 async def _enrich_graph_state_source_payloads(
@@ -1891,7 +1873,7 @@ async def _enrich_graph_state_source_payloads(
     session: AsyncSession,
 ) -> None:
     """
-    Enrich the graph state with raw document names for source payloads.
+    Enrich the graph state with raw-document metadata for source payloads.
     Args:
         graph_state: The current state of the graph.
         session: The database session.
@@ -1900,7 +1882,7 @@ async def _enrich_graph_state_source_payloads(
     """
     for key in ("sources",):
         if isinstance(graph_state.get(key), list):
-            graph_state[key] = await _enrich_source_cards_with_raw_document_names(
+            graph_state[key] = await _enrich_source_cards_with_raw_document_metadata(
                 graph_state[key],
                 session,
             )
@@ -1912,7 +1894,7 @@ async def _enrich_graph_state_source_payloads(
         sources = payload.get("sources")
         if not isinstance(sources, list):
             continue
-        payload["sources"] = await _enrich_source_cards_with_raw_document_names(
+        payload["sources"] = await _enrich_source_cards_with_raw_document_metadata(
             sources,
             session,
         )
@@ -1958,7 +1940,7 @@ async def _persist_evidence_ledgers(
             output_summary=output_summary if isinstance(output_summary, dict) else {},
             token_usage=token_usage,
         )
-        record.sources = await _enrich_source_cards_with_raw_document_names(
+        record.sources = await _enrich_source_cards_with_raw_document_metadata(
             record.sources,
             session,
         )

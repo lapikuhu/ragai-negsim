@@ -160,6 +160,104 @@ describe("SimulationInspector", () => {
     expect(screen.getByText("Whether timing flexibility matters to the counterpart.")).toBeInTheDocument();
   });
 
+  it("renders top coach sources after reasoning with title and author", () => {
+    render(
+      <SimulationInspector
+        simulation={baseSimulation}
+        latestTurn={{
+          simulation_id: 1,
+          status: "paused",
+          phase: "bargaining",
+          should_pause: true,
+          pause_reason: "counterpart_response_ready",
+          messages: [],
+          coach_advice: {
+            summary: "Use objective criteria.",
+            reasoning: "Grounded in the retrieved negotiation sources.",
+            sources: [
+              {
+                document_title: "Getting to Yes",
+                document_author: "Roger Fisher and William Ury"
+              },
+              {
+                document_title: "Negotiation Analysis",
+                document_author: "Howard Raiffa"
+              },
+              {
+                document_title: "Bargaining for Advantage",
+                document_author: "G. Richard Shell"
+              },
+              {
+                document_title: "The Mind and Heart of the Negotiator",
+                document_author: "Leigh Thompson"
+              }
+            ]
+          },
+          final_evaluation: {},
+          counterpart_response: "Could you come down a bit more?"
+        }}
+      />
+    );
+
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.indexOf("Reasoning")).toBeLessThan(headings.indexOf("Sources"));
+    expect(screen.getByText("Getting to Yes")).toBeInTheDocument();
+    expect(screen.getByText("Roger Fisher and William Ury")).toBeInTheDocument();
+    expect(screen.getByText("Negotiation Analysis")).toBeInTheDocument();
+    expect(screen.getByText("Howard Raiffa")).toBeInTheDocument();
+    expect(screen.getByText("Bargaining for Advantage")).toBeInTheDocument();
+    expect(screen.getByText("G. Richard Shell")).toBeInTheDocument();
+    expect(screen.queryByText("The Mind and Heart of the Negotiator")).not.toBeInTheDocument();
+  });
+
+  it("shows missing source labels and hides the section when coach sources are absent", () => {
+    const { rerender } = render(
+      <SimulationInspector
+        simulation={baseSimulation}
+        latestTurn={{
+          simulation_id: 1,
+          status: "paused",
+          phase: "bargaining",
+          should_pause: true,
+          pause_reason: "counterpart_response_ready",
+          messages: [],
+          coach_advice: {
+            summary: "Use objective criteria.",
+            sources: [{}]
+          },
+          final_evaluation: {},
+          counterpart_response: "Could you come down a bit more?"
+        }}
+      />
+    );
+
+    expect(screen.getByText("Sources")).toBeInTheDocument();
+    expect(screen.getByText("Missing Title")).toBeInTheDocument();
+    expect(screen.getByText("Missing Author")).toBeInTheDocument();
+
+    rerender(
+      <SimulationInspector
+        simulation={baseSimulation}
+        latestTurn={{
+          simulation_id: 1,
+          status: "paused",
+          phase: "bargaining",
+          should_pause: true,
+          pause_reason: "counterpart_response_ready",
+          messages: [],
+          coach_advice: {
+            summary: "Use objective criteria.",
+            sources: []
+          },
+          final_evaluation: {},
+          counterpart_response: "Could you come down a bit more?"
+        }}
+      />
+    );
+
+    expect(screen.queryByText("Sources")).not.toBeInTheDocument();
+  });
+
   it("renders the evidence ledger card between coach guidance and simulation state", () => {
     render(
       <SimulationInspector

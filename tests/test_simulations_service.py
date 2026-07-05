@@ -18,7 +18,7 @@ from app.schemas.simulations_schemas import (
     SimulationTurnResponse,
     SimulationUpdateRequest,
 )
-from app.services import simulations_service
+from app.services import simulations_service, source_cards_service
 
 
 def _user(user_id=1):
@@ -1372,7 +1372,13 @@ async def test_submit_turn_persists_evidence_ledgers(monkeypatch):
 
     async def fake_get_raw_document_by_id(raw_document_id, session):
         assert raw_document_id == 3
-        return SimpleNamespace(id=3, name="Negotiation Guide")
+        return SimpleNamespace(
+            id=3,
+            name="Negotiation Guide",
+            document_title="Getting to Yes",
+            document_author="Roger Fisher and William Ury",
+            document_year=1981,
+        )
 
     monkeypatch.setattr(
         simulations_service.simulations_repo,
@@ -1385,7 +1391,7 @@ async def test_submit_turn_persists_evidence_ledgers(monkeypatch):
         fake_create_evidence_ledger,
     )
     monkeypatch.setattr(
-        simulations_service.raw_documents_repo,
+        source_cards_service.raw_documents_repo,
         "get_raw_document_by_id",
         fake_get_raw_document_by_id,
     )
@@ -1405,6 +1411,9 @@ async def test_submit_turn_persists_evidence_ledgers(monkeypatch):
             "rank": 1,
             "raw_document_id": 3,
             "raw_document_name": "Negotiation Guide",
+            "document_title": "Getting to Yes",
+            "document_author": "Roger Fisher and William Ury",
+            "document_year": 1981,
             "document_chunk_id": 7,
             "source": "C:/docs/negotiation-guide.pdf",
         }

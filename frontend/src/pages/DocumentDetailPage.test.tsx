@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
       description: "Detail test document",
       document_title: "Getting to Yes",
       document_author: "Roger Fisher",
-      document_date: "05-07-2026",
+      document_year: 2026,
       source_path: "app/raw_docs_store/brief.pdf",
       source_hash: "abc123",
       source_size: 2048,
@@ -76,7 +76,7 @@ describe("DocumentDetailPage", () => {
       description: "Detail test document",
       document_title: "Getting to Yes",
       document_author: "Roger Fisher",
-      document_date: "05-07-2026",
+      document_year: 2026,
       source_path: "app/raw_docs_store/brief.pdf",
       source_hash: "abc123",
       source_size: 2048,
@@ -104,8 +104,8 @@ describe("DocumentDetailPage", () => {
     expect(screen.getByText("Getting to Yes")).toBeInTheDocument();
     expect(screen.getByText("Author")).toBeInTheDocument();
     expect(screen.getByText("Roger Fisher")).toBeInTheDocument();
-    expect(screen.getByText("Document date")).toBeInTheDocument();
-    expect(screen.getByText("05-07-2026")).toBeInTheDocument();
+    expect(screen.getByText("Document year")).toBeInTheDocument();
+    expect(screen.getByText("2026")).toBeInTheDocument();
   });
 
   it("falls back to the uploader id when username is missing", () => {

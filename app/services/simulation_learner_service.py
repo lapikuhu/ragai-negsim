@@ -20,13 +20,13 @@ from app.airag.observability.llm_usage import (
 from app.core.config import settings
 from app.models.simulations import Simulation
 from app.models.users import User
-from app.repositories import raw_documents_repo
 from app.schemas.simulation_learner_schemas import (
     SimulationLearnerChatMessage,
     SimulationLearnerAskRequest,
     SimulationLearnerAskResponse,
 )
 from app.services.llm_models_service import normalize_llm_selection
+from app.services.source_cards_service import enrich_source_cards_with_raw_document_metadata
 from app.services.simulations_service import (
     RUNNABLE_STATUSES,
     _build_selected_llm,
@@ -510,26 +510,7 @@ async def _enrich_source_cards(
     Returns:
         list[dict[str, Any]]: A list of enriched source dictionaries.
     """
-    raw_document_names: dict[int, str] = {}
-    enriched: list[dict[str, Any]] = []
-
-    for source in sources:
-        card = dict(source)
-        raw_document_id = card.get("raw_document_id")
-        if isinstance(raw_document_id, int):
-            if raw_document_id not in raw_document_names: # Fetch raw document name from db
-                raw_document = await raw_documents_repo.get_raw_document_by_id(
-                    raw_document_id,
-                    session,
-                )
-                raw_document_names[raw_document_id] = str(
-                    getattr(raw_document, "name", "") or ""
-                )
-            raw_document_name = raw_document_names.get(raw_document_id)
-            if raw_document_name:
-                card["raw_document_name"] = raw_document_name
-        enriched.append(card)
-    return enriched
+    return await enrich_source_cards_with_raw_document_metadata(sources, session)
 
 
 def _learner_debug_trace(

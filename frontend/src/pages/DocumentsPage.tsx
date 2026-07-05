@@ -22,18 +22,10 @@ export function DocumentsPage() {
   const [description, setDescription] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
   const [documentAuthor, setDocumentAuthor] = useState("");
-  const [documentDate, setDocumentDate] = useState("");
+  const [documentYear, setDocumentYear] = useState("");
   const [corpusIds, setCorpusIds] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
-  const formatDocumentDateForApi = (value: string) => {
-    if (!value) {
-      return "";
-    }
-    const [year, month, day] = value.split("-");
-    return `${day}-${month}-${year}`;
-  };
 
   return (
     <div className="grid gap-6">
@@ -57,6 +49,11 @@ export function DocumentsPage() {
               setMessage("Corpus IDs must be comma-separated integers.");
               return;
             }
+            const trimmedDocumentYear = documentYear.trim();
+            if (trimmedDocumentYear && !/^-?\d+$/.test(trimmedDocumentYear)) {
+              setMessage("Year must be an integer.");
+              return;
+            }
             setMessage(null);
             try {
               await uploadMutation.mutateAsync({
@@ -64,7 +61,7 @@ export function DocumentsPage() {
                 description,
                 documentTitle,
                 documentAuthor,
-                documentDate: formatDocumentDateForApi(documentDate),
+                documentYear: trimmedDocumentYear ? Number(trimmedDocumentYear) : undefined,
                 corpusIds: parsedCorpusIds.map(Number),
                 file
               });
@@ -72,7 +69,7 @@ export function DocumentsPage() {
               setDescription("");
               setDocumentTitle("");
               setDocumentAuthor("");
-              setDocumentDate("");
+              setDocumentYear("");
               setCorpusIds("");
               setFile(null);
               setMessage("Upload complete.");
@@ -90,8 +87,8 @@ export function DocumentsPage() {
           <Field label="Author">
             <Input value={documentAuthor} onChange={(event) => setDocumentAuthor(event.target.value)} />
           </Field>
-          <Field label="Date">
-            <Input type="date" value={documentDate} onChange={(event) => setDocumentDate(event.target.value)} />
+          <Field label="Year">
+            <Input value={documentYear} onChange={(event) => setDocumentYear(event.target.value)} />
           </Field>
           <Field label="Linked corpus IDs" hint={`Available corpora: ${(corpora.data ?? []).map((corpus) => corpus.id).join(", ") || "none"}`}>
             <Input
@@ -135,7 +132,7 @@ export function DocumentsPage() {
                   <div className="mt-2 grid gap-1 text-xs text-slate-500">
                     {document.document_title ? <span>{document.document_title}</span> : null}
                     {document.document_author ? <span>{document.document_author}</span> : null}
-                    {document.document_date ? <span>{document.document_date}</span> : null}
+                    {document.document_year !== null && document.document_year !== undefined ? <span>{document.document_year}</span> : null}
                   </div>
                 </div>
               )

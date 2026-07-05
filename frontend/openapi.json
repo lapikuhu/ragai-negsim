@@ -3594,7 +3594,7 @@
           "Raw Documents"
         ],
         "summary": "Create Raw Document",
-        "description": "Upload and register a new raw document.\nArgs:\n    name: Display name for the raw document.\n    description: Optional description.\n    document_title: Optional title of the document.\n    document_author: Optional author of the document.\n    document_date: Optional date of the document.\n    corpus_ids: Optional corpora to link during creation.\n    file: Uploaded PDF source file.\n    session: The database session to use for the operation.\n    current_user: The user creating the raw document.\nReturns:\n    The created raw document metadata.",
+        "description": "Upload and register a new raw document.\nArgs:\n    name: Display name for the raw document.\n    description: Optional description.\n    document_title: Optional title of the document.\n    document_author: Optional author of the document.\n    document_year: Optional year of the document.\n    corpus_ids: Optional corpora to link during creation.\n    file: Uploaded PDF source file.\n    session: The database session to use for the operation.\n    current_user: The user creating the raw document.\nReturns:\n    The created raw document metadata.",
         "operationId": "create_raw_document_raw_documents__post",
         "security": [
           {
@@ -6759,16 +6759,16 @@
             ],
             "title": "Document Author"
           },
-          "document_date": {
+          "document_year": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Document Date"
+            "title": "Document Year"
           },
           "corpus_ids": {
             "items": {
@@ -9877,16 +9877,16 @@
             ],
             "title": "Document Author"
           },
-          "document_date": {
+          "document_year": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Document Date"
+            "title": "Document Year"
           },
           "source_path": {
             "type": "string",
@@ -10052,16 +10052,16 @@
             ],
             "title": "Document Author"
           },
-          "document_date": {
+          "document_year": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Document Date"
+            "title": "Document Year"
           },
           "source_path": {
             "type": "string",
@@ -10162,16 +10162,16 @@
             ],
             "title": "Document Author"
           },
-          "document_date": {
+          "document_year": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Document Date"
+            "title": "Document Year"
           },
           "source_path": {
             "anyOf": [

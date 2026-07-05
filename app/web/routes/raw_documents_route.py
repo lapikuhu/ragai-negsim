@@ -65,7 +65,7 @@ async def create_raw_document(
     description: str | None = Form(default=None),
     document_title: str | None = Form(default=None),
     document_author: str | None = Form(default=None),
-    document_date: str | None = Form(default=None),
+    document_year: int | None = Form(default=None),
     corpus_ids: list[int] = Form(default=[]),
     file: UploadFile = File(...),
     session: SessionDep,
@@ -78,7 +78,7 @@ async def create_raw_document(
         description: Optional description.
         document_title: Optional title of the document.
         document_author: Optional author of the document.
-        document_date: Optional date of the document.
+        document_year: Optional year of the document.
         corpus_ids: Optional corpora to link during creation.
         file: Uploaded PDF source file.
         session: The database session to use for the operation.
@@ -92,7 +92,7 @@ async def create_raw_document(
             description=description,
             document_title=document_title,
             document_author=document_author,
-            document_date=document_date,
+            document_year=document_year,
             corpus_ids=corpus_ids,
             upload=file,
             session=session,

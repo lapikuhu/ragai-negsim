@@ -16,7 +16,7 @@ export type RawDocumentUploadInput = {
   description?: string;
   documentTitle?: string;
   documentAuthor?: string;
-  documentDate?: string;
+  documentYear?: number;
   corpusIds: number[];
   file: File;
 };
@@ -45,8 +45,8 @@ async function uploadDocument(input: RawDocumentUploadInput) {
   if (input.documentAuthor) {
     form.set("document_author", input.documentAuthor);
   }
-  if (input.documentDate) {
-    form.set("document_date", input.documentDate);
+  if (input.documentYear !== undefined) {
+    form.set("document_year", String(input.documentYear));
   }
   input.corpusIds.forEach((id) => form.append("corpus_ids", String(id)));
   form.set("file", input.file);

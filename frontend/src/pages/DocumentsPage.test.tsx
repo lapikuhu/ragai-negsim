@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({
         description: "Detail test document",
         document_title: "Getting to Yes",
         document_author: "Roger Fisher",
-        document_date: "05-07-2026",
+        document_year: 2026,
         source_path: "app/raw_docs_store/brief.pdf",
         source_hash: "abc123",
         source_size: 2048,
@@ -65,17 +65,17 @@ describe("DocumentsPage", () => {
     expect(documentCell).not.toBeNull();
     expect(within(documentCell as HTMLElement).getByText("Getting to Yes")).toBeInTheDocument();
     expect(within(documentCell as HTMLElement).getByText("Roger Fisher")).toBeInTheDocument();
-    expect(within(documentCell as HTMLElement).getByText("05-07-2026")).toBeInTheDocument();
+    expect(within(documentCell as HTMLElement).getByText("2026")).toBeInTheDocument();
   });
 
-  it("submits title, author, and date metadata when uploading a document", async () => {
+  it("submits title, author, and year metadata when uploading a document", async () => {
     const user = userEvent.setup();
     render(<DocumentsPage />, { wrapper: MemoryRouter });
 
-    await user.type(screen.getByLabelText("Name"), "Labor casebook");
+    await user.type(screen.getByLabelText(/Name-Alias/), "Labor casebook");
     await user.type(screen.getByLabelText("Title"), "Labor Negotiation Playbook");
     await user.type(screen.getByLabelText("Author"), "Ada Lovelace");
-    await user.type(screen.getByLabelText("Date"), "2026-07-05");
+    await user.type(screen.getByLabelText("Year"), "2026");
     await user.type(screen.getByPlaceholderText("e.g. 1,2"), "4");
     await user.upload(
       screen.getByLabelText("PDF file"),
@@ -88,9 +88,25 @@ describe("DocumentsPage", () => {
       description: "",
       documentTitle: "Labor Negotiation Playbook",
       documentAuthor: "Ada Lovelace",
-      documentDate: "05-07-2026",
+      documentYear: 2026,
       corpusIds: [4],
       file: expect.any(File)
     });
+  });
+
+  it("rejects non-integer year text before uploading", async () => {
+    const user = userEvent.setup();
+    render(<DocumentsPage />, { wrapper: MemoryRouter });
+
+    await user.type(screen.getByLabelText(/Name-Alias/), "Labor casebook");
+    await user.type(screen.getByLabelText("Year"), "2026.5");
+    await user.upload(
+      screen.getByLabelText("PDF file"),
+      new File(["brief"], "brief.pdf", { type: "application/pdf" })
+    );
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+
+    expect(state.uploadMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByText("Year must be an integer.")).toBeInTheDocument();
   });
 });

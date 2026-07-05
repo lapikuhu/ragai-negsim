@@ -13,39 +13,51 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def test_raw_document_metadata_accepts_valid_date_and_normalizes_blanks():
+def test_raw_document_metadata_accepts_integer_year_and_normalizes_blanks():
     raw_document = RawDocumentCreate(
         name="brief",
         description=None,
         source_path="brief.pdf",
         document_title="  Negotiation Brief  ",
         document_author="  Ada Lovelace  ",
-        document_date="05-07-2026",
+        document_year=2026,
     )
 
     assert raw_document.document_title == "Negotiation Brief"
     assert raw_document.document_author == "Ada Lovelace"
-    assert raw_document.document_date == "05-07-2026"
+    assert raw_document.document_year == 2026
 
     update = RawDocumentUpdate(
         document_title=" ",
         document_author="",
-        document_date=None,
+        document_year=None,
     )
 
     assert update.document_title is None
     assert update.document_author is None
-    assert update.document_date is None
+    assert update.document_year is None
 
 
-@pytest.mark.parametrize("document_date", ["2026-07-05", "05/07/2026", "31-02-2026"])
-def test_raw_document_metadata_rejects_invalid_document_date(document_date):
+@pytest.mark.parametrize("document_year", [0, -44, 2026])
+def test_raw_document_metadata_accepts_any_integer_year(document_year):
+    raw_document = RawDocumentCreate(
+        name="brief",
+        description=None,
+        source_path="brief.pdf",
+        document_year=document_year,
+    )
+
+    assert raw_document.document_year == document_year
+
+
+@pytest.mark.parametrize("document_year", ["2026", "2026-07-05", "2026.0", "abc"])
+def test_raw_document_metadata_rejects_non_integer_document_year(document_year):
     with pytest.raises(ValueError):
         RawDocumentCreate(
             name="brief",
             description=None,
             source_path="brief.pdf",
-            document_date=document_date,
+            document_year=document_year,
         )
 
 
@@ -71,7 +83,7 @@ async def test_create_uploaded_raw_document_rejects_duplicate_filename(tmp_path,
             description=None,
             document_title=None,
             document_author=None,
-            document_date=None,
+            document_year=None,
             corpus_ids=[],
             upload=upload,
             session=object(),
@@ -88,7 +100,7 @@ async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeyp
         description="Uploaded for testing",
         document_title="Negotiation Brief",
         document_author="Ada Lovelace",
-        document_date="05-07-2026",
+        document_year=2026,
         source_path="raw/alpha.pdf",
         source_hash="abc123",
         source_size=2048,
@@ -115,7 +127,7 @@ async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeyp
         description="Uploaded for testing",
         document_title="Negotiation Brief",
         document_author="Ada Lovelace",
-        document_date="05-07-2026",
+        document_year=2026,
         corpus_ids=[],
         file=SimpleNamespace(filename="alpha.pdf"),
         session=object(),
@@ -124,10 +136,10 @@ async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeyp
 
     assert captured["document_title"] == "Negotiation Brief"
     assert captured["document_author"] == "Ada Lovelace"
-    assert captured["document_date"] == "05-07-2026"
+    assert captured["document_year"] == 2026
     assert result.document_title == "Negotiation Brief"
     assert result.document_author == "Ada Lovelace"
-    assert result.document_date == "05-07-2026"
+    assert result.document_year == 2026
 
 
 @pytest.mark.asyncio
@@ -140,7 +152,7 @@ async def test_update_raw_document_route_updates_bibliographic_metadata(monkeypa
         description="Uploaded for testing",
         document_title="Updated title",
         document_author="Updated author",
-        document_date="06-07-2026",
+        document_year=2027,
         source_path="raw/alpha.pdf",
         source_hash="abc123",
         source_size=2048,
@@ -165,7 +177,7 @@ async def test_update_raw_document_route_updates_bibliographic_metadata(monkeypa
         update_data=RawDocumentUpdate(
             document_title="Updated title",
             document_author="Updated author",
-            document_date="06-07-2026",
+            document_year=2027,
         ),
         session=object(),
     )
@@ -173,10 +185,10 @@ async def test_update_raw_document_route_updates_bibliographic_metadata(monkeypa
     assert captured["raw_document"] is raw_document
     assert captured["update_data"].document_title == "Updated title"
     assert captured["update_data"].document_author == "Updated author"
-    assert captured["update_data"].document_date == "06-07-2026"
+    assert captured["update_data"].document_year == 2027
     assert result.document_title == "Updated title"
     assert result.document_author == "Updated author"
-    assert result.document_date == "06-07-2026"
+    assert result.document_year == 2027
 
 
 @pytest.mark.asyncio
@@ -189,7 +201,7 @@ async def test_update_raw_document_route_maps_validation_error_to_conflict(monke
     with pytest.raises(HTTPException) as exc_info:
         await raw_documents_route.update_raw_document(
             raw_document=SimpleNamespace(id=21),
-            update_data=RawDocumentUpdate(document_date="05-07-2026"),
+            update_data=RawDocumentUpdate(document_year=2026),
             session=object(),
         )
 

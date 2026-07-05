@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.schemas.simulation_learner_schemas import SimulationLearnerAskRequest
-from app.services import simulation_learner_service
+from app.services import simulation_learner_service, source_cards_service
 
 
 def _user(user_id=7):
@@ -525,10 +525,16 @@ async def test_ask_simulation_learner_returns_enriched_crag_sources(monkeypatch)
 
     async def fake_get_raw_document_by_id(raw_document_id, session):
         assert raw_document_id == 3
-        return SimpleNamespace(id=3, name="Negotiation Guide")
+        return SimpleNamespace(
+            id=3,
+            name="Negotiation Guide",
+            document_title="Getting to Yes",
+            document_author="Roger Fisher and William Ury",
+            document_year=1981,
+        )
 
     monkeypatch.setattr(
-        simulation_learner_service,
+        source_cards_service,
         "raw_documents_repo",
         SimpleNamespace(get_raw_document_by_id=fake_get_raw_document_by_id),
         raising=False,
@@ -546,6 +552,9 @@ async def test_ask_simulation_learner_returns_enriched_crag_sources(monkeypatch)
             "rank": 1,
             "raw_document_id": 3,
             "raw_document_name": "Negotiation Guide",
+            "document_title": "Getting to Yes",
+            "document_author": "Roger Fisher and William Ury",
+            "document_year": 1981,
             "document_chunk_id": 7,
             "chunk_index": 2,
             "source": "C:/docs/negotiation-guide.pdf",
@@ -598,10 +607,16 @@ async def test_ask_simulation_learner_returns_enriched_graphrag_sources(monkeypa
 
     async def fake_get_raw_document_by_id(raw_document_id, session):
         assert raw_document_id == 4
-        return SimpleNamespace(id=4, name="Graph Guide")
+        return SimpleNamespace(
+            id=4,
+            name="Graph Guide",
+            document_title="Graph Grounding",
+            document_author="Ada Lovelace",
+            document_year=2026,
+        )
 
     monkeypatch.setattr(
-        simulation_learner_service,
+        source_cards_service,
         "raw_documents_repo",
         SimpleNamespace(get_raw_document_by_id=fake_get_raw_document_by_id),
         raising=False,
@@ -619,6 +634,9 @@ async def test_ask_simulation_learner_returns_enriched_graphrag_sources(monkeypa
             "rank": 1,
             "raw_document_id": 4,
             "raw_document_name": "Graph Guide",
+            "document_title": "Graph Grounding",
+            "document_author": "Ada Lovelace",
+            "document_year": 2026,
             "document_chunk_id": 8,
             "chunk_index": 3,
             "source": "C:/docs/graph-guide.pdf",

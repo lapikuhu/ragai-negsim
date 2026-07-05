@@ -1356,7 +1356,7 @@ export type paths = {
          *         description: Optional description.
          *         document_title: Optional title of the document.
          *         document_author: Optional author of the document.
-         *         document_date: Optional date of the document.
+         *         document_year: Optional year of the document.
          *         corpus_ids: Optional corpora to link during creation.
          *         file: Uploaded PDF source file.
          *         session: The database session to use for the operation.
@@ -2504,8 +2504,8 @@ export type components = {
             description?: string | null;
             /** Document Author */
             document_author?: string | null;
-            /** Document Date */
-            document_date?: string | null;
+            /** Document Year */
+            document_year?: number | null;
             /** Document Title */
             document_title?: string | null;
             /** File */
@@ -3569,8 +3569,8 @@ export type components = {
             description?: string | null;
             /** Document Author */
             document_author?: string | null;
-            /** Document Date */
-            document_date?: string | null;
+            /** Document Year */
+            document_year?: number | null;
             /** Document Title */
             document_title?: string | null;
             /** Id */
@@ -3618,8 +3618,8 @@ export type components = {
             description?: string | null;
             /** Document Author */
             document_author?: string | null;
-            /** Document Date */
-            document_date?: string | null;
+            /** Document Year */
+            document_year?: number | null;
             /** Document Title */
             document_title?: string | null;
             /** Id */
@@ -3658,8 +3658,8 @@ export type components = {
             description?: string | null;
             /** Document Author */
             document_author?: string | null;
-            /** Document Date */
-            document_date?: string | null;
+            /** Document Year */
+            document_year?: number | null;
             /** Document Title */
             document_title?: string | null;
             /** Raw document name */
@@ -8286,4 +8286,3 @@ export interface operations {
         };
     };
 }
-

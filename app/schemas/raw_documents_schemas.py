@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import StrictInt, field_validator
 from sqlmodel import Field, SQLModel
 
 from app.schemas.corpus_schemas import CorpusSummaryRead
@@ -21,7 +21,7 @@ class RawDocumentBase(SQLModel):
     description: str | None = None
     document_title: str | None = None
     document_author: str | None = None
-    document_date: str | None = None
+    document_year: StrictInt | None = None
     source_path: str = Field(min_length=1, title="Raw document source path")
 
     @field_validator("document_title", "document_author", mode="before")
@@ -40,33 +40,6 @@ class RawDocumentBase(SQLModel):
         if isinstance(value, str):
             value = value.strip()
             return value or None
-        return value
-
-    @field_validator("document_date", mode="before")
-    @classmethod
-    def _validate_document_date(cls, value: str | None) -> str | None:
-        """
-        Validate the document_date field to ensure it is a real date in 
-        dd-mm-yyyy format.
-        Args:
-            value: The input string value to validate.
-        Returns:
-            The validated string or None if the input was empty or None.
-        Raises:
-            ValueError: If the input string is not a valid date in 
-            dd-mm-yyyy format.
-        """
-        if value is None:
-            return None
-        if isinstance(value, str):
-            value = value.strip()
-            if not value:
-                return None
-            try:
-                datetime.strptime(value, "%d-%m-%Y")
-            except ValueError as exc:
-                raise ValueError("document_date must be a real date in dd-mm-yyyy format") from exc
-            return value
         return value
 
 
@@ -99,7 +72,7 @@ class RawDocumentUpdate(SQLModel):
     description: str | None = None
     document_title: str | None = None
     document_author: str | None = None
-    document_date: str | None = None
+    document_year: StrictInt | None = None
     source_path: str | None = Field(default=None, min_length=1, title="Raw document source path")
     source_hash: str | None = Field(default=None, min_length=1)
     source_size: int | None = Field(default=None, ge=0)
@@ -114,22 +87,6 @@ class RawDocumentUpdate(SQLModel):
         if isinstance(value, str):
             value = value.strip()
             return value or None
-        return value
-
-    @field_validator("document_date", mode="before")
-    @classmethod
-    def _validate_document_date(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            value = value.strip()
-            if not value:
-                return None
-            try:
-                datetime.strptime(value, "%d-%m-%Y")
-            except ValueError as exc:
-                raise ValueError("document_date must be a real date in dd-mm-yyyy format") from exc
-            return value
         return value
 
 

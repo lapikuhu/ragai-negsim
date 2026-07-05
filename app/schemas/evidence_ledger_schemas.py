@@ -11,6 +11,9 @@ class SourceCard(SQLModel):
     rank: int | None = None
     raw_document_id: int | None = None
     raw_document_name: str | None = None
+    document_title: str | None = None
+    document_author: str | None = None
+    document_year: int | None = None
     document_chunk_id: int | None = None
     chunk_index: int | None = None
     source: str | None = None

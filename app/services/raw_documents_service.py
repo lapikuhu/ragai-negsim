@@ -149,7 +149,7 @@ async def create_uploaded_raw_document_srvc(
     description: str | None,
     document_title: str | None,
     document_author: str | None,
-    document_date: str | None,
+    document_year: int | None,
     corpus_ids: list[int],
     upload: UploadFile,
     session: AsyncSession,
@@ -162,7 +162,7 @@ async def create_uploaded_raw_document_srvc(
         description: An optional description of the raw document.
         document_title: An optional title of the document.
         document_author: An optional author of the document.
-        document_date: An optional date of the document.
+        document_year: An optional year of the document.
         corpus_ids: A list of corpus IDs associated with the raw document.
         upload: The uploaded file to store.
         session: The database session to use for the operation.
@@ -197,7 +197,7 @@ async def create_uploaded_raw_document_srvc(
         description=description,
         document_title=document_title,
         document_author=document_author,
-        document_date=document_date,
+        document_year=document_year,
         source_path=str(stored_path),
         source_hash=_hash_bytes(file_bytes),
         source_size=len(file_bytes),

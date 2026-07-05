@@ -17,6 +17,11 @@ type PositionAssessmentRecord = {
   zopa_comment?: string;
 };
 
+type CoachSourceRecord = {
+  title: string;
+  author: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -71,6 +76,13 @@ function getEvidenceLedgers(
 
 function asObjectList(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function getCoachSources(value: unknown): CoachSourceRecord[] {
+  return asObjectList(value).slice(0, 3).map((source) => ({
+    title: getString(source.document_title) ?? "Missing Title",
+    author: getString(source.document_author) ?? "Missing Author"
+  }));
 }
 
 function EvidenceLedgerCard({ ledgers }: { ledgers: EvidenceLedger[] }) {
@@ -184,6 +196,7 @@ function CoachGuidanceCard({
   const reasoning = getString(advice.reasoning);
   const risks = getStringList(advice.risks);
   const missingInformation = getStringList(advice.missing_information);
+  const sources = getCoachSources(advice.sources);
   const positionAssessment = isRecord(advice.position_assessment)
     ? (advice.position_assessment as PositionAssessmentRecord)
     : null;
@@ -271,6 +284,20 @@ function CoachGuidanceCard({
           <section className="grid gap-1">
             <h3 className="text-sm font-semibold text-slate-900">Reasoning</h3>
             <p className="text-sm leading-6 text-slate-700">{reasoning}</p>
+          </section>
+        ) : null}
+
+        {sources.length ? (
+          <section className="grid gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">Sources</h3>
+            <ul className="grid gap-2">
+              {sources.map((source, index) => (
+                <li key={`${source.title}-${source.author}-${index}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                  <div className="text-sm font-medium text-slate-900">{source.title}</div>
+                  <div className="mt-1 text-sm text-slate-600">{source.author}</div>
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
       </div>
