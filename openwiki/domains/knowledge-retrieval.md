@@ -30,7 +30,7 @@ This is a central business domain because the simulator is meant to be grounded 
 5. Chunk records can be inspected separately in the document chunks UI/API.
 6. Later retrieval uses those chunks as evidence for simulation and learner responses.
 
-The raw document route now exposes associated corpora in its detail response, which is a good clue that document-to-corpus binding is a first-class part of the domain.
+The raw document route now exposes associated corpora in its detail response, and recent changes also surface bibliographic metadata (`document_title`, `document_author`, `document_year`) through the document APIs and source cards. That makes document metadata a first-class part of the retrieval domain, not just an upload detail.
 
 ## CRAG and GraphRAG
 The README and recent git history show two retrieval strategies:

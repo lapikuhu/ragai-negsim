@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     COHERE_API_KEY: str | None = None
     HF_TOKEN: str | None = None
     TAVILY_API_KEY: str | None = None
+    MAX_UPLOAD_SIZE: int = 500 * 1024 * 1024  # 500 MB
 
 
 def _set_or_clear_env(name: str, value: str | None) -> None:

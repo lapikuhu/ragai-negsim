@@ -28,7 +28,8 @@ TokenDep: TypeAlias = Annotated[str, Depends(oauth2_scheme)]
 
 
 async def get_current_user(token: TokenDep, session: SessionDep) -> User:
-    """Get the current authenticated user based on the provided JWT token.
+    """
+    Get the current authenticated user based on the provided JWT token.
     Args:
         token (str): The JWT token extracted from the Authorization header.
         session (AsyncSession): The database session for querying user data.

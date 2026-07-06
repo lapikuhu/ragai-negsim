@@ -49,6 +49,7 @@ app = FastAPI(title="Negotiation Simulator", lifespan=lifespan, tags=["app"])
 
 # Add middleware
 # CORS allows cross-origin requests from the frontend
+# TODO: Restrict origins to only the frontend domain
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ALLOW_ORIGINS,

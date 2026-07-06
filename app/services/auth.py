@@ -8,7 +8,8 @@ from app.core.security import decode_access_token
 
 # Used by the auth deps to get the current user based on the token, 
 async def get_current_user(token: str, session: AsyncSession) -> User:
-    """Get the current authenticated user based on the provided JWT token.
+    """
+    Get the current authenticated user based on the provided JWT token.
     Args:
         token (str): The JWT token provided in the request header.
         session (AsyncSession): Database session for querying user information.
@@ -33,4 +34,16 @@ async def get_current_user(token: str, session: AsyncSession) -> User:
     user = await users_repo.get_user_by_username(username, session)
     if user is None:
         raise credentials_exception
+    
+    # Check if the token has expired
+    exp_timestamp: int | None = payload.get("exp")
+    if exp_timestamp is not None:
+        from datetime import datetime, timezone
+        current_timestamp = datetime.now(timezone.utc).timestamp()
+        if current_timestamp > exp_timestamp:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     return user

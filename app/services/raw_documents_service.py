@@ -177,6 +177,17 @@ async def create_uploaded_raw_document_srvc(
     extension = Path(original_name).suffix.lower()
     if extension != ".pdf":
         raise ValueError("Only PDF uploads are currently supported")
+    
+    # Check for invalid file signature
+    file_bytes = await upload.read(4)
+    # Reset the file pointer to the beginning of the file after reading the signature
+    await upload.seek(0)
+    if file_bytes != b"%PDF":
+        raise ValueError("Uploaded file does not have a valid PDF signature")
+    
+    # Enforce size limit
+    if upload.spool_max_size and upload.spool_max_size > settings.MAX_UPLOAD_SIZE:
+        raise ValueError(f"Uploaded file exceeds the maximum allowed size of {settings.MAX_UPLOAD_SIZE} bytes")
 
     raw_docs_dir = Path(settings.RAW_DOCS_DIR)
     raw_docs_dir.mkdir(parents=True, exist_ok=True)

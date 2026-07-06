@@ -28,7 +28,7 @@ This mirrors the backend's authorization model and makes the UI a useful map of 
 ## Data and API wiring
 The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows.
 
-The recent UI history shows the frontend tracking backend domain changes closely, including learner debug traces, raw document corpus associations, simulation learner settings, and pagination controls for document chunks.
+The recent UI history shows the frontend tracking backend domain changes closely, including learner debug traces, raw document corpus associations, document bibliographic metadata in list/detail views, simulation learner settings, coach source cards, and pagination controls for document chunks.
 
 ## What to watch out for
 - Page titles and routes are tightly coupled to backend domain names, so route renames usually require API and test updates too.
