@@ -1,6 +1,6 @@
 # Negotiation Simulator
 
-This project is a FastAPI app for an educational negotiation simulator. The goal is to let learners practice negotiations against AI-driven counterparts, receive coaching and evaluation, and use curated corpora as grounding material for scenario-specific simulations.
+This project is a demonstration  FastAPI app for an educational agentic negotiation simulator, and is part of the Athens University of Economics and Business AI for Developers: Design, Build, Deploy LLM-powered Applications 2026 cohort (https://diaviou.aueb.gr/programs/36148-AI-for-Developers--Design,-Build,-Deploy-LLM-powered-Applications-1001200). The goal is to let learners practice negotiations against AI-driven counterparts, receive coaching and evaluation, and use curated corpora as grounding material for scenario-specific simulations.
 
 Developed on win32.
 

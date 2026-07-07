@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     OPEN_AI_DEFAULT_MODEL: str = "gpt-4o-mini"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_DEFAULT_MODEL: str = "qwen2.5:1.5b-instruct"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 360
     FIXED_ROLES: list[str] = ["admin", "student", "teacher"]
     RAW_DOCS_DIR: str = "app/raw_docs_store"
     CORS_ALLOW_ORIGINS: list[str] = [
@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     COHERE_API_KEY: str | None = None
     HF_TOKEN: str | None = None
     TAVILY_API_KEY: str | None = None
-    MAX_UPLOAD_SIZE: int = 500 * 1024 * 1024  # 500 MB
+    MAX_UPLOAD_SIZE: int = 248 * 1024 * 1024  # 248 MB
 
 
 def _set_or_clear_env(name: str, value: str | None) -> None:

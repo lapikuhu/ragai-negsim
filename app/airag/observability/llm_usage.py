@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import threading
 from typing import Any, Iterable
 
@@ -8,6 +9,8 @@ from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
 from langchain_core.runnables.config import RunnableConfig, ensure_config, merge_configs
+
+from app.airag.prompt_guard.prompt_guard import return_guarded_query
 
 #TODO: Move to to config file
 PUBLIC_AGENT_NAMES = ("coach", "counterpart", "user_proxy", "evaluator", "intent_classifier", "simulation_learner")
@@ -319,6 +322,42 @@ def invoke_with_config(
         if "config" not in str(exc):
             raise
         return runnable.invoke(payload)
+
+
+def _payload_to_guard_text(payload: Any) -> str:
+    """
+    Convert a runnable payload into text for prompt guard validation.
+    Args:
+        payload: The input payload passed to a runnable.
+    Returns:
+        A string representation of the payload.
+    """
+    if isinstance(payload, str):
+        return payload
+    try:
+        return json.dumps(payload, default=str, sort_keys=True)
+    except (TypeError, ValueError):
+        return str(payload)
+
+
+def guarded_invoke_with_config(
+    runnable: Any,
+    payload: Any,
+    config: RunnableConfig | None = None,
+) -> Any:
+    """
+    Validate a runnable payload with the prompt guard before invocation.
+    Args:
+        runnable: The runnable to invoke.
+        payload: The input payload for the runnable.
+        config: Optional runnable configuration.
+    Returns:
+        The result of invoking the runnable.
+    Raises:
+        ValueError: If the prompt guard rejects the payload.
+    """
+    return_guarded_query(_payload_to_guard_text(payload))
+    return invoke_with_config(runnable, payload, config)
 
 
 def summarize_usage_handler(handler: UsageMetadataCallbackHandler) -> dict[str, Any]:
