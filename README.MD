@@ -351,6 +351,134 @@ During development, open the frontend in the browser at `http://localhost:5173/`
 The React app uses the Vite proxy to forward supported relative API requests such as `/users/me` and `/simulations/` to the FastAPI backend at `http://127.0.0.1:8000`.
 You should browse to the frontend URL, not the backend URL, for normal UI work.
 
+## Docker Deployment Strategy
+
+The repository includes a Compose-based deployment scaffold for running the
+backend, frontend, PostgreSQL, and Neo4j together in containers.
+
+Current deployment files:
+
+- [Dockerfile](Dockerfile) builds the FastAPI backend image.
+- [compose.yaml](compose.yaml) defines the frontend, backend, PostgreSQL, and Neo4j services.
+- [frontend/Dockerfile](frontend/Dockerfile) builds the React app and serves it with Nginx.
+- [frontend/nginx.conf](frontend/nginx.conf) serves the built frontend with React Router fallback.
+- [.dockerignore](.dockerignore) and [frontend/.dockerignore](frontend/.dockerignore) keep local caches, secrets, build output, and runtime data out of Docker build contexts.
+
+The current Docker setup intentionally uses separate public ports instead of a
+single reverse proxy:
+
+- Frontend UI: `http://localhost:3000`
+- Backend API: `http://localhost:8000`
+- PostgreSQL: `localhost:5432`
+- Neo4j Browser: `http://localhost:7474`
+- Neo4j Bolt: `localhost:7687`
+
+### Container Roles
+
+- `frontend` builds `frontend/` with `npm ci` and `npm run build`, then serves `dist/` from Nginx.
+- `backend` installs Python runtime dependencies with `uv sync --frozen --no-dev --no-install-project` and starts `uvicorn app.main:app`.
+- `postgres` stores application data in a named Docker volume.
+- `neo4j` runs the community Neo4j image with the APOC plugin enabled for GraphRAG features.
+
+Persistent runtime data is stored in named Docker volumes:
+
+- `postgres-data` for PostgreSQL data
+- `neo4j-data`, `neo4j-logs`, and `neo4j-plugins` for Neo4j
+- `raw-docs` for uploaded source documents
+- `app-logs` for backend logs
+- `chroma-data` for local Chroma persistence
+
+### Environment Configuration
+
+Docker Compose reads variables from the shell and from a root `.env` file when
+present. Do not commit real secrets.
+
+At minimum, configure the same core values used by the local app:
+
+- `SECRET_KEY`
+- `ALGORITHM`
+- `ADMIN_USERNAME`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `OPENAI_API_KEY`
+- `HF_TOKEN`
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `NEO4J_USERNAME`
+- `NEO4J_PASSWORD`
+
+The backend container receives Docker-native service URLs from Compose:
+
+- `ASYNC_DATABASE_URL=postgresql+asyncpg://...@postgres:5432/...`
+- `NEO4J_URI=neo4j://neo4j:7687`
+- `RAW_DOCS_DIR=/app/data/raw_docs`
+
+For local Ollama access from inside Docker, use `DOCKER_OLLAMA_BASE_URL`. The
+default is `http://host.docker.internal:11434`.
+
+The frontend uses Vite, so `VITE_API_BASE_URL` is baked into the frontend image
+at build time. For local Compose, the default is:
+
+```powershell
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+For a remote host, set `VITE_API_BASE_URL` to the browser-reachable backend URL
+before building the frontend image.
+
+### Build And Run
+
+Validate the Compose file without expanding local secrets:
+
+```powershell
+docker compose -f compose.yaml config --no-interpolate
+```
+
+Build the images:
+
+```powershell
+docker compose build
+```
+
+Start PostgreSQL and Neo4j first:
+
+```powershell
+docker compose up -d postgres neo4j
+```
+
+Apply database migrations before starting the backend app:
+
+```powershell
+docker compose run --rm backend alembic upgrade head
+```
+
+Then start the backend and frontend:
+
+```powershell
+docker compose up -d backend frontend
+```
+
+To inspect service status:
+
+```powershell
+docker compose ps
+```
+
+To stop the stack while keeping named volumes:
+
+```powershell
+docker compose down
+```
+
+### Current Boundaries
+
+- Migrations are explicit and are not run automatically by the backend startup command.
+- The frontend is served by its own Nginx container; Nginx is not acting as a reverse proxy for the backend.
+- Backend health checks currently verify TCP connectivity to port `8000`, not an application-level `/health` endpoint.
+- PostgreSQL and Neo4j ports are exposed to the host for local development convenience.
+- Docker image builds require Docker Desktop or another Docker engine with Linux containers enabled.
+
 ## Typical User Worfklow
 
 ### Admin
@@ -385,6 +513,7 @@ You should browse to the frontend URL, not the backend URL, for normal UI work.
 - Refactor god files.
 - For completeness implement the BM25 retriever, even though it is not appropriate for the nature of the project.
 - Decouple chunking from indexing, keep complete pipeline as a feature.
+- Expand prompt guard module.
 - Implement HippoRAG2 knowledge graphs (Unix-Linux only support).
 - Abstract RAG strategies: CRAG and GraphRAG cohabitate in a disjointed manner, a 3rd RAG option would further complicate things. Need abstraction for isolation and reusability.
 - Refactor project folder architecture to vertical slicing.

@@ -54,7 +54,7 @@ Recent commits show the backend changing in a few important ways:
 - Simulation review and evaluation flows have become more explicit, including learner-facing debug traces.
 - Security hardening also tightened JWT expiry handling and added PDF signature/size checks for raw uploads.
 - Prompt handling now has a guard scaffold in `app/airag/prompt_guard/` and a guarded runnable wrapper in `app/airag/observability/llm_usage.py`.
-- Simulation turns and learner questions now call the guard before negotiation-graph or learner-agent invocation.
+- Simulation turns and learner questions now call the guard at the service layer before negotiation-graph or learner-agent invocation.
 - CRAG retrieval now blocks injection-like queries before retrieval and logs the blocked pipeline step instead of returning documents.
 
 These changes matter because many services now return richer metadata than the old route names suggest, and some request paths now reject unsafe payloads before the runnable, graph, or upload code ever executes. When modifying a domain, inspect the service layer and tests first; route signatures often lag behind the true business rules.
