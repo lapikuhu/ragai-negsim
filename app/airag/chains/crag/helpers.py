@@ -151,20 +151,3 @@ def make_crag_component_chains(selections: dict[str, dict[str, str]] | None = No
         "fallback": FALLBACK_PROMPT | fallback_llm | StrOutputParser(),
     }
 ### ---------------------------------------------------------------- ###
-### ------------------ Prompt Injection Detection ------------------ ###
-### ---------------------------------------------------------------- ###
-
-INJECTION_PATTERNS = [
-    r"ignore\s+(?:all\s+)?previous\s+instructions",
-    r"reveal\s+(?:the\s+)?system\s+prompt",
-    r"you\s+are\s+now\s+",
-    r"pretend\s+(?:to\s+be|you\s+are)",
-    r"forget\s+(?:all\s+)?(?:your\s+)?instructions",
-    r"disregard\s+(?:all\s+)?(?:previous\s+)?instructions",
-]
-
-def detect_injection(text: str) -> bool:
-    """Return True if the text contains a prompt injection pattern."""
-    return any(re.search(p, text, re.IGNORECASE) for p in INJECTION_PATTERNS)
-
-### ---------------------------------------------------------------- ###

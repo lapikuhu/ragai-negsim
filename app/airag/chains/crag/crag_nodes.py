@@ -5,7 +5,8 @@ from langsmith import traceable
 
 from app.airag.chains.crag.helpers import format_docs
 from app.airag.chains.crag.helpers import document_grader, rewrite_chain, generation_chain
-from app.airag.chains.crag.helpers import detect_injection, fallback_chain
+from app.airag.chains.crag.helpers import fallback_chain
+from app.airag.prompt_guard.prompt_guard import detect_injection
 from app.airag.chains.crag.helpers import hallucination_grader, answer_grader
 from app.airag.observability.evidence_ledger import (
     append_pipeline_step,

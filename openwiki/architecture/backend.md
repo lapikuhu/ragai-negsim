@@ -52,8 +52,12 @@ Recent commits show the backend changing in a few important ways:
 - CRAG and GraphRAG both gained source capture, which is now reflected in the evidence ledger.
 - Raw documents gained corpus associations, making document ingestion more clearly tied to simulation inputs.
 - Simulation review and evaluation flows have become more explicit, including learner-facing debug traces.
+- Security hardening also tightened JWT expiry handling and added PDF signature/size checks for raw uploads.
+- Prompt handling now has a guard scaffold in `app/airag/prompt_guard/` and a guarded runnable wrapper in `app/airag/observability/llm_usage.py`.
+- Simulation turns and learner questions now call the guard before negotiation-graph or learner-agent invocation.
+- CRAG retrieval now blocks injection-like queries before retrieval and logs the blocked pipeline step instead of returning documents.
 
-These changes matter because many services now return richer metadata than the old route names suggest. When modifying a domain, inspect the service layer and tests first; route signatures often lag behind the true business rules.
+These changes matter because many services now return richer metadata than the old route names suggest, and some request paths now reject unsafe payloads before the runnable, graph, or upload code ever executes. When modifying a domain, inspect the service layer and tests first; route signatures often lag behind the true business rules.
 
 ## What to watch out for
 - `app/services/simulations_service.py` has grown into a large orchestration module and is explicitly marked as a candidate for splitting.

@@ -21,6 +21,7 @@ from app.airag.observability.llm_usage import (
     summarize_agent_token_usage_handler,
     summarize_usage_handler,
 )
+from app.airag.prompt_guard.prompt_guard import return_guarded_query
 from app.airag.observability.evidence_ledger import build_agent_ledger_record
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
     is_terminal_acceptance_message,
@@ -2357,6 +2358,8 @@ async def submit_simulation_turn_srvc(
     state["user_side"] = simulation.user_side or state.get("user_side") or "side_a"
     state.setdefault("messages", [])
     _clear_proxy_state(state)
+    # Check if the user message passes the guardrail checks before proceeding
+    return_guarded_query(turn_data.message)
     state["messages"] = [*state["messages"], _user_message(turn_data, simulation)]
     if turn_data.current_offer:
         state["current_offer"] = _json_safe(turn_data.current_offer)

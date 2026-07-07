@@ -3,7 +3,7 @@
 ## What this repository is
 This repository is a FastAPI + React application for an educational negotiation simulator. Learners practice negotiation scenarios against AI counterparts, receive coach feedback and evaluation, and work with uploaded course or domain documents that ground the simulation flow.
 
-The backend is the main system under active development. It manages users, roles, raw document uploads, corpora, chunking and indexing, retrieval profiles, simulations, and the LangGraph-based agent flows that drive negotiation turns.
+The backend is the main system under active development. It manages users, roles, raw document uploads, corpora, chunking and indexing, retrieval profiles, simulations, learner-assistant questions, and the LangGraph-based agent flows that drive negotiation turns.
 
 ## Start here
 - [Backend architecture](architecture/backend.md)
@@ -25,7 +25,7 @@ The backend is the main system under active development. It manages users, roles
 The app uses JWT-based auth with role-based FastAPI dependencies. Routes are split between general user access, teacher/admin access, and admin-only management.
 
 ### Documents, corpora, and retrieval
-Raw PDF documents are uploaded, linked to corpora, ingested, chunked, and stored for retrieval. The system supports both corrective RAG and GraphRAG flows and records sources in an evidence ledger.
+Raw PDF documents are uploaded, linked to corpora, ingested, chunked, and stored for retrieval. The system supports both corrective RAG and GraphRAG flows and records sources in an evidence ledger. Recent security changes also add stricter PDF upload validation, and recent prompt work adds a guard scaffold in the LLM invocation path. Simulation turns and learner questions now also pass through guard checks before graph or agent invocation.
 
 ### Simulations and agent orchestration
 Simulations are the core product object. They combine scenario data, counterpart personas, prompts, learner settings, retrieval context, coach feedback, and evaluator output in a LangGraph-driven negotiation workflow.

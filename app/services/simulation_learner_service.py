@@ -17,6 +17,7 @@ from app.airag.observability.llm_usage import (
     summarize_agent_token_usage_handler,
     summarize_usage_handler,
 )
+from app.airag.prompt_guard.prompt_guard import return_guarded_query
 from app.core.config import settings
 from app.models.simulations import Simulation
 from app.models.users import User
@@ -752,6 +753,8 @@ async def ask_simulation_learner_srvc(
     learner_config = _learner_config_from_state(state)
     if learner_config.get("enabled") is not True:
         raise ValueError("Learning agent is not enabled for this simulation")
+        # Check if the user message passes the guardrail checks before proceeding
+    return_guarded_query(ask_data.query)
     learner_state = project_simulation_learner_state(state)
 
     retrieval_strategy, retrieval_graph = await _get_retrieval_graph_for_simulation(

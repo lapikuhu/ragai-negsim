@@ -32,6 +32,8 @@ This is a central business domain because the simulator is meant to be grounded 
 
 The raw document route now exposes associated corpora in its detail response, and recent changes also surface bibliographic metadata (`document_title`, `document_author`, `document_year`) through the document APIs and source cards. That makes document metadata a first-class part of the retrieval domain, not just an upload detail.
 
+Recent CRAG changes add a prompt-injection guard at the retrieval node: unsafe queries are blocked before vector lookup, the pipeline step is recorded as blocked, and no documents are returned. Successful retrieval and rerank paths still attach sources to the evidence ledger.
+
 ## CRAG and GraphRAG
 The README and recent git history show two retrieval strategies:
 
@@ -51,6 +53,11 @@ Both strategies now return sources. That source capture is important because the
 - Ledger records include pipeline steps, quality checks, model metadata, token usage, and output summaries.
 
 This module is the canonical place to inspect when retrieval output changes shape.
+
+## Prompt guards and runnable invocation
+`app/airag/observability/llm_usage.py` now includes `guarded_invoke_with_config`, which normalizes a payload to text and runs it through `return_guarded_query` before invoking the runnable. The helper currently relies on the new scaffold in `app/airag/prompt_guard/prompt_guard.py`, where prompt-injection patterns are implemented and PII detection remains a placeholder.
+
+At the moment this is a front-door validation layer rather than a full policy engine: the tests only confirm that safe payloads pass through and prompt-injection strings are blocked before the runnable is called. Future changes here should check both the guard module and the usage-tracking tests.
 
 ## Related components
 - `app/services/raw_documents_service.py` handles upload and association behavior.
