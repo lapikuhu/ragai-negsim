@@ -2,6 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from scripts.personas import PLACEHOLDER_PERSONAS
+from scripts.scenarios import PLACEHOLDER_SCENARIOS
 import scripts.seeder as seeder
 
 
@@ -15,6 +17,14 @@ def _scenario_names():
 
 def _persona_names():
     return [item["name"] for item in seeder.PLACEHOLDER_PERSONAS]
+
+
+def test_seeder_reuses_placeholder_scenarios_from_scenarios_module():
+    assert seeder.PLACEHOLDER_SCENARIOS is PLACEHOLDER_SCENARIOS
+
+
+def test_seeder_reuses_placeholder_personas_from_personas_module():
+    assert seeder.PLACEHOLDER_PERSONAS is PLACEHOLDER_PERSONAS
 
 
 @pytest.mark.asyncio
