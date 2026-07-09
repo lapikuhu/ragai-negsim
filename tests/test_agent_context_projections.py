@@ -9,46 +9,8 @@ from app.airag.chains.agents.context_projections import (
 )
 
 
-def parent_state():
-    return {
-        "simulation_id": "10",
-        "session_id": "10",
-        "app_session_id": 44,
-        "user_id": "7",
-        "user_side": "side_b",
-        "scenario_public_context": {"sentinel": "PUBLIC"},
-        "side_a_private_context": {"sentinel": "SIDE_A_SECRET"},
-        "side_b_private_context": {"sentinel": "SIDE_B_SECRET"},
-        "counterpart_persona": {"sentinel": "PERSONA"},
-        "side_a": {"sentinel": "RAW_SIDE_A"},
-        "side_b": {"sentinel": "RAW_SIDE_B"},
-        "messages": [{"role": "user", "content": "LATEST-STUDENT"}],
-        "phase": "bargaining",
-        "active_side": "side_b",
-        "current_offer": {"terms": {"sentinel": "OFFER"}},
-        "offer_history": [{"terms": {"sentinel": "HISTORY"}}],
-        "coach_advice": {"sentinel": "COACH_SECRET"},
-        "evaluation": {"sentinel": "EVALUATOR_SECRET"},
-        "final_evaluation": {"sentinel": "FINAL_SECRET"},
-        "retrieval_result": {"summary": "SHARED_RETRIEVAL"},
-        "evidence_ledger": {
-            "records": [
-                {"visibility_level": "learner", "summary": "LEARNER_VISIBLE"},
-                {"visibility_level": "teacher", "summary": "TEACHER_ONLY"},
-                {"visibility_level": "debug", "summary": "DEBUG_ONLY"},
-            ],
-        },
-        "side_a_response": "COUNTERPART_RESPONSE",
-        "turn_count": 2,
-        "evaluation_mode": "rolling",
-        "terminal_reason": None,
-        "requested_action": None,
-        "event_log": ["INTERNAL_EVENT"],
-    }
-
-
-def test_counterpart_projection_contains_only_counterpart_privileges():
-    projected = project_counterpart_state(parent_state())
+def test_counterpart_projection_contains_only_counterpart_privileges(agent_parent_state):
+    projected = project_counterpart_state(agent_parent_state)
     serialized = repr(projected)
 
     assert projected["scenario_public_context"]["sentinel"] == "PUBLIC"
@@ -62,8 +24,8 @@ def test_counterpart_projection_contains_only_counterpart_privileges():
     assert projected["event_log"] == []
 
 
-def test_coach_projection_contains_only_student_privileges():
-    projected = project_coach_state(parent_state())
+def test_coach_projection_contains_only_student_privileges(agent_parent_state):
+    projected = project_coach_state(agent_parent_state)
     serialized = repr(projected)
 
     assert projected["student_private_context"]["sentinel"] == "SIDE_B_SECRET"
@@ -72,8 +34,8 @@ def test_coach_projection_contains_only_student_privileges():
     assert "PERSONA" not in serialized
 
 
-def test_simulation_learner_projection_contains_learner_safe_negotiation_context():
-    projected = project_simulation_learner_state(parent_state())
+def test_simulation_learner_projection_contains_learner_safe_negotiation_context(agent_parent_state):
+    projected = project_simulation_learner_state(agent_parent_state)
     serialized = repr(projected)
 
     assert projected["user_side"] == "side_b"
@@ -93,8 +55,8 @@ def test_simulation_learner_projection_contains_learner_safe_negotiation_context
     assert projected["event_log"] == []
 
 
-def test_evaluator_projection_is_omniscient():
-    projected = project_evaluator_state(parent_state())
+def test_evaluator_projection_is_omniscient(agent_parent_state):
+    projected = project_evaluator_state(agent_parent_state)
     serialized = repr(projected)
 
     for sentinel in (
@@ -107,12 +69,13 @@ def test_evaluator_projection_is_omniscient():
         assert sentinel in serialized
 
 
-def test_intent_projection_contains_only_latest_student_message():
-    state = parent_state()
-    state["messages"] = [
-        {"role": "assistant", "content": "OLD-COUNTERPART"},
-        {"role": "user", "content": "LATEST-STUDENT"},
-    ]
+def test_intent_projection_contains_only_latest_student_message(agent_parent_state_factory):
+    state = agent_parent_state_factory(
+        messages=[
+            {"role": "assistant", "content": "OLD-COUNTERPART"},
+            {"role": "user", "content": "LATEST-STUDENT"},
+        ],
+    )
 
     projected = project_intent_classifier_state(state)
 
@@ -133,8 +96,8 @@ def test_intent_projection_contains_only_latest_student_message():
         project_simulation_learner_state,
     ],
 )
-def test_projections_do_not_share_mutable_parent_values(projector):
-    state = parent_state()
+def test_projections_do_not_share_mutable_parent_values(projector, agent_parent_state_factory):
+    state = agent_parent_state_factory()
     projected = projector(state)
 
     if "messages" in projected:

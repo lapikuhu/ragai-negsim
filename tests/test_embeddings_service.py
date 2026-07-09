@@ -402,9 +402,8 @@ async def test_queue_corpus_embedding_build_requires_chunks(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(monkeypatch):
-    opened_sessions = []
-    closed_sessions = []
+async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(monkeypatch, recording_async_session_factory):
+    created_sessions = []
     index = SimpleNamespace(
         id=77,
         corpus_id=11,
@@ -418,17 +417,14 @@ async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(
         build_error=None,
     )
 
-    class FakeSession:
-        async def __aenter__(self):
-            opened_sessions.append(self)
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            closed_sessions.append(self)
+    def create_session():
+        session = recording_async_session_factory()
+        created_sessions.append(session)
+        return session
 
     async def fake_get_index(index_id, session):
         assert index_id == 77
-        assert session in opened_sessions
+        assert session in created_sessions
         return index
 
     async def fake_get_corpus(corpus_id, session):
@@ -442,10 +438,10 @@ async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(
 
     async def fake_build_existing(**kwargs):
         assert kwargs["index"] is index
-        assert kwargs["session"] in opened_sessions
+        assert kwargs["session"] in created_sessions
         return "built-result"
 
-    monkeypatch.setattr(embeddings_service, "AsyncSessionLocal", lambda: FakeSession())
+    monkeypatch.setattr(embeddings_service, "AsyncSessionLocal", create_session)
     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "get_corpus_index_by_id", fake_get_index)
     monkeypatch.setattr(embeddings_service.corpus_repo, "get_corpus_by_id", fake_get_corpus)
     monkeypatch.setattr(embeddings_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
@@ -455,12 +451,13 @@ async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(
     result = await embeddings_service.run_queued_corpus_embedding_build_srvc(77)
 
     assert result == "built-result"
-    assert len(opened_sessions) == 1
-    assert closed_sessions == opened_sessions
+    assert len(created_sessions) == 1
+    assert created_sessions[0].entered_sessions == [created_sessions[0]]
+    assert created_sessions[0].exited_sessions == [created_sessions[0]]
 
 
 @pytest.mark.asyncio
-async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypatch):
+async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypatch, recording_async_session_factory):
     marked_failed = []
     index = SimpleNamespace(
         id=77,
@@ -474,16 +471,6 @@ async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypat
         built_at=None,
         build_error=None,
     )
-
-    class FakeSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def rollback(self):
-            return None
 
     async def fake_get_index(index_id, session):
         return index
@@ -506,7 +493,7 @@ async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypat
         index_obj.build_error = build_error
         return index_obj
 
-    monkeypatch.setattr(embeddings_service, "AsyncSessionLocal", lambda: FakeSession())
+    monkeypatch.setattr(embeddings_service, "AsyncSessionLocal", recording_async_session_factory)
     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "get_corpus_index_by_id", fake_get_index)
     monkeypatch.setattr(embeddings_service.corpus_repo, "get_corpus_by_id", fake_get_corpus)
     monkeypatch.setattr(embeddings_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)

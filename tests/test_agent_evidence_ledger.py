@@ -27,16 +27,6 @@ from app.airag.chains.agents.user_proxy_negotiator.user_proxy_model import (
 from langgraph.graph import END, START, StateGraph
 
 
-class FakeGraph:
-    def __init__(self, result):
-        self.result = result
-        self.payload = None
-
-    def invoke(self, payload, config=None):
-        self.payload = payload
-        return self.result
-
-
 def _invoke_schema_probe(state_schema):
     def node(state):
         return {"evidence_ledger": {"probe": {"pipeline": {"steps": []}}}}
@@ -61,7 +51,7 @@ def test_agent_graph_state_schemas_preserve_evidence_ledger_channel():
         assert result["evidence_ledger"]["probe"]["pipeline"]["steps"] == []
 
 
-def test_intent_finalize_preserves_evidence_ledger():
+def test_intent_finalize_preserves_evidence_ledger(agent_evidence_ledger_factory):
     result = node_finalize_intent(
         {
             "intent_classification": {
@@ -69,7 +59,7 @@ def test_intent_finalize_preserves_evidence_ledger():
                 "confidence": "high",
                 "reasoning": "Not ending.",
             },
-            "evidence_ledger": {"intent_classifier": {"pipeline": {"steps": []}}},
+            "evidence_ledger": agent_evidence_ledger_factory("intent_classifier"),
         }
     )
 
@@ -77,7 +67,7 @@ def test_intent_finalize_preserves_evidence_ledger():
     assert "intent_classifier" in result["evidence_ledger"]
 
 
-def test_coach_finalize_adds_agent_output_summary():
+def test_coach_finalize_adds_agent_output_summary(agent_evidence_ledger_factory):
     result = node_finalize_coach(
         {
             "coach_advice": {
@@ -85,7 +75,7 @@ def test_coach_finalize_adds_agent_output_summary():
                 "confidence": "medium",
             },
             "sources": [{"rank": 1, "source": "guide.pdf"}],
-            "evidence_ledger": {"coach": {"pipeline": {"steps": []}}},
+            "evidence_ledger": agent_evidence_ledger_factory("coach"),
         }
     )
 
@@ -94,7 +84,7 @@ def test_coach_finalize_adds_agent_output_summary():
     assert result["evidence_ledger"]["coach"]["output_summary"]["confidence"] == "medium"
 
 
-def test_evaluator_finalize_adds_agent_output_summary():
+def test_evaluator_finalize_adds_agent_output_summary(agent_evidence_ledger_factory):
     result = node_finalize_evaluator(
         {
             "evaluation_mode": "final",
@@ -104,7 +94,7 @@ def test_evaluator_finalize_adds_agent_output_summary():
                 "reasoning": "Strong outcome.",
             },
             "sources": [{"rank": 1, "source": "guide.pdf"}],
-            "evidence_ledger": {"evaluator": {"pipeline": {"steps": []}}},
+            "evidence_ledger": agent_evidence_ledger_factory("evaluator"),
             "user_side": "side_a",
         }
     )
@@ -113,7 +103,10 @@ def test_evaluator_finalize_adds_agent_output_summary():
     assert result["evidence_ledger"]["evaluator"]["output_summary"]["kind"] == "final_evaluation"
 
 
-def test_parent_agent_wrappers_propagate_evidence_ledgers():
+def test_parent_agent_wrappers_propagate_evidence_ledgers(
+    capturing_graph_factory,
+    agent_evidence_ledger_factory,
+):
     cases = [
         (
             make_intent_classifier_node,
@@ -121,7 +114,7 @@ def test_parent_agent_wrappers_propagate_evidence_ledgers():
             {
                 "intent_classification": {"intent": "continue"},
                 "event_log": ["intent_classifier:completed"],
-                "evidence_ledger": {"intent_classifier": {"pipeline": {"steps": []}}},
+                "evidence_ledger": agent_evidence_ledger_factory("intent_classifier"),
             },
             "intent_classifier",
         ),
@@ -135,7 +128,7 @@ def test_parent_agent_wrappers_propagate_evidence_ledgers():
                     "offer": {"side": "side_b", "price": 95},
                 },
                 "event_log": ["counterpart:completed"],
-                "evidence_ledger": {"counterpart": {"pipeline": {"steps": []}}},
+                "evidence_ledger": agent_evidence_ledger_factory("counterpart"),
             },
             "counterpart",
         ),
@@ -145,7 +138,7 @@ def test_parent_agent_wrappers_propagate_evidence_ledgers():
             {
                 "coach_advice": {"summary": "Hold price."},
                 "event_log": ["coach:completed"],
-                "evidence_ledger": {"coach": {"pipeline": {"steps": []}}},
+                "evidence_ledger": agent_evidence_ledger_factory("coach"),
             },
             "coach",
         ),
@@ -155,29 +148,29 @@ def test_parent_agent_wrappers_propagate_evidence_ledgers():
             {
                 "evaluation": {"score": 0.5},
                 "event_log": ["evaluator:completed"],
-                "evidence_ledger": {"evaluator": {"pipeline": {"steps": []}}},
+                "evidence_ledger": agent_evidence_ledger_factory("evaluator"),
             },
             "evaluator",
         ),
     ]
 
     for make_node, state, graph_result, agent_name in cases:
-        node = make_node(FakeGraph(graph_result))
+        graph, _captured = capturing_graph_factory(graph_result)
+        node = make_node(graph)
 
         updates = node(state)
 
         assert agent_name in updates["evidence_ledger"]
 
 
-def test_agent_state_projections_preserve_existing_evidence_ledger():
+def test_agent_state_projections_preserve_existing_evidence_ledger(agent_evidence_ledger_factory):
     state = {
         "user_side": "side_a",
         "messages": [{"role": "user", "content": "Let's continue."}],
-        "evidence_ledger": {
-            "counterpart": {
-                "pipeline": {"steps": [{"name": "generate"}]},
-            },
-        },
+        "evidence_ledger": agent_evidence_ledger_factory(
+            "counterpart",
+            steps=[{"name": "generate"}],
+        ),
     }
 
     projections = [

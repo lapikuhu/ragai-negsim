@@ -5,18 +5,6 @@ import pytest
 import scripts.seeder as seeder
 
 
-class FakeSession:
-    def __init__(self):
-        self.rollback_calls = 0
-
-    async def rollback(self):
-        self.rollback_calls += 1
-
-
-def _admin_user():
-    return SimpleNamespace(id=1, username="admin", roles=[SimpleNamespace(name="admin")])
-
-
 def _role(role_id: int, name: str):
     return SimpleNamespace(id=role_id, name=name)
 
@@ -30,9 +18,9 @@ def _persona_names():
 
 
 @pytest.mark.asyncio
-async def test_ensure_admin_user_uses_settings_username(monkeypatch):
+async def test_ensure_admin_user_uses_settings_username(monkeypatch, fake_user_factory, recording_async_session_factory):
     calls = []
-    admin_user = _admin_user()
+    admin_user = fake_user_factory(user_id=1, username="admin", roles="admin")
 
     async def fake_seed_roles():
         calls.append("roles")
@@ -48,7 +36,7 @@ async def test_ensure_admin_user_uses_settings_username(monkeypatch):
     monkeypatch.setattr(seeder, "create_admin_if_not_exists", fake_create_admin)
     monkeypatch.setattr(seeder.users_repo, "get_user_by_username", fake_get_user_by_username)
 
-    session = FakeSession()
+    session = recording_async_session_factory()
     result = await seeder.ensure_admin_user(session)
 
     assert result is admin_user
@@ -60,8 +48,8 @@ async def test_ensure_admin_user_uses_settings_username(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_ensure_admin_user_logs_success(monkeypatch, capsys):
-    admin_user = _admin_user()
+async def test_ensure_admin_user_logs_success(monkeypatch, capsys, fake_user_factory, recording_async_session_factory):
+    admin_user = fake_user_factory(user_id=1, username="admin", roles="admin")
 
     async def fake_seed_roles():
         return None
@@ -76,7 +64,7 @@ async def test_ensure_admin_user_logs_success(monkeypatch, capsys):
     monkeypatch.setattr(seeder, "create_admin_if_not_exists", fake_create_admin)
     monkeypatch.setattr(seeder.users_repo, "get_user_by_username", fake_get_user_by_username)
 
-    session = FakeSession()
+    session = recording_async_session_factory()
     result = await seeder.ensure_admin_user(session)
 
     captured = capsys.readouterr()
@@ -86,9 +74,9 @@ async def test_ensure_admin_user_logs_success(monkeypatch, capsys):
 
 
 @pytest.mark.asyncio
-async def test_seed_all_creates_requested_records(monkeypatch):
-    admin_user = _admin_user()
-    session = FakeSession()
+async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory, recording_async_session_factory):
+    admin_user = fake_user_factory(user_id=1, username="admin", roles="admin")
+    session = recording_async_session_factory()
     created_users = []
     created_scenarios = []
     created_personas = []
@@ -239,9 +227,9 @@ async def test_seed_all_creates_requested_records(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_seed_all_skips_existing_scenario_without_generating_context(monkeypatch):
-    admin_user = _admin_user()
-    session = FakeSession()
+async def test_seed_all_skips_existing_scenario_without_generating_context(monkeypatch, fake_user_factory, recording_async_session_factory):
+    admin_user = fake_user_factory(user_id=1, username="admin", roles="admin")
+    session = recording_async_session_factory()
     created_scenarios = []
     generated = []
 
@@ -307,9 +295,9 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
 
 
 @pytest.mark.asyncio
-async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypatch):
-    admin_user = _admin_user()
-    session = FakeSession()
+async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypatch, fake_user_factory, recording_async_session_factory):
+    admin_user = fake_user_factory(user_id=1, username="admin", roles="admin")
+    session = recording_async_session_factory()
     created_users = []
     created_personas = []
 

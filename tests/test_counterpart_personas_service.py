@@ -12,10 +12,6 @@ from app.schemas.counterpart_personas_schemas import (
 from app.services import counterpart_personas_service
 
 
-def _user(user_id=1):
-    return SimpleNamespace(id=user_id, username=f"user-{user_id}")
-
-
 def _persona(persona_id=10, created_by_user_id=1, last_edit_by_user_id=None):
     now = datetime.now(timezone.utc)
     return SimpleNamespace(
@@ -39,7 +35,7 @@ def _persona(persona_id=10, created_by_user_id=1, last_edit_by_user_id=None):
 
 
 @pytest.mark.asyncio
-async def test_create_counterpart_persona_stamps_current_user(monkeypatch):
+async def test_create_counterpart_persona_stamps_current_user(monkeypatch, fake_user_factory):
     captured = []
     created = _persona(created_by_user_id=7)
 
@@ -64,7 +60,7 @@ async def test_create_counterpart_persona_stamps_current_user(monkeypatch):
     result = await counterpart_personas_service.create_counterpart_persona_srvc(
         CounterpartPersonaCreateRequest(name="Hard bargainer", description="Pushes on price"),
         object(),
-        _user(7),
+        fake_user_factory(user_id=7, roles=()),
     )
 
     assert result.created_by_user_id == 7
@@ -73,7 +69,7 @@ async def test_create_counterpart_persona_stamps_current_user(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_update_counterpart_persona_stamps_last_editor(monkeypatch):
+async def test_update_counterpart_persona_stamps_last_editor(monkeypatch, fake_user_factory):
     captured = []
     updated = _persona(created_by_user_id=2, last_edit_by_user_id=9)
 
@@ -99,7 +95,7 @@ async def test_update_counterpart_persona_stamps_last_editor(monkeypatch):
         _persona(created_by_user_id=2),
         CounterpartPersonaUpdateRequest(name="Updated persona"),
         object(),
-        _user(9),
+        fake_user_factory(user_id=9, roles=()),
     )
 
     assert result.last_edit_by_user_id == 9
@@ -109,7 +105,7 @@ async def test_update_counterpart_persona_stamps_last_editor(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_copy_counterpart_persona_stamps_current_user(monkeypatch):
+async def test_copy_counterpart_persona_stamps_current_user(monkeypatch, fake_user_factory):
     captured = []
     copied = _persona(persona_id=22, created_by_user_id=11)
 
@@ -135,7 +131,7 @@ async def test_copy_counterpart_persona_stamps_current_user(monkeypatch):
         _persona(),
         CounterpartPersonaCopyRequest(name="Copied persona"),
         object(),
-        _user(11),
+        fake_user_factory(user_id=11, roles=()),
     )
 
     assert result.created_by_user_id == 11

@@ -128,7 +128,9 @@ def test_final_evaluator_requires_proxy_usage_assessment():
         FinalEvaluatorResponseModel.model_validate(payload)
 
 
-def test_final_evaluation_overrides_model_proxy_count_and_clamps_all_proxy_score():
+def test_final_evaluation_overrides_model_proxy_count_and_clamps_all_proxy_score(
+    agent_parent_state_factory,
+):
     response = FinalEvaluatorResponseModel(
         overall_score=0.85,
         goal_achievement="The deal was favorable.",
@@ -149,32 +151,31 @@ def test_final_evaluation_overrides_model_proxy_count_and_clamps_all_proxy_score
         missing_information=[],
     ).model_dump()
 
-    compact = final_evaluation_from_response(
-        {
-            "user_side": "side_a",
-            "messages": [
-                {
-                    "role": "human",
-                    "content": "Proxy offer",
-                    "metadata": {
-                        "metadata": {
-                            "side": "side_a",
-                            "metadata": {"user_reply_origin": "auto_user_proxy"},
-                        }
-                    },
-                },
-                {
-                    "role": "human",
-                    "content": "Proxy accept",
+    state = agent_parent_state_factory(
+        user_side="side_a",
+        messages=[
+            {
+                "role": "human",
+                "content": "Proxy offer",
+                "metadata": {
                     "metadata": {
                         "side": "side_a",
                         "metadata": {"user_reply_origin": "auto_user_proxy"},
-                    },
+                    }
                 },
-            ],
-        },
-        response,
+            },
+            {
+                "role": "human",
+                "content": "Proxy accept",
+                "metadata": {
+                    "side": "side_a",
+                    "metadata": {"user_reply_origin": "auto_user_proxy"},
+                },
+            },
+        ],
     )
+
+    compact = final_evaluation_from_response(state, response)
 
     assert compact["overall_score"] == 0.0
     assert compact["proxy_usage_assessment"]["student_authored_turns"] == 0
@@ -182,7 +183,9 @@ def test_final_evaluation_overrides_model_proxy_count_and_clamps_all_proxy_score
     assert compact["proxy_usage_assessment"]["proxy_extent"] == "extensive"
 
 
-def test_rolling_evaluation_overrides_model_proxy_count_from_state():
+def test_rolling_evaluation_overrides_model_proxy_count_from_state(
+    agent_parent_state_factory,
+):
     response = rolling_payload("continue")
     response["proxy_usage_assessment"] = {
         "student_authored_turns": 2,
@@ -191,19 +194,18 @@ def test_rolling_evaluation_overrides_model_proxy_count_from_state():
         "impact_on_student_score": "The model counted this incorrectly.",
     }
 
-    compact = compact_evaluation_from_response(
-        {
-            "user_side": "side_a",
-            "messages": [
-                {
-                    "role": "human",
-                    "content": "Proxy offer",
-                    "metadata": {"metadata": {"user_reply_origin": "auto_user_proxy"}},
-                }
-            ],
-        },
-        response,
+    state = agent_parent_state_factory(
+        user_side="side_a",
+        messages=[
+            {
+                "role": "human",
+                "content": "Proxy offer",
+                "metadata": {"metadata": {"user_reply_origin": "auto_user_proxy"}},
+            }
+        ],
     )
+
+    compact = compact_evaluation_from_response(state, response)
 
     assert compact["proxy_usage_assessment"]["student_authored_turns"] == 0
     assert compact["proxy_usage_assessment"]["proxy_authored_turns"] == 1

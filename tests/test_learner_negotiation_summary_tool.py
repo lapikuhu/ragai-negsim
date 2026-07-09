@@ -47,16 +47,26 @@ def test_summary_tool_schema_exposes_only_focus():
     }
 
 
-def test_summary_tool_invokes_model_with_learner_safe_context_and_focus():
+def test_summary_tool_invokes_model_with_learner_safe_context_and_focus(
+    agent_parent_state_factory,
+):
+    state = agent_parent_state_factory(
+        user_side="side_a",
+        messages=[{"role": "user", "content": "I need a lower price."}],
+        scenario_public_context={"item": "software contract"},
+        side_a_private_context={"target": "20% discount"},
+        current_offer={"price": 1000},
+        offer_history=[{"price": 1200}, {"price": 1000}],
+    )
     model = CapturingSummarizer()
     tool = make_summarize_negotiation_history_tool(
         summarize_model=model,
-        messages=[{"role": "user", "content": "I need a lower price."}],
-        user_side="side_a",
-        public_context={"item": "software contract"},
-        student_private_context={"target": "20% discount"},
-        current_offer={"price": 1000},
-        offer_history=[{"price": 1200}, {"price": 1000}],
+        messages=state["messages"],
+        user_side=state["user_side"],
+        public_context=state["scenario_public_context"],
+        student_private_context=state["side_a_private_context"],
+        current_offer=state["current_offer"],
+        offer_history=state["offer_history"],
     )
 
     payload = json.loads(tool.invoke({"focus": "concession pattern"}))

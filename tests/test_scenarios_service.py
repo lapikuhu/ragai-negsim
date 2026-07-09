@@ -14,10 +14,6 @@ from app.schemas.scenarios_schemas import (
 from app.services import scenarios_service
 
 
-def _user(user_id=1):
-    return SimpleNamespace(id=user_id, username=f"user-{user_id}")
-
-
 def _scenario(scenario_id=10, created_by_user_id=1, last_edit_by_user_id=None):
     now = datetime.now(timezone.utc)
     return SimpleNamespace(
@@ -73,15 +69,22 @@ def test_public_scenario_schema_excludes_authoring_and_private_fields():
 
 
 @pytest.mark.asyncio
-async def test_create_scenario_stamps_current_user(monkeypatch):
+async def test_create_scenario_stamps_current_user(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
     created = _scenario(created_by_user_id=7)
+    expected_session = recording_async_session_factory()
 
     async def fake_create_scenario(scenario_in, session):
+        assert session is expected_session
         captured.append(scenario_in)
         return created
 
     async def fake_to_read_with_ids(scenario, session):
+        assert session is expected_session
         return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[])
 
     monkeypatch.setattr(scenarios_service.scenarios_repo, "create_scenario", fake_create_scenario)
@@ -98,8 +101,8 @@ async def test_create_scenario_stamps_current_user(monkeypatch):
             side_a_summary="You are the candidate.",
             side_b_summary="You are the recruiter.",
         ),
-        object(),
-        _user(7),
+        expected_session,
+        fake_user_factory(user_id=7, roles=()),
     )
 
     assert result.created_by_user_id == 7
@@ -110,15 +113,22 @@ async def test_create_scenario_stamps_current_user(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_update_scenario_stamps_last_editor(monkeypatch):
+async def test_update_scenario_stamps_last_editor(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
     updated = _scenario(created_by_user_id=2, last_edit_by_user_id=9)
+    expected_session = recording_async_session_factory()
 
     async def fake_update_scenario(scenario, scenario_in, session):
+        assert session is expected_session
         captured.append((scenario, scenario_in))
         return updated
 
     async def fake_to_read_with_ids(scenario, session):
+        assert session is expected_session
         return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[33])
 
     monkeypatch.setattr(scenarios_service.scenarios_repo, "update_scenario", fake_update_scenario)
@@ -131,8 +141,8 @@ async def test_update_scenario_stamps_last_editor(monkeypatch):
     result = await scenarios_service.update_scenario_srvc(
         _scenario(created_by_user_id=2),
         ScenarioUpdateRequest(name="Updated scenario"),
-        object(),
-        _user(9),
+        expected_session,
+        fake_user_factory(user_id=9, roles=()),
     )
 
     assert result.last_edit_by_user_id == 9
@@ -142,15 +152,22 @@ async def test_update_scenario_stamps_last_editor(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_update_scenario_accepts_side_summaries(monkeypatch):
+async def test_update_scenario_accepts_side_summaries(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
     updated = _scenario(created_by_user_id=2, last_edit_by_user_id=9)
+    expected_session = recording_async_session_factory()
 
     async def fake_update_scenario(scenario, scenario_in, session):
+        assert session is expected_session
         captured.append(scenario_in)
         return updated
 
     async def fake_to_read_with_ids(scenario, session):
+        assert session is expected_session
         return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[])
 
     monkeypatch.setattr(scenarios_service.scenarios_repo, "update_scenario", fake_update_scenario)
@@ -166,8 +183,8 @@ async def test_update_scenario_accepts_side_summaries(monkeypatch):
             side_a_summary="Updated side A summary",
             side_b_summary="Updated side B summary",
         ),
-        object(),
-        _user(9),
+        expected_session,
+        fake_user_factory(user_id=9, roles=()),
     )
 
     assert captured[0].side_a_summary == "Updated side A summary"
@@ -175,15 +192,22 @@ async def test_update_scenario_accepts_side_summaries(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_copy_scenario_stamps_current_user(monkeypatch):
+async def test_copy_scenario_stamps_current_user(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
     copied = _scenario(scenario_id=22, created_by_user_id=11)
+    expected_session = recording_async_session_factory()
 
     async def fake_copy_scenario(source_scenario, copy_in, session):
+        assert session is expected_session
         captured.append((source_scenario, copy_in))
         return copied
 
     async def fake_to_read_with_ids(scenario, session):
+        assert session is expected_session
         return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[])
 
     monkeypatch.setattr(scenarios_service.scenarios_repo, "copy_scenario", fake_copy_scenario)
@@ -196,8 +220,8 @@ async def test_copy_scenario_stamps_current_user(monkeypatch):
     result = await scenarios_service.copy_scenario_srvc(
         _scenario(),
         ScenarioCopyRequest(name="Copied scenario"),
-        object(),
-        _user(11),
+        expected_session,
+        fake_user_factory(user_id=11, roles=()),
     )
 
     assert result.created_by_user_id == 11
@@ -206,9 +230,10 @@ async def test_copy_scenario_stamps_current_user(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
+async def test_list_scenarios_passes_filters_and_converts(monkeypatch, recording_async_session_factory):
     captured = []
     scenarios = [_scenario(1), _scenario(2)]
+    expected_session = recording_async_session_factory()
 
     async def fake_list_scenarios(
         session,
@@ -218,10 +243,12 @@ async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
         name_contains=None,
         used=None,
     ):
+        assert session is expected_session
         captured.append((skip, limit, created_by_user_id, name_contains, used))
         return scenarios
 
     async def fake_to_public(scenario, session):
+        assert session is expected_session
         return ScenarioPublicReadWithIds(
             id=scenario.id,
             name=scenario.name,
@@ -242,7 +269,7 @@ async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
     )
 
     result = await scenarios_service.list_scenarios_srvc(
-        object(),
+        expected_session,
         skip=5,
         limit=10,
         created_by_user_id=3,
@@ -257,10 +284,12 @@ async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_scenario_returns_public_view(monkeypatch):
+async def test_get_scenario_returns_public_view(monkeypatch, recording_async_session_factory):
     scenario = _scenario(10)
+    expected_session = recording_async_session_factory()
 
     async def fake_to_public(scenario_obj, session):
+        assert session is expected_session
         return ScenarioPublicReadWithIds(
             id=scenario_obj.id,
             name=scenario_obj.name,
@@ -279,7 +308,7 @@ async def test_get_scenario_returns_public_view(monkeypatch):
         fake_to_public,
     )
 
-    result = await scenarios_service.get_scenario_srvc(scenario, object())
+    result = await scenarios_service.get_scenario_srvc(scenario, expected_session)
 
     assert result.public_context["public_fact"] == "PUBLIC-10"
     assert result.description == "AUTHORING-DESCRIPTION"
@@ -289,14 +318,17 @@ async def test_get_scenario_returns_public_view(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_delete_scenario_propagates_repo_guard(monkeypatch):
+async def test_delete_scenario_propagates_repo_guard(monkeypatch, recording_async_session_factory):
+    expected_session = recording_async_session_factory()
+
     async def fake_delete_scenario(scenario, session):
+        assert session is expected_session
         raise ValueError("Cannot modify scenario that has been used in a simulation")
 
     monkeypatch.setattr(scenarios_service.scenarios_repo, "delete_scenario", fake_delete_scenario)
 
     with pytest.raises(ValueError, match="used in a simulation"):
-        await scenarios_service.delete_scenario_srvc(_scenario(), object())
+        await scenarios_service.delete_scenario_srvc(_scenario(), expected_session)
 
 
 @pytest.mark.asyncio

@@ -1,9 +1,6 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
-
-from app import main as main_module
 from app.core import dependencies
 from app.schemas.sessions_schemas import SessionRead
 from app.web.routes import sessions_route
@@ -20,25 +17,16 @@ def _session(session_id=1):
     )
 
 
-def test_heartbeat_accepts_missing_body(monkeypatch):
+def test_heartbeat_accepts_missing_body(
+    monkeypatch,
+    api_client,
+    test_app,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
     target = _session()
     captured = []
-
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(
-            id=1,
-            username="admin",
-            roles=[SimpleNamespace(name="admin")],
-        )
-
-    async def fake_get_session():
-        yield object()
-
-    async def fake_user_has_role(_user, _role_name, _session):
-        return True
 
     def fake_get_admin_session():
         return target
@@ -54,24 +42,17 @@ def test_heartbeat_accepts_missing_body(monkeypatch):
             ended_at=user_session.ended_at,
         )
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+    override_current_user(username="admin", roles=["admin"])
+    override_session()
+    allow_roles()
     monkeypatch.setattr(
         sessions_route.sessions_service,
         "heartbeat_session_srvc",
         fake_heartbeat_session_srvc,
     )
+    test_app.dependency_overrides[dependencies.get_admin_session] = fake_get_admin_session
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
-    app.dependency_overrides[dependencies.get_admin_session] = fake_get_admin_session
-
-    try:
-        with TestClient(app) as client:
-            response = client.post("/sessions/1/heartbeat")
-    finally:
-        app.dependency_overrides.clear()
+    response = api_client.post("/sessions/1/heartbeat")
 
     assert response.status_code == 200
     assert response.json()["last_seen_at"] == "2026-01-02T00:00:00Z"

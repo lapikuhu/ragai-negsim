@@ -115,36 +115,42 @@ def test_render_intent_prompt_uses_latest_user_message_only():
     assert "Earlier offer." not in prompt
 
 
-def test_intent_wrapper_passes_only_latest_student_message():
-    captured = {}
-
-    class CapturingGraph:
-        def invoke(self, state):
-            captured.update(state)
-            return {
-                **state,
-                "intent_classification": {
-                    "intent": "continue",
-                    "confidence": "high",
-                    "reasoning": "Continue.",
-                },
-                "event_log": ["intent_classifier:classified"],
-            }
-
-    node = make_intent_classifier_node(CapturingGraph())
-    node(
+def test_intent_wrapper_passes_only_latest_student_message(
+    agent_parent_state_factory,
+    capturing_graph_factory,
+):
+    graph, captured = capturing_graph_factory(
         {
-            "messages": [
-                {"role": "assistant", "content": "OLD COUNTERPART"},
-                {"role": "user", "content": "LATEST STUDENT"},
-            ],
-            "side_a_private_context": {"sentinel": "SIDE_A_SECRET"},
-            "evaluation": {"sentinel": "EVALUATOR_SECRET"},
-            "event_log": ["PARENT EVENT"],
+            "intent_classification": {
+                "intent": "continue",
+                "confidence": "high",
+                "reasoning": "Continue.",
+            },
+            "event_log": ["intent_classifier:classified"],
         }
     )
+    node = make_intent_classifier_node(graph)
+    parent_state = agent_parent_state_factory(
+        messages=[
+            {"role": "assistant", "content": "OLD COUNTERPART"},
+            {"role": "user", "content": "LATEST STUDENT"},
+        ],
+        event_log=["PARENT EVENT"],
+    )
 
-    assert captured == {
-        "messages": [{"role": "user", "content": "LATEST STUDENT"}],
-        "event_log": [],
+    result = node(parent_state)
+
+    assert captured["messages"] == [{"role": "user", "content": "LATEST STUDENT"}]
+    assert captured["event_log"] == []
+    assert captured["evidence_ledger"] == parent_state["evidence_ledger"]
+    assert captured["evidence_ledger"] is not parent_state["evidence_ledger"]
+    assert "side_a_private_context" not in captured
+    assert "evaluation" not in captured
+    assert result == {
+        "intent_classification": {
+            "intent": "continue",
+            "confidence": "high",
+            "reasoning": "Continue.",
+        },
+        "event_log": ["intent_classifier:classified"],
     }

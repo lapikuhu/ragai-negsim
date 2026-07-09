@@ -20,7 +20,7 @@ Development expects the FastAPI backend at:
 http://127.0.0.1:8000
 ```
 
-The Vite dev server proxies supported API paths to that backend through [vite.config.ts](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/vite.config.ts:1).
+The Vite dev server proxies supported API paths to that backend through [vite.config.ts](ragai-negsim/frontend/vite.config.ts:1).
 
 ## Install dependencies
 
@@ -63,8 +63,8 @@ npm run generate-api
 This command:
 
 - fetches `http://127.0.0.1:8000/openapi.json`
-- updates [openapi.json](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/openapi.json:1)
-- regenerates [schema.d.ts](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/src/api/generated/schema.d.ts:1)
+- updates [openapi.json](ragai-negsim/frontend/openapi.json:1)
+- regenerates [schema.d.ts](ragai-negsim/frontend/src/api/generated/schema.d.ts:1)
 
 ## Typecheck
 
@@ -77,8 +77,6 @@ npm run typecheck
 ```powershell
 npm run build
 ```
-
-Note: in this session the production build could not be fully verified because sandbox restrictions blocked Vite/esbuild filesystem access, so this command should still be run in a normal local shell before merging.
 
 ## Current capabilities
 
@@ -98,5 +96,5 @@ Implemented against real backend endpoints:
 
 See:
 
-- [implementation-notes.md](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/docs/implementation-notes.md:1)
-- [backend-gaps.md](/c:/Users/iason/Documents/PYTHON_PROJECTS/ragai-negsim/frontend/docs/backend-gaps.md:1)
+- [implementation-notes.md](ragai-negsim/frontend/docs/implementation-notes.md:1)
+- [backend-gaps.md](ragai-negsim/frontend/docs/backend-gaps.md:1)

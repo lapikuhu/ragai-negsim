@@ -1,9 +1,6 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
-
-from app import main as main_module
 from app.core import dependencies
 from app.schemas.scenarios_schemas import (
     ScenarioAuthoringReadWithIds,
@@ -49,19 +46,14 @@ def _authoring_scenario() -> ScenarioAuthoringReadWithIds:
     )
 
 
-def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
-
-    async def fake_get_session():
-        yield object()
-
-    async def fake_user_has_role(_user, _role_name, _session):
-        return True
-
+def test_scenarios_routes_keep_public_and_authoring_views_separate(
+    monkeypatch,
+    api_client,
+    test_app,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
     async def fake_list_scenarios(*args, **kwargs):
         return [_public_scenario()]
 
@@ -71,7 +63,9 @@ def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
     async def fake_get_scenario_authoring(*args, **kwargs):
         return _authoring_scenario()
 
-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+    override_current_user(username="teacher", roles=["teacher"])
+    override_session()
+    allow_roles("teacher")
     monkeypatch.setattr(
         scenarios_service,
         "list_scenarios_srvc",
@@ -89,52 +83,39 @@ def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
         raising=False,
     )
 
-    app = main_module.app
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
-    app.dependency_overrides[dependencies.get_visible_scenario] = lambda: SimpleNamespace(id=10)
-    app.dependency_overrides[dependencies.get_writable_scenario] = lambda: SimpleNamespace(id=10)
+    test_app.dependency_overrides[dependencies.get_visible_scenario] = lambda: SimpleNamespace(id=10)
+    test_app.dependency_overrides[dependencies.get_writable_scenario] = lambda: SimpleNamespace(id=10)
 
-    try:
-        with TestClient(app) as client:
-            list_response = client.get("/scenarios/")
-            assert list_response.status_code == 200
-            assert list_response.json()[0]["public_context"]["issue"] == "late checkout fee"
-            assert list_response.json()[0]["description"] == "PUBLIC-DESCRIPTION"
-            assert "side_a_private_context" not in list_response.json()[0]
+    list_response = api_client.get("/scenarios/")
+    assert list_response.status_code == 200
+    assert list_response.json()[0]["public_context"]["issue"] == "late checkout fee"
+    assert list_response.json()[0]["description"] == "PUBLIC-DESCRIPTION"
+    assert "side_a_private_context" not in list_response.json()[0]
 
-            get_response = client.get("/scenarios/10")
-            assert get_response.status_code == 200
-            assert get_response.json()["description"] == "PUBLIC-DESCRIPTION"
-            assert "side_b_private_context" not in get_response.json()
-            assert "side_a_summary" not in get_response.json()
-            assert "side_b_summary" not in get_response.json()
+    get_response = api_client.get("/scenarios/10")
+    assert get_response.status_code == 200
+    assert get_response.json()["description"] == "PUBLIC-DESCRIPTION"
+    assert "side_b_private_context" not in get_response.json()
+    assert "side_a_summary" not in get_response.json()
+    assert "side_b_summary" not in get_response.json()
 
-            authoring_response = client.get("/scenarios/10/authoring")
-            assert authoring_response.status_code == 200
-            assert authoring_response.json()["description"] == "AUTHORING-DESCRIPTION"
-            assert authoring_response.json()["side_a_private_context"]["reservation"] == "SIDE-A-SECRET"
-            assert authoring_response.json()["side_b_private_context"]["reservation"] == "SIDE-B-SECRET"
-            assert authoring_response.json()["side_a_summary"] == "Side A should avoid the fee."
-            assert authoring_response.json()["side_b_summary"] == "Side B should protect policy."
-    finally:
-        app.dependency_overrides.clear()
+    authoring_response = api_client.get("/scenarios/10/authoring")
+    assert authoring_response.status_code == 200
+    assert authoring_response.json()["description"] == "AUTHORING-DESCRIPTION"
+    assert authoring_response.json()["side_a_private_context"]["reservation"] == "SIDE-A-SECRET"
+    assert authoring_response.json()["side_b_private_context"]["reservation"] == "SIDE-B-SECRET"
+    assert authoring_response.json()["side_a_summary"] == "Side A should avoid the fee."
+    assert authoring_response.json()["side_b_summary"] == "Side B should protect policy."
 
 
-def test_generate_context_route_returns_authoring_preview(monkeypatch):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
-
-    async def fake_get_session():
-        yield object()
-
-    async def fake_user_has_role(_user, _role_name, _session):
-        return True
-
+def test_generate_context_route_returns_authoring_preview(
+    monkeypatch,
+    api_client,
+    test_app,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
     async def fake_generate_scenario_context(data, model):
         assert data.name == "Hotel late checkout"
         return ScenarioContextGenerateResponse(
@@ -145,31 +126,26 @@ def test_generate_context_route_returns_authoring_preview(monkeypatch):
             side_b_summary="You want to protect revenue.",
         )
 
-    app = main_module.app
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+    override_current_user(username="teacher", roles=["teacher"])
+    override_session()
+    allow_roles("teacher")
     monkeypatch.setattr(
         scenarios_service,
         "generate_scenario_context_srvc",
         fake_generate_scenario_context,
     )
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
-    app.dependency_overrides[dependencies.get_chat_model] = lambda: object()
+    test_app.dependency_overrides[dependencies.get_chat_model] = lambda: object()
 
-    try:
-        with TestClient(app) as client:
-            response = client.post(
-                "/scenarios/generate-context",
-                json={
-                    "name": "Hotel late checkout",
-                    "description": "A guest wants more time and the manager must balance policy and satisfaction.",
-                },
-            )
-        assert response.status_code == 200
-        assert response.json()["public_context"]["issue"] == "late checkout"
-        assert response.json()["side_a_private_context"]["goal"] == "avoid fee"
-        assert response.json()["side_a_summary"] == "You want to avoid the fee."
-        assert response.json()["side_b_summary"] == "You want to protect revenue."
-    finally:
-        app.dependency_overrides.clear()
+    response = api_client.post(
+        "/scenarios/generate-context",
+        json={
+            "name": "Hotel late checkout",
+            "description": "A guest wants more time and the manager must balance policy and satisfaction.",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["public_context"]["issue"] == "late checkout"
+    assert response.json()["side_a_private_context"]["goal"] == "avoid fee"
+    assert response.json()["side_a_summary"] == "You want to avoid the fee."
+    assert response.json()["side_b_summary"] == "You want to protect revenue."

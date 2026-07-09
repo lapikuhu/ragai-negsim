@@ -202,20 +202,21 @@ def test_build_coach_trusted_context_contains_only_coach_safe_fields():
     assert "SIDE_A_SECRET" not in trusted_context
 
 
-def test_build_evaluator_trusted_context_contains_all_authorized_fields():
+def test_build_evaluator_trusted_context_contains_all_authorized_fields(
+    agent_parent_state_factory,
+):
     trusted_context = build_evaluator_trusted_context(
-        {
-            "user_side": "side_b",
-            "phase": "closing",
-            "evaluation_mode": "rolling",
-            "scenario_public_context": {"name": "Late checkout"},
-            "side_a_private_context": {"reservation_value": 18.0},
-            "side_b_private_context": {"reservation_value": 25.0},
-            "side_a": {"name": "Hotel", "target_value": 50.0},
-            "side_b": {"name": "Guest", "target_value": 20.0},
-            "current_offer": {"price": 40.0},
-            "offer_history": [{"price": 45.0}],
-        }
+        agent_parent_state_factory(
+            phase="closing",
+            evaluation_mode="rolling",
+            scenario_public_context={"name": "Late checkout"},
+            side_a_private_context={"reservation_value": 18.0},
+            side_b_private_context={"reservation_value": 25.0},
+            side_a={"name": "Hotel", "target_value": 50.0},
+            side_b={"name": "Guest", "target_value": 20.0},
+            current_offer={"price": 40.0},
+            offer_history=[{"price": 45.0}],
+        )
     )
 
     assert "Late checkout" in trusted_context
@@ -287,7 +288,9 @@ def test_coach_graphrag_call_records_graphrag_sources():
     assert result["sources"] == coach_ledger["graphrag"]["sources"]
 
 
-def test_evaluator_crag_call_passes_full_authorized_trusted_context():
+def test_evaluator_crag_call_passes_full_authorized_trusted_context(
+    agent_parent_state_factory,
+):
     captured = {}
 
     class CapturingCrag:
@@ -297,20 +300,19 @@ def test_evaluator_crag_call_passes_full_authorized_trusted_context():
 
     node = make_call_evaluator_rag_node(CapturingCrag())
     node(
-        {
-            "evaluator_query": "query",
-            "user_side": "side_b",
-            "phase": "closing",
-            "evaluation_mode": "final",
-            "scenario_public_context": {"name": "Late checkout"},
-            "side_a_private_context": {"reservation_value": 18.0},
-            "side_b_private_context": {"reservation_value": 25.0},
-            "side_a": {"name": "Hotel"},
-            "side_b": {"name": "Guest"},
-            "current_offer": {"price": 40.0},
-            "offer_history": [{"price": 45.0}],
-            "retrieval_result": {"summary": "Shared retrieval summary"},
-        }
+        agent_parent_state_factory(
+            evaluator_query="query",
+            phase="closing",
+            evaluation_mode="final",
+            scenario_public_context={"name": "Late checkout"},
+            side_a_private_context={"reservation_value": 18.0},
+            side_b_private_context={"reservation_value": 25.0},
+            side_a={"name": "Hotel"},
+            side_b={"name": "Guest"},
+            current_offer={"price": 40.0},
+            offer_history=[{"price": 45.0}],
+            retrieval_result={"summary": "Shared retrieval summary"},
+        )
     )
 
     assert captured["question"] == "query"
@@ -319,7 +321,7 @@ def test_evaluator_crag_call_passes_full_authorized_trusted_context():
     assert '"reservation_value": 25.0' in captured["trusted_context"]
 
 
-def test_evaluator_graphrag_call_records_graphrag_sources():
+def test_evaluator_graphrag_call_records_graphrag_sources(agent_parent_state_factory):
     class CapturingGraphRag:
         def invoke(self, payload):
             return {
@@ -341,20 +343,19 @@ def test_evaluator_graphrag_call_records_graphrag_sources():
         retrieval_strategy="graphrag",
     )
     result = node(
-        {
-            "evaluator_query": "query",
-            "user_side": "side_b",
-            "phase": "closing",
-            "evaluation_mode": "final",
-            "scenario_public_context": {"name": "Late checkout"},
-            "side_a_private_context": {"reservation_value": 18.0},
-            "side_b_private_context": {"reservation_value": 25.0},
-            "side_a": {"name": "Hotel"},
-            "side_b": {"name": "Guest"},
-            "current_offer": {"price": 40.0},
-            "offer_history": [{"price": 45.0}],
-            "retrieval_result": {"summary": "Shared retrieval summary"},
-        }
+        agent_parent_state_factory(
+            evaluator_query="query",
+            phase="closing",
+            evaluation_mode="final",
+            scenario_public_context={"name": "Late checkout"},
+            side_a_private_context={"reservation_value": 18.0},
+            side_b_private_context={"reservation_value": 25.0},
+            side_a={"name": "Hotel"},
+            side_b={"name": "Guest"},
+            current_offer={"price": 40.0},
+            offer_history=[{"price": 45.0}],
+            retrieval_result={"summary": "Shared retrieval summary"},
+        )
     )
 
     evaluator_ledger = result["evidence_ledger"]["evaluator"]

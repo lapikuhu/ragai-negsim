@@ -14,11 +14,6 @@ from app.airag.chains.crag import crag, crag_nodes
 from app.airag.chains.negotiation import negotiation
 
 
-class _DummyGraph:
-    def invoke(self, state):
-        return state
-
-
 class _DummyStructuredModel:
     def with_structured_output(self, *args, **kwargs):
         return self
@@ -50,20 +45,24 @@ def test_public_invoke_wrappers_are_traceable():
     assert hasattr(learner_agent.invoke_simulation_learner_agent, "__wrapped__")
 
 
-def test_graph_wrapper_nodes_are_traceable():
-    assert hasattr(coach.make_coach_node(_DummyGraph()), "__wrapped__")
-    assert hasattr(counterpart.make_counterpart_node(_DummyGraph()), "__wrapped__")
-    assert hasattr(evaluator.make_evaluator_node(_DummyGraph()), "__wrapped__")
+def test_graph_wrapper_nodes_are_traceable(capturing_graph_factory):
+    graph, _captured = capturing_graph_factory(lambda state: state)
+
+    assert hasattr(coach.make_coach_node(graph), "__wrapped__")
+    assert hasattr(counterpart.make_counterpart_node(graph), "__wrapped__")
+    assert hasattr(evaluator.make_evaluator_node(graph), "__wrapped__")
     assert hasattr(
-        intent_classifier.make_intent_classifier_node(_DummyGraph()),
+        intent_classifier.make_intent_classifier_node(graph),
         "__wrapped__",
     )
-    assert hasattr(user_proxy.make_user_proxy_node(_DummyGraph()), "__wrapped__")
-    assert hasattr(crag.make_crag_node(_DummyGraph()), "__wrapped__")
+    assert hasattr(user_proxy.make_user_proxy_node(graph), "__wrapped__")
+    assert hasattr(crag.make_crag_node(graph), "__wrapped__")
 
 
-def test_crag_invoke_nodes_are_traceable():
-    assert hasattr(crag_nodes.make_crag_retrieve_node(_DummyGraph()), "__wrapped__")
+def test_crag_invoke_nodes_are_traceable(capturing_graph_factory):
+    graph, _captured = capturing_graph_factory(lambda state: state)
+
+    assert hasattr(crag_nodes.make_crag_retrieve_node(graph), "__wrapped__")
     assert hasattr(crag_nodes.node_grade, "__wrapped__")
     assert hasattr(crag_nodes.node_rewrite, "__wrapped__")
     assert hasattr(crag_nodes.node_quality_check, "__wrapped__")
@@ -71,8 +70,10 @@ def test_crag_invoke_nodes_are_traceable():
     assert hasattr(crag_nodes.node_fallback, "__wrapped__")
 
 
-def test_agent_model_and_subgraph_nodes_are_traceable():
-    assert hasattr(coach_nodes.make_call_rag_node(_DummyGraph()), "__wrapped__")
+def test_agent_model_and_subgraph_nodes_are_traceable(capturing_graph_factory):
+    graph, _captured = capturing_graph_factory(lambda state: state)
+
+    assert hasattr(coach_nodes.make_call_rag_node(graph), "__wrapped__")
     assert hasattr(
         coach_nodes.make_generate_coach_advice_node(_DummyStructuredModel()),
         "__wrapped__",
@@ -95,7 +96,7 @@ def test_agent_model_and_subgraph_nodes_are_traceable():
         "__wrapped__",
     )
 
-    assert hasattr(evaluator_nodes.make_call_rag_node(_DummyGraph()), "__wrapped__")
+    assert hasattr(evaluator_nodes.make_call_rag_node(graph), "__wrapped__")
     assert hasattr(
         evaluator_nodes.make_generate_evaluator_response_node(
             _DummyStructuredModel()

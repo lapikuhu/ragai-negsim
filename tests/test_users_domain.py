@@ -1,31 +1,15 @@
 from types import SimpleNamespace
 
 import pytest
+from fastapi import FastAPI
 from pydantic import ValidationError
 
 from app.schemas.users_schemas import UserCreate, UserPasswordChange, UserUpdate
 from app.services import users_service
 
 
-def _user(user_id=1, roles=None, hashed_password="hashed"):
-    return SimpleNamespace(
-        id=user_id,
-        username=f"user-{user_id}",
-        roles=roles or [],
-        hashed_password=hashed_password,
-    )
-
-
 def _role(role_id, name):
     return SimpleNamespace(id=role_id, name=name)
-
-
-def _admin(user_id=1):
-    return _user(user_id=user_id, roles=[_role(1, "admin")])
-
-
-def _student(user_id=2):
-    return _user(user_id=user_id, roles=[_role(2, "student")])
 
 
 def test_user_create_requires_at_least_one_role():
@@ -47,39 +31,40 @@ def test_user_update_accepts_password_and_role_ids():
 
 
 @pytest.mark.asyncio
-async def test_admin_create_user_with_multiple_roles(monkeypatch):
+async def test_admin_create_user_with_multiple_roles(monkeypatch, fake_user_factory):
     captured = []
 
     async def fake_create_user(user_data, session):
         captured.append(user_data)
-        return _user(user_id=10, roles=[_role(2, "student"), _role(3, "teacher")])
+        return fake_user_factory(user_id=10, roles=("student", "teacher"))
 
     monkeypatch.setattr(users_service.users_repo, "create_user", fake_create_user)
 
     user_data = UserCreate(username="alice", password="password123", role_ids=[2, 3])
-    user = await users_service.create_user_service(user_data, object(), _admin())
+    user = await users_service.create_user_service(user_data, object(), fake_user_factory(roles="admin"))
 
     assert user.id == 10
     assert captured == [user_data]
 
 
 @pytest.mark.asyncio
-async def test_non_admin_create_update_delete_denied():
+async def test_non_admin_create_update_delete_denied(fake_user_factory):
     user_data = UserCreate(username="alice", password="password123", role_ids=[2])
+    student = fake_user_factory(user_id=2, roles="student")
 
     with pytest.raises(PermissionError, match="Admin role required"):
-        await users_service.create_user_service(user_data, object(), _student())
+        await users_service.create_user_service(user_data, object(), student)
 
     with pytest.raises(PermissionError, match="Admin role required"):
-        await users_service.update_user_service(10, UserUpdate(username="bob"), object(), _student())
+        await users_service.update_user_service(10, UserUpdate(username="bob"), object(), student)
 
     with pytest.raises(PermissionError, match="Admin role required"):
-        await users_service.delete_user_service(10, object(), _student())
+        await users_service.delete_user_service(10, object(), student)
 
 
 @pytest.mark.asyncio
-async def test_admin_update_user_username_password_and_roles(monkeypatch):
-    target = _user(user_id=10, roles=[_role(2, "student")])
+async def test_admin_update_user_username_password_and_roles(monkeypatch, fake_user_factory):
+    target = fake_user_factory(user_id=10, roles="student")
     captured_update = []
     captured_roles = []
 
@@ -105,7 +90,7 @@ async def test_admin_update_user_username_password_and_roles(monkeypatch):
         10,
         UserUpdate(username="bob", password="password123", role_ids=[2, 3]),
         object(),
-        _admin(),
+        fake_user_factory(roles="admin"),
     )
 
     assert result.username == "bob"
@@ -117,7 +102,7 @@ async def test_admin_update_user_username_password_and_roles(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_owner_password_change_requires_current_password(monkeypatch):
+async def test_owner_password_change_requires_current_password(monkeypatch, fake_user_factory):
     async def fake_update_user(user, user_data, session):
         user.hashed_password = user_data.password
         return user
@@ -125,7 +110,12 @@ async def test_owner_password_change_requires_current_password(monkeypatch):
     monkeypatch.setattr(users_service, "verify_password", lambda raw, hashed: raw == "old-password")
     monkeypatch.setattr(users_service.users_repo, "update_user", fake_update_user)
 
-    current_user = _student()
+    current_user = fake_user_factory(
+        user_id=2,
+        roles=(),
+        hashed_password="hashed",
+    )
+    current_user.roles = [_role(2, "student")]
     result = await users_service.change_own_password_service(
         UserPasswordChange(current_password="old-password", new_password="new-password"),
         object(),
@@ -143,9 +133,9 @@ async def test_owner_password_change_requires_current_password(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_delete_propagates_repo_deletion_guards(monkeypatch):
+async def test_delete_propagates_repo_deletion_guards(monkeypatch, fake_user_factory):
     async def fake_get_user_by_id(user_id, session):
-        return _user(user_id=user_id)
+        return fake_user_factory(user_id=user_id)
 
     async def fake_delete_user(user, session, current_admin_id=None):
         raise ValueError("Admins cannot delete their own user account")
@@ -154,17 +144,17 @@ async def test_delete_propagates_repo_deletion_guards(monkeypatch):
     monkeypatch.setattr(users_service.users_repo, "delete_user", fake_delete_user)
 
     with pytest.raises(ValueError, match="Admins cannot delete their own user account"):
-        await users_service.delete_user_service(1, object(), _admin(user_id=1))
+        await users_service.delete_user_service(1, object(), fake_user_factory(user_id=1, roles="admin"))
 
 
 @pytest.mark.asyncio
-async def test_login_creates_session_and_returns_token_metadata(monkeypatch):
+async def test_login_creates_session_and_returns_token_metadata(monkeypatch, fake_user_factory):
     expires_at = object()
     created_session = SimpleNamespace(id=42, expires_at=expires_at)
 
     async def fake_get_user_by_username(username, session):
         assert username == "alice"
-        return _user(user_id=7, hashed_password="hashed")
+        return fake_user_factory(user_id=7, roles=(), hashed_password="hashed")
 
     async def fake_create_login_session(user, session):
         assert user.id == 7
@@ -192,7 +182,7 @@ async def test_login_creates_session_and_returns_token_metadata(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_admin_can_list_roles(monkeypatch):
+async def test_admin_can_list_roles(monkeypatch, fake_user_factory):
     roles = [_role(1, "admin"), _role(2, "student"), _role(3, "teacher")]
 
     async def fake_list_roles(session):
@@ -200,21 +190,19 @@ async def test_admin_can_list_roles(monkeypatch):
 
     monkeypatch.setattr(users_service.users_repo, "list_roles", fake_list_roles)
 
-    result = await users_service.list_roles_service(object(), _admin())
+    result = await users_service.list_roles_service(object(), fake_user_factory(roles="admin"))
 
     assert result == roles
 
 
 @pytest.mark.asyncio
-async def test_non_admin_role_listing_denied():
+async def test_non_admin_role_listing_denied(fake_user_factory):
     with pytest.raises(PermissionError, match="Admin role required"):
-        await users_service.list_roles_service(object(), _student())
+        await users_service.list_roles_service(object(), fake_user_factory(user_id=2, roles="student"))
 
 
-def test_users_router_is_mounted_and_static_routes_precede_username_route():
-    from app.main import app
-
-    paths = [route.path for route in app.routes]
+def test_users_router_is_mounted_and_static_routes_precede_username_route(test_app: FastAPI):
+    paths = [route.path for route in test_app.routes]
 
     assert "/users/login" in paths
     assert "/users/register" in paths

@@ -1,14 +1,42 @@
-from types import SimpleNamespace
+from datetime import datetime, timezone
 
-import pytest
-
+from app.schemas.document_chunks_schemas import DocumentChunkAdminRead, DocumentChunkListResponse
 from app.web.routes import document_chunks_route
 
 
-@pytest.mark.asyncio
-async def test_list_document_chunks_route_delegates_filters(monkeypatch):
+def test_list_document_chunks_route_delegates_filters(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
     captured = {}
-    expected = SimpleNamespace(items=[SimpleNamespace(id=1)], skip=10, limit=5, total=11, has_more=True)
+    expected = DocumentChunkListResponse(
+        items=[
+            DocumentChunkAdminRead(
+                id=1,
+                raw_document_id=11,
+                raw_document_name="Negotiation PDF",
+                chunking_profile_id=3,
+                chunking_profile_name="Recursive 1k",
+                chunking_strategy="recursive",
+                indexing_job_id=77,
+                chunk_index=2,
+                content="secret chunk body",
+                chunk_metadata={"page": 4},
+                corpus_index_ids=[9, 10],
+                indexed_count=2,
+                is_indexed=True,
+                created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
+                last_updated=datetime(2026, 6, 2, tzinfo=timezone.utc),
+            )
+        ],
+        skip=10,
+        limit=5,
+        total=11,
+        has_more=True,
+    )
 
     async def fake_list_document_chunks_srvc(**kwargs):
         captured.update(kwargs)
@@ -20,18 +48,16 @@ async def test_list_document_chunks_route_delegates_filters(monkeypatch):
         fake_list_document_chunks_srvc,
     )
 
-    session = object()
+    override_current_user(username="admin", roles=["admin"])
+    session = override_session()
+    allow_roles("admin")
 
-    result = await document_chunks_route.list_document_chunks(
-        session=session,
-        _admin=SimpleNamespace(id=1),
-        page={"skip": 10, "limit": 5},
-        raw_document_id=11,
-        chunking_profile_id=3,
-        has_indexed_chunks=False,
+    response = api_client.get(
+        "/document-chunks/?skip=10&limit=5&raw_document_id=11&chunking_profile_id=3&has_indexed_chunks=false"
     )
 
-    assert result == expected
+    assert response.status_code == 200
+    assert response.json() == expected.model_dump(mode="json")
     assert captured == {
         "session": session,
         "skip": 10,

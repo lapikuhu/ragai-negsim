@@ -15,52 +15,6 @@ from app.airag.chains.agents.evaluator.evaluator_helpers import (
 )
 
 
-def parent_state():
-    return {
-        "simulation_id": "10",
-        "session_id": "10",
-        "app_session_id": 44,
-        "user_id": "7",
-        "user_side": "side_b",
-        "scenario_public_context": {"sentinel": "PUBLIC"},
-        "side_a_private_context": {"sentinel": "SIDE_A_SECRET"},
-        "side_b_private_context": {"sentinel": "SIDE_B_SECRET"},
-        "counterpart_persona": {"sentinel": "PERSONA"},
-        "side_a": {"sentinel": "RAW_SIDE_A"},
-        "side_b": {"sentinel": "RAW_SIDE_B"},
-        "messages": [{"role": "user", "content": "Student offer"}],
-        "phase": "bargaining",
-        "active_side": "side_b",
-        "current_offer": {},
-        "offer_history": [],
-        "coach_advice": {"sentinel": "COACH_SECRET"},
-        "evaluation": {"sentinel": "EVALUATOR_SECRET"},
-        "final_evaluation": {"sentinel": "FINAL_SECRET"},
-        "retrieval_result": {"summary": "SHARED_RETRIEVAL"},
-        "event_log": [],
-    }
-
-
-def counterpart_payload():
-    return {
-        "side": "side_a",
-        "message": "Counterpart reply",
-        "action": "counter",
-        "offer": {
-            "side": "side_a",
-            "price": None,
-            "terms": {},
-            "raw_text": "Counterpart reply",
-        },
-        "private_notes": {
-            "strategy_used": "test",
-            "reservation_value_check": "ok",
-            "target_value_check": "ok",
-            "risk": "low",
-        },
-    }
-
-
 def test_counterpart_prompt_contains_only_allowed_context():
     state = {
         "user_side": "side_b",
@@ -117,20 +71,28 @@ def test_counterpart_fallback_uses_public_context_only():
     assert "COUNTERPART_SECRET" not in response["message"]
 
 
-def test_counterpart_wrapper_invokes_graph_with_projected_state():
-    captured = {}
+def test_counterpart_wrapper_invokes_graph_with_projected_state(
+    agent_parent_state_factory,
+    agent_counterpart_payload,
+    capturing_graph_factory,
+):
+    graph, captured = capturing_graph_factory(
+        lambda state: {
+            **state,
+            "counterpart_response": agent_counterpart_payload,
+            "event_log": ["counterpart:completed"],
+        }
+    )
 
-    class CapturingGraph:
-        def invoke(self, state):
-            captured.update(state)
-            return {
-                **state,
-                "counterpart_response": counterpart_payload(),
-                "event_log": ["counterpart:completed"],
-            }
-
-    node = make_counterpart_node(CapturingGraph())
-    node(parent_state())
+    node = make_counterpart_node(graph)
+    node(
+        agent_parent_state_factory(
+            messages=[{"role": "user", "content": "Student offer"}],
+            current_offer={},
+            offer_history=[],
+            event_log=[],
+        )
+    )
 
     serialized = repr(captured)
     assert "SIDE_A_SECRET" in serialized
@@ -173,20 +135,27 @@ def test_legacy_coach_template_appends_only_coach_safe_context():
     assert "STUDENT_SECRET" in rendered
 
 
-def test_coach_wrapper_invokes_graph_with_projected_state():
-    captured = {}
+def test_coach_wrapper_invokes_graph_with_projected_state(
+    agent_parent_state_factory,
+    capturing_graph_factory,
+):
+    graph, captured = capturing_graph_factory(
+        lambda state: {
+            **state,
+            "coach_advice": {"summary": "Advice"},
+            "event_log": ["coach:completed"],
+        }
+    )
 
-    class CapturingGraph:
-        def invoke(self, state):
-            captured.update(state)
-            return {
-                **state,
-                "coach_advice": {"summary": "Advice"},
-                "event_log": ["coach:completed"],
-            }
-
-    node = make_coach_node(CapturingGraph())
-    node(parent_state())
+    node = make_coach_node(graph)
+    node(
+        agent_parent_state_factory(
+            messages=[{"role": "user", "content": "Student offer"}],
+            current_offer={},
+            offer_history=[],
+            event_log=[],
+        )
+    )
 
     serialized = repr(captured)
     assert "SIDE_B_SECRET" in serialized
@@ -346,20 +315,27 @@ def test_custom_rolling_evaluator_prompt_appends_proxy_guidance_and_summary():
     assert "auto_user_proxy" in rendered
 
 
-def test_evaluator_wrapper_invokes_graph_with_full_context():
-    captured = {}
+def test_evaluator_wrapper_invokes_graph_with_full_context(
+    agent_parent_state_factory,
+    capturing_graph_factory,
+):
+    graph, captured = capturing_graph_factory(
+        lambda state: {
+            **state,
+            "evaluation": {"score": 0.5},
+            "event_log": ["evaluator:completed"],
+        }
+    )
 
-    class CapturingGraph:
-        def invoke(self, state):
-            captured.update(state)
-            return {
-                **state,
-                "evaluation": {"score": 0.5},
-                "event_log": ["evaluator:completed"],
-            }
-
-    node = make_evaluator_node(CapturingGraph())
-    node(parent_state())
+    node = make_evaluator_node(graph)
+    node(
+        agent_parent_state_factory(
+            messages=[{"role": "user", "content": "Student offer"}],
+            current_offer={},
+            offer_history=[],
+            event_log=[],
+        )
+    )
 
     serialized = repr(captured)
     assert "SIDE_A_SECRET" in serialized

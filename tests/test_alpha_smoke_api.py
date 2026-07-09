@@ -2,23 +2,21 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
 
-from app import main as main_module
 from app.core import dependencies
 from app.schemas.corpus_schemas import CorpusRead
 from app.schemas.embeddings_schemas import CorpusEmbeddingBuildQueued
 from app.schemas.raw_documents_schemas import RawDocumentRead
+from app.schemas.simulation_learner_schemas import SimulationLearnerAskResponse
 from app.schemas.simulations_schemas import (
     NegotiationStateSchema,
+    SimulationMessageSchema,
     SimulationProxyDisableResponse,
     SimulationProxyTurnResponse,
-    SimulationMessageSchema,
     SimulationRead,
     SimulationReadWithState,
     SimulationTurnResponse,
 )
-from app.schemas.simulation_learner_schemas import SimulationLearnerAskResponse
 
 
 def _now() -> datetime:
@@ -26,19 +24,15 @@ def _now() -> datetime:
 
 
 @pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:3000"])
-def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, origin):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username="admin", roles=[SimpleNamespace(name="admin")])
-
-    async def fake_get_session():
-        yield object()
-
-    async def fake_user_has_role(_user, _role_name, _session):
-        return True
-
+def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(
+    monkeypatch,
+    api_client,
+    test_app,
+    override_current_user,
+    override_session,
+    allow_roles,
+    origin,
+):
     async def fake_login(username, password, session):
         assert username == "admin"
         assert password == "secret"
@@ -187,12 +181,12 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
             counterpart_response="I can move a little, but not that far.",
         )
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
-
     from app.services import simulations_service, users_service
     from app.web.routes import corpus_route, raw_documents_route
 
+    override_current_user(username="admin", roles=["admin"])
+    override_session()
+    allow_roles("admin")
     monkeypatch.setattr(users_service, "user_login_service", fake_login)
     monkeypatch.setattr(
         raw_documents_route,
@@ -225,128 +219,119 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(monkeypatch, 
         "submit_simulation_turn_srvc",
         fake_submit_turn,
     )
-
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
-    app.dependency_overrides[dependencies.get_corpus_or_404] = (
+    test_app.dependency_overrides[dependencies.get_corpus_or_404] = (
         lambda: SimpleNamespace(id=11, created_by_user_id=1)
     )
-    app.dependency_overrides[dependencies.get_chunking_profile_or_404] = (
+    test_app.dependency_overrides[dependencies.get_chunking_profile_or_404] = (
         lambda: SimpleNamespace(id=3)
     )
-    app.dependency_overrides[dependencies.get_vector_store_record_or_404] = (
+    test_app.dependency_overrides[dependencies.get_vector_store_record_or_404] = (
         lambda: SimpleNamespace(id=5)
     )
-    app.dependency_overrides[dependencies.get_accessible_simulation] = fake_get_accessible_simulation
+    test_app.dependency_overrides[dependencies.get_accessible_simulation] = (
+        fake_get_accessible_simulation
+    )
 
-    try:
-        with TestClient(app) as client:
-            preflight = client.options(
-                "/raw-documents/",
-                headers={
-                    "Origin": origin,
-                    "Access-Control-Request-Method": "POST",
-                },
-            )
-            assert preflight.status_code == 200
-            assert preflight.headers["access-control-allow-origin"] == origin
+    preflight = api_client.options(
+        "/raw-documents/",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == origin
 
-            login_response = client.post(
-                "/users/login",
-                data={"username": "admin", "password": "secret"},
-            )
-            assert login_response.status_code == 200
-            token = login_response.json()["access_token"]
-            headers = {"Authorization": f"Bearer {token}", "Origin": origin}
+    login_response = api_client.post(
+        "/users/login",
+        data={"username": "admin", "password": "secret"},
+    )
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}", "Origin": origin}
 
-            upload_response = client.post(
-                "/raw-documents/",
-                data={
-                    "name": "alpha brief",
-                    "description": "Uploaded for smoke testing",
-                },
-                files={"file": ("brief.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
-                headers=headers,
-            )
-            assert upload_response.status_code == 201
-            assert upload_response.json()["id"] == 21
-            assert upload_response.json()["uploaded_by_username"] == "admin"
+    upload_response = api_client.post(
+        "/raw-documents/",
+        data={
+            "name": "alpha brief",
+            "description": "Uploaded for smoke testing",
+        },
+        files={"file": ("brief.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        headers=headers,
+    )
+    assert upload_response.status_code == 201
+    assert upload_response.json()["id"] == 21
+    assert upload_response.json()["uploaded_by_username"] == "admin"
 
-            corpus_response = client.post(
-                "/corpora/",
-                json={
-                    "name": "alpha corpus",
-                    "description": "Corpus for alpha smoke test",
-                    "raw_document_ids": [21],
-                },
-                headers=headers,
-            )
-            assert corpus_response.status_code == 201
-            assert corpus_response.json()["id"] == 11
-            assert corpus_response.json()["created_by_username"] == "admin"
+    corpus_response = api_client.post(
+        "/corpora/",
+        json={
+            "name": "alpha corpus",
+            "description": "Corpus for alpha smoke test",
+            "raw_document_ids": [21],
+        },
+        headers=headers,
+    )
+    assert corpus_response.status_code == 201
+    assert corpus_response.json()["id"] == 11
+    assert corpus_response.json()["created_by_username"] == "admin"
 
-            index_response = client.post(
-                "/corpora/11/chunking-profiles/3/vector-stores/5/embed-jobs",
-                json={
-                    "name": "alpha index",
-                    "embedding_model": "mini-l6-v2",
-                },
-                headers=headers,
-            )
-            assert index_response.status_code == 202
-            assert index_response.json()["corpus_index_id"] == 77
+    index_response = api_client.post(
+        "/corpora/11/chunking-profiles/3/vector-stores/5/embed-jobs",
+        json={
+            "name": "alpha index",
+            "embedding_model": "mini-l6-v2",
+        },
+        headers=headers,
+    )
+    assert index_response.status_code == 202
+    assert index_response.json()["corpus_index_id"] == 77
 
-            simulation_response = client.post(
-                "/simulations/",
-                json={
-                    "name": "alpha simulation",
-                    "description": "Smoke-test simulation",
-                    "corpus_id": 11,
-                    "corpus_index_id": 77,
-                    "rag_profile_id": 500,
-                    "user_side": "side_a",
-                },
-                headers=headers,
-            )
-            assert simulation_response.status_code == 201
-            assert simulation_response.json()["id"] == 31
+    simulation_response = api_client.post(
+        "/simulations/",
+        json={
+            "name": "alpha simulation",
+            "description": "Smoke-test simulation",
+            "corpus_id": 11,
+            "corpus_index_id": 77,
+            "rag_profile_id": 500,
+            "user_side": "side_a",
+        },
+        headers=headers,
+    )
+    assert simulation_response.status_code == 201
+    assert simulation_response.json()["id"] == 31
 
-            start_response = client.post(
-                "/simulations/31/start",
-                json={
-                    "side_a": {"name": "Buyer", "role": "buyer"},
-                    "side_b": {"name": "Seller", "role": "seller"},
-                },
-                headers=headers,
-            )
-            assert start_response.status_code == 200
-            assert start_response.json()["status"] == "active"
+    start_response = api_client.post(
+        "/simulations/31/start",
+        json={
+            "side_a": {"name": "Buyer", "role": "buyer"},
+            "side_b": {"name": "Seller", "role": "seller"},
+        },
+        headers=headers,
+    )
+    assert start_response.status_code == 200
+    assert start_response.json()["status"] == "active"
 
-            turn_response = client.post(
-                "/simulations/31/turn",
-                json={"message": "Could you do 95?"},
-                headers=headers,
-            )
-            assert turn_response.status_code == 200
-            assert turn_response.json()["status"] == "paused"
-            assert turn_response.json()["counterpart_response"] == (
-                "I can move a little, but not that far."
-            )
-    finally:
-        app.dependency_overrides.clear()
+    turn_response = api_client.post(
+        "/simulations/31/turn",
+        json={"message": "Could you do 95?"},
+        headers=headers,
+    )
+    assert turn_response.status_code == 200
+    assert turn_response.json()["status"] == "paused"
+    assert turn_response.json()["counterpart_response"] == (
+        "I can move a little, but not that far."
+    )
 
 
-def test_alpha_smoke_proxy_turn_and_disable_routes(monkeypatch):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username="student", roles=[])
-
-    async def fake_get_session():
-        yield object()
-
+def test_alpha_smoke_proxy_turn_and_disable_routes(
+    monkeypatch,
+    api_client,
+    test_app,
+    override_current_user,
+    override_session,
+):
     simulation_record = SimpleNamespace(
         id=31,
         status="paused",
@@ -396,10 +381,10 @@ def test_alpha_smoke_proxy_turn_and_disable_routes(monkeypatch):
             messages=[],
         )
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-
     from app.services import simulations_service
 
+    override_current_user(username="student", roles=[])
+    override_session()
     monkeypatch.setattr(
         simulations_service,
         "submit_simulation_proxy_turn_srvc",
@@ -410,40 +395,31 @@ def test_alpha_smoke_proxy_turn_and_disable_routes(monkeypatch):
         "disable_simulation_proxy_srvc",
         fake_disable_proxy,
     )
+    test_app.dependency_overrides[dependencies.get_accessible_simulation] = (
+        fake_get_accessible_simulation
+    )
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
-    app.dependency_overrides[dependencies.get_accessible_simulation] = fake_get_accessible_simulation
+    proxy_turn_response = api_client.post(
+        "/simulations/31/proxy-turn",
+        json={"persona_id": None, "duration": "this_turn"},
+    )
+    assert proxy_turn_response.status_code == 200
+    assert proxy_turn_response.json()["proxy_response"] == (
+        "I can move to 100 if we can settle today."
+    )
 
-    try:
-        with TestClient(app) as client:
-            proxy_turn_response = client.post(
-                "/simulations/31/proxy-turn",
-                json={"persona_id": None, "duration": "this_turn"},
-            )
-            assert proxy_turn_response.status_code == 200
-            assert proxy_turn_response.json()["proxy_response"] == (
-                "I can move to 100 if we can settle today."
-            )
-
-            disable_response = client.post("/simulations/31/proxy/disable", json={})
-            assert disable_response.status_code == 200
-            assert disable_response.json()["auto_user_proxy_enabled"] is False
-    finally:
-        app.dependency_overrides.clear()
+    disable_response = api_client.post("/simulations/31/proxy/disable", json={})
+    assert disable_response.status_code == 200
+    assert disable_response.json()["auto_user_proxy_enabled"] is False
 
 
-def test_alpha_smoke_learner_ask_route(monkeypatch):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username="student", roles=[])
-
-    async def fake_get_session():
-        yield object()
-
+def test_alpha_smoke_learner_ask_route(
+    monkeypatch,
+    api_client,
+    test_app,
+    override_current_user,
+    override_session,
+):
     simulation_record = SimpleNamespace(
         id=31,
         status="paused",
@@ -468,48 +444,36 @@ def test_alpha_smoke_learner_ask_route(monkeypatch):
             metadata={"tools_available": ["crag_tool"]},
         )
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-
     from app.services import simulation_learner_service
 
+    override_current_user(username="student", roles=[])
+    override_session()
     monkeypatch.setattr(
         simulation_learner_service,
         "ask_simulation_learner_srvc",
         fake_learner_ask,
     )
+    test_app.dependency_overrides[dependencies.get_accessible_simulation] = (
+        fake_get_accessible_simulation
+    )
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
-    app.dependency_overrides[dependencies.get_accessible_simulation] = fake_get_accessible_simulation
+    response = api_client.post(
+        "/simulations/31/learner/ask",
+        json={"query": "What should I focus on?", "max_results": 2},
+    )
 
-    try:
-        with TestClient(app) as client:
-            response = client.post(
-                "/simulations/31/learner/ask",
-                json={"query": "What should I focus on?", "max_results": 2},
-            )
-
-            assert response.status_code == 200
-            assert response.json()["answer"] == "Focus on objective criteria."
-            assert response.json()["metadata"]["tools_available"] == ["crag_tool"]
-    finally:
-        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["answer"] == "Focus on objective criteria."
+    assert response.json()["metadata"]["tools_available"] == ["crag_tool"]
 
 
-def test_raw_document_detail_returns_uploader_username(monkeypatch):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
-
-    async def fake_get_session():
-        yield object()
-
-    async def fake_user_has_role(_user, role_name, _session):
-        return role_name == "teacher"
-
+def test_raw_document_detail_returns_uploader_username(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
     async def fake_get_raw_document_by_id_srvc(_session, raw_document_id):
         assert raw_document_id == 21
         return SimpleNamespace(
@@ -530,35 +494,27 @@ def test_raw_document_detail_returns_uploader_username(monkeypatch):
             parsed_at=None,
         )
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-
     from app.web.routes import raw_documents_route
 
+    override_current_user(username="teacher", roles=["teacher"])
+    override_session()
+    allow_roles("teacher")
     monkeypatch.setattr(
         raw_documents_route,
         "get_raw_document_by_id_srvc",
         fake_get_raw_document_by_id_srvc,
     )
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
+    response = api_client.get("/raw-documents/21")
 
-    try:
-        with TestClient(app) as client:
-            response = client.get("/raw-documents/21")
-
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["uploaded_by_user_id"] == 1
-        assert payload["uploaded_by_username"] == "teacher"
-        assert payload["associated_corpora"] == [
-            {"id": 11, "name": "Negotiation corpus", "description": "Practice briefs"}
-        ]
-        assert "parsed_at" not in payload
-    finally:
-        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["uploaded_by_user_id"] == 1
+    assert payload["uploaded_by_username"] == "teacher"
+    assert payload["associated_corpora"] == [
+        {"id": 11, "name": "Negotiation corpus", "description": "Practice briefs"}
+    ]
+    assert "parsed_at" not in payload
 
 
 @pytest.mark.parametrize("role_name", ["admin", "teacher", "student"])
@@ -569,19 +525,16 @@ def test_raw_document_detail_returns_uploader_username(monkeypatch):
         ("/raw-documents/21", "get_raw_document_by_id_srvc"),
     ],
 )
-def test_raw_document_read_routes_allow_all_roles(monkeypatch, path, service_name, role_name):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username=role_name, roles=[SimpleNamespace(name=role_name)])
-
-    async def fake_get_session():
-        yield object()
-
-    async def fake_user_has_role(_user, requested_role_name, _session):
-        return requested_role_name == role_name
-
+def test_raw_document_read_routes_allow_all_roles(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+    path,
+    service_name,
+    role_name,
+):
     async def fake_list_raw_documents_srvc(*_args, **_kwargs):
         return []
 
@@ -602,29 +555,21 @@ def test_raw_document_read_routes_allow_all_roles(monkeypatch, path, service_nam
             parsed_at=None,
         )
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-
     from app.web.routes import raw_documents_route
 
+    override_current_user(username=role_name, roles=[role_name])
+    override_session()
+    allow_roles(role_name)
     service = (
         fake_list_raw_documents_srvc
         if service_name == "list_raw_documents_srvc"
         else fake_get_raw_document_by_id_srvc
     )
     monkeypatch.setattr(raw_documents_route, service_name, service)
-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
+    response = api_client.get(path)
 
-    try:
-        with TestClient(app) as client:
-            response = client.get(path)
-
-        assert response.status_code == 200
-    finally:
-        app.dependency_overrides.clear()
+    assert response.status_code == 200
 
 
 @pytest.mark.parametrize(
@@ -636,18 +581,12 @@ def test_raw_document_read_routes_allow_all_roles(monkeypatch, path, service_nam
 )
 def test_raw_document_read_routes_reject_authenticated_user_without_allowed_role(
     monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
     path,
     service_name,
 ):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username="viewer", roles=[SimpleNamespace(name="viewer")])
-
-    async def fake_get_session():
-        yield object()
-
     async def fake_user_has_role(_user, _requested_role_name, _session):
         return False
 
@@ -671,10 +610,10 @@ def test_raw_document_read_routes_reject_authenticated_user_without_allowed_role
             parsed_at=None,
         )
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-
     from app.web.routes import raw_documents_route
 
+    override_current_user(username="viewer", roles=["viewer"])
+    override_session()
     service = (
         fake_list_raw_documents_srvc
         if service_name == "list_raw_documents_srvc"
@@ -683,33 +622,19 @@ def test_raw_document_read_routes_reject_authenticated_user_without_allowed_role
     monkeypatch.setattr(raw_documents_route, service_name, service)
     monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
+    response = api_client.get(path)
 
-    try:
-        with TestClient(app) as client:
-            response = client.get(path)
-
-        assert response.status_code == 403
-        assert response.json()["detail"] == "Insufficient permissions"
-    finally:
-        app.dependency_overrides.clear()
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Insufficient permissions"
 
 
-def test_list_corpora_returns_creator_and_editor_usernames(monkeypatch):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
-
-    async def fake_get_session():
-        yield object()
-
-    async def fake_user_has_role(_user, role_name, _session):
-        return role_name == "teacher"
-
+def test_list_corpora_returns_creator_and_editor_usernames(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
     async def fake_list_corpora_srvc(*_args, **_kwargs):
         return [
             SimpleNamespace(
@@ -724,98 +649,66 @@ def test_list_corpora_returns_creator_and_editor_usernames(monkeypatch):
             )
         ]
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-
     from app.web.routes import corpus_route
 
+    override_current_user(username="teacher", roles=["teacher"])
+    override_session()
+    allow_roles("teacher")
     monkeypatch.setattr(corpus_route, "list_corpora_srvc", fake_list_corpora_srvc)
-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
+    response = api_client.get("/corpora/")
 
-    try:
-        with TestClient(app) as client:
-            response = client.get("/corpora/")
-
-        assert response.status_code == 200
-        assert response.json()[0]["created_by_username"] == "teacher"
-        assert response.json()[0]["last_edit_by_username"] == "coach"
-    finally:
-        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()[0]["created_by_username"] == "teacher"
+    assert response.json()[0]["last_edit_by_username"] == "coach"
 
 
 @pytest.mark.parametrize("role_name", ["admin", "teacher"])
-def test_list_corpora_allows_admin_and_teacher(monkeypatch, role_name):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username=role_name, roles=[SimpleNamespace(name=role_name)])
-
-    async def fake_get_session():
-        yield object()
-
-    async def fake_user_has_role(_user, requested_role_name, _session):
-        return requested_role_name == role_name
-
+def test_list_corpora_allows_admin_and_teacher(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+    role_name,
+):
     async def fake_list_corpora_srvc(*_args, **_kwargs):
         return []
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-
     from app.web.routes import corpus_route
 
+    override_current_user(username=role_name, roles=[role_name])
+    override_session()
+    allow_roles(role_name)
     monkeypatch.setattr(corpus_route, "list_corpora_srvc", fake_list_corpora_srvc)
-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
+    response = api_client.get("/corpora/")
 
-    try:
-        with TestClient(app) as client:
-            response = client.get("/corpora/")
-
-        assert response.status_code == 200
-    finally:
-        app.dependency_overrides.clear()
+    assert response.status_code == 200
 
 
 @pytest.mark.parametrize("role_name", ["student", "viewer"])
-def test_list_corpora_rejects_users_without_admin_or_teacher_role(monkeypatch, role_name):
-    async def fake_startup_seed():
-        return None
-
-    async def fake_get_current_user():
-        return SimpleNamespace(id=1, username=role_name, roles=[SimpleNamespace(name=role_name)])
-
-    async def fake_get_session():
-        yield object()
-
+def test_list_corpora_rejects_users_without_admin_or_teacher_role(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    role_name,
+):
     async def fake_user_has_role(_user, requested_role_name, _session):
         return requested_role_name == role_name
 
     async def fake_list_corpora_srvc(*_args, **_kwargs):
         return []
 
-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
-
     from app.web.routes import corpus_route
 
+    override_current_user(username=role_name, roles=[role_name])
+    override_session()
     monkeypatch.setattr(corpus_route, "list_corpora_srvc", fake_list_corpora_srvc)
     monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
 
-    app = main_module.app
-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
-    app.dependency_overrides[dependencies.get_session] = fake_get_session
+    response = api_client.get("/corpora/")
 
-    try:
-        with TestClient(app) as client:
-            response = client.get("/corpora/")
-
-        assert response.status_code == 403
-        assert response.json()["detail"] == "Insufficient permissions"
-    finally:
-        app.dependency_overrides.clear()
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Insufficient permissions"

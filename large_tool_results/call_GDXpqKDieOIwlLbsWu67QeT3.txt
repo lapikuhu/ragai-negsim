@@ -1,0 +1,2260 @@
+diff --git a/app/services/raw_documents_service.py b/app/services/raw_documents_service.py
+index c55802a..eadf088 100644
+--- a/app/services/raw_documents_service.py
++++ b/app/services/raw_documents_service.py
+@@ -185,10 +185,6 @@ async def create_uploaded_raw_document_srvc(
+     if file_bytes != b"%PDF":
+         raise ValueError("Uploaded file does not have a valid PDF signature")
+     
+-    # Enforce size limit
+-    if upload.spool_max_size and upload.spool_max_size > settings.MAX_UPLOAD_SIZE:
+-        raise ValueError(f"Uploaded file exceeds the maximum allowed size of {settings.MAX_UPLOAD_SIZE} bytes")
+-
+     raw_docs_dir = Path(settings.RAW_DOCS_DIR)
+     raw_docs_dir.mkdir(parents=True, exist_ok=True)
+ 
+@@ -200,6 +196,9 @@ async def create_uploaded_raw_document_srvc(
+     file_bytes = await upload.read()
+     if not file_bytes:
+         raise ValueError("Uploaded file is empty")
++    # Check if the uploaded file exceeds the maximum allowed size
++    if len(file_bytes) > settings.MAX_UPLOAD_SIZE:
++        raise ValueError(f"Uploaded file exceeds the maximum allowed size of {settings.MAX_UPLOAD_SIZE} bytes")
+ 
+     stored_path.write_bytes(file_bytes)
+     stat_result = stored_path.stat()
+diff --git a/tests/test_agent_context_projections.py b/tests/test_agent_context_projections.py
+index 240d92e..a31764d 100644
+--- a/tests/test_agent_context_projections.py
++++ b/tests/test_agent_context_projections.py
+@@ -9,46 +9,8 @@ from app.airag.chains.agents.context_projections import (
+ )
+ 
+ 
+-def parent_state():
+-    return {
+-        "simulation_id": "10",
+-        "session_id": "10",
+-        "app_session_id": 44,
+-        "user_id": "7",
+-        "user_side": "side_b",
+-        "scenario_public_context": {"sentinel": "PUBLIC"},
+-        "side_a_private_context": {"sentinel": "SIDE_A_SECRET"},
+-        "side_b_private_context": {"sentinel": "SIDE_B_SECRET"},
+-        "counterpart_persona": {"sentinel": "PERSONA"},
+-        "side_a": {"sentinel": "RAW_SIDE_A"},
+-        "side_b": {"sentinel": "RAW_SIDE_B"},
+-        "messages": [{"role": "user", "content": "LATEST-STUDENT"}],
+-        "phase": "bargaining",
+-        "active_side": "side_b",
+-        "current_offer": {"terms": {"sentinel": "OFFER"}},
+-        "offer_history": [{"terms": {"sentinel": "HISTORY"}}],
+-        "coach_advice": {"sentinel": "COACH_SECRET"},
+-        "evaluation": {"sentinel": "EVALUATOR_SECRET"},
+-        "final_evaluation": {"sentinel": "FINAL_SECRET"},
+-        "retrieval_result": {"summary": "SHARED_RETRIEVAL"},
+-        "evidence_ledger": {
+-            "records": [
+-                {"visibility_level": "learner", "summary": "LEARNER_VISIBLE"},
+-                {"visibility_level": "teacher", "summary": "TEACHER_ONLY"},
+-                {"visibility_level": "debug", "summary": "DEBUG_ONLY"},
+-            ],
+-        },
+-        "side_a_response": "COUNTERPART_RESPONSE",
+-        "turn_count": 2,
+-        "evaluation_mode": "rolling",
+-        "terminal_reason": None,
+-        "requested_action": None,
+-        "event_log": ["INTERNAL_EVENT"],
+-    }
+-
+-
+-def test_counterpart_projection_contains_only_counterpart_privileges():
+-    projected = project_counterpart_state(parent_state())
++def test_counterpart_projection_contains_only_counterpart_privileges(agent_parent_state):
++    projected = project_counterpart_state(agent_parent_state)
+     serialized = repr(projected)
+ 
+     assert projected["scenario_public_context"]["sentinel"] == "PUBLIC"
+@@ -62,8 +24,8 @@ def test_counterpart_projection_contains_only_counterpart_privileges():
+     assert projected["event_log"] == []
+ 
+ 
+-def test_coach_projection_contains_only_student_privileges():
+-    projected = project_coach_state(parent_state())
++def test_coach_projection_contains_only_student_privileges(agent_parent_state):
++    projected = project_coach_state(agent_parent_state)
+     serialized = repr(projected)
+ 
+     assert projected["student_private_context"]["sentinel"] == "SIDE_B_SECRET"
+@@ -72,8 +34,8 @@ def test_coach_projection_contains_only_student_privileges():
+     assert "PERSONA" not in serialized
+ 
+ 
+-def test_simulation_learner_projection_contains_learner_safe_negotiation_context():
+-    projected = project_simulation_learner_state(parent_state())
++def test_simulation_learner_projection_contains_learner_safe_negotiation_context(agent_parent_state):
++    projected = project_simulation_learner_state(agent_parent_state)
+     serialized = repr(projected)
+ 
+     assert projected["user_side"] == "side_b"
+@@ -93,8 +55,8 @@ def test_simulation_learner_projection_contains_learner_safe_negotiation_context
+     assert projected["event_log"] == []
+ 
+ 
+-def test_evaluator_projection_is_omniscient():
+-    projected = project_evaluator_state(parent_state())
++def test_evaluator_projection_is_omniscient(agent_parent_state):
++    projected = project_evaluator_state(agent_parent_state)
+     serialized = repr(projected)
+ 
+     for sentinel in (
+@@ -107,12 +69,13 @@ def test_evaluator_projection_is_omniscient():
+         assert sentinel in serialized
+ 
+ 
+-def test_intent_projection_contains_only_latest_student_message():
+-    state = parent_state()
+-    state["messages"] = [
+-        {"role": "assistant", "content": "OLD-COUNTERPART"},
+-        {"role": "user", "content": "LATEST-STUDENT"},
+-    ]
++def test_intent_projection_contains_only_latest_student_message(agent_parent_state_factory):
++    state = agent_parent_state_factory(
++        messages=[
++            {"role": "assistant", "content": "OLD-COUNTERPART"},
++            {"role": "user", "content": "LATEST-STUDENT"},
++        ],
++    )
+ 
+     projected = project_intent_classifier_state(state)
+ 
+@@ -133,8 +96,8 @@ def test_intent_projection_contains_only_latest_student_message():
+         project_simulation_learner_state,
+     ],
+ )
+-def test_projections_do_not_share_mutable_parent_values(projector):
+-    state = parent_state()
++def test_projections_do_not_share_mutable_parent_values(projector, agent_parent_state_factory):
++    state = agent_parent_state_factory()
+     projected = projector(state)
+ 
+     if "messages" in projected:
+diff --git a/tests/test_agent_prompt_privacy.py b/tests/test_agent_prompt_privacy.py
+index df43fcc..2a2047d 100644
+--- a/tests/test_agent_prompt_privacy.py
++++ b/tests/test_agent_prompt_privacy.py
+@@ -15,52 +15,6 @@ from app.airag.chains.agents.evaluator.evaluator_helpers import (
+ )
+ 
+ 
+-def parent_state():
+-    return {
+-        "simulation_id": "10",
+-        "session_id": "10",
+-        "app_session_id": 44,
+-        "user_id": "7",
+-        "user_side": "side_b",
+-        "scenario_public_context": {"sentinel": "PUBLIC"},
+-        "side_a_private_context": {"sentinel": "SIDE_A_SECRET"},
+-        "side_b_private_context": {"sentinel": "SIDE_B_SECRET"},
+-        "counterpart_persona": {"sentinel": "PERSONA"},
+-        "side_a": {"sentinel": "RAW_SIDE_A"},
+-        "side_b": {"sentinel": "RAW_SIDE_B"},
+-        "messages": [{"role": "user", "content": "Student offer"}],
+-        "phase": "bargaining",
+-        "active_side": "side_b",
+-        "current_offer": {},
+-        "offer_history": [],
+-        "coach_advice": {"sentinel": "COACH_SECRET"},
+-        "evaluation": {"sentinel": "EVALUATOR_SECRET"},
+-        "final_evaluation": {"sentinel": "FINAL_SECRET"},
+-        "retrieval_result": {"summary": "SHARED_RETRIEVAL"},
+-        "event_log": [],
+-    }
+-
+-
+-def counterpart_payload():
+-    return {
+-        "side": "side_a",
+-        "message": "Counterpart reply",
+-        "action": "counter",
+-        "offer": {
+-            "side": "side_a",
+-            "price": None,
+-            "terms": {},
+-            "raw_text": "Counterpart reply",
+-        },
+-        "private_notes": {
+-            "strategy_used": "test",
+-            "reservation_value_check": "ok",
+-            "target_value_check": "ok",
+-            "risk": "low",
+-        },
+-    }
+-
+-
+ def test_counterpart_prompt_contains_only_allowed_context():
+     state = {
+         "user_side": "side_b",
+@@ -117,20 +71,28 @@ def test_counterpart_fallback_uses_public_context_only():
+     assert "COUNTERPART_SECRET" not in response["message"]
+ 
+ 
+-def test_counterpart_wrapper_invokes_graph_with_projected_state():
+-    captured = {}
+-
+-    class CapturingGraph:
+-        def invoke(self, state):
+-            captured.update(state)
+-            return {
+-                **state,
+-                "counterpart_response": counterpart_payload(),
+-                "event_log": ["counterpart:completed"],
+-            }
++def test_counterpart_wrapper_invokes_graph_with_projected_state(
++    agent_parent_state_factory,
++    agent_counterpart_payload,
++    capturing_graph_factory,
++):
++    graph, captured = capturing_graph_factory(
++        lambda state: {
++            **state,
++            "counterpart_response": agent_counterpart_payload,
++            "event_log": ["counterpart:completed"],
++        }
++    )
+ 
+-    node = make_counterpart_node(CapturingGraph())
+-    node(parent_state())
++    node = make_counterpart_node(graph)
++    node(
++        agent_parent_state_factory(
++            messages=[{"role": "user", "content": "Student offer"}],
++            current_offer={},
++            offer_history=[],
++            event_log=[],
++        )
++    )
+ 
+     serialized = repr(captured)
+     assert "SIDE_A_SECRET" in serialized
+@@ -173,20 +135,27 @@ def test_legacy_coach_template_appends_only_coach_safe_context():
+     assert "STUDENT_SECRET" in rendered
+ 
+ 
+-def test_coach_wrapper_invokes_graph_with_projected_state():
+-    captured = {}
+-
+-    class CapturingGraph:
+-        def invoke(self, state):
+-            captured.update(state)
+-            return {
+-                **state,
+-                "coach_advice": {"summary": "Advice"},
+-                "event_log": ["coach:completed"],
+-            }
++def test_coach_wrapper_invokes_graph_with_projected_state(
++    agent_parent_state_factory,
++    capturing_graph_factory,
++):
++    graph, captured = capturing_graph_factory(
++        lambda state: {
++            **state,
++            "coach_advice": {"summary": "Advice"},
++            "event_log": ["coach:completed"],
++        }
++    )
+ 
+-    node = make_coach_node(CapturingGraph())
+-    node(parent_state())
++    node = make_coach_node(graph)
++    node(
++        agent_parent_state_factory(
++            messages=[{"role": "user", "content": "Student offer"}],
++            current_offer={},
++            offer_history=[],
++            event_log=[],
++        )
++    )
+ 
+     serialized = repr(captured)
+     assert "SIDE_B_SECRET" in serialized
+@@ -346,20 +315,27 @@ def test_custom_rolling_evaluator_prompt_appends_proxy_guidance_and_summary():
+     assert "auto_user_proxy" in rendered
+ 
+ 
+-def test_evaluator_wrapper_invokes_graph_with_full_context():
+-    captured = {}
+-
+-    class CapturingGraph:
+-        def invoke(self, state):
+-            captured.update(state)
+-            return {
+-                **state,
+-                "evaluation": {"score": 0.5},
+-                "event_log": ["evaluator:completed"],
+-            }
++def test_evaluator_wrapper_invokes_graph_with_full_context(
++    agent_parent_state_factory,
++    capturing_graph_factory,
++):
++    graph, captured = capturing_graph_factory(
++        lambda state: {
++            **state,
++            "evaluation": {"score": 0.5},
++            "event_log": ["evaluator:completed"],
++        }
++    )
+ 
+-    node = make_evaluator_node(CapturingGraph())
+-    node(parent_state())
++    node = make_evaluator_node(graph)
++    node(
++        agent_parent_state_factory(
++            messages=[{"role": "user", "content": "Student offer"}],
++            current_offer={},
++            offer_history=[],
++            event_log=[],
++        )
++    )
+ 
+     serialized = repr(captured)
+     assert "SIDE_A_SECRET" in serialized
+diff --git a/tests/test_agent_scenario_context.py b/tests/test_agent_scenario_context.py
+index 31c1271..5df01e1 100644
+--- a/tests/test_agent_scenario_context.py
++++ b/tests/test_agent_scenario_context.py
+@@ -41,14 +41,13 @@ def test_counterpart_prompt_adds_custom_extension_without_replacing_base():
+     assert "Reply as the counterpart in a terse style." in rendered
+ 
+ 
+-def test_rolling_evaluator_prompt_appends_structured_contexts():
++def test_rolling_evaluator_prompt_appends_structured_contexts(agent_parent_state_factory):
+     rendered = render_evaluator_prompt(
+-        {
+-            "user_side": "side_b",
+-            "scenario_public_context": {"name": "Hotel late checkout"},
+-            "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
+-            "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
+-        },
++        agent_parent_state_factory(
++            scenario_public_context={"name": "Hotel late checkout"},
++            side_a_private_context={"reservation": "SIDE-A-SECRET"},
++            side_b_private_context={"reservation": "SIDE-B-SECRET"},
++        ),
+         prompt_template="Evaluate the turn.",
+     )
+ 
+@@ -60,17 +59,16 @@ def test_rolling_evaluator_prompt_appends_structured_contexts():
+     assert "Evaluate the turn." in rendered
+ 
+ 
+-def test_final_evaluator_prompt_includes_structured_contexts():
++def test_final_evaluator_prompt_includes_structured_contexts(agent_parent_state_factory):
+     rendered = render_final_evaluator_prompt(
+-        {
+-            "user_side": "side_b",
+-            "scenario_public_context": {
++        agent_parent_state_factory(
++            scenario_public_context={
+                 "name": "Hotel late checkout",
+                 "description": "The guest wants a free late checkout.",
+             },
+-            "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
+-            "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
+-        }
++            side_a_private_context={"reservation": "SIDE-A-SECRET"},
++            side_b_private_context={"reservation": "SIDE-B-SECRET"},
++        )
+     )
+ 
+     assert "Hotel late checkout" in rendered
+diff --git a/tests/test_chunking_profiles_route.py b/tests/test_chunking_profiles_route.py
+index 2dc7eb2..715c72b 100644
+--- a/tests/test_chunking_profiles_route.py
++++ b/tests/test_chunking_profiles_route.py
+@@ -1,10 +1,15 @@
+-import pytest
++def test_list_chunker_definitions_route_returns_supported_strategies(
++    api_client,
++    override_current_user,
++    override_session,
++    allow_roles,
++):
++    override_current_user(username="admin", roles=["admin"])
++    override_session()
++    allow_roles("admin")
+ 
+-from app.web.routes import chunking_profiles_route
++    response = api_client.get("/chunking-profiles/definitions")
+ 
+-
+-@pytest.mark.asyncio
+-async def test_list_chunker_definitions_route_returns_supported_strategies():
+-    definitions = await chunking_profiles_route.list_chunker_definitions(object())
+-    strategies = {item.strategy for item in definitions}
++    assert response.status_code == 200
++    strategies = {item["strategy"] for item in response.json()}
+     assert strategies == {"recursive", "semantic", "hybrid"}
+diff --git a/tests/test_crag_grounding.py b/tests/test_crag_grounding.py
+index dc8100a..e0e79a1 100644
+--- a/tests/test_crag_grounding.py
++++ b/tests/test_crag_grounding.py
+@@ -202,20 +202,21 @@ def test_build_coach_trusted_context_contains_only_coach_safe_fields():
+     assert "SIDE_A_SECRET" not in trusted_context
+ 
+ 
+-def test_build_evaluator_trusted_context_contains_all_authorized_fields():
++def test_build_evaluator_trusted_context_contains_all_authorized_fields(
++    agent_parent_state_factory,
++):
+     trusted_context = build_evaluator_trusted_context(
+-        {
+-            "user_side": "side_b",
+-            "phase": "closing",
+-            "evaluation_mode": "rolling",
+-            "scenario_public_context": {"name": "Late checkout"},
+-            "side_a_private_context": {"reservation_value": 18.0},
+-            "side_b_private_context": {"reservation_value": 25.0},
+-            "side_a": {"name": "Hotel", "target_value": 50.0},
+-            "side_b": {"name": "Guest", "target_value": 20.0},
+-            "current_offer": {"price": 40.0},
+-            "offer_history": [{"price": 45.0}],
+-        }
++        agent_parent_state_factory(
++            phase="closing",
++            evaluation_mode="rolling",
++            scenario_public_context={"name": "Late checkout"},
++            side_a_private_context={"reservation_value": 18.0},
++            side_b_private_context={"reservation_value": 25.0},
++            side_a={"name": "Hotel", "target_value": 50.0},
++            side_b={"name": "Guest", "target_value": 20.0},
++            current_offer={"price": 40.0},
++            offer_history=[{"price": 45.0}],
++        )
+     )
+ 
+     assert "Late checkout" in trusted_context
+@@ -287,7 +288,9 @@ def test_coach_graphrag_call_records_graphrag_sources():
+     assert result["sources"] == coach_ledger["graphrag"]["sources"]
+ 
+ 
+-def test_evaluator_crag_call_passes_full_authorized_trusted_context():
++def test_evaluator_crag_call_passes_full_authorized_trusted_context(
++    agent_parent_state_factory,
++):
+     captured = {}
+ 
+     class CapturingCrag:
+@@ -297,20 +300,19 @@ def test_evaluator_crag_call_passes_full_authorized_trusted_context():
+ 
+     node = make_call_evaluator_rag_node(CapturingCrag())
+     node(
+-        {
+-            "evaluator_query": "query",
+-            "user_side": "side_b",
+-            "phase": "closing",
+-            "evaluation_mode": "final",
+-            "scenario_public_context": {"name": "Late checkout"},
+-            "side_a_private_context": {"reservation_value": 18.0},
+-            "side_b_private_context": {"reservation_value": 25.0},
+-            "side_a": {"name": "Hotel"},
+-            "side_b": {"name": "Guest"},
+-            "current_offer": {"price": 40.0},
+-            "offer_history": [{"price": 45.0}],
+-            "retrieval_result": {"summary": "Shared retrieval summary"},
+-        }
++        agent_parent_state_factory(
++            evaluator_query="query",
++            phase="closing",
++            evaluation_mode="final",
++            scenario_public_context={"name": "Late checkout"},
++            side_a_private_context={"reservation_value": 18.0},
++            side_b_private_context={"reservation_value": 25.0},
++            side_a={"name": "Hotel"},
++            side_b={"name": "Guest"},
++            current_offer={"price": 40.0},
++            offer_history=[{"price": 45.0}],
++            retrieval_result={"summary": "Shared retrieval summary"},
++        )
+     )
+ 
+     assert captured["question"] == "query"
+@@ -319,7 +321,7 @@ def test_evaluator_crag_call_passes_full_authorized_trusted_context():
+     assert '"reservation_value": 25.0' in captured["trusted_context"]
+ 
+ 
+-def test_evaluator_graphrag_call_records_graphrag_sources():
++def test_evaluator_graphrag_call_records_graphrag_sources(agent_parent_state_factory):
+     class CapturingGraphRag:
+         def invoke(self, payload):
+             return {
+@@ -341,20 +343,19 @@ def test_evaluator_graphrag_call_records_graphrag_sources():
+         retrieval_strategy="graphrag",
+     )
+     result = node(
+-        {
+-            "evaluator_query": "query",
+-            "user_side": "side_b",
+-            "phase": "closing",
+-            "evaluation_mode": "final",
+-            "scenario_public_context": {"name": "Late checkout"},
+-            "side_a_private_context": {"reservation_value": 18.0},
+-            "side_b_private_context": {"reservation_value": 25.0},
+-            "side_a": {"name": "Hotel"},
+-            "side_b": {"name": "Guest"},
+-            "current_offer": {"price": 40.0},
+-            "offer_history": [{"price": 45.0}],
+-            "retrieval_result": {"summary": "Shared retrieval summary"},
+-        }
++        agent_parent_state_factory(
++            evaluator_query="query",
++            phase="closing",
++            evaluation_mode="final",
++            scenario_public_context={"name": "Late checkout"},
++            side_a_private_context={"reservation_value": 18.0},
++            side_b_private_context={"reservation_value": 25.0},
++            side_a={"name": "Hotel"},
++            side_b={"name": "Guest"},
++            current_offer={"price": 40.0},
++            offer_history=[{"price": 45.0}],
++            retrieval_result={"summary": "Shared retrieval summary"},
++        )
+     )
+ 
+     evaluator_ledger = result["evidence_ledger"]["evaluator"]
+diff --git a/tests/test_document_chunks_route.py b/tests/test_document_chunks_route.py
+index 74d97bc..790c5da 100644
+--- a/tests/test_document_chunks_route.py
++++ b/tests/test_document_chunks_route.py
+@@ -1,14 +1,42 @@
+-from types import SimpleNamespace
+-
+-import pytest
++from datetime import datetime, timezone
+ 
++from app.schemas.document_chunks_schemas import DocumentChunkAdminRead, DocumentChunkListResponse
+ from app.web.routes import document_chunks_route
+ 
+ 
+-@pytest.mark.asyncio
+-async def test_list_document_chunks_route_delegates_filters(monkeypatch):
++def test_list_document_chunks_route_delegates_filters(
++    monkeypatch,
++    api_client,
++    override_current_user,
++    override_session,
++    allow_roles,
++):
+     captured = {}
+-    expected = SimpleNamespace(items=[SimpleNamespace(id=1)], skip=10, limit=5, total=11, has_more=True)
++    expected = DocumentChunkListResponse(
++        items=[
++            DocumentChunkAdminRead(
++                id=1,
++                raw_document_id=11,
++                raw_document_name="Negotiation PDF",
++                chunking_profile_id=3,
++                chunking_profile_name="Recursive 1k",
++                chunking_strategy="recursive",
++                indexing_job_id=77,
++                chunk_index=2,
++                content="secret chunk body",
++                chunk_metadata={"page": 4},
++                corpus_index_ids=[9, 10],
++                indexed_count=2,
++                is_indexed=True,
++                created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
++                last_updated=datetime(2026, 6, 2, tzinfo=timezone.utc),
++            )
++        ],
++        skip=10,
++        limit=5,
++        total=11,
++        has_more=True,
++    )
+ 
+     async def fake_list_document_chunks_srvc(**kwargs):
+         captured.update(kwargs)
+@@ -20,18 +48,16 @@ async def test_list_document_chunks_route_delegates_filters(monkeypatch):
+         fake_list_document_chunks_srvc,
+     )
+ 
+-    session = object()
++    override_current_user(username="admin", roles=["admin"])
++    session = override_session()
++    allow_roles("admin")
+ 
+-    result = await document_chunks_route.list_document_chunks(
+-        session=session,
+-        _admin=SimpleNamespace(id=1),
+-        page={"skip": 10, "limit": 5},
+-        raw_document_id=11,
+-        chunking_profile_id=3,
+-        has_indexed_chunks=False,
++    response = api_client.get(
++        "/document-chunks/?skip=10&limit=5&raw_document_id=11&chunking_profile_id=3&has_indexed_chunks=false"
+     )
+ 
+-    assert result == expected
++    assert response.status_code == 200
++    assert response.json() == expected.model_dump(mode="json")
+     assert captured == {
+         "session": session,
+         "skip": 10,
+diff --git a/tests/test_embeddings_service.py b/tests/test_embeddings_service.py
+index 8a9aaca..2891f0e 100644
+--- a/tests/test_embeddings_service.py
++++ b/tests/test_embeddings_service.py
+@@ -402,9 +402,8 @@ async def test_queue_corpus_embedding_build_requires_chunks(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(monkeypatch):
+-    opened_sessions = []
+-    closed_sessions = []
++async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(monkeypatch, recording_async_session_factory):
++    created_sessions = []
+     index = SimpleNamespace(
+         id=77,
+         corpus_id=11,
+@@ -418,17 +417,14 @@ async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(
+         build_error=None,
+     )
+ 
+-    class FakeSession:
+-        async def __aenter__(self):
+-            opened_sessions.append(self)
+-            return self
+-
+-        async def __aexit__(self, exc_type, exc, tb):
+-            closed_sessions.append(self)
++    def create_session():
++        session = recording_async_session_factory()
++        created_sessions.append(session)
++        return session
+ 
+     async def fake_get_index(index_id, session):
+         assert index_id == 77
+-        assert session in opened_sessions
++        assert session in created_sessions
+         return index
+ 
+     async def fake_get_corpus(corpus_id, session):
+@@ -442,10 +438,10 @@ async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(
+ 
+     async def fake_build_existing(**kwargs):
+         assert kwargs["index"] is index
+-        assert kwargs["session"] in opened_sessions
++        assert kwargs["session"] in created_sessions
+         return "built-result"
+ 
+-    monkeypatch.setattr(embeddings_service, "AsyncSessionLocal", lambda: FakeSession())
++    monkeypatch.setattr(embeddings_service, "AsyncSessionLocal", create_session)
+     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "get_corpus_index_by_id", fake_get_index)
+     monkeypatch.setattr(embeddings_service.corpus_repo, "get_corpus_by_id", fake_get_corpus)
+     monkeypatch.setattr(embeddings_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+@@ -455,12 +451,13 @@ async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(
+     result = await embeddings_service.run_queued_corpus_embedding_build_srvc(77)
+ 
+     assert result == "built-result"
+-    assert len(opened_sessions) == 1
+-    assert closed_sessions == opened_sessions
++    assert len(created_sessions) == 1
++    assert created_sessions[0].entered_sessions == [created_sessions[0]]
++    assert created_sessions[0].exited_sessions == [created_sessions[0]]
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypatch):
++async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypatch, recording_async_session_factory):
+     marked_failed = []
+     index = SimpleNamespace(
+         id=77,
+@@ -475,16 +472,6 @@ async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypat
+         build_error=None,
+     )
+ 
+-    class FakeSession:
+-        async def __aenter__(self):
+-            return self
+-
+-        async def __aexit__(self, exc_type, exc, tb):
+-            return False
+-
+-        async def rollback(self):
+-            return None
+-
+     async def fake_get_index(index_id, session):
+         return index
+ 
+@@ -506,7 +493,7 @@ async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypat
+         index_obj.build_error = build_error
+         return index_obj
+ 
+-    monkeypatch.setattr(embeddings_service, "AsyncSessionLocal", lambda: FakeSession())
++    monkeypatch.setattr(embeddings_service, "AsyncSessionLocal", recording_async_session_factory)
+     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "get_corpus_index_by_id", fake_get_index)
+     monkeypatch.setattr(embeddings_service.corpus_repo, "get_corpus_by_id", fake_get_corpus)
+     monkeypatch.setattr(embeddings_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+diff --git a/tests/test_indexing_jobs_route.py b/tests/test_indexing_jobs_route.py
+index 0188a9b..65a86e1 100644
+--- a/tests/test_indexing_jobs_route.py
++++ b/tests/test_indexing_jobs_route.py
+@@ -1,64 +1,142 @@
+-from types import SimpleNamespace
++from datetime import datetime, timezone
+ 
+-import pytest
+-from fastapi import Response
+-
+-from app.schemas.indexing_jobs_schemas import IndexingJobCreate
++from app.schemas.indexing_jobs_schemas import IndexingJobDetail, IndexingJobQueued
+ from app.web.routes import indexing_jobs_route
+ 
+ 
+-@pytest.mark.asyncio
+-async def test_post_indexing_jobs_returns_202_and_starts_managed_task(monkeypatch):
++def _queued_job(**overrides):
++    values = {
++        "id": 77,
++        "corpus_id": 1,
++        "chunking_profile_id": 2,
++        "vector_store_id": 3,
++        "embedding_model": "mini-l6-v2",
++        "requested_index_name": "policy-index",
++        "requested_vector_namespace": None,
++        "status": "queued",
++        "stage": "validating",
++        "cancel_requested": False,
++        "current_raw_document_id": None,
++        "current_document_name": None,
++        "total_documents": 1,
++        "processed_documents": 0,
++        "chunks_created": 0,
++        "chunks_indexed": 0,
++        "queued_at": datetime(2026, 6, 1, tzinfo=timezone.utc),
++        "started_at": None,
++        "completed_at": None,
++        "candidate_corpus_index_id": None,
++        "replaced_corpus_index_id": None,
++        "failure_detail": None,
++    }
++    values.update(overrides)
++    return IndexingJobQueued(**values)
++
++
++def _job_detail(**overrides):
++    values = _queued_job(**overrides).model_dump()
++    values.setdefault("warnings", [])
++    return IndexingJobDetail(**values)
++
++
++def test_post_indexing_jobs_returns_202_and_starts_managed_task(
++    monkeypatch,
++    api_client,
++    override_current_user,
++    override_session,
++    allow_roles,
++):
++    captured = {}
++    started_jobs = []
++
+     async def fake_queue(job_in, session):
+-        return SimpleNamespace(id=77, status="queued")
++        captured["job_in"] = job_in
++        captured["session"] = session
++        return _queued_job(
++            corpus_id=job_in.corpus_id,
++            chunking_profile_id=job_in.chunking_profile_id,
++            vector_store_id=job_in.vector_store_id,
++            embedding_model=job_in.embedding_model,
++            requested_index_name=job_in.requested_index_name,
++        )
+ 
+     def fake_start(job_id):
++        started_jobs.append(job_id)
+         return f"task-{job_id}"
+ 
+     monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "queue_indexing_job_srvc", fake_queue)
+     monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "start_indexing_job_task", fake_start)
+ 
+-    result = await indexing_jobs_route.create_indexing_job(
+-        job_in=IndexingJobCreate(
+-            corpus_id=1,
+-            chunking_profile_id=2,
+-            vector_store_id=3,
+-            embedding_model="mini-l6-v2",
+-            requested_index_name="policy-index",
+-        ),
+-        session=object(),
+-        _admin=SimpleNamespace(id=1),
++    override_current_user(username="admin", roles=["admin"])
++    session = override_session()
++    allow_roles("admin")
++
++    response = api_client.post(
++        "/indexing-jobs/",
++        json={
++            "corpus_id": 1,
++            "chunking_profile_id": 2,
++            "vector_store_id": 3,
++            "embedding_model": "mini-l6-v2",
++            "requested_index_name": "policy-index",
++        },
+     )
+ 
+-    assert result.status == "queued"
+-    assert result.id == 77
++    assert response.status_code == 202
++    assert response.json() == _queued_job().model_dump(mode="json")
++    assert captured["session"] is session
++    assert captured["job_in"].requested_index_name == "policy-index"
++    assert started_jobs == [77]
+ 
+ 
+-@pytest.mark.asyncio
+-async def test_get_active_indexing_job_returns_204_when_none_running(monkeypatch):
++def test_get_active_indexing_job_returns_204_when_none_running(
++    monkeypatch,
++    api_client,
++    override_current_user,
++    override_session,
++    allow_roles,
++):
++    captured = {}
++
+     async def fake_get_active(session):
++        captured["session"] = session
+         return None
+ 
+     monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "get_active_indexing_job_srvc", fake_get_active)
+ 
+-    response = await indexing_jobs_route.get_active_indexing_job(object(), SimpleNamespace(id=1))
++    override_current_user(username="admin", roles=["admin"])
++    session = override_session()
++    allow_roles("admin")
++
++    response = api_client.get("/indexing-jobs/active")
+ 
+-    assert isinstance(response, Response)
+     assert response.status_code == 204
++    assert response.content == b""
++    assert captured["session"] is session
+ 
+ 
+-@pytest.mark.asyncio
+-async def test_cancel_indexing_job_returns_updated_job(monkeypatch):
++def test_cancel_indexing_job_returns_updated_job(
++    monkeypatch,
++    api_client,
++    override_current_user,
++    override_session,
++    allow_roles,
++):
++    captured = {}
++
+     async def fake_cancel(job_id, session):
+-        return SimpleNamespace(id=job_id, status="cancelled", stage="finished")
++        captured["job_id"] = job_id
++        captured["session"] = session
++        return _job_detail(id=job_id, status="cancelled", stage="finished")
+ 
+     monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "cancel_indexing_job_srvc", fake_cancel)
+ 
+-    response = await indexing_jobs_route.cancel_indexing_job(
+-        job_id=44,
+-        session=object(),
+-        _admin=SimpleNamespace(id=1),
+-    )
++    override_current_user(username="admin", roles=["admin"])
++    session = override_session()
++    allow_roles("admin")
++
++    response = api_client.post("/indexing-jobs/44/cancel")
+ 
+-    assert response.id == 44
+-    assert response.status == "cancelled"
++    assert response.status_code == 200
++    assert response.json() == _job_detail(id=44, status="cancelled", stage="finished").model_dump(mode="json")
++    assert captured == {"job_id": 44, "session": session}
+diff --git a/tests/test_indexing_jobs_service.py b/tests/test_indexing_jobs_service.py
+index b378dda..924691c 100644
+--- a/tests/test_indexing_jobs_service.py
++++ b/tests/test_indexing_jobs_service.py
+@@ -274,7 +274,7 @@ async def test_queue_job_rejects_when_vector_store_dimensions_mismatch(monkeypat
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypatch):
++async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypatch, recording_async_session_factory):
+     captured_warnings = []
+ 
+     async def fake_get_job_by_id(job_id, session):
+@@ -323,26 +323,7 @@ async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypat
+     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_completed", fake_complete)
+     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "list_indexing_job_warnings", fake_list_warnings)
+ 
+-    class FakeSession:
+-        async def __aenter__(self):
+-            return self
+-
+-        async def __aexit__(self, exc_type, exc, tb):
+-            return False
+-
+-        def add(self, instance):
+-            return None
+-
+-        async def commit(self):
+-            return None
+-
+-        async def refresh(self, instance):
+-            return None
+-
+-        async def rollback(self):
+-            return None
+-
+-    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", lambda: FakeSession())
++    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", recording_async_session_factory)
+ 
+     result = await indexing_jobs_service.run_indexing_job_srvc(job_id=9)
+ 
+@@ -397,7 +378,7 @@ async def test_cancel_queued_indexing_job_requests_cancel_and_marks_job_cancelle
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch):
++async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch, recording_async_session_factory):
+     job = _job(id=9, status="queued")
+     candidate_index = SimpleNamespace(id=88, status="building")
+ 
+@@ -430,25 +411,6 @@ async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch):
+     async def fake_read_job_detail(current_job, session):
+         return current_job
+ 
+-    class FakeSession:
+-        async def __aenter__(self):
+-            return self
+-
+-        async def __aexit__(self, exc_type, exc, tb):
+-            return False
+-
+-        def add(self, instance):
+-            return None
+-
+-        async def commit(self):
+-            return None
+-
+-        async def refresh(self, instance):
+-            return None
+-
+-        async def rollback(self):
+-            return None
+-
+     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
+     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_running", fake_mark_running)
+     monkeypatch.setattr(indexing_jobs_service, "_create_candidate_index", fake_create_candidate)
+@@ -457,7 +419,7 @@ async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch):
+     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_cancelled", fake_cancel_job)
+     monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "mark_corpus_index_cancelled", fake_cancel_index)
+     monkeypatch.setattr(indexing_jobs_service, "_read_job_detail", fake_read_job_detail)
+-    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", lambda: FakeSession())
++    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", recording_async_session_factory)
+ 
+     result = await indexing_jobs_service.run_indexing_job_srvc(job_id=9)
+ 
+diff --git a/tests/test_knowledge_graph_builds_service.py b/tests/test_knowledge_graph_builds_service.py
+index 9efacd0..c8880f8 100644
+--- a/tests/test_knowledge_graph_builds_service.py
++++ b/tests/test_knowledge_graph_builds_service.py
+@@ -7,7 +7,11 @@ from app.services import knowledge_graph_builds_service
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_queue_graph_build_snapshots_exact_indexed_chunks(monkeypatch):
++async def test_queue_graph_build_snapshots_exact_indexed_chunks(
++    monkeypatch,
++    recording_async_session_factory,
++):
++    session = recording_async_session_factory()
+     graph = SimpleNamespace(
+         id=5,
+         corpus_index_id=9,
+@@ -63,7 +67,7 @@ async def test_queue_graph_build_snapshots_exact_indexed_chunks(monkeypatch):
+ 
+     result = await knowledge_graph_builds_service.queue_knowledge_graph_build_srvc(
+         5,
+-        object(),
++        session,
+     )
+ 
+     assert result.id == 44
+@@ -73,7 +77,11 @@ async def test_queue_graph_build_snapshots_exact_indexed_chunks(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_queue_graph_rebuild_rejects_locked_graph(monkeypatch):
++async def test_queue_graph_rebuild_rejects_locked_graph(
++    monkeypatch,
++    recording_async_session_factory,
++):
++    session = recording_async_session_factory()
+     graph = SimpleNamespace(
+         id=5,
+         corpus_index_id=9,
+@@ -94,25 +102,24 @@ async def test_queue_graph_rebuild_rejects_locked_graph(monkeypatch):
+     with pytest.raises(ValueError, match="used in a simulation"):
+         await knowledge_graph_builds_service.queue_knowledge_graph_build_srvc(
+             5,
+-            object(),
++            session,
+             rebuild=True,
+         )
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_cancel_check_raises_for_requested_job():
++async def test_cancel_check_raises_for_requested_job(recording_async_session_factory):
+     job = SimpleNamespace(cancel_requested=True)
+-
+-    class FakeSession:
+-        async def refresh(self, value):
+-            assert value is job
++    session = recording_async_session_factory()
+ 
+     with pytest.raises(knowledge_graph_builds_service.KnowledgeGraphBuildCancelled):
+         await knowledge_graph_builds_service._raise_if_cancel_requested(
+             job,
+-            FakeSession(),
++            session,
+         )
+ 
++    assert session.refreshed == [job]
++
+ 
+ def test_require_persisted_graph_rejects_empty_generation():
+     with pytest.raises(
+diff --git a/tests/test_prompts_service.py b/tests/test_prompts_service.py
+index d542d0f..48c857a 100644
+--- a/tests/test_prompts_service.py
++++ b/tests/test_prompts_service.py
+@@ -11,10 +11,6 @@ from app.repositories import prompts_repo
+ from app.services import prompts_service
+ 
+ 
+-def _user(user_id=1):
+-    return SimpleNamespace(id=user_id, username=f"user-{user_id}", roles=[])
+-
+-
+ def _prompt(
+     prompt_id=10,
+     name="Prompt",
+@@ -52,10 +48,16 @@ def test_validate_prompt_messages_rejects_missing_template(messages):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_create_prompt_stamps_current_user_owner_and_converts(monkeypatch):
++async def test_create_prompt_stamps_current_user_owner_and_converts(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
++    session = recording_async_session_factory()
+ 
+-    async def fake_create_prompt(prompt_in, session):
++    async def fake_create_prompt(prompt_in, session_arg):
++        assert session_arg is session
+         captured.append(prompt_in)
+         return _prompt(
+             prompt_id=12,
+@@ -76,8 +78,8 @@ async def test_create_prompt_stamps_current_user_owner_and_converts(monkeypatch)
+             owner_id=7,
+             is_system=True,
+         ),
+-        object(),
+-        _user(1),
++        session,
++        fake_user_factory(user_id=1, roles=()),
+     )
+ 
+     assert result.id == 12
+@@ -95,10 +97,16 @@ async def test_create_prompt_stamps_current_user_owner_and_converts(monkeypatch)
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_create_prompt_ignores_caller_supplied_owner(monkeypatch):
++async def test_create_prompt_ignores_caller_supplied_owner(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
++    session = recording_async_session_factory()
+ 
+-    async def fake_create_prompt(prompt_in, session):
++    async def fake_create_prompt(prompt_in, session_arg):
++        assert session_arg is session
+         captured.append(prompt_in)
+         return _prompt(
+             prompt_id=13,
+@@ -115,8 +123,8 @@ async def test_create_prompt_ignores_caller_supplied_owner(monkeypatch):
+             messages={"template": "Use this custom extension."},
+             owner_id=99,
+         ),
+-        object(),
+-        _user(4),
++        session,
++        fake_user_factory(user_id=4, roles=()),
+     )
+ 
+     assert result.owner_id == 4
+@@ -124,8 +132,12 @@ async def test_create_prompt_ignores_caller_supplied_owner(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_list_prompts_passes_filters_and_converts(monkeypatch):
++async def test_list_prompts_passes_filters_and_converts(
++    monkeypatch,
++    recording_async_session_factory,
++):
+     captured = []
++    expected_session = recording_async_session_factory()
+     prompts = [_prompt(1), _prompt(2, owner_id=7, is_system=True)]
+ 
+     async def fake_list_prompts(
+@@ -136,13 +148,14 @@ async def test_list_prompts_passes_filters_and_converts(monkeypatch):
+         is_system=None,
+         name_contains=None,
+     ):
++        assert session is expected_session
+         captured.append((skip, limit, owner_id, is_system, name_contains))
+         return prompts
+ 
+     monkeypatch.setattr(prompts_service.prompts_repo, "list_prompts", fake_list_prompts)
+ 
+     result = await prompts_service.list_prompts_srvc(
+-        object(),
++        expected_session,
+         skip=5,
+         limit=10,
+         owner_id=7,
+@@ -172,14 +185,21 @@ async def test_get_prompt_converts_model():
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_admin_update_prompt_validates_owner(monkeypatch):
++async def test_admin_update_prompt_validates_owner(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
++    session = recording_async_session_factory()
+ 
+-    async def fake_get_user_by_id(user_id, session):
++    async def fake_get_user_by_id(user_id, session_arg):
+         assert user_id == 8
+-        return _user(8)
++        assert session_arg is session
++        return fake_user_factory(user_id=8, roles=())
+ 
+-    async def fake_admin_update_prompt(prompt, prompt_in, session):
++    async def fake_admin_update_prompt(prompt, prompt_in, session_arg):
++        assert session_arg is session
+         captured.append(prompt_in)
+         prompt.owner_id = prompt_in.owner_id
+         prompt.is_system = prompt_in.is_system
+@@ -191,7 +211,7 @@ async def test_admin_update_prompt_validates_owner(monkeypatch):
+     result = await prompts_service.update_prompt_srvc(
+         _prompt(),
+         PromptAdminUpdate(owner_id=8, is_system=True),
+-        object(),
++        session,
+     )
+ 
+     assert result.owner_id == 8
+@@ -203,15 +223,22 @@ async def test_admin_update_prompt_validates_owner(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_copy_prompt_validates_owner_and_delegates(monkeypatch):
++async def test_copy_prompt_validates_owner_and_delegates(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
++    session = recording_async_session_factory()
+     source = _prompt(prompt_id=4, messages={"system": "Original."})
+ 
+-    async def fake_get_user_by_id(user_id, session):
++    async def fake_get_user_by_id(user_id, session_arg):
+         assert user_id == 9
+-        return _user(9)
++        assert session_arg is session
++        return fake_user_factory(user_id=9, roles=())
+ 
+-    async def fake_copy_prompt(source_prompt, copy_in, session):
++    async def fake_copy_prompt(source_prompt, copy_in, session_arg):
++        assert session_arg is session
+         captured.append((source_prompt, copy_in))
+         return _prompt(
+             prompt_id=5,
+@@ -227,7 +254,7 @@ async def test_copy_prompt_validates_owner_and_delegates(monkeypatch):
+     result = await prompts_service.copy_prompt_srvc(
+         source,
+         PromptClone(name="Copied prompt", owner_id=9, description="Copy"),
+-        object(),
++        session,
+     )
+ 
+     assert result.id == 5
+@@ -241,15 +268,20 @@ async def test_copy_prompt_validates_owner_and_delegates(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_delete_prompt_delegates_to_repo(monkeypatch):
++async def test_delete_prompt_delegates_to_repo(
++    monkeypatch,
++    recording_async_session_factory,
++):
+     deleted = []
++    session = recording_async_session_factory()
+     target = _prompt()
+ 
+-    async def fake_delete_prompt(prompt, session):
++    async def fake_delete_prompt(prompt, session_arg):
++        assert session_arg is session
+         deleted.append(prompt)
+ 
+     monkeypatch.setattr(prompts_service.prompts_repo, "delete_prompt", fake_delete_prompt)
+ 
+-    await prompts_service.delete_prompt_srvc(target, object())
++    await prompts_service.delete_prompt_srvc(target, session)
+ 
+     assert deleted == [target]
+diff --git a/tests/test_rag_profiles_service.py b/tests/test_rag_profiles_service.py
+index 54dd1a5..60d312b 100644
+--- a/tests/test_rag_profiles_service.py
++++ b/tests/test_rag_profiles_service.py
+@@ -13,10 +13,6 @@ from app.schemas.rag_profiles_schemas import (
+ from app.services import rag_profiles_service
+ 
+ 
+-def _user(user_id=1):
+-    return SimpleNamespace(id=user_id, username=f"user-{user_id}")
+-
+-
+ def _profile(
+     profile_id=10,
+     name="Default CRAG",
+@@ -45,15 +41,22 @@ def _profile(
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_create_rag_profile_stamps_current_admin(monkeypatch):
++async def test_create_rag_profile_stamps_current_admin(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
++    session = recording_async_session_factory()
+     created = _profile(profile_id=12, created_by_user_id=7)
+ 
+-    async def fake_create_rag_profile(profile_in, session):
++    async def fake_create_rag_profile(profile_in, session_arg):
++        assert session_arg is session
+         captured.append(profile_in)
+         return created
+ 
+-    async def fake_to_read_with_ids(profile, session):
++    async def fake_to_read_with_ids(profile, session_arg):
++        assert session_arg is session
+         return RagProfileReadWithIds(
+             **profile.__dict__,
+             simulation_ids=[],
+@@ -81,8 +84,8 @@ async def test_create_rag_profile_stamps_current_admin(monkeypatch):
+                 "max_rewrite_attempts": 1,
+             },
+         ),
+-        object(),
+-        _user(7),
++        session,
++        fake_user_factory(user_id=7, roles=()),
+     )
+ 
+     assert result.id == 12
+@@ -91,8 +94,12 @@ async def test_create_rag_profile_stamps_current_admin(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_list_rag_profiles_passes_filters_and_converts(monkeypatch):
++async def test_list_rag_profiles_passes_filters_and_converts(
++    monkeypatch,
++    recording_async_session_factory,
++):
+     captured = []
++    expected_session = recording_async_session_factory()
+     profiles = [_profile(1), _profile(2, name="Fallback off")]
+ 
+     async def fake_list_rag_profiles(
+@@ -104,10 +111,12 @@ async def test_list_rag_profiles_passes_filters_and_converts(monkeypatch):
+         used=None,
+         created_by_user_id=None,
+     ):
++        assert session is expected_session
+         captured.append((skip, limit, strategy, name_contains, used, created_by_user_id))
+         return profiles
+ 
+-    async def fake_to_read_with_ids(profile, session):
++    async def fake_to_read_with_ids(profile, session_arg):
++        assert session_arg is expected_session
+         return RagProfileReadWithIds(
+             **profile.__dict__,
+             simulation_ids=[profile.id],
+@@ -125,7 +134,7 @@ async def test_list_rag_profiles_passes_filters_and_converts(monkeypatch):
+     )
+ 
+     result = await rag_profiles_service.list_rag_profiles_srvc(
+-        object(),
++        expected_session,
+         skip=5,
+         limit=10,
+         strategy="crag",
+@@ -172,17 +181,24 @@ async def test_list_rag_profile_definitions_returns_available_rerankers(monkeypa
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_update_rag_profile_stamps_last_editor(monkeypatch):
++async def test_update_rag_profile_stamps_last_editor(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     target = _profile(profile_id=8)
+     captured = []
++    session = recording_async_session_factory()
+ 
+-    async def fake_update_rag_profile(profile, profile_in, session):
++    async def fake_update_rag_profile(profile, profile_in, session_arg):
++        assert session_arg is session
+         captured.append(profile_in)
+         profile.name = profile_in.name or profile.name
+         profile.last_edit_by_user_id = profile_in.last_edit_by_user_id
+         return profile
+ 
+-    async def fake_to_read_with_ids(profile, session):
++    async def fake_to_read_with_ids(profile, session_arg):
++        assert session_arg is session
+         return RagProfileReadWithIds(
+             **profile.__dict__,
+             simulation_ids=[],
+@@ -202,8 +218,8 @@ async def test_update_rag_profile_stamps_last_editor(monkeypatch):
+     result = await rag_profiles_service.update_rag_profile_srvc(
+         target,
+         RagProfileUpdateRequest(name="Renamed profile"),
+-        object(),
+-        _user(99),
++        session,
++        fake_user_factory(user_id=99, roles=()),
+     )
+ 
+     assert result.name == "Renamed profile"
+@@ -212,11 +228,17 @@ async def test_update_rag_profile_stamps_last_editor(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_copy_rag_profile_assigns_new_owner(monkeypatch):
++async def test_copy_rag_profile_assigns_new_owner(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     source = _profile(profile_id=9, created_by_user_id=4)
+     captured = []
++    session = recording_async_session_factory()
+ 
+-    async def fake_copy_rag_profile(profile, copy_in, created_by_user_id, session):
++    async def fake_copy_rag_profile(profile, copy_in, created_by_user_id, session_arg):
++        assert session_arg is session
+         captured.append((profile, copy_in, created_by_user_id))
+         return _profile(
+             profile_id=10,
+@@ -226,7 +248,8 @@ async def test_copy_rag_profile_assigns_new_owner(monkeypatch):
+             created_by_user_id=created_by_user_id,
+         )
+ 
+-    async def fake_to_read_with_ids(profile, session):
++    async def fake_to_read_with_ids(profile, session_arg):
++        assert session_arg is session
+         return RagProfileReadWithIds(
+             **profile.__dict__,
+             simulation_ids=[],
+@@ -246,8 +269,8 @@ async def test_copy_rag_profile_assigns_new_owner(monkeypatch):
+     result = await rag_profiles_service.copy_rag_profile_srvc(
+         source,
+         RagProfileCopy(name="Copied CRAG"),
+-        object(),
+-        _user(77),
++        session,
++        fake_user_factory(user_id=77, roles=()),
+     )
+ 
+     assert result.id == 10
+@@ -256,11 +279,16 @@ async def test_copy_rag_profile_assigns_new_owner(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_delete_rag_profile_propagates_usage_guard(monkeypatch):
++async def test_delete_rag_profile_propagates_usage_guard(
++    monkeypatch,
++    recording_async_session_factory,
++):
+     target = _profile()
++    session = recording_async_session_factory()
+ 
+-    async def fake_delete_rag_profile(profile, session):
++    async def fake_delete_rag_profile(profile, session_arg):
+         assert profile is target
++        assert session_arg is session
+         raise ValueError("Cannot delete RAG profile that has been used in simulations")
+ 
+     monkeypatch.setattr(
+@@ -270,4 +298,4 @@ async def test_delete_rag_profile_propagates_usage_guard(monkeypatch):
+     )
+ 
+     with pytest.raises(ValueError, match="Cannot delete RAG profile"):
+-        await rag_profiles_service.delete_rag_profile_srvc(target, object())
++        await rag_profiles_service.delete_rag_profile_srvc(target, session)
+diff --git a/tests/test_raw_documents_service.py b/tests/test_raw_documents_service.py
+index 05866af..6ad88f1 100644
+--- a/tests/test_raw_documents_service.py
++++ b/tests/test_raw_documents_service.py
+@@ -13,6 +13,24 @@ def _now() -> datetime:
+     return datetime.now(timezone.utc)
+ 
+ 
++class _FakeUpload:
++    def __init__(self, filename: str, content: bytes):
++        self.filename = filename
++        self._content = content
++        self._position = 0
++
++    async def read(self, size: int = -1) -> bytes:
++        if size is None or size < 0:
++            size = len(self._content) - self._position
++        start = self._position
++        end = min(start + size, len(self._content))
++        self._position = end
++        return self._content[start:end]
++
++    async def seek(self, position: int) -> None:
++        self._position = position
++
++
+ def test_raw_document_metadata_accepts_integer_year_and_normalizes_blanks():
+     raw_document = RawDocumentCreate(
+         name="brief",
+@@ -62,7 +80,13 @@ def test_raw_document_metadata_rejects_non_integer_document_year(document_year):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_create_uploaded_raw_document_rejects_duplicate_filename(tmp_path, monkeypatch):
++async def test_create_uploaded_raw_document_rejects_duplicate_filename(
++    tmp_path,
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
++    session = recording_async_session_factory()
+     source_dir = tmp_path / "raw_docs_store"
+     source_dir.mkdir()
+     existing_file = source_dir / "brief.pdf"
+@@ -70,14 +94,38 @@ async def test_create_uploaded_raw_document_rejects_duplicate_filename(tmp_path,
+ 
+     monkeypatch.setattr(raw_documents_service.settings, "RAW_DOCS_DIR", str(source_dir))
+ 
+-    upload = SimpleNamespace(filename="brief.pdf", read=lambda: None)
++    upload = _FakeUpload("brief.pdf", b"%PDF-1.4\n%%EOF")
+ 
+-    async def fake_read():
+-        return b"%PDF-1.4\n%%EOF"
++    with pytest.raises(ValueError, match="already exists"):
++        await raw_documents_service.create_uploaded_raw_document_srvc(
++            name="brief",
++            description=None,
++            document_title=None,
++            document_author=None,
++            document_year=None,
++            corpus_ids=[],
++            upload=upload,
++            session=session,
++            current_user=fake_user_factory(user_id=1),
++        )
+ 
+-    upload.read = fake_read
+ 
+-    with pytest.raises(ValueError, match="already exists"):
++@pytest.mark.asyncio
++async def test_create_uploaded_raw_document_rejects_upload_larger_than_configured_limit(
++    tmp_path,
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
++    session = recording_async_session_factory()
++    source_dir = tmp_path / "raw_docs_store"
++    source_dir.mkdir()
++    monkeypatch.setattr(raw_documents_service.settings, "RAW_DOCS_DIR", str(source_dir))
++    monkeypatch.setattr(raw_documents_service.settings, "MAX_UPLOAD_SIZE", 12)
++
++    upload = _FakeUpload("brief.pdf", b"%PDF-1.4\n%%EOF")
++
++    with pytest.raises(ValueError, match="exceeds the maximum allowed size"):
+         await raw_documents_service.create_uploaded_raw_document_srvc(
+             name="brief",
+             description=None,
+@@ -86,14 +134,21 @@ async def test_create_uploaded_raw_document_rejects_duplicate_filename(tmp_path,
+             document_year=None,
+             corpus_ids=[],
+             upload=upload,
+-            session=object(),
+-            current_user=SimpleNamespace(id=1),
++            session=session,
++            current_user=fake_user_factory(user_id=1),
+         )
+ 
++    assert not (source_dir / "brief.pdf").exists()
++
+ 
+ @pytest.mark.asyncio
+-async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeypatch):
++async def test_create_raw_document_route_forwards_bibliographic_metadata(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = {}
++    session = recording_async_session_factory()
+     created = SimpleNamespace(
+         id=21,
+         name="alpha brief",
+@@ -130,10 +185,11 @@ async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeyp
+         document_year=2026,
+         corpus_ids=[],
+         file=SimpleNamespace(filename="alpha.pdf"),
+-        session=object(),
+-        current_user=SimpleNamespace(id=1, username="teacher"),
++        session=session,
++        current_user=fake_user_factory(user_id=1, username="teacher", roles="teacher"),
+     )
+ 
++    assert captured["session"] is session
+     assert captured["document_title"] == "Negotiation Brief"
+     assert captured["document_author"] == "Ada Lovelace"
+     assert captured["document_year"] == 2026
+@@ -143,8 +199,12 @@ async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeyp
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_update_raw_document_route_updates_bibliographic_metadata(monkeypatch):
++async def test_update_raw_document_route_updates_bibliographic_metadata(
++    monkeypatch,
++    recording_async_session_factory,
++):
+     captured = {}
++    session = recording_async_session_factory()
+     raw_document = SimpleNamespace(id=21)
+     updated = SimpleNamespace(
+         id=21,
+@@ -179,20 +239,26 @@ async def test_update_raw_document_route_updates_bibliographic_metadata(monkeypa
+             document_author="Updated author",
+             document_year=2027,
+         ),
+-        session=object(),
++        session=session,
+     )
+ 
+     assert captured["raw_document"] is raw_document
+     assert captured["update_data"].document_title == "Updated title"
+     assert captured["update_data"].document_author == "Updated author"
+     assert captured["update_data"].document_year == 2027
++    assert captured["session"] is session
+     assert result.document_title == "Updated title"
+     assert result.document_author == "Updated author"
+     assert result.document_year == 2027
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_update_raw_document_route_maps_validation_error_to_conflict(monkeypatch):
++async def test_update_raw_document_route_maps_validation_error_to_conflict(
++    monkeypatch,
++    recording_async_session_factory,
++):
++    session = recording_async_session_factory()
++
+     async def fake_update_raw_document(*_args, **_kwargs):
+         raise ValueError("bad metadata")
+ 
+@@ -202,7 +268,7 @@ async def test_update_raw_document_route_maps_validation_error_to_conflict(monke
+         await raw_documents_route.update_raw_document(
+             raw_document=SimpleNamespace(id=21),
+             update_data=RawDocumentUpdate(document_year=2026),
+-            session=object(),
++            session=session,
+         )
+ 
+     assert exc_info.value.status_code == 409
+@@ -210,7 +276,7 @@ async def test_update_raw_document_route_maps_validation_error_to_conflict(monke
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_verify_raw_document_source_marks_missing(tmp_path):
++async def test_verify_raw_document_source_marks_missing(tmp_path, recording_async_session_factory):
+     raw_document = SimpleNamespace(
+         source_path=str(tmp_path / "missing.pdf"),
+         source_hash="hash",
+@@ -219,22 +285,7 @@ async def test_verify_raw_document_source_marks_missing(tmp_path):
+         source_status="available",
+     )
+ 
+-    class FakeSession:
+-        def __init__(self):
+-            self.added = []
+-            self.commit_calls = 0
+-            self.refresh_calls = 0
+-
+-        def add(self, item):
+-            self.added.append(item)
+-
+-        async def commit(self):
+-            self.commit_calls += 1
+-
+-        async def refresh(self, item):
+-            self.refresh_calls += 1
+-
+-    session = FakeSession()
++    session = recording_async_session_factory()
+     result = await raw_documents_service.verify_raw_document_source_srvc(raw_document, session)
+ 
+     assert result.source_status == raw_documents_service.RAW_DOCUMENT_SOURCE_STATUS_MISSING
+@@ -242,7 +293,7 @@ async def test_verify_raw_document_source_marks_missing(tmp_path):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_verify_raw_document_source_marks_changed_when_hash_differs(tmp_path):
++async def test_verify_raw_document_source_marks_changed_when_hash_differs(tmp_path, recording_async_session_factory):
+     source_file = tmp_path / "changed.pdf"
+     source_file.write_bytes(b"new-bytes")
+     raw_document = SimpleNamespace(
+@@ -253,20 +304,7 @@ async def test_verify_raw_document_source_marks_changed_when_hash_differs(tmp_pa
+         source_status="available",
+     )
+ 
+-    class FakeSession:
+-        def __init__(self):
+-            self.commit_calls = 0
+-
+-        def add(self, item):
+-            return None
+-
+-        async def commit(self):
+-            self.commit_calls += 1
+-
+-        async def refresh(self, item):
+-            return None
+-
+-    session = FakeSession()
++    session = recording_async_session_factory()
+     result = await raw_documents_service.verify_raw_document_source_srvc(raw_document, session)
+ 
+     assert result.source_status == raw_documents_service.RAW_DOCUMENT_SOURCE_STATUS_CHANGED
+diff --git a/tests/test_scenarios_route_privacy.py b/tests/test_scenarios_route_privacy.py
+index a1cdcc1..ff8c291 100644
+--- a/tests/test_scenarios_route_privacy.py
++++ b/tests/test_scenarios_route_privacy.py
+@@ -1,9 +1,6 @@
+ from datetime import datetime, timezone
+ from types import SimpleNamespace
+ 
+-from fastapi.testclient import TestClient
+-
+-from app import main as main_module
+ from app.core import dependencies
+ from app.schemas.scenarios_schemas import (
+     ScenarioAuthoringReadWithIds,
+@@ -49,19 +46,14 @@ def _authoring_scenario() -> ScenarioAuthoringReadWithIds:
+     )
+ 
+ 
+-def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
+-    async def fake_startup_seed():
+-        return None
+-
+-    async def fake_get_current_user():
+-        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
+-
+-    async def fake_get_session():
+-        yield object()
+-
+-    async def fake_user_has_role(_user, _role_name, _session):
+-        return True
+-
++def test_scenarios_routes_keep_public_and_authoring_views_separate(
++    monkeypatch,
++    api_client,
++    test_app,
++    override_current_user,
++    override_session,
++    allow_roles,
++):
+     async def fake_list_scenarios(*args, **kwargs):
+         return [_public_scenario()]
+ 
+@@ -71,7 +63,9 @@ def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
+     async def fake_get_scenario_authoring(*args, **kwargs):
+         return _authoring_scenario()
+ 
+-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
++    override_current_user(username="teacher", roles=["teacher"])
++    override_session()
++    allow_roles("teacher")
+     monkeypatch.setattr(
+         scenarios_service,
+         "list_scenarios_srvc",
+@@ -89,52 +83,39 @@ def test_scenarios_routes_keep_public_and_authoring_views_separate(monkeypatch):
+         raising=False,
+     )
+ 
+-    app = main_module.app
+-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+-    app.dependency_overrides[dependencies.get_session] = fake_get_session
+-    app.dependency_overrides[dependencies.get_visible_scenario] = lambda: SimpleNamespace(id=10)
+-    app.dependency_overrides[dependencies.get_writable_scenario] = lambda: SimpleNamespace(id=10)
+-
+-    try:
+-        with TestClient(app) as client:
+-            list_response = client.get("/scenarios/")
+-            assert list_response.status_code == 200
+-            assert list_response.json()[0]["public_context"]["issue"] == "late checkout fee"
+-            assert list_response.json()[0]["description"] == "PUBLIC-DESCRIPTION"
+-            assert "side_a_private_context" not in list_response.json()[0]
+-
+-            get_response = client.get("/scenarios/10")
+-            assert get_response.status_code == 200
+-            assert get_response.json()["description"] == "PUBLIC-DESCRIPTION"
+-            assert "side_b_private_context" not in get_response.json()
+-            assert "side_a_summary" not in get_response.json()
+-            assert "side_b_summary" not in get_response.json()
+-
+-            authoring_response = client.get("/scenarios/10/authoring")
+-            assert authoring_response.status_code == 200
+-            assert authoring_response.json()["description"] == "AUTHORING-DESCRIPTION"
+-            assert authoring_response.json()["side_a_private_context"]["reservation"] == "SIDE-A-SECRET"
+-            assert authoring_response.json()["side_b_private_context"]["reservation"] == "SIDE-B-SECRET"
+-            assert authoring_response.json()["side_a_summary"] == "Side A should avoid the fee."
+-            assert authoring_response.json()["side_b_summary"] == "Side B should protect policy."
+-    finally:
+-        app.dependency_overrides.clear()
+-
+-
+-def test_generate_context_route_returns_authoring_preview(monkeypatch):
+-    async def fake_startup_seed():
+-        return None
+-
+-    async def fake_get_current_user():
+-        return SimpleNamespace(id=1, username="teacher", roles=[SimpleNamespace(name="teacher")])
+-
+-    async def fake_get_session():
+-        yield object()
+-
+-    async def fake_user_has_role(_user, _role_name, _session):
+-        return True
+-
++    test_app.dependency_overrides[dependencies.get_visible_scenario] = lambda: SimpleNamespace(id=10)
++    test_app.dependency_overrides[dependencies.get_writable_scenario] = lambda: SimpleNamespace(id=10)
++
++    list_response = api_client.get("/scenarios/")
++    assert list_response.status_code == 200
++    assert list_response.json()[0]["public_context"]["issue"] == "late checkout fee"
++    assert list_response.json()[0]["description"] == "PUBLIC-DESCRIPTION"
++    assert "side_a_private_context" not in list_response.json()[0]
++
++    get_response = api_client.get("/scenarios/10")
++    assert get_response.status_code == 200
++    assert get_response.json()["description"] == "PUBLIC-DESCRIPTION"
++    assert "side_b_private_context" not in get_response.json()
++    assert "side_a_summary" not in get_response.json()
++    assert "side_b_summary" not in get_response.json()
++
++    authoring_response = api_client.get("/scenarios/10/authoring")
++    assert authoring_response.status_code == 200
++    assert authoring_response.json()["description"] == "AUTHORING-DESCRIPTION"
++    assert authoring_response.json()["side_a_private_context"]["reservation"] == "SIDE-A-SECRET"
++    assert authoring_response.json()["side_b_private_context"]["reservation"] == "SIDE-B-SECRET"
++    assert authoring_response.json()["side_a_summary"] == "Side A should avoid the fee."
++    assert authoring_response.json()["side_b_summary"] == "Side B should protect policy."
++
++
++def test_generate_context_route_returns_authoring_preview(
++    monkeypatch,
++    api_client,
++    test_app,
++    override_current_user,
++    override_session,
++    allow_roles,
++):
+     async def fake_generate_scenario_context(data, model):
+         assert data.name == "Hotel late checkout"
+         return ScenarioContextGenerateResponse(
+@@ -145,31 +126,26 @@ def test_generate_context_route_returns_authoring_preview(monkeypatch):
+             side_b_summary="You want to protect revenue.",
+         )
+ 
+-    app = main_module.app
+-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
++    override_current_user(username="teacher", roles=["teacher"])
++    override_session()
++    allow_roles("teacher")
+     monkeypatch.setattr(
+         scenarios_service,
+         "generate_scenario_context_srvc",
+         fake_generate_scenario_context,
+     )
+-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+-    app.dependency_overrides[dependencies.get_session] = fake_get_session
+-    app.dependency_overrides[dependencies.get_chat_model] = lambda: object()
+-
+-    try:
+-        with TestClient(app) as client:
+-            response = client.post(
+-                "/scenarios/generate-context",
+-                json={
+-                    "name": "Hotel late checkout",
+-                    "description": "A guest wants more time and the manager must balance policy and satisfaction.",
+-                },
+-            )
+-        assert response.status_code == 200
+-        assert response.json()["public_context"]["issue"] == "late checkout"
+-        assert response.json()["side_a_private_context"]["goal"] == "avoid fee"
+-        assert response.json()["side_a_summary"] == "You want to avoid the fee."
+-        assert response.json()["side_b_summary"] == "You want to protect revenue."
+-    finally:
+-        app.dependency_overrides.clear()
++    test_app.dependency_overrides[dependencies.get_chat_model] = lambda: object()
++
++    response = api_client.post(
++        "/scenarios/generate-context",
++        json={
++            "name": "Hotel late checkout",
++            "description": "A guest wants more time and the manager must balance policy and satisfaction.",
++        },
++    )
++
++    assert response.status_code == 200
++    assert response.json()["public_context"]["issue"] == "late checkout"
++    assert response.json()["side_a_private_context"]["goal"] == "avoid fee"
++    assert response.json()["side_a_summary"] == "You want to avoid the fee."
++    assert response.json()["side_b_summary"] == "You want to protect revenue."
+diff --git a/tests/test_scenarios_service.py b/tests/test_scenarios_service.py
+index e88f191..b7016a6 100644
+--- a/tests/test_scenarios_service.py
++++ b/tests/test_scenarios_service.py
+@@ -14,10 +14,6 @@ from app.schemas.scenarios_schemas import (
+ from app.services import scenarios_service
+ 
+ 
+-def _user(user_id=1):
+-    return SimpleNamespace(id=user_id, username=f"user-{user_id}")
+-
+-
+ def _scenario(scenario_id=10, created_by_user_id=1, last_edit_by_user_id=None):
+     now = datetime.now(timezone.utc)
+     return SimpleNamespace(
+@@ -73,15 +69,22 @@ def test_public_scenario_schema_excludes_authoring_and_private_fields():
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_create_scenario_stamps_current_user(monkeypatch):
++async def test_create_scenario_stamps_current_user(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
+     created = _scenario(created_by_user_id=7)
++    expected_session = recording_async_session_factory()
+ 
+     async def fake_create_scenario(scenario_in, session):
++        assert session is expected_session
+         captured.append(scenario_in)
+         return created
+ 
+     async def fake_to_read_with_ids(scenario, session):
++        assert session is expected_session
+         return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[])
+ 
+     monkeypatch.setattr(scenarios_service.scenarios_repo, "create_scenario", fake_create_scenario)
+@@ -98,8 +101,8 @@ async def test_create_scenario_stamps_current_user(monkeypatch):
+             side_a_summary="You are the candidate.",
+             side_b_summary="You are the recruiter.",
+         ),
+-        object(),
+-        _user(7),
++        expected_session,
++        fake_user_factory(user_id=7, roles=()),
+     )
+ 
+     assert result.created_by_user_id == 7
+@@ -110,15 +113,22 @@ async def test_create_scenario_stamps_current_user(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_update_scenario_stamps_last_editor(monkeypatch):
++async def test_update_scenario_stamps_last_editor(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
+     updated = _scenario(created_by_user_id=2, last_edit_by_user_id=9)
++    expected_session = recording_async_session_factory()
+ 
+     async def fake_update_scenario(scenario, scenario_in, session):
++        assert session is expected_session
+         captured.append((scenario, scenario_in))
+         return updated
+ 
+     async def fake_to_read_with_ids(scenario, session):
++        assert session is expected_session
+         return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[33])
+ 
+     monkeypatch.setattr(scenarios_service.scenarios_repo, "update_scenario", fake_update_scenario)
+@@ -131,8 +141,8 @@ async def test_update_scenario_stamps_last_editor(monkeypatch):
+     result = await scenarios_service.update_scenario_srvc(
+         _scenario(created_by_user_id=2),
+         ScenarioUpdateRequest(name="Updated scenario"),
+-        object(),
+-        _user(9),
++        expected_session,
++        fake_user_factory(user_id=9, roles=()),
+     )
+ 
+     assert result.last_edit_by_user_id == 9
+@@ -142,15 +152,22 @@ async def test_update_scenario_stamps_last_editor(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_update_scenario_accepts_side_summaries(monkeypatch):
++async def test_update_scenario_accepts_side_summaries(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
+     updated = _scenario(created_by_user_id=2, last_edit_by_user_id=9)
++    expected_session = recording_async_session_factory()
+ 
+     async def fake_update_scenario(scenario, scenario_in, session):
++        assert session is expected_session
+         captured.append(scenario_in)
+         return updated
+ 
+     async def fake_to_read_with_ids(scenario, session):
++        assert session is expected_session
+         return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[])
+ 
+     monkeypatch.setattr(scenarios_service.scenarios_repo, "update_scenario", fake_update_scenario)
+@@ -166,8 +183,8 @@ async def test_update_scenario_accepts_side_summaries(monkeypatch):
+             side_a_summary="Updated side A summary",
+             side_b_summary="Updated side B summary",
+         ),
+-        object(),
+-        _user(9),
++        expected_session,
++        fake_user_factory(user_id=9, roles=()),
+     )
+ 
+     assert captured[0].side_a_summary == "Updated side A summary"
+@@ -175,15 +192,22 @@ async def test_update_scenario_accepts_side_summaries(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_copy_scenario_stamps_current_user(monkeypatch):
++async def test_copy_scenario_stamps_current_user(
++    monkeypatch,
++    fake_user_factory,
++    recording_async_session_factory,
++):
+     captured = []
+     copied = _scenario(scenario_id=22, created_by_user_id=11)
++    expected_session = recording_async_session_factory()
+ 
+     async def fake_copy_scenario(source_scenario, copy_in, session):
++        assert session is expected_session
+         captured.append((source_scenario, copy_in))
+         return copied
+ 
+     async def fake_to_read_with_ids(scenario, session):
++        assert session is expected_session
+         return ScenarioAuthoringReadWithIds(**scenario.model_dump(), simulation_ids=[])
+ 
+     monkeypatch.setattr(scenarios_service.scenarios_repo, "copy_scenario", fake_copy_scenario)
+@@ -196,8 +220,8 @@ async def test_copy_scenario_stamps_current_user(monkeypatch):
+     result = await scenarios_service.copy_scenario_srvc(
+         _scenario(),
+         ScenarioCopyRequest(name="Copied scenario"),
+-        object(),
+-        _user(11),
++        expected_session,
++        fake_user_factory(user_id=11, roles=()),
+     )
+ 
+     assert result.created_by_user_id == 11
+@@ -206,9 +230,10 @@ async def test_copy_scenario_stamps_current_user(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
++async def test_list_scenarios_passes_filters_and_converts(monkeypatch, recording_async_session_factory):
+     captured = []
+     scenarios = [_scenario(1), _scenario(2)]
++    expected_session = recording_async_session_factory()
+ 
+     async def fake_list_scenarios(
+         session,
+@@ -218,10 +243,12 @@ async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
+         name_contains=None,
+         used=None,
+     ):
++        assert session is expected_session
+         captured.append((skip, limit, created_by_user_id, name_contains, used))
+         return scenarios
+ 
+     async def fake_to_public(scenario, session):
++        assert session is expected_session
+         return ScenarioPublicReadWithIds(
+             id=scenario.id,
+             name=scenario.name,
+@@ -242,7 +269,7 @@ async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
+     )
+ 
+     result = await scenarios_service.list_scenarios_srvc(
+-        object(),
++        expected_session,
+         skip=5,
+         limit=10,
+         created_by_user_id=3,
+@@ -257,10 +284,12 @@ async def test_list_scenarios_passes_filters_and_converts(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_get_scenario_returns_public_view(monkeypatch):
++async def test_get_scenario_returns_public_view(monkeypatch, recording_async_session_factory):
+     scenario = _scenario(10)
++    expected_session = recording_async_session_factory()
+ 
+     async def fake_to_public(scenario_obj, session):
++        assert session is expected_session
+         return ScenarioPublicReadWithIds(
+             id=scenario_obj.id,
+             name=scenario_obj.name,
+@@ -279,7 +308,7 @@ async def test_get_scenario_returns_public_view(monkeypatch):
+         fake_to_public,
+     )
+ 
+-    result = await scenarios_service.get_scenario_srvc(scenario, object())
++    result = await scenarios_service.get_scenario_srvc(scenario, expected_session)
+ 
+     assert result.public_context["public_fact"] == "PUBLIC-10"
+     assert result.description == "AUTHORING-DESCRIPTION"
+@@ -289,14 +318,17 @@ async def test_get_scenario_returns_public_view(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_delete_scenario_propagates_repo_guard(monkeypatch):
++async def test_delete_scenario_propagates_repo_guard(monkeypatch, recording_async_session_factory):
++    expected_session = recording_async_session_factory()
++
+     async def fake_delete_scenario(scenario, session):
++        assert session is expected_session
+         raise ValueError("Cannot modify scenario that has been used in a simulation")
+ 
+     monkeypatch.setattr(scenarios_service.scenarios_repo, "delete_scenario", fake_delete_scenario)
+ 
+     with pytest.raises(ValueError, match="used in a simulation"):
+-        await scenarios_service.delete_scenario_srvc(_scenario(), object())
++        await scenarios_service.delete_scenario_srvc(_scenario(), expected_session)
+ 
+ 
+ @pytest.mark.asyncio
+diff --git a/tests/test_sessions_route.py b/tests/test_sessions_route.py
+index 3d97608..0d982d9 100644
+--- a/tests/test_sessions_route.py
++++ b/tests/test_sessions_route.py
+@@ -1,9 +1,6 @@
+ from datetime import datetime, timezone
+ from types import SimpleNamespace
+ 
+-from fastapi.testclient import TestClient
+-
+-from app import main as main_module
+ from app.core import dependencies
+ from app.schemas.sessions_schemas import SessionRead
+ from app.web.routes import sessions_route
+@@ -20,26 +17,17 @@ def _session(session_id=1):
+     )
+ 
+ 
+-def test_heartbeat_accepts_missing_body(monkeypatch):
++def test_heartbeat_accepts_missing_body(
++    monkeypatch,
++    api_client,
++    test_app,
++    override_current_user,
++    override_session,
++    allow_roles,
++):
+     target = _session()
+     captured = []
+ 
+-    async def fake_startup_seed():
+-        return None
+-
+-    async def fake_get_current_user():
+-        return SimpleNamespace(
+-            id=1,
+-            username="admin",
+-            roles=[SimpleNamespace(name="admin")],
+-        )
+-
+-    async def fake_get_session():
+-        yield object()
+-
+-    async def fake_user_has_role(_user, _role_name, _session):
+-        return True
+-
+     def fake_get_admin_session():
+         return target
+ 
+@@ -54,24 +42,17 @@ def test_heartbeat_accepts_missing_body(monkeypatch):
+             ended_at=user_session.ended_at,
+         )
+ 
+-    monkeypatch.setattr(main_module, "startup_seed", fake_startup_seed)
+-    monkeypatch.setattr(dependencies, "user_has_role", fake_user_has_role)
++    override_current_user(username="admin", roles=["admin"])
++    override_session()
++    allow_roles()
+     monkeypatch.setattr(
+         sessions_route.sessions_service,
+         "heartbeat_session_srvc",
+         fake_heartbeat_session_srvc,
+     )
++    test_app.dependency_overrides[dependencies.get_admin_session] = fake_get_admin_session
+ 
+-    app = main_module.app
+-    app.dependency_overrides[dependencies.get_current_user] = fake_get_current_user
+-    app.dependency_overrides[dependencies.get_session] = fake_get_session
+-    app.dependency_overrides[dependencies.get_admin_session] = fake_get_admin_session
+-
+-    try:
+-        with TestClient(app) as client:
+-            response = client.post("/sessions/1/heartbeat")
+-    finally:
+-        app.dependency_overrides.clear()
++    response = api_client.post("/sessions/1/heartbeat")
+ 
+     assert response.status_code == 200
+     assert response.json()["last_seen_at"] == "2026-01-02T00:00:00Z"
+diff --git a/tests/test_sessions_service.py b/tests/test_sessions_service.py
+index 9c75116..cf929c3 100644
+--- a/tests/test_sessions_service.py
++++ b/tests/test_sessions_service.py
+@@ -13,14 +13,6 @@ from app.schemas.sessions_schemas import (
+ from app.services import sessions_service
+ 
+ 
+-def _user(user_id=1, roles=None):
+-    return SimpleNamespace(id=user_id, username=f"user-{user_id}", roles=roles or [])
+-
+-
+-def _admin(user_id=1):
+-    return _user(user_id=user_id, roles=[SimpleNamespace(name="admin")])
+-
+-
+ def _session(
+     session_id=10,
+     user_id=1,
+@@ -42,14 +34,17 @@ def _session(
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_create_session_generates_token_and_stamps_last_seen(monkeypatch):
++async def test_create_session_generates_token_and_stamps_last_seen(
++    monkeypatch,
++    fake_user_factory,
++):
+     captured = []
+     now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+     expires_at = now + timedelta(hours=2)
+ 
+     async def fake_get_user_by_id(user_id, session):
+         assert user_id == 7
+-        return _user(7)
++        return fake_user_factory(user_id=7, roles=())
+ 
+     async def fake_create_session(session_in, session):
+         captured.append(session_in)
+@@ -69,7 +64,7 @@ async def test_create_session_generates_token_and_stamps_last_seen(monkeypatch):
+     result = await sessions_service.create_session_srvc(
+         SessionCreateRequest(user_id=7, expires_at=expires_at),
+         object(),
+-        _admin(),
++        fake_user_factory(user_id=1, username="admin", roles=["admin"]),
+     )
+ 
+     assert result.id == 12
+@@ -87,7 +82,7 @@ async def test_create_session_generates_token_and_stamps_last_seen(monkeypatch):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_create_session_requires_existing_user(monkeypatch):
++async def test_create_session_requires_existing_user(monkeypatch, fake_user_factory):
+     async def fake_get_user_by_id(user_id, session):
+         return None
+ 
+@@ -97,7 +92,7 @@ async def test_create_session_requires_existing_user(monkeypatch):
+         await sessions_service.create_session_srvc(
+             SessionCreateRequest(user_id=99),
+             object(),
+-            _admin(),
++            fake_user_factory(user_id=1, username="admin", roles=["admin"]),
+         )
+ 
+ 
+
+[stderr] warning: in the working copy of 'app/services/raw_documents_service.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_agent_context_projections.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_agent_prompt_privacy.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_agent_scenario_context.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_chunking_profiles_route.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_crag_grounding.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_document_chunks_route.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_embeddings_service.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_indexing_jobs_route.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_indexing_jobs_service.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_knowledge_graph_builds_service.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_prompts_service.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_rag_profiles_service.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_raw_documents_service.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_scenarios_route_privacy.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_scenarios_service.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_sessions_route.py', LF will be replaced by CRLF the next time Git touches it
+[stderr] warning: in the working copy of 'tests/test_sessions_service.py', LF will be replaced by CRLF the next time Git touches it
+[Command succeeded with exit code 0]

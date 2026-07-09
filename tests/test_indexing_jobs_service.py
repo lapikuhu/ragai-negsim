@@ -274,7 +274,7 @@ async def test_queue_job_rejects_when_vector_store_dimensions_mismatch(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypatch):
+async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypatch, recording_async_session_factory):
     captured_warnings = []
 
     async def fake_get_job_by_id(job_id, session):
@@ -323,26 +323,7 @@ async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypat
     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_completed", fake_complete)
     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "list_indexing_job_warnings", fake_list_warnings)
 
-    class FakeSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        def add(self, instance):
-            return None
-
-        async def commit(self):
-            return None
-
-        async def refresh(self, instance):
-            return None
-
-        async def rollback(self):
-            return None
-
-    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", lambda: FakeSession())
+    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", recording_async_session_factory)
 
     result = await indexing_jobs_service.run_indexing_job_srvc(job_id=9)
 
@@ -397,7 +378,7 @@ async def test_cancel_queued_indexing_job_requests_cancel_and_marks_job_cancelle
 
 
 @pytest.mark.asyncio
-async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch):
+async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch, recording_async_session_factory):
     job = _job(id=9, status="queued")
     candidate_index = SimpleNamespace(id=88, status="building")
 
@@ -430,25 +411,6 @@ async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch):
     async def fake_read_job_detail(current_job, session):
         return current_job
 
-    class FakeSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        def add(self, instance):
-            return None
-
-        async def commit(self):
-            return None
-
-        async def refresh(self, instance):
-            return None
-
-        async def rollback(self):
-            return None
-
     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_running", fake_mark_running)
     monkeypatch.setattr(indexing_jobs_service, "_create_candidate_index", fake_create_candidate)
@@ -457,7 +419,7 @@ async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch):
     monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_cancelled", fake_cancel_job)
     monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "mark_corpus_index_cancelled", fake_cancel_index)
     monkeypatch.setattr(indexing_jobs_service, "_read_job_detail", fake_read_job_detail)
-    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", lambda: FakeSession())
+    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", recording_async_session_factory)
 
     result = await indexing_jobs_service.run_indexing_job_srvc(job_id=9)
 

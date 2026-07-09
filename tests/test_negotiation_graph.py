@@ -29,46 +29,39 @@ def test_negotiation_control_vocabularies_are_separate():
     }
 
 
-class StubGraph:
-    def __init__(self, callback):
-        self.callback = callback
-
-    def invoke(self, state):
-        return self.callback(state)
-
-
-def base_state():
-    return {
-        "simulation_id": "1",
-        "session_id": "1",
-        "user_id": "1",
-        "user_side": "side_b",
-        "counterpart_persona": {
+def base_state(agent_parent_state_factory):
+    return agent_parent_state_factory(
+        simulation_id="1",
+        session_id="1",
+        user_id="1",
+        user_side="side_b",
+        counterpart_persona={
             "name": "Firm hotel manager",
             "description": "Protects hotel operations while offering practical trades.",
         },
-        "scenario_public_context": {"name": "Hotel late checkout"},
-        "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
-        "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
-        "side_a": {"name": "Hotel"},
-        "side_b": {"name": "Guest"},
-        "messages": [
+        scenario_public_context={"name": "Hotel late checkout"},
+        side_a_private_context={"reservation": "SIDE-A-SECRET"},
+        side_b_private_context={"reservation": "SIDE-B-SECRET"},
+        side_a={"name": "Hotel"},
+        side_b={"name": "Guest"},
+        messages=[
             {
                 "role": "user",
                 "content": "I do not want to pay for late checkout.",
                 "side": "side_b",
             }
         ],
-        "phase": "opening",
-        "active_side": "side_b",
-        "offer_history": [],
-        "event_log": [],
-        "turn_count": 0,
-        "max_turn_count": 12,
-    }
+        phase="opening",
+        active_side="side_b",
+        offer_history=[],
+        event_log=[],
+        turn_count=0,
+        max_turn_count=12,
+    )
 
 
 def build_stubbed_negotiation_graph(
+    capturing_graph_factory,
     trace,
     classifier=None,
     evaluator_strategy="continue",
@@ -168,23 +161,26 @@ def build_stubbed_negotiation_graph(
         }
 
     return make_negotiation_graph(
-        intent_classifier_graph=StubGraph(classify),
-        counterpart_graph=StubGraph(counterpart),
-        evaluator_graph=StubGraph(evaluator),
-        coach_graph=StubGraph(coach),
+        intent_classifier_graph=capturing_graph_factory(classify)[0],
+        counterpart_graph=capturing_graph_factory(counterpart)[0],
+        evaluator_graph=capturing_graph_factory(evaluator)[0],
+        coach_graph=capturing_graph_factory(coach)[0],
     )
 
 
-def test_make_negotiation_graph_passes_retrieval_strategy_to_agent_graphs(monkeypatch):
+def test_make_negotiation_graph_passes_retrieval_strategy_to_agent_graphs(
+    monkeypatch,
+    capturing_graph_factory,
+):
     captured = {}
 
     def fake_make_coach_graph(**kwargs):
         captured["coach"] = kwargs
-        return StubGraph(lambda state: state)
+        return capturing_graph_factory(lambda state: state)[0]
 
     def fake_make_evaluator_graph(**kwargs):
         captured["evaluator"] = kwargs
-        return StubGraph(lambda state: state)
+        return capturing_graph_factory(lambda state: state)[0]
 
     monkeypatch.setattr(negotiation_module, "make_coach_graph", fake_make_coach_graph)
     monkeypatch.setattr(
@@ -194,25 +190,29 @@ def test_make_negotiation_graph_passes_retrieval_strategy_to_agent_graphs(monkey
     )
 
     negotiation_module.make_negotiation_graph(
-        crag_graph="retrieval-graph",
+        rag_graph="retrieval-graph",
         retrieval_strategy="graphrag",
-        counterpart_graph=StubGraph(lambda state: state),
-        intent_classifier_graph=StubGraph(lambda state: state),
+        counterpart_graph=capturing_graph_factory(lambda state: state)[0],
+        intent_classifier_graph=capturing_graph_factory(lambda state: state)[0],
     )
 
     assert captured["coach"]["retrieval_strategy"] == "graphrag"
     assert captured["evaluator"]["retrieval_strategy"] == "graphrag"
 
 
-def test_normal_turn_is_counterpart_evaluator_coach_pause():
+def test_normal_turn_is_counterpart_evaluator_coach_pause(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
     graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
         trace=trace,
         classifier={"intent": "continue", "confidence": "high", "reasoning": ""},
         evaluator_strategy="walk_away",
     )
 
-    result = graph.invoke(base_state())
+    result = graph.invoke(base_state(agent_parent_state_factory))
 
     assert trace == ["classifier", "counterpart", "evaluator:rolling", "coach"]
     assert result["should_pause"] is True
@@ -237,17 +237,21 @@ def test_normal_turn_is_counterpart_evaluator_coach_pause():
     assert result["phase"] != "ended"
 
 
-def test_normal_turn_projects_privileged_agent_views():
+def test_normal_turn_projects_privileged_agent_views(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
     captured = {}
     graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
         trace=trace,
         observed_counterpart_state=captured.setdefault("counterpart", {}),
         observed_evaluator_state=captured.setdefault("evaluator", {}),
         observed_coach_state=captured.setdefault("coach", {}),
     )
 
-    graph.invoke(base_state())
+    graph.invoke(base_state(agent_parent_state_factory))
 
     assert "SIDE-A-SECRET" in repr(captured["counterpart"])
     assert "SIDE-B-SECRET" not in repr(captured["counterpart"])
@@ -262,11 +266,19 @@ def test_normal_turn_projects_privileged_agent_views():
     assert "SIDE-B-SECRET" in repr(captured["evaluator"])
 
 
-def test_structured_end_skips_classifier_counterpart_and_coach():
+def test_structured_end_skips_classifier_counterpart_and_coach(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
-    graph = build_stubbed_negotiation_graph(trace=trace)
+    graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
+        trace=trace,
+    )
 
-    result = graph.invoke({**base_state(), "requested_action": "end"})
+    result = graph.invoke(
+        {**base_state(agent_parent_state_factory), "requested_action": "end"}
+    )
 
     assert trace == ["evaluator:final"]
     assert result["phase"] == "ended"
@@ -274,23 +286,30 @@ def test_structured_end_skips_classifier_counterpart_and_coach():
     assert result["should_pause"] is False
 
 
-def test_low_confidence_end_continues():
+def test_low_confidence_end_continues(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
     graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
         trace=trace,
         classifier={"intent": "end", "confidence": "low", "reasoning": "uncertain"},
     )
 
-    result = graph.invoke(base_state())
+    result = graph.invoke(base_state(agent_parent_state_factory))
 
     assert trace == ["classifier", "counterpart", "evaluator:rolling", "coach"]
     assert result["phase"] != "ended"
 
 
-def test_acceptance_language_ends_simulation_without_counterpart_turn():
+def test_acceptance_language_ends_simulation_without_counterpart_turn(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
     state = {
-        **base_state(),
+        **base_state(agent_parent_state_factory),
         "messages": [
             {
                 "role": "user",
@@ -300,6 +319,7 @@ def test_acceptance_language_ends_simulation_without_counterpart_turn():
         ],
     }
     graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
         trace=trace,
         classifier={
             "intent": "end",
@@ -316,9 +336,13 @@ def test_acceptance_language_ends_simulation_without_counterpart_turn():
     assert result["should_pause"] is False
 
 
-def test_high_confidence_end_routes_to_final_evaluation():
+def test_high_confidence_end_routes_to_final_evaluation(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
     graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
         trace=trace,
         classifier={
             "intent": "end",
@@ -329,7 +353,7 @@ def test_high_confidence_end_routes_to_final_evaluation():
 
     result = graph.invoke(
         {
-            **base_state(),
+            **base_state(agent_parent_state_factory),
             "messages": [
                 {
                     "role": "user",
@@ -347,11 +371,23 @@ def test_high_confidence_end_routes_to_final_evaluation():
     assert "orchestrator:terminal reason=classified_intent" in result["event_log"]
 
 
-def test_turn_limit_runs_final_evaluator_before_another_counterpart():
+def test_turn_limit_runs_final_evaluator_before_another_counterpart(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
-    graph = build_stubbed_negotiation_graph(trace=trace)
+    graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
+        trace=trace,
+    )
 
-    result = graph.invoke({**base_state(), "turn_count": 12, "max_turn_count": 12})
+    result = graph.invoke(
+        {
+            **base_state(agent_parent_state_factory),
+            "turn_count": 12,
+            "max_turn_count": 12,
+        }
+    )
 
     assert trace == ["evaluator:final"]
     assert result["terminal_reason"] == "turn_limit"
@@ -361,14 +397,19 @@ def test_turn_limit_runs_final_evaluator_before_another_counterpart():
     "strategy",
     ["continue", "counter", "accept", "walk_away"],
 )
-def test_rolling_strategy_never_changes_graph_route(strategy):
+def test_rolling_strategy_never_changes_graph_route(
+    strategy,
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
     graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
         trace=trace,
         evaluator_strategy=strategy,
     )
 
-    result = graph.invoke(base_state())
+    result = graph.invoke(base_state(agent_parent_state_factory))
 
     assert trace == ["classifier", "counterpart", "evaluator:rolling", "coach"]
     assert result["evaluation"]["next_best_action"] == strategy
@@ -379,11 +420,20 @@ def test_rolling_strategy_never_changes_graph_route(strategy):
     "legacy_action",
     ["ask_user", "call_coach", "call_evaluator", "end"],
 )
-def test_legacy_next_action_does_not_control_new_graph(legacy_action):
+def test_legacy_next_action_does_not_control_new_graph(
+    legacy_action,
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
-    graph = build_stubbed_negotiation_graph(trace=trace)
+    graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
+        trace=trace,
+    )
 
-    result = graph.invoke({**base_state(), "next_action": legacy_action})
+    result = graph.invoke(
+        {**base_state(agent_parent_state_factory), "next_action": legacy_action}
+    )
 
     assert trace == ["classifier", "counterpart", "evaluator:rolling", "coach"]
     assert result["should_pause"] is True
@@ -391,13 +441,19 @@ def test_legacy_next_action_does_not_control_new_graph(legacy_action):
     assert result["phase"] != "ended"
 
 
-def test_incomplete_state_still_runs_normal_turn_without_ask_user():
+def test_incomplete_state_still_runs_normal_turn_without_ask_user(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
-    graph = build_stubbed_negotiation_graph(trace=trace)
+    graph = build_stubbed_negotiation_graph(
+        capturing_graph_factory=capturing_graph_factory,
+        trace=trace,
+    )
 
     result = graph.invoke(
         {
-            **base_state(),
+            **base_state(agent_parent_state_factory),
             "side_a": {},
             "side_b": {},
             "current_offer": {},
@@ -411,7 +467,10 @@ def test_incomplete_state_still_runs_normal_turn_without_ask_user():
     assert "ask_user" not in result.get("event_log", [])
 
 
-def test_final_evaluator_failure_falls_back_and_still_finalizes():
+def test_final_evaluator_failure_falls_back_and_still_finalizes(
+    capturing_graph_factory,
+    agent_parent_state_factory,
+):
     trace = []
 
     class RaisingModel:
@@ -440,15 +499,15 @@ def test_final_evaluator_failure_falls_back_and_still_finalizes():
         trace.append("coach")
         return state
 
-    evaluator_graph = make_evaluator_graph(model=RaisingModel(), crag_graph=None)
+    evaluator_graph = make_evaluator_graph(model=RaisingModel(), rag_graph=None)
     graph = make_negotiation_graph(
-        intent_classifier_graph=StubGraph(classify),
-        counterpart_graph=StubGraph(counterpart),
-        coach_graph=StubGraph(coach),
+        intent_classifier_graph=capturing_graph_factory(classify)[0],
+        counterpart_graph=capturing_graph_factory(counterpart)[0],
+        coach_graph=capturing_graph_factory(coach)[0],
         evaluator_graph=evaluator_graph,
     )
 
-    result = graph.invoke(base_state())
+    result = graph.invoke(base_state(agent_parent_state_factory))
 
     assert trace == ["classifier"]
     assert result["phase"] == "ended"

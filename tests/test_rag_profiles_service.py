@@ -13,10 +13,6 @@ from app.schemas.rag_profiles_schemas import (
 from app.services import rag_profiles_service
 
 
-def _user(user_id=1):
-    return SimpleNamespace(id=user_id, username=f"user-{user_id}")
-
-
 def _profile(
     profile_id=10,
     name="Default CRAG",
@@ -45,15 +41,22 @@ def _profile(
 
 
 @pytest.mark.asyncio
-async def test_create_rag_profile_stamps_current_admin(monkeypatch):
+async def test_create_rag_profile_stamps_current_admin(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
+    session = recording_async_session_factory()
     created = _profile(profile_id=12, created_by_user_id=7)
 
-    async def fake_create_rag_profile(profile_in, session):
+    async def fake_create_rag_profile(profile_in, session_arg):
+        assert session_arg is session
         captured.append(profile_in)
         return created
 
-    async def fake_to_read_with_ids(profile, session):
+    async def fake_to_read_with_ids(profile, session_arg):
+        assert session_arg is session
         return RagProfileReadWithIds(
             **profile.__dict__,
             simulation_ids=[],
@@ -81,8 +84,8 @@ async def test_create_rag_profile_stamps_current_admin(monkeypatch):
                 "max_rewrite_attempts": 1,
             },
         ),
-        object(),
-        _user(7),
+        session,
+        fake_user_factory(user_id=7, roles=()),
     )
 
     assert result.id == 12
@@ -91,8 +94,12 @@ async def test_create_rag_profile_stamps_current_admin(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_rag_profiles_passes_filters_and_converts(monkeypatch):
+async def test_list_rag_profiles_passes_filters_and_converts(
+    monkeypatch,
+    recording_async_session_factory,
+):
     captured = []
+    expected_session = recording_async_session_factory()
     profiles = [_profile(1), _profile(2, name="Fallback off")]
 
     async def fake_list_rag_profiles(
@@ -104,10 +111,12 @@ async def test_list_rag_profiles_passes_filters_and_converts(monkeypatch):
         used=None,
         created_by_user_id=None,
     ):
+        assert session is expected_session
         captured.append((skip, limit, strategy, name_contains, used, created_by_user_id))
         return profiles
 
-    async def fake_to_read_with_ids(profile, session):
+    async def fake_to_read_with_ids(profile, session_arg):
+        assert session_arg is expected_session
         return RagProfileReadWithIds(
             **profile.__dict__,
             simulation_ids=[profile.id],
@@ -125,7 +134,7 @@ async def test_list_rag_profiles_passes_filters_and_converts(monkeypatch):
     )
 
     result = await rag_profiles_service.list_rag_profiles_srvc(
-        object(),
+        expected_session,
         skip=5,
         limit=10,
         strategy="crag",
@@ -172,17 +181,24 @@ async def test_list_rag_profile_definitions_returns_available_rerankers(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_update_rag_profile_stamps_last_editor(monkeypatch):
+async def test_update_rag_profile_stamps_last_editor(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     target = _profile(profile_id=8)
     captured = []
+    session = recording_async_session_factory()
 
-    async def fake_update_rag_profile(profile, profile_in, session):
+    async def fake_update_rag_profile(profile, profile_in, session_arg):
+        assert session_arg is session
         captured.append(profile_in)
         profile.name = profile_in.name or profile.name
         profile.last_edit_by_user_id = profile_in.last_edit_by_user_id
         return profile
 
-    async def fake_to_read_with_ids(profile, session):
+    async def fake_to_read_with_ids(profile, session_arg):
+        assert session_arg is session
         return RagProfileReadWithIds(
             **profile.__dict__,
             simulation_ids=[],
@@ -202,8 +218,8 @@ async def test_update_rag_profile_stamps_last_editor(monkeypatch):
     result = await rag_profiles_service.update_rag_profile_srvc(
         target,
         RagProfileUpdateRequest(name="Renamed profile"),
-        object(),
-        _user(99),
+        session,
+        fake_user_factory(user_id=99, roles=()),
     )
 
     assert result.name == "Renamed profile"
@@ -212,11 +228,17 @@ async def test_update_rag_profile_stamps_last_editor(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_copy_rag_profile_assigns_new_owner(monkeypatch):
+async def test_copy_rag_profile_assigns_new_owner(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     source = _profile(profile_id=9, created_by_user_id=4)
     captured = []
+    session = recording_async_session_factory()
 
-    async def fake_copy_rag_profile(profile, copy_in, created_by_user_id, session):
+    async def fake_copy_rag_profile(profile, copy_in, created_by_user_id, session_arg):
+        assert session_arg is session
         captured.append((profile, copy_in, created_by_user_id))
         return _profile(
             profile_id=10,
@@ -226,7 +248,8 @@ async def test_copy_rag_profile_assigns_new_owner(monkeypatch):
             created_by_user_id=created_by_user_id,
         )
 
-    async def fake_to_read_with_ids(profile, session):
+    async def fake_to_read_with_ids(profile, session_arg):
+        assert session_arg is session
         return RagProfileReadWithIds(
             **profile.__dict__,
             simulation_ids=[],
@@ -246,8 +269,8 @@ async def test_copy_rag_profile_assigns_new_owner(monkeypatch):
     result = await rag_profiles_service.copy_rag_profile_srvc(
         source,
         RagProfileCopy(name="Copied CRAG"),
-        object(),
-        _user(77),
+        session,
+        fake_user_factory(user_id=77, roles=()),
     )
 
     assert result.id == 10
@@ -256,11 +279,16 @@ async def test_copy_rag_profile_assigns_new_owner(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_delete_rag_profile_propagates_usage_guard(monkeypatch):
+async def test_delete_rag_profile_propagates_usage_guard(
+    monkeypatch,
+    recording_async_session_factory,
+):
     target = _profile()
+    session = recording_async_session_factory()
 
-    async def fake_delete_rag_profile(profile, session):
+    async def fake_delete_rag_profile(profile, session_arg):
         assert profile is target
+        assert session_arg is session
         raise ValueError("Cannot delete RAG profile that has been used in simulations")
 
     monkeypatch.setattr(
@@ -270,4 +298,4 @@ async def test_delete_rag_profile_propagates_usage_guard(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="Cannot delete RAG profile"):
-        await rag_profiles_service.delete_rag_profile_srvc(target, object())
+        await rag_profiles_service.delete_rag_profile_srvc(target, session)

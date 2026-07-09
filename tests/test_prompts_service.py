@@ -11,10 +11,6 @@ from app.repositories import prompts_repo
 from app.services import prompts_service
 
 
-def _user(user_id=1):
-    return SimpleNamespace(id=user_id, username=f"user-{user_id}", roles=[])
-
-
 def _prompt(
     prompt_id=10,
     name="Prompt",
@@ -52,10 +48,16 @@ def test_validate_prompt_messages_rejects_missing_template(messages):
 
 
 @pytest.mark.asyncio
-async def test_create_prompt_stamps_current_user_owner_and_converts(monkeypatch):
+async def test_create_prompt_stamps_current_user_owner_and_converts(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
+    session = recording_async_session_factory()
 
-    async def fake_create_prompt(prompt_in, session):
+    async def fake_create_prompt(prompt_in, session_arg):
+        assert session_arg is session
         captured.append(prompt_in)
         return _prompt(
             prompt_id=12,
@@ -76,8 +78,8 @@ async def test_create_prompt_stamps_current_user_owner_and_converts(monkeypatch)
             owner_id=7,
             is_system=True,
         ),
-        object(),
-        _user(1),
+        session,
+        fake_user_factory(user_id=1, roles=()),
     )
 
     assert result.id == 12
@@ -95,10 +97,16 @@ async def test_create_prompt_stamps_current_user_owner_and_converts(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_create_prompt_ignores_caller_supplied_owner(monkeypatch):
+async def test_create_prompt_ignores_caller_supplied_owner(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
+    session = recording_async_session_factory()
 
-    async def fake_create_prompt(prompt_in, session):
+    async def fake_create_prompt(prompt_in, session_arg):
+        assert session_arg is session
         captured.append(prompt_in)
         return _prompt(
             prompt_id=13,
@@ -115,8 +123,8 @@ async def test_create_prompt_ignores_caller_supplied_owner(monkeypatch):
             messages={"template": "Use this custom extension."},
             owner_id=99,
         ),
-        object(),
-        _user(4),
+        session,
+        fake_user_factory(user_id=4, roles=()),
     )
 
     assert result.owner_id == 4
@@ -124,8 +132,12 @@ async def test_create_prompt_ignores_caller_supplied_owner(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_prompts_passes_filters_and_converts(monkeypatch):
+async def test_list_prompts_passes_filters_and_converts(
+    monkeypatch,
+    recording_async_session_factory,
+):
     captured = []
+    expected_session = recording_async_session_factory()
     prompts = [_prompt(1), _prompt(2, owner_id=7, is_system=True)]
 
     async def fake_list_prompts(
@@ -136,13 +148,14 @@ async def test_list_prompts_passes_filters_and_converts(monkeypatch):
         is_system=None,
         name_contains=None,
     ):
+        assert session is expected_session
         captured.append((skip, limit, owner_id, is_system, name_contains))
         return prompts
 
     monkeypatch.setattr(prompts_service.prompts_repo, "list_prompts", fake_list_prompts)
 
     result = await prompts_service.list_prompts_srvc(
-        object(),
+        expected_session,
         skip=5,
         limit=10,
         owner_id=7,
@@ -172,14 +185,21 @@ async def test_get_prompt_converts_model():
 
 
 @pytest.mark.asyncio
-async def test_admin_update_prompt_validates_owner(monkeypatch):
+async def test_admin_update_prompt_validates_owner(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
+    session = recording_async_session_factory()
 
-    async def fake_get_user_by_id(user_id, session):
+    async def fake_get_user_by_id(user_id, session_arg):
         assert user_id == 8
-        return _user(8)
+        assert session_arg is session
+        return fake_user_factory(user_id=8, roles=())
 
-    async def fake_admin_update_prompt(prompt, prompt_in, session):
+    async def fake_admin_update_prompt(prompt, prompt_in, session_arg):
+        assert session_arg is session
         captured.append(prompt_in)
         prompt.owner_id = prompt_in.owner_id
         prompt.is_system = prompt_in.is_system
@@ -191,7 +211,7 @@ async def test_admin_update_prompt_validates_owner(monkeypatch):
     result = await prompts_service.update_prompt_srvc(
         _prompt(),
         PromptAdminUpdate(owner_id=8, is_system=True),
-        object(),
+        session,
     )
 
     assert result.owner_id == 8
@@ -203,15 +223,22 @@ async def test_admin_update_prompt_validates_owner(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_copy_prompt_validates_owner_and_delegates(monkeypatch):
+async def test_copy_prompt_validates_owner_and_delegates(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = []
+    session = recording_async_session_factory()
     source = _prompt(prompt_id=4, messages={"system": "Original."})
 
-    async def fake_get_user_by_id(user_id, session):
+    async def fake_get_user_by_id(user_id, session_arg):
         assert user_id == 9
-        return _user(9)
+        assert session_arg is session
+        return fake_user_factory(user_id=9, roles=())
 
-    async def fake_copy_prompt(source_prompt, copy_in, session):
+    async def fake_copy_prompt(source_prompt, copy_in, session_arg):
+        assert session_arg is session
         captured.append((source_prompt, copy_in))
         return _prompt(
             prompt_id=5,
@@ -227,7 +254,7 @@ async def test_copy_prompt_validates_owner_and_delegates(monkeypatch):
     result = await prompts_service.copy_prompt_srvc(
         source,
         PromptClone(name="Copied prompt", owner_id=9, description="Copy"),
-        object(),
+        session,
     )
 
     assert result.id == 5
@@ -241,15 +268,20 @@ async def test_copy_prompt_validates_owner_and_delegates(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_delete_prompt_delegates_to_repo(monkeypatch):
+async def test_delete_prompt_delegates_to_repo(
+    monkeypatch,
+    recording_async_session_factory,
+):
     deleted = []
+    session = recording_async_session_factory()
     target = _prompt()
 
-    async def fake_delete_prompt(prompt, session):
+    async def fake_delete_prompt(prompt, session_arg):
+        assert session_arg is session
         deleted.append(prompt)
 
     monkeypatch.setattr(prompts_service.prompts_repo, "delete_prompt", fake_delete_prompt)
 
-    await prompts_service.delete_prompt_srvc(target, object())
+    await prompts_service.delete_prompt_srvc(target, session)
 
     assert deleted == [target]

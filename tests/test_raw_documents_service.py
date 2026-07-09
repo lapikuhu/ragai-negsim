@@ -13,6 +13,24 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class _FakeUpload:
+    def __init__(self, filename: str, content: bytes):
+        self.filename = filename
+        self._content = content
+        self._position = 0
+
+    async def read(self, size: int = -1) -> bytes:
+        if size is None or size < 0:
+            size = len(self._content) - self._position
+        start = self._position
+        end = min(start + size, len(self._content))
+        self._position = end
+        return self._content[start:end]
+
+    async def seek(self, position: int) -> None:
+        self._position = position
+
+
 def test_raw_document_metadata_accepts_integer_year_and_normalizes_blanks():
     raw_document = RawDocumentCreate(
         name="brief",
@@ -62,7 +80,13 @@ def test_raw_document_metadata_rejects_non_integer_document_year(document_year):
 
 
 @pytest.mark.asyncio
-async def test_create_uploaded_raw_document_rejects_duplicate_filename(tmp_path, monkeypatch):
+async def test_create_uploaded_raw_document_rejects_duplicate_filename(
+    tmp_path,
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
+    session = recording_async_session_factory()
     source_dir = tmp_path / "raw_docs_store"
     source_dir.mkdir()
     existing_file = source_dir / "brief.pdf"
@@ -70,12 +94,7 @@ async def test_create_uploaded_raw_document_rejects_duplicate_filename(tmp_path,
 
     monkeypatch.setattr(raw_documents_service.settings, "RAW_DOCS_DIR", str(source_dir))
 
-    upload = SimpleNamespace(filename="brief.pdf", read=lambda: None)
-
-    async def fake_read():
-        return b"%PDF-1.4\n%%EOF"
-
-    upload.read = fake_read
+    upload = _FakeUpload("brief.pdf", b"%PDF-1.4\n%%EOF")
 
     with pytest.raises(ValueError, match="already exists"):
         await raw_documents_service.create_uploaded_raw_document_srvc(
@@ -86,14 +105,50 @@ async def test_create_uploaded_raw_document_rejects_duplicate_filename(tmp_path,
             document_year=None,
             corpus_ids=[],
             upload=upload,
-            session=object(),
-            current_user=SimpleNamespace(id=1),
+            session=session,
+            current_user=fake_user_factory(user_id=1),
         )
 
 
 @pytest.mark.asyncio
-async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeypatch):
+async def test_create_uploaded_raw_document_rejects_upload_larger_than_configured_limit(
+    tmp_path,
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
+    session = recording_async_session_factory()
+    source_dir = tmp_path / "raw_docs_store"
+    source_dir.mkdir()
+    monkeypatch.setattr(raw_documents_service.settings, "RAW_DOCS_DIR", str(source_dir))
+    monkeypatch.setattr(raw_documents_service.settings, "MAX_UPLOAD_SIZE", 12)
+
+    upload = _FakeUpload("brief.pdf", b"%PDF-1.4\n%%EOF")
+
+    with pytest.raises(ValueError, match="exceeds the maximum allowed size"):
+        await raw_documents_service.create_uploaded_raw_document_srvc(
+            name="brief",
+            description=None,
+            document_title=None,
+            document_author=None,
+            document_year=None,
+            corpus_ids=[],
+            upload=upload,
+            session=session,
+            current_user=fake_user_factory(user_id=1),
+        )
+
+    assert not (source_dir / "brief.pdf").exists()
+
+
+@pytest.mark.asyncio
+async def test_create_raw_document_route_forwards_bibliographic_metadata(
+    monkeypatch,
+    fake_user_factory,
+    recording_async_session_factory,
+):
     captured = {}
+    session = recording_async_session_factory()
     created = SimpleNamespace(
         id=21,
         name="alpha brief",
@@ -130,10 +185,11 @@ async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeyp
         document_year=2026,
         corpus_ids=[],
         file=SimpleNamespace(filename="alpha.pdf"),
-        session=object(),
-        current_user=SimpleNamespace(id=1, username="teacher"),
+        session=session,
+        current_user=fake_user_factory(user_id=1, username="teacher", roles="teacher"),
     )
 
+    assert captured["session"] is session
     assert captured["document_title"] == "Negotiation Brief"
     assert captured["document_author"] == "Ada Lovelace"
     assert captured["document_year"] == 2026
@@ -143,8 +199,12 @@ async def test_create_raw_document_route_forwards_bibliographic_metadata(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_update_raw_document_route_updates_bibliographic_metadata(monkeypatch):
+async def test_update_raw_document_route_updates_bibliographic_metadata(
+    monkeypatch,
+    recording_async_session_factory,
+):
     captured = {}
+    session = recording_async_session_factory()
     raw_document = SimpleNamespace(id=21)
     updated = SimpleNamespace(
         id=21,
@@ -179,20 +239,26 @@ async def test_update_raw_document_route_updates_bibliographic_metadata(monkeypa
             document_author="Updated author",
             document_year=2027,
         ),
-        session=object(),
+        session=session,
     )
 
     assert captured["raw_document"] is raw_document
     assert captured["update_data"].document_title == "Updated title"
     assert captured["update_data"].document_author == "Updated author"
     assert captured["update_data"].document_year == 2027
+    assert captured["session"] is session
     assert result.document_title == "Updated title"
     assert result.document_author == "Updated author"
     assert result.document_year == 2027
 
 
 @pytest.mark.asyncio
-async def test_update_raw_document_route_maps_validation_error_to_conflict(monkeypatch):
+async def test_update_raw_document_route_maps_validation_error_to_conflict(
+    monkeypatch,
+    recording_async_session_factory,
+):
+    session = recording_async_session_factory()
+
     async def fake_update_raw_document(*_args, **_kwargs):
         raise ValueError("bad metadata")
 
@@ -202,7 +268,7 @@ async def test_update_raw_document_route_maps_validation_error_to_conflict(monke
         await raw_documents_route.update_raw_document(
             raw_document=SimpleNamespace(id=21),
             update_data=RawDocumentUpdate(document_year=2026),
-            session=object(),
+            session=session,
         )
 
     assert exc_info.value.status_code == 409
@@ -210,7 +276,7 @@ async def test_update_raw_document_route_maps_validation_error_to_conflict(monke
 
 
 @pytest.mark.asyncio
-async def test_verify_raw_document_source_marks_missing(tmp_path):
+async def test_verify_raw_document_source_marks_missing(tmp_path, recording_async_session_factory):
     raw_document = SimpleNamespace(
         source_path=str(tmp_path / "missing.pdf"),
         source_hash="hash",
@@ -219,22 +285,7 @@ async def test_verify_raw_document_source_marks_missing(tmp_path):
         source_status="available",
     )
 
-    class FakeSession:
-        def __init__(self):
-            self.added = []
-            self.commit_calls = 0
-            self.refresh_calls = 0
-
-        def add(self, item):
-            self.added.append(item)
-
-        async def commit(self):
-            self.commit_calls += 1
-
-        async def refresh(self, item):
-            self.refresh_calls += 1
-
-    session = FakeSession()
+    session = recording_async_session_factory()
     result = await raw_documents_service.verify_raw_document_source_srvc(raw_document, session)
 
     assert result.source_status == raw_documents_service.RAW_DOCUMENT_SOURCE_STATUS_MISSING
@@ -242,7 +293,7 @@ async def test_verify_raw_document_source_marks_missing(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_verify_raw_document_source_marks_changed_when_hash_differs(tmp_path):
+async def test_verify_raw_document_source_marks_changed_when_hash_differs(tmp_path, recording_async_session_factory):
     source_file = tmp_path / "changed.pdf"
     source_file.write_bytes(b"new-bytes")
     raw_document = SimpleNamespace(
@@ -253,20 +304,7 @@ async def test_verify_raw_document_source_marks_changed_when_hash_differs(tmp_pa
         source_status="available",
     )
 
-    class FakeSession:
-        def __init__(self):
-            self.commit_calls = 0
-
-        def add(self, item):
-            return None
-
-        async def commit(self):
-            self.commit_calls += 1
-
-        async def refresh(self, item):
-            return None
-
-    session = FakeSession()
+    session = recording_async_session_factory()
     result = await raw_documents_service.verify_raw_document_source_srvc(raw_document, session)
 
     assert result.source_status == raw_documents_service.RAW_DOCUMENT_SOURCE_STATUS_CHANGED

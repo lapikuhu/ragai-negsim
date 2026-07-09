@@ -7,7 +7,11 @@ from app.services import knowledge_graph_builds_service
 
 
 @pytest.mark.asyncio
-async def test_queue_graph_build_snapshots_exact_indexed_chunks(monkeypatch):
+async def test_queue_graph_build_snapshots_exact_indexed_chunks(
+    monkeypatch,
+    recording_async_session_factory,
+):
+    session = recording_async_session_factory()
     graph = SimpleNamespace(
         id=5,
         corpus_index_id=9,
@@ -63,7 +67,7 @@ async def test_queue_graph_build_snapshots_exact_indexed_chunks(monkeypatch):
 
     result = await knowledge_graph_builds_service.queue_knowledge_graph_build_srvc(
         5,
-        object(),
+        session,
     )
 
     assert result.id == 44
@@ -73,7 +77,11 @@ async def test_queue_graph_build_snapshots_exact_indexed_chunks(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_queue_graph_rebuild_rejects_locked_graph(monkeypatch):
+async def test_queue_graph_rebuild_rejects_locked_graph(
+    monkeypatch,
+    recording_async_session_factory,
+):
+    session = recording_async_session_factory()
     graph = SimpleNamespace(
         id=5,
         corpus_index_id=9,
@@ -94,24 +102,23 @@ async def test_queue_graph_rebuild_rejects_locked_graph(monkeypatch):
     with pytest.raises(ValueError, match="used in a simulation"):
         await knowledge_graph_builds_service.queue_knowledge_graph_build_srvc(
             5,
-            object(),
+            session,
             rebuild=True,
         )
 
 
 @pytest.mark.asyncio
-async def test_cancel_check_raises_for_requested_job():
+async def test_cancel_check_raises_for_requested_job(recording_async_session_factory):
     job = SimpleNamespace(cancel_requested=True)
-
-    class FakeSession:
-        async def refresh(self, value):
-            assert value is job
+    session = recording_async_session_factory()
 
     with pytest.raises(knowledge_graph_builds_service.KnowledgeGraphBuildCancelled):
         await knowledge_graph_builds_service._raise_if_cancel_requested(
             job,
-            FakeSession(),
+            session,
         )
+
+    assert session.refreshed == [job]
 
 
 def test_require_persisted_graph_rejects_empty_generation():

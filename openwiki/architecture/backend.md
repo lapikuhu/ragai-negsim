@@ -50,12 +50,17 @@ The API is broad, but the most important route families are:
 Recent commits show the backend changing in a few important ways:
 - Learner assistant support was added to simulations and later exposed in the simulation cockpit.
 - CRAG and GraphRAG both gained source capture, which is now reflected in the evidence ledger.
-- Raw documents gained corpus associations, making document ingestion more clearly tied to simulation inputs.
+- Raw documents gained corpus associations, bibliographic metadata routing, and stronger upload verification, making document ingestion more clearly tied to simulation inputs.
+- Raw document uploads now validate PDF signatures, reject non-PDF extensions, enforce configured size limits, and guard against duplicate stored filenames before metadata is persisted.
+- Source verification for raw documents now updates `source_status` to `available`, `missing`, `changed`, `unverified`, or `error` as the on-disk file state changes.
 - Simulation review and evaluation flows have become more explicit, including learner-facing debug traces.
 - Security hardening also tightened JWT expiry handling and added PDF signature/size checks for raw uploads.
 - Prompt handling now has a guard scaffold in `app/airag/prompt_guard/` and a guarded runnable wrapper in `app/airag/observability/llm_usage.py`.
 - Simulation turns and learner questions now call the guard at the service layer before negotiation-graph or learner-agent invocation.
+- Prompt services now normalize owner assignment and validate template-backed message payloads before persistence.
+- Scenario services now stamp the current editor/user on create and update operations, and scenario read models continue to keep private side context out of public payloads.
 - CRAG retrieval now blocks injection-like queries before retrieval and logs the blocked pipeline step instead of returning documents.
+- Coach, counterpart, and evaluator agent projections continue to enforce strict context separation so private fields only flow into the intended prompt.
 
 These changes matter because many services now return richer metadata than the old route names suggest, and some request paths now reject unsafe payloads before the runnable, graph, or upload code ever executes. When modifying a domain, inspect the service layer and tests first; route signatures often lag behind the true business rules.
 

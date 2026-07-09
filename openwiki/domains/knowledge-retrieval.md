@@ -30,9 +30,11 @@ This is a central business domain because the simulator is meant to be grounded 
 5. Chunk records can be inspected separately in the document chunks UI/API.
 6. Later retrieval uses those chunks as evidence for simulation and learner responses.
 
-The raw document route now exposes associated corpora in its detail response, and recent changes also surface bibliographic metadata (`document_title`, `document_author`, `document_year`) through the document APIs and source cards. That makes document metadata a first-class part of the retrieval domain, not just an upload detail.
+The raw document route now exposes associated corpora in its detail response, and recent changes also surface bibliographic metadata (`document_title`, `document_author`, `document_year`) through the document APIs and source cards. Raw document uploads reject non-PDF files, verify the PDF signature, enforce configured size limits, and reject duplicate stored filenames before persisting metadata. Source verification also updates `source_status` as the on-disk file changes, so `available`, `missing`, `changed`, `unverified`, and `error` are now meaningful states in the document lifecycle. That makes document metadata and upload validation first-class parts of the retrieval domain, not just upload details.
 
 Recent CRAG changes add a prompt-injection guard at the retrieval node: unsafe queries are blocked before vector lookup, the pipeline step is recorded as blocked, and no documents are returned. Successful retrieval and rerank paths still attach sources to the evidence ledger.
+
+Simulation and learner-question flows now also run the shared prompt guard before invoking the negotiation graph or learner agent, which means retrieval-domain changes can affect both uploaded-document grounding and service-layer request rejection.
 
 ## CRAG and GraphRAG
 The README and recent git history show two retrieval strategies:

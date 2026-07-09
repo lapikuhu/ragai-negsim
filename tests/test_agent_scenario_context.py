@@ -41,14 +41,13 @@ def test_counterpart_prompt_adds_custom_extension_without_replacing_base():
     assert "Reply as the counterpart in a terse style." in rendered
 
 
-def test_rolling_evaluator_prompt_appends_structured_contexts():
+def test_rolling_evaluator_prompt_appends_structured_contexts(agent_parent_state_factory):
     rendered = render_evaluator_prompt(
-        {
-            "user_side": "side_b",
-            "scenario_public_context": {"name": "Hotel late checkout"},
-            "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
-            "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
-        },
+        agent_parent_state_factory(
+            scenario_public_context={"name": "Hotel late checkout"},
+            side_a_private_context={"reservation": "SIDE-A-SECRET"},
+            side_b_private_context={"reservation": "SIDE-B-SECRET"},
+        ),
         prompt_template="Evaluate the turn.",
     )
 
@@ -60,17 +59,16 @@ def test_rolling_evaluator_prompt_appends_structured_contexts():
     assert "Evaluate the turn." in rendered
 
 
-def test_final_evaluator_prompt_includes_structured_contexts():
+def test_final_evaluator_prompt_includes_structured_contexts(agent_parent_state_factory):
     rendered = render_final_evaluator_prompt(
-        {
-            "user_side": "side_b",
-            "scenario_public_context": {
+        agent_parent_state_factory(
+            scenario_public_context={
                 "name": "Hotel late checkout",
                 "description": "The guest wants a free late checkout.",
             },
-            "side_a_private_context": {"reservation": "SIDE-A-SECRET"},
-            "side_b_private_context": {"reservation": "SIDE-B-SECRET"},
-        }
+            side_a_private_context={"reservation": "SIDE-A-SECRET"},
+            side_b_private_context={"reservation": "SIDE-B-SECRET"},
+        )
     )
 
     assert "Hotel late checkout" in rendered
