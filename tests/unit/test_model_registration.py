@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def test_importing_models_registers_all_relationship_targets():
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
     result = subprocess.run(
         [
             sys.executable,

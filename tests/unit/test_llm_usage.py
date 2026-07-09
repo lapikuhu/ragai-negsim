@@ -122,7 +122,10 @@ def test_agent_token_usage_handler_uses_agent_tag_and_ignores_unknown_agents():
     handler.on_llm_end(response, run_id=kept_run)
     handler.on_llm_end(response, run_id=dropped_run)
 
-    assert llm_usage.summarize_agent_token_usage_handler(handler) == {"counterpart": 5}
+    assert llm_usage.summarize_agent_token_usage_handler(handler) == {
+        "counterpart": 5,
+        "intent_classifier": 5,
+    }
 
 
 def test_guarded_invoke_with_config_invokes_runnable_for_safe_string_payload():
