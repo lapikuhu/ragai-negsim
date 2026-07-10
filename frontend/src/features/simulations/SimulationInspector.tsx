@@ -1,4 +1,7 @@
+import { useState } from "react";
+
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { KeyValueList } from "@/components/common/KeyValueList";
 import { stringifyJson } from "@/utils/format";
 import type {
@@ -85,85 +88,131 @@ function getCoachSources(value: unknown): CoachSourceRecord[] {
   }));
 }
 
+function CollapsibleJsonPreview({ value, testId }: { value: string; testId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const canExpand = value.split(/\r?\n/).length > 5;
+  const isCollapsed = canExpand && !expanded;
+
+  return (
+    <div className="mt-3">
+      <div
+        data-testid={testId}
+        className={[
+          "rounded-xl bg-slate-950",
+          isCollapsed ? "max-h-[6.25rem] overflow-hidden" : ""
+        ].join(" ")}
+      >
+        <pre className="overflow-x-auto p-3 text-xs leading-5 text-slate-100">{value}</pre>
+      </div>
+      {canExpand ? (
+        <div className="mt-2 flex justify-end">
+          <Button
+            type="button"
+            className="px-3 py-1.5"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            {expanded ? "Show less" : "Show more"}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function EvidenceLedgerCard({ ledgers }: { ledgers: EvidenceLedger[] }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <Card className="min-w-0">
       <h2 className="text-lg font-semibold text-slate-950">Evidence Ledger</h2>
-      {!ledgers.length ? (
-        <p className="mt-3 text-sm text-slate-600">
-          Evidence records will appear after agent outputs are captured for a turn.
-        </p>
-      ) : (
-        <div className="mt-4 grid gap-4">
-          {ledgers.map((ledger) => {
-            const pipeline = isRecord(ledger.pipeline) ? ledger.pipeline : {};
-            const sources = asObjectList(ledger.sources);
-            const qualityChecks = asObjectList(ledger.quality_checks);
-            const steps = asObjectList(pipeline.steps);
-            return (
-              <section key={`${ledger.id}-${ledger.agent_name}`} className="grid gap-3 rounded-lg border border-slate-200 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-slate-900">{ledger.agent_name}</h3>
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                    turn {ledger.turn_index} / {ledger.visibility_level}
-                  </span>
-                </div>
+      {expanded ? (
+        !ledgers.length ? (
+          <p className="mt-3 text-sm text-slate-600">
+            Evidence records will appear after agent outputs are captured for a turn.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-4">
+            {ledgers.map((ledger) => {
+              const pipeline = isRecord(ledger.pipeline) ? ledger.pipeline : {};
+              const sources = asObjectList(ledger.sources);
+              const qualityChecks = asObjectList(ledger.quality_checks);
+              const steps = asObjectList(pipeline.steps);
+              return (
+                <section key={`${ledger.id}-${ledger.agent_name}`} className="grid gap-3 rounded-lg border border-slate-200 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900">{ledger.agent_name}</h3>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                      turn {ledger.turn_index} / {ledger.visibility_level}
+                    </span>
+                  </div>
 
-                {steps.length ? (
-                  <div className="grid gap-1">
-                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Pipeline</div>
-                    <div className="flex flex-wrap gap-2">
-                      {steps.map((step, index) => (
-                        <span key={`${ledger.id}-step-${index}`} className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">
-                          <span>{String(step.name ?? "step")}</span>
-                          <span className="text-slate-400"> / </span>
-                          <span>{String(step.status ?? "unknown")}</span>
-                        </span>
+                  {steps.length ? (
+                    <div className="grid gap-1">
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Pipeline</div>
+                      <div className="flex flex-wrap gap-2">
+                        {steps.map((step, index) => (
+                          <span key={`${ledger.id}-step-${index}`} className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">
+                            <span>{String(step.name ?? "step")}</span>
+                            <span className="text-slate-400"> / </span>
+                            <span>{String(step.status ?? "unknown")}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {sources.length ? (
+                    <div className="grid gap-2">
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Sources</div>
+                      {sources.slice(0, 3).map((source, index) => (
+                        <div key={`${ledger.id}-source-${index}`} className="rounded bg-slate-50 p-2 text-xs text-slate-700">
+                          <div className="font-medium text-slate-900">
+                            {String(source.source ?? `Chunk ${String(source.document_chunk_id ?? index + 1)}`)}
+                          </div>
+                          <p className="mt-1 whitespace-pre-wrap leading-5">{String(source.excerpt ?? "")}</p>
+                        </div>
                       ))}
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
 
-                {sources.length ? (
-                  <div className="grid gap-2">
-                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Sources</div>
-                    {sources.slice(0, 3).map((source, index) => (
-                      <div key={`${ledger.id}-source-${index}`} className="rounded bg-slate-50 p-2 text-xs text-slate-700">
-                        <div className="font-medium text-slate-900">
-                          {String(source.source ?? `Chunk ${String(source.document_chunk_id ?? index + 1)}`)}
-                        </div>
-                        <p className="mt-1 whitespace-pre-wrap leading-5">{String(source.excerpt ?? "")}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+                  {qualityChecks.length ? (
+                    <div className="grid gap-1">
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Quality checks</div>
+                      {qualityChecks.map((check, index) => (
+                        <p key={`${ledger.id}-check-${index}`} className="text-xs text-slate-700">
+                          {String(check.name ?? "check")}: {String(check.verdict ?? "unknown")}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
 
-                {qualityChecks.length ? (
-                  <div className="grid gap-1">
-                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Quality checks</div>
-                    {qualityChecks.map((check, index) => (
-                      <p key={`${ledger.id}-check-${index}`} className="text-xs text-slate-700">
-                        {String(check.name ?? "check")}: {String(check.verdict ?? "unknown")}
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-
-                <details>
-                  <summary className="cursor-pointer text-xs font-medium text-slate-600">Raw debug</summary>
-                  <pre className="mt-2 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-slate-100">
-                    {stringifyJson({
-                      output_summary: ledger.output_summary,
-                      token_usage: ledger.token_usage,
-                      raw_debug: ledger.raw_debug
-                    })}
-                  </pre>
-                </details>
-              </section>
-            );
-          })}
-        </div>
-      )}
+                  <details>
+                    <summary className="cursor-pointer text-xs font-medium text-slate-600">Raw debug</summary>
+                    <pre className="mt-2 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-slate-100">
+                      {stringifyJson({
+                        output_summary: ledger.output_summary,
+                        token_usage: ledger.token_usage,
+                        raw_debug: ledger.raw_debug
+                      })}
+                    </pre>
+                  </details>
+                </section>
+              );
+            })}
+          </div>
+        )
+      ) : null}
+      <div className="mt-2 flex justify-end">
+        <Button
+          type="button"
+          className="px-3 py-1.5"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </Button>
+      </div>
     </Card>
   );
 }
@@ -339,9 +388,7 @@ export function SimulationInspector({
 
       <Card className="min-w-0">
         <h2 className="text-lg font-semibold text-slate-950">Negotiation data</h2>
-        <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">
-          {stringifyJson(state.data)}
-        </pre>
+        <CollapsibleJsonPreview value={stringifyJson(state.data)} testId="negotiation-data-preview" />
       </Card>
 
       <Card className="min-w-0">

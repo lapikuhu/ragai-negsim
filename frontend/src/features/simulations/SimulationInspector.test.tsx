@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import type { SimulationReadWithState } from "@/api/types";
@@ -258,7 +259,9 @@ describe("SimulationInspector", () => {
     expect(screen.queryByText("Sources")).not.toBeInTheDocument();
   });
 
-  it("renders the evidence ledger card between coach guidance and simulation state", () => {
+  it("renders the evidence ledger card collapsed between coach guidance and simulation state", async () => {
+    const user = userEvent.setup();
+
     render(
       <SimulationInspector
         simulation={{
@@ -297,12 +300,52 @@ describe("SimulationInspector", () => {
     const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
     expect(headings.indexOf("Coach Guidance")).toBeLessThan(headings.indexOf("Evidence Ledger"));
     expect(headings.indexOf("Evidence Ledger")).toBeLessThan(headings.indexOf("Simulation state"));
+    expect(screen.queryByText("coach")).not.toBeInTheDocument();
+    expect(screen.queryByText("retrieve")).not.toBeInTheDocument();
+    expect(screen.queryByText("Counteroffers should use objective standards.")).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Show more" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveClass("bg-accent", "text-white", "hover:bg-teal-800");
+
+    await user.click(toggle);
+
     expect(screen.getByText("coach")).toBeInTheDocument();
     expect(screen.getByText("retrieve")).toBeInTheDocument();
     expect(screen.getByText("Counteroffers should use objective standards.")).toBeInTheDocument();
+    expect(screen.getByText("Raw debug")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(screen.getByRole("button", { name: "Show less" }));
+
+    expect(screen.queryByText("coach")).not.toBeInTheDocument();
+    expect(screen.queryByText("retrieve")).not.toBeInTheDocument();
+    expect(screen.queryByText("Counteroffers should use objective standards.")).not.toBeInTheDocument();
   });
 
-  it("prefers latest turn evidence ledgers over persisted simulation ledgers", () => {
+  it("hides the evidence ledger empty state until expanded", async () => {
+    const user = userEvent.setup();
+
+    render(<SimulationInspector simulation={baseSimulation} latestTurn={null} />);
+
+    expect(screen.getByRole("heading", { name: "Evidence Ledger" })).toBeInTheDocument();
+    expect(
+      screen.queryByText("Evidence records will appear after agent outputs are captured for a turn.")
+    ).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Show more" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(toggle);
+
+    expect(
+      screen.getByText("Evidence records will appear after agent outputs are captured for a turn.")
+    ).toBeInTheDocument();
+  });
+
+  it("expands the latest turn evidence ledger instead of persisted ledgers", async () => {
+    const user = userEvent.setup();
+
     render(
       <SimulationInspector
         simulation={{
@@ -357,7 +400,73 @@ describe("SimulationInspector", () => {
       />
     );
 
+    expect(screen.queryByText("counterpart")).not.toBeInTheDocument();
+    expect(screen.queryByText("coach")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show more" }));
+
     expect(screen.getByText("counterpart")).toBeInTheDocument();
     expect(screen.queryByText("coach")).not.toBeInTheDocument();
+  });
+
+  it("collapses long negotiation data by default and toggles it open and closed", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SimulationInspector
+        simulation={{
+          ...baseSimulation,
+          negotiation_state: {
+            ...baseSimulation.negotiation_state,
+            data: {
+              phase: "bargaining",
+              token_usage: {
+                simulation_total: 91,
+                coach_total: 42
+              },
+              coach_advice: {
+                summary: "Hold close to target.",
+                suggested_response: "Ask one clarifying question before conceding."
+              }
+            }
+          }
+        }}
+        latestTurn={null}
+      />
+    );
+
+    const negotiationDataCard = screen.getByRole("heading", { name: "Negotiation data" }).closest("section");
+    expect(negotiationDataCard).not.toBeNull();
+    const preview = screen.getByTestId("negotiation-data-preview");
+    const toggle = within(negotiationDataCard as HTMLElement).getByRole("button", { name: "Show more" });
+
+    expect(preview).toHaveClass("max-h-[6.25rem]", "overflow-hidden");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveClass("bg-accent", "text-white", "hover:bg-teal-800");
+
+    await user.click(toggle);
+
+    expect(preview).not.toHaveClass("max-h-[6.25rem]");
+    expect(within(negotiationDataCard as HTMLElement).getByRole("button", { name: "Show less" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+
+    await user.click(within(negotiationDataCard as HTMLElement).getByRole("button", { name: "Show less" }));
+
+    expect(preview).toHaveClass("max-h-[6.25rem]", "overflow-hidden");
+    expect(within(negotiationDataCard as HTMLElement).getByRole("button", { name: "Show more" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+  });
+
+  it("does not render a negotiation data toggle for short JSON", () => {
+    render(<SimulationInspector simulation={baseSimulation} latestTurn={null} />);
+
+    const negotiationDataCard = screen.getByRole("heading", { name: "Negotiation data" }).closest("section");
+    expect(negotiationDataCard).not.toBeNull();
+    expect(screen.getByTestId("negotiation-data-preview")).not.toHaveClass("max-h-[6.25rem]");
+    expect(within(negotiationDataCard as HTMLElement).queryByRole("button", { name: "Show more" })).not.toBeInTheDocument();
   });
 });

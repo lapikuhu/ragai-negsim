@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -518,18 +518,19 @@ describe("SimulationCockpitPage", () => {
     expect(screen.getByRole("heading", { name: "Scenario summary" })).toBeInTheDocument();
     expect(summary).toHaveClass("max-h-[7.5rem]", "overflow-hidden");
     expect(screen.getByText("...")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument();
 
     const summaryCard = summary.closest("section");
+    expect(summaryCard).not.toBeNull();
+    expect(within(summaryCard as HTMLElement).getByRole("button", { name: "Show more" })).toBeInTheDocument();
     const transcriptHeading = screen.getByRole("heading", { name: "Transcript" });
     expect(
       summaryCard && transcriptHeading.compareDocumentPosition(summaryCard) & Node.DOCUMENT_POSITION_PRECEDING
     ).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "Show more" }));
+    await user.click(within(summaryCard as HTMLElement).getByRole("button", { name: "Show more" }));
 
     expect(summary).not.toHaveClass("max-h-[7.5rem]");
-    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
+    expect(within(summaryCard as HTMLElement).getByRole("button", { name: "Show less" })).toBeInTheDocument();
     expect(container).not.toHaveTextContent("seller floor");
   });
 
