@@ -13,7 +13,7 @@ def _learner_config(enabled=True):
         "enabled": enabled,
         "models": {
             "response": {"provider": "openai", "model": "gpt-4o-mini"},
-            "negotiation_summary": {"provider": "openai", "model": "gpt-4.1-mini"},
+            "negotiation_summary": {"provider": "openai", "model": "gpt-4o-mini"},
             "tavily_summary": {"provider": "openai", "model": "gpt-4o-mini"},
         },
         "tavily": {
@@ -288,7 +288,7 @@ async def test_ask_simulation_learner_returns_answer_and_safe_metadata(
     assert result.answer == "Anchor on objective criteria."
     assert captured["builds"][:2] == [
         ({"provider": "openai", "model": "gpt-4o-mini"}, "simulation.learner"),
-        ({"provider": "openai", "model": "gpt-4.1-mini"}, "simulation.learner.summary"),
+        ({"provider": "openai", "model": "gpt-4o-mini"}, "simulation.learner.summary"),
     ]
     assert captured["agent_kwargs"]["crag_graph"] == "retrieval-graph"
     assert captured["agent_kwargs"]["graph_rag_graph"] is None
@@ -920,11 +920,11 @@ async def test_ask_simulation_learner_uses_stored_models_and_tavily_defaults(
     assert result.answer == "Stored config answer."
     assert captured["builds"] == [
         ({"provider": "openai", "model": "gpt-4o-mini"}, "simulation.learner"),
-        ({"provider": "openai", "model": "gpt-4.1-mini"}, "simulation.learner.summary"),
+        ({"provider": "openai", "model": "gpt-4o-mini"}, "simulation.learner.summary"),
         ({"provider": "openai", "model": "gpt-4o-mini"}, "simulation.learner.tavily_summary"),
     ]
     assert captured["agent_kwargs"]["model"] == "simulation.learner:gpt-4o-mini"
-    assert captured["agent_kwargs"]["summarize_model"] == "simulation.learner.summary:gpt-4.1-mini"
+    assert captured["agent_kwargs"]["summarize_model"] == "simulation.learner.summary:gpt-4o-mini"
     assert captured["agent_kwargs"]["tavily_summarizer_model"] == "simulation.learner.tavily_summary:gpt-4o-mini"
     assert captured["tavily_kwargs"] == {
         "max_results": 2,
