@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from copy import deepcopy
+import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -18,6 +19,22 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
+
+_REQUIRED_TEST_SETTINGS = {
+    "ASYNC_DATABASE_URL": "sqlite+aiosqlite:///./test.db",
+    "ADMIN_USERNAME": "test-admin",
+    "ADMIN_EMAIL": "test-admin@example.test",
+    "ADMIN_PASSWORD": "test-password",
+    "NEO4J_URI": "neo4j://127.0.0.1:7687",
+    "NEO4J_USERNAME": "neo4j",
+    "NEO4J_PASSWORD": "test-password",
+    "SECRET_KEY": "test-secret-key",
+    "ALGORITHM": "HS256",
+    "OPENAI_API_KEY": "test-openai-api-key",
+}
+
+for name, value in _REQUIRED_TEST_SETTINGS.items():
+    os.environ.setdefault(name, value)
 
 
 @pytest.fixture(autouse=True)
