@@ -184,6 +184,28 @@ describe("SimulationsPage", () => {
     expect(corpusIndex).toBeDisabled();
   });
 
+  it("keeps the corpus index selector bordered, single-line, and top aligned with description", () => {
+    render(<SimulationsPage />);
+
+    const corpusIndex = screen.getByRole("combobox", { name: "Corpus index" });
+
+    expect(corpusIndex).toHaveClass("border");
+    expect(corpusIndex).toHaveClass("border-slate-300");
+    expect(corpusIndex).toHaveClass("min-h-10");
+    expect(corpusIndex).toHaveClass("leading-5");
+    expect(corpusIndex.closest("label")).toHaveClass("self-start");
+  });
+
+  it("keeps the scenario selector top aligned and the same height style as RAG profile", () => {
+    render(<SimulationsPage />);
+
+    const ragProfile = screen.getByRole("combobox", { name: /RAG profile/ });
+    const scenario = screen.getByRole("combobox", { name: "Scenario" });
+
+    expect(scenario.className).toBe(ragProfile.className);
+    expect(scenario.closest("label")).toHaveClass("self-start");
+  });
+
   it("reveals learner agent model and search controls when enabled", async () => {
     const user = userEvent.setup();
     render(<SimulationsPage />);

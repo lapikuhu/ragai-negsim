@@ -194,8 +194,9 @@ export function SimulationsPage() {
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             />
           </Field>
-          <Field label="Corpus index">
+          <Field label="Corpus index" className="self-start">
             <Select
+              className="min-h-10 leading-5"
               value={form.corpusIndexId}
               onChange={(event) => setForm((current) => ({ ...current, corpusIndexId: event.target.value }))}
               disabled={graphSelectionLocked}
@@ -224,7 +225,7 @@ export function SimulationsPage() {
             </Select>
           </Field>
 
-          <Field label="Scenario">
+          <Field label="Scenario" className="self-start">
             <Select
               value={form.scenarioId}
               onChange={(event) => setForm((current) => ({ ...current, scenarioId: event.target.value }))}
