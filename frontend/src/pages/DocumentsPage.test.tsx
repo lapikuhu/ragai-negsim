@@ -94,6 +94,30 @@ describe("DocumentsPage", () => {
     });
   });
 
+  it("keeps the Title upload field aligned with the Name-Alias field", () => {
+    render(<DocumentsPage />, { wrapper: MemoryRouter });
+
+    const nameField = screen.getByLabelText(/Name-Alias/).closest("label");
+    const titleField = screen.getByLabelText("Title").closest("label");
+
+    expect(nameField).not.toBeNull();
+    expect(titleField).not.toBeNull();
+    expect(nameField).toHaveClass("content-start", "min-h-[82px]");
+    expect(titleField).toHaveClass("content-start", "min-h-[82px]");
+  });
+
+  it("keeps the Linked corpus IDs upload field aligned with the Description field", () => {
+    render(<DocumentsPage />, { wrapper: MemoryRouter });
+
+    const corpusIdsField = screen.getByLabelText(/Linked corpus IDs/).closest("label");
+    const descriptionField = screen.getByLabelText("Description").closest("label");
+
+    expect(corpusIdsField).not.toBeNull();
+    expect(descriptionField).not.toBeNull();
+    expect(corpusIdsField).toHaveClass("content-start");
+    expect(descriptionField).toHaveClass("content-start");
+  });
+
   it("rejects non-integer year text before uploading", async () => {
     const user = userEvent.setup();
     render(<DocumentsPage />, { wrapper: MemoryRouter });

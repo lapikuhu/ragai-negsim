@@ -138,4 +138,16 @@ describe("IndexingPage", () => {
 
     expect(screen.getByText("All documents ingested. Embedding chunks now.")).toBeInTheDocument();
   });
+
+  it("keeps the Corpus dropdown aligned with the Chunking profile dropdown", () => {
+    render(<IndexingPage />);
+
+    const corpusField = screen.getByLabelText("Corpus").closest("label");
+    const chunkingProfileField = screen.getByLabelText(/Chunking profile/).closest("label");
+
+    expect(corpusField).not.toBeNull();
+    expect(chunkingProfileField).not.toBeNull();
+    expect(corpusField).toHaveClass("content-start");
+    expect(chunkingProfileField).toHaveClass("content-start");
+  });
 });

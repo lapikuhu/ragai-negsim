@@ -75,7 +75,7 @@ export function CorporaPage() {
             }
           }}
         >
-          <Field label="Name">
+          <Field label="Name" className="content-start">
             <Input value={name} onChange={(event) => setName(event.target.value)} required />
           </Field>
           <Field
@@ -85,6 +85,7 @@ export function CorporaPage() {
                 ? `${selectedDocuments.length} document${selectedDocuments.length === 1 ? "" : "s"} selected`
                 : "Choose one or more uploaded raw documents to include in this corpus."
             }
+            className="content-start"
           >
             <div className="grid gap-3">
               <Button

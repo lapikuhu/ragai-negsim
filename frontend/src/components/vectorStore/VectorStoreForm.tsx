@@ -116,7 +116,7 @@ export function VectorStoreForm({
       }}
     >
       <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Name">
+        <Field label="Name" className="content-start">
           <Input
             value={form.name}
             onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
@@ -128,7 +128,7 @@ export function VectorStoreForm({
             <Input value={initialValue?.embedding_dimensions?.toString() ?? "Not set"} disabled readOnly />
           </Field>
         ) : (
-          <Field label="Embedding model" hint={embeddingModelHint}>
+          <Field label="Embedding model" hint={embeddingModelHint} className="content-start">
             <Select
               value={form.embeddingModel}
               onChange={(event) => setForm((current) => ({ ...current, embeddingModel: event.target.value }))}

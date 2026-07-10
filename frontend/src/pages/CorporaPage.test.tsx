@@ -102,4 +102,20 @@ describe("CorporaPage", () => {
 
     expect(screen.getByText("1")).toBeInTheDocument();
   });
+
+  it("keeps the Name field aligned with the Raw documents field", () => {
+    render(
+      <MemoryRouter>
+        <CorporaPage />
+      </MemoryRouter>
+    );
+
+    const nameField = screen.getByLabelText("Name").closest("label");
+    const rawDocumentsField = screen.getByText("Raw documents").closest("label");
+
+    expect(nameField).not.toBeNull();
+    expect(rawDocumentsField).not.toBeNull();
+    expect(nameField).toHaveClass("content-start");
+    expect(rawDocumentsField).toHaveClass("content-start");
+  });
 });

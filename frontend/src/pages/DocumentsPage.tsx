@@ -78,10 +78,10 @@ export function DocumentsPage() {
             }
           }}
         >
-          <Field label="Name-Alias" hint="This is the display name for the document.">
+          <Field label="Name-Alias" hint="This is the display name for the document." className="min-h-[82px] content-start">
             <Input value={name} onChange={(event) => setName(event.target.value)} required />
           </Field>
-          <Field label="Title">
+          <Field label="Title" className="min-h-[82px] content-start">
             <Input value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} />
           </Field>
           <Field label="Author">
@@ -90,14 +90,18 @@ export function DocumentsPage() {
           <Field label="Year">
             <Input value={documentYear} onChange={(event) => setDocumentYear(event.target.value)} />
           </Field>
-          <Field label="Linked corpus IDs" hint={`Available corpora: ${(corpora.data ?? []).map((corpus) => corpus.id).join(", ") || "none"}`}>
+          <Field
+            label="Linked corpus IDs"
+            hint={`Available corpora: ${(corpora.data ?? []).map((corpus) => corpus.id).join(", ") || "none"}`}
+            className="content-start"
+          >
             <Input
               value={corpusIds}
               onChange={(event) => setCorpusIds(event.target.value)}
               placeholder="e.g. 1,2"
             />
           </Field>
-          <Field label="Description">
+          <Field label="Description" className="content-start">
             <Textarea value={description} onChange={(event) => setDescription(event.target.value)} />
           </Field>
           <Field label="PDF file">

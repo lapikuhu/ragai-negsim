@@ -164,7 +164,7 @@ export function IndexingPage() {
           {activeJob.data ? <StatusBadge status={activeJob.data.status} /> : null}
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <Field label="Corpus">
+          <Field label="Corpus" className="content-start">
             <Select value={corpusId} onChange={(event) => setCorpusId(event.target.value)} disabled={formDisabled}>
               <option value="">Select corpus</option>
               {(corpora.data ?? []).map((corpus) => (
@@ -174,7 +174,11 @@ export function IndexingPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Chunking profile" hint="Semantic and hybrid profiles use the selected embedding model during chunking before final indexing.">
+          <Field
+            label="Chunking profile"
+            hint="Semantic and hybrid profiles use the selected embedding model during chunking before final indexing."
+            className="content-start"
+          >
             <Select value={profileId} onChange={(event) => setProfileId(event.target.value)} disabled={formDisabled}>
               <option value="">Select profile</option>
               {availableProfiles.map((profile) => (
