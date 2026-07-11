@@ -226,4 +226,7 @@ dev = [
 markers = [
     "integration: tests that exercise real external services or cross-boundary behavior",
     "neo4j: tests that require a Neo4j database",
+    "postgres: tests that require a PostgreSQL database",
+    "alembic: tests that apply or inspect Alembic migrations",
+    "startup: tests that exercise application startup behavior",
 ]

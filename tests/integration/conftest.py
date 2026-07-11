@@ -4,9 +4,15 @@ import sys
 from typing import Generator
 from uuid import uuid4
 
+from alembic import command
+from alembic.config import Config
 from neo4j import GraphDatabase
 from neo4j import Driver
 import pytest
+import pytest_asyncio
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import create_async_engine
 
 # Get the root directory of the project (two levels up from this file)
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -32,6 +38,60 @@ _REQUIRED_INTEGRATION_SETTINGS = {
 
 for name, value in _REQUIRED_INTEGRATION_SETTINGS.items():
     os.environ.setdefault(name, value)
+
+
+@pytest.fixture(scope="session")
+def postgres_cfg() -> dict[str, str]:
+    """
+    Fixture for providing PostgreSQL config settings.
+    """
+    async_url = os.environ["ASYNC_DATABASE_URL"]
+    return {
+        "async_url": async_url,
+        "sync_url": async_url.replace("+asyncpg", "+psycopg"),
+    }
+
+
+@pytest.fixture(scope="session")
+def postgres_connectivity(postgres_cfg: dict[str, str]) -> None:
+    """
+    Fixture for verifying PostgreSQL sync and async connectivity.
+    """
+    sync_engine = create_engine(postgres_cfg["sync_url"], pool_pre_ping=True)
+    try:
+        with sync_engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        pytest.skip(f"PostgreSQL is not available for integration tests: {exc}")
+    finally:
+        sync_engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def migrated_postgres_db(
+    postgres_cfg: dict[str, str],
+    postgres_connectivity: None,
+) -> dict[str, str]:
+    """
+    Fixture for applying Alembic migrations to a real PostgreSQL database.
+    """
+    alembic_cfg = Config(str(ROOT_DIR / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(ROOT_DIR / "migrations"))
+    alembic_cfg.set_main_option("sqlalchemy.url", postgres_cfg["sync_url"])
+    command.upgrade(alembic_cfg, "head")
+    return postgres_cfg
+
+
+@pytest_asyncio.fixture
+async def migrated_async_engine(migrated_postgres_db: dict[str, str]):
+    """
+    Fixture for providing an async SQLAlchemy engine against migrated PostgreSQL.
+    """
+    engine = create_async_engine(migrated_postgres_db["async_url"], pool_pre_ping=True)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
 
 
 @pytest.fixture(scope="session")
