@@ -8,11 +8,12 @@ from neo4j import GraphDatabase
 from neo4j import Driver
 import pytest
 
-
+# Get the root directory of the project (two levels up from this file)
 ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+# Set default environment variables for integration tests
 _REQUIRED_INTEGRATION_SETTINGS = {
     "ASYNC_DATABASE_URL": (
         "postgresql+asyncpg://postgres:change_me_postgres@127.0.0.1:5432/negsim"
@@ -35,6 +36,9 @@ for name, value in _REQUIRED_INTEGRATION_SETTINGS.items():
 
 @pytest.fixture(scope="session")
 def neo4j_cfg() -> dict[str, str]:
+    """
+    Fixture for providing Neo4j config settings
+    """
     from app.airag.knowledge_graph.connection import (
         resolve_neo4j_database,
         resolve_neo4j_uri,
@@ -50,6 +54,13 @@ def neo4j_cfg() -> dict[str, str]:
 
 @pytest.fixture(scope="session")
 def neo4j_driver(neo4j_cfg: dict[str, str]) -> Generator[Driver, None, None]:
+    """
+    Fixture for providing a Neo4j driver instance
+    Args:
+        neo4j_cfg (dict[str, str]): Neo4j configuration settings
+    Yields:
+        Driver: Neo4j driver instance
+    """
     driver = GraphDatabase.driver(
         neo4j_cfg["uri"],
         auth=(neo4j_cfg["username"], neo4j_cfg["password"]),
@@ -68,6 +79,9 @@ def neo4j_driver(neo4j_cfg: dict[str, str]) -> Generator[Driver, None, None]:
 
 @pytest.fixture
 def scoped_neo4j_store(neo4j_cfg: dict[str, str], neo4j_driver: Driver):
+    """
+    Fixture for providing a scoped Neo4j property graph store.
+    """
     from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
 
     store = ScopedNeo4jPropertyGraphStore(
