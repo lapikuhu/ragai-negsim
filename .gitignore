@@ -70,3 +70,6 @@ CLAUDE.md
 # log files
 *.log
 *.log.*
+
+# understand 
+.ua/

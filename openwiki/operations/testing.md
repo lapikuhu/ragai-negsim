@@ -14,6 +14,7 @@ Backend tests cover:
 - retrieval and evidence ledger behavior
 - authentication and role boundaries
 - startup and seed scripts
+- PostgreSQL and Neo4j integration paths when real services are available
 
 ### Frontend tests
 Frontend tests cover:
@@ -34,6 +35,10 @@ Frontend tests cover:
 - `tests/unit/test_document_chunks_service.py`
 - `tests/unit/test_langsmith_traceable_boundaries.py`
 - `tests/unit/test_alpha_smoke_api.py`
+- `tests/integration/test_postgres_migrations.py`
+- `tests/integration/test_postgres_startup_seed.py`
+- `tests/integration/test_postgres_async_session.py`
+- `tests/integration/test_neo4j_scoped_store.py`
 
 ## Operational scripts
 - `scripts/seeder.py` seeds roles, users, scenarios, personas, chunking profiles, and vector-store configs.
@@ -56,6 +61,7 @@ When changing database-backed models or schemas:
 - Neo4j is required for graph retrieval features.
 - `RAW_DOCS_DIR` controls where uploaded raw documents are written on disk.
 - LangSmith tracing is optional but wired through `app/core/config.py`.
+- Integration tests set default placeholders for PostgreSQL, Neo4j, admin auth, and OpenAI settings in `tests/integration/conftest.py`; they skip cleanly if the services are unreachable.
 
 ## When editing behavior
 Use the tests to decide how far a change must propagate:

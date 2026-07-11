@@ -301,13 +301,70 @@ Greek DOC file in docs\DOC.pdf
 
 ## Testing
 
-Run the full test suite:
+The repository includes backend unit tests, backend integration tests, and frontend tests.
+
+### Backend unit tests
+
+Run backend unit tests only:
+
+```powershell
+uv run pytest tests/unit -p pytest_asyncio.plugin -q
+```
+
+If you see plugin autoload crashes on Python 3.12 in your local environment, disable auto-loaded plugins explicitly:
+
+```powershell
+$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD="1"
+uv run pytest tests/unit -p pytest_asyncio.plugin -q
+```
+
+### Backend integration tests
+
+Integration tests live under `tests/integration/` and are marker-driven.
+The main marker groups are:
+
+- `integration`
+- `postgres`
+- `neo4j`
+- `alembic`
+- `startup`
+
+Run all backend integration tests:
+
+```powershell
+uv run pytest tests/integration -m "integration" -p pytest_asyncio.plugin -q
+```
+
+Run only PostgreSQL integration tests:
+
+```powershell
+uv run pytest tests/integration -m "integration and postgres" -p pytest_asyncio.plugin -q
+```
+
+Run only Neo4j integration tests:
+
+```powershell
+uv run pytest tests/integration -m "integration and neo4j" -p pytest_asyncio.plugin -q
+```
+
+High-signal integration files include:
+
+- `tests/integration/test_postgres_migrations.py`
+- `tests/integration/test_postgres_startup_seed.py`
+- `tests/integration/test_postgres_async_session.py`
+- `tests/integration/test_neo4j_scoped_store.py`
+
+Integration defaults for PostgreSQL, Neo4j, admin settings, auth settings, and OpenAI key placeholders are set in `tests/integration/conftest.py`. Tests skip cleanly when required services are unreachable.
+
+### Full backend test suite
+
+Run all backend tests (unit + integration):
 
 ```powershell
 uv run pytest
 ```
 
-The repository currently includes service-level coverage as well as an API-level smoke test for:
+The backend suite includes service-level coverage as well as API-level smoke tests for:
 
 - login
 - raw document upload
@@ -315,6 +372,47 @@ The repository currently includes service-level coverage as well as an API-level
 - corpus index queueing
 - simulation start
 - simulation turn submission
+
+## CI Workflows
+
+Continuous integration is defined in `.github/workflows/ci.yml`.
+
+### Triggers and flow
+
+- Runs on `push` to `main`
+- Runs on `pull_request` targeting `main`
+- Uses workflow-level concurrency to cancel superseded runs on the same ref
+- Uses path filtering (`dorny/paths-filter`) to run only affected backend and/or frontend jobs
+
+### Backend CI jobs
+
+- `Backend (py3.12, py3.13)`
+	- Installs dependencies with `uv sync --frozen --dev`
+	- Runs compile quality gate: `uv run python -m compileall app tests/unit`
+	- Runs unit tests fail-fast with plugin autoload disabled:
+		- `uv run pytest tests/unit -p pytest_asyncio.plugin --maxfail=1 -q`
+
+- `Backend PostgreSQL Integration`
+	- Starts `postgres:16-alpine` service container
+	- Runs compile quality gate: `uv run python -m compileall app tests/integration`
+	- Runs integration tests:
+		- `uv run pytest tests/integration -m "integration and postgres" -p pytest_asyncio.plugin --maxfail=1 -q`
+
+- `Backend Neo4j Integration`
+	- Starts `neo4j:5-community` service container with APOC enabled
+	- Runs compile quality gate: `uv run python -m compileall app tests/integration`
+	- Runs integration tests:
+		- `uv run pytest tests/integration -m "integration and neo4j" --maxfail=1 -q`
+
+### Frontend CI job
+
+- `Frontend`
+	- Uses Node 20 and `npm ci` in `frontend/`
+	- Runs `npm run typecheck`
+	- Runs `npm run build`
+	- Runs fail-fast tests: `npm run test -- --bail=1`
+
+These CI jobs mirror the expected local quality gates and are the source of truth for pull request validation.
 
 ## Frontend
 

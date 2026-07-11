@@ -53,7 +53,7 @@ The React frontend mirrors backend domains with routes for simulations, document
 - The backend expects environment configuration from `.env`, with examples in `.env.example`.
 - PostgreSQL is the application database, and Neo4j is used for graph-retrieval features.
 - Startup code seeds baseline data after the database schema exists.
-- The repository currently includes recent work on learner assistance, CRAG/GraphRAG source capture, raw document corpora, and simulation review workflows.
+- The repository currently includes recent work on learner assistance, CRAG/GraphRAG source capture, raw document corpora, simulation review workflows, and integration coverage for PostgreSQL and Neo4j.
 
 ## Source pointers
 - Backend entrypoint: `app/main.py`
