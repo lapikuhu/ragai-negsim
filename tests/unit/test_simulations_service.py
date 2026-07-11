@@ -2425,6 +2425,120 @@ async def test_get_simulation_state_redacts_internal_negotiation_secrets():
     assert "INTERNAL_EVENT" not in serialized
 
 
+def test_graph_cache_key_includes_knowledge_graph_generation():
+    corpus_index = SimpleNamespace(
+        id=77,
+        embedding_model="mini-l6-v2",
+        embedding_dimensions=384,
+        vector_namespace="corpus-index-77",
+    )
+    vector_store = SimpleNamespace(
+        id=12,
+        backend="chroma",
+        collection_name="negotiation",
+        path="./chroma_db",
+        table_name=None,
+    )
+    rag_profile = SimpleNamespace(
+        id=500,
+        strategy="graphrag",
+        config={"retrieval_mode": "semantic"},
+        knowledge_graph_index_id=8,
+    )
+    prompt_templates = {
+        "coach": "Coach {phase}",
+        "counterpart": "Counterpart {phase}",
+        "evaluator": "Evaluator {phase}",
+    }
+
+    first_key = simulations_service._graph_cache_key(
+        corpus_index,
+        vector_store,
+        prompt_templates,
+        rag_profile,
+        {"counterpart": {"provider": None, "model": None}},
+        SimpleNamespace(id=8, active_generation="generation-a"),
+    )
+    second_key = simulations_service._graph_cache_key(
+        corpus_index,
+        vector_store,
+        prompt_templates,
+        rag_profile,
+        {"counterpart": {"provider": None, "model": None}},
+        SimpleNamespace(id=8, active_generation="generation-b"),
+    )
+
+    assert first_key != second_key
+
+
+def test_clear_negotiation_graph_cache_for_knowledge_graph_removes_target_only():
+    simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
+    corpus_index = SimpleNamespace(
+        id=77,
+        embedding_model="mini-l6-v2",
+        embedding_dimensions=384,
+        vector_namespace="corpus-index-77",
+    )
+    vector_store = SimpleNamespace(
+        id=12,
+        backend="chroma",
+        collection_name="negotiation",
+        path="./chroma_db",
+        table_name=None,
+    )
+    prompt_templates = {
+        "coach": "Coach {phase}",
+        "counterpart": "Counterpart {phase}",
+        "evaluator": "Evaluator {phase}",
+    }
+    graphrag_profile = SimpleNamespace(
+        id=500,
+        strategy="graphrag",
+        config={"retrieval_mode": "semantic"},
+        knowledge_graph_index_id=8,
+    )
+    crag_profile = SimpleNamespace(
+        id=501,
+        strategy="crag",
+        config={"top_k": 4},
+        knowledge_graph_index_id=None,
+    )
+    target_key = simulations_service._graph_cache_key(
+        corpus_index,
+        vector_store,
+        prompt_templates,
+        graphrag_profile,
+        None,
+        SimpleNamespace(id=8, active_generation="generation-a"),
+    )
+    other_graph_key = simulations_service._graph_cache_key(
+        corpus_index,
+        vector_store,
+        prompt_templates,
+        graphrag_profile,
+        None,
+        SimpleNamespace(id=9, active_generation="generation-a"),
+    )
+    crag_key = simulations_service._graph_cache_key(
+        corpus_index,
+        vector_store,
+        prompt_templates,
+        crag_profile,
+        None,
+        None,
+    )
+    simulations_service.NEGOTIATION_GRAPH_CACHE[target_key] = "target"
+    simulations_service.NEGOTIATION_GRAPH_CACHE[other_graph_key] = "other"
+    simulations_service.NEGOTIATION_GRAPH_CACHE[crag_key] = "crag"
+
+    removed = simulations_service.clear_negotiation_graph_cache_for_knowledge_graph(8)
+
+    assert removed == 1
+    assert target_key not in simulations_service.NEGOTIATION_GRAPH_CACHE
+    assert simulations_service.NEGOTIATION_GRAPH_CACHE[other_graph_key] == "other"
+    assert simulations_service.NEGOTIATION_GRAPH_CACHE[crag_key] == "crag"
+
+
 @pytest.mark.asyncio
 async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
     simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
@@ -2562,6 +2676,148 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
     assert build_calls[0][5] is None
     assert build_calls[0][6] is not None
     assert build_calls[0][7] is not None
+
+
+@pytest.mark.asyncio
+async def test_graphrag_negotiation_graph_cache_tracks_active_generation(monkeypatch):
+    simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
+    build_calls = []
+    active_generation = "generation-a"
+    simulation = _simulation(
+        status="active",
+        corpus_index_id=77,
+        rag_profile_id=500,
+        coach_prompt_id=11,
+        counterpart_prompt_id=12,
+        evaluator_prompt_id=13,
+    )
+
+    async def fake_get_corpus_index_by_id(corpus_index_id, session):
+        return SimpleNamespace(
+            id=corpus_index_id,
+            corpus_id=200,
+            vector_store_id=12,
+            status="built",
+            embedding_model="mini-l6-v2",
+            embedding_dimensions=384,
+            vector_namespace="corpus-index-77",
+        )
+
+    async def fake_get_vector_store_by_id(vector_store_id, session):
+        return SimpleNamespace(
+            id=vector_store_id,
+            backend="chroma",
+            collection_name="negotiation",
+            path="./chroma_db",
+            table_name=None,
+        )
+
+    async def fake_get_prompt_by_id(prompt_id, session):
+        prompts = {
+            11: SimpleNamespace(id=11, messages={"template": "DB coach {phase}"}),
+            12: SimpleNamespace(id=12, messages={"template": "DB counterpart {phase}"}),
+            13: SimpleNamespace(id=13, messages={"template": "DB evaluator {phase}"}),
+        }
+        return prompts[prompt_id]
+
+    async def fake_get_rag_profile_by_id(profile_id, session):
+        return SimpleNamespace(
+            id=profile_id,
+            strategy="graphrag",
+            config={"retrieval_mode": "semantic", "evidence_limit": 6},
+            knowledge_graph_index_id=8,
+        )
+
+    async def fake_get_knowledge_graph_index_by_id(graph_id, session):
+        return SimpleNamespace(
+            id=graph_id,
+            corpus_index_id=77,
+            status="built",
+            active_generation=active_generation,
+            build_config={},
+        )
+
+    async def fake_build_retrieval_graph(
+        *,
+        corpus_index,
+        vector_store,
+        rag_profile,
+        knowledge_graph,
+        session,
+    ):
+        return "graphrag", ("graphrag", knowledge_graph.active_generation)
+
+    def fake_make_negotiation_graph(
+        rag_graph=None,
+        retrieval_strategy="crag",
+        coach_prompt_template=None,
+        counterpart_prompt_template=None,
+        evaluator_prompt_template=None,
+        intent_classifier_model=None,
+        counterpart_model=None,
+        evaluator_model=None,
+    ):
+        build_calls.append((retrieval_strategy, rag_graph))
+        return SimpleNamespace(generation=rag_graph[1])
+
+    monkeypatch.setattr(
+        simulations_service.corpus_indices_repo,
+        "get_corpus_index_by_id",
+        fake_get_corpus_index_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.vector_stores_repo,
+        "get_vector_store_by_id",
+        fake_get_vector_store_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.prompts_repo,
+        "get_prompt_by_id",
+        fake_get_prompt_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.knowledge_graph_indices_repo,
+        "get_knowledge_graph_index_by_id",
+        fake_get_knowledge_graph_index_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_build_retrieval_graph",
+        fake_build_retrieval_graph,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "make_negotiation_graph",
+        fake_make_negotiation_graph,
+    )
+
+    first = await simulations_service._get_negotiation_graph_for_simulation(
+        simulation,
+        object(),
+    )
+    second = await simulations_service._get_negotiation_graph_for_simulation(
+        simulation,
+        object(),
+    )
+    active_generation = "generation-b"
+    third = await simulations_service._get_negotiation_graph_for_simulation(
+        simulation,
+        object(),
+    )
+
+    assert first is second
+    assert third is not first
+    assert first.generation == "generation-a"
+    assert third.generation == "generation-b"
+    assert build_calls == [
+        ("graphrag", ("graphrag", "generation-a")),
+        ("graphrag", ("graphrag", "generation-b")),
+    ]
 
 
 @pytest.mark.asyncio

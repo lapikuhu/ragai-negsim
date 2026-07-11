@@ -95,6 +95,7 @@ from app.schemas.evidence_ledger_schemas import SimulationEvidenceLedgerRead
 TERMINAL_STATUSES = {"completed", "cancelled", "failed"}
 RUNNABLE_STATUSES = {"active", "paused"}
 NEGOTIATION_GRAPH_CACHE: dict[tuple[Any, ...], Any] = {}
+GRAPH_CACHE_KNOWLEDGE_GRAPH_ID_INDEX = 13
 PUBLIC_GRAPH_STATE_FIELDS = (
     "simulation_id",
     "user_side",
@@ -773,6 +774,7 @@ def _graph_cache_key(
     prompt_templates: dict[str, str | None],
     rag_profile: Any,
     llm_selection: dict[str, Any] | None = None,
+    knowledge_graph: Any | None = None,
 ) -> tuple[Any, ...]:
     """
     Generate a cache key for the negotiation graph based on the corpus index,
@@ -798,11 +800,35 @@ def _graph_cache_key(
         getattr(rag_profile, "strategy", None),
         json.dumps(getattr(rag_profile, "config", {}), sort_keys=True),
         getattr(rag_profile, "knowledge_graph_index_id", None),
+        getattr(knowledge_graph, "id", None),
+        getattr(knowledge_graph, "active_generation", None),
         prompt_templates.get("coach"),
         prompt_templates.get("counterpart"),
         prompt_templates.get("evaluator"),
         json.dumps(llm_selection or {}, sort_keys=True),
     )
+
+
+def clear_negotiation_graph_cache_for_knowledge_graph(graph_id: int) -> int:
+    """
+    Clear the negotiation graph cache for a specific knowledge graph ID.
+    Args:
+        graph_id: The ID of the knowledge graph for which to clear the 
+        cache.
+    Returns:
+        The number of cache entries removed.
+    """
+    keys_to_remove = [
+        key
+        for key in NEGOTIATION_GRAPH_CACHE
+        if (
+            len(key) > GRAPH_CACHE_KNOWLEDGE_GRAPH_ID_INDEX
+            and key[GRAPH_CACHE_KNOWLEDGE_GRAPH_ID_INDEX] == graph_id
+        )
+    ]
+    for key in keys_to_remove:
+        NEGOTIATION_GRAPH_CACHE.pop(key, None)
+    return len(keys_to_remove)
 
 
 def _llm_selection_from_start_data(start_data: SimulationStartRequest) -> dict[str, dict[str, str]]:
@@ -1200,6 +1226,7 @@ async def _get_negotiation_graph_for_simulation(
         prompt_templates,
         rag_profile,
         llm_selection,
+        knowledge_graph,
     )
     cached_graph = NEGOTIATION_GRAPH_CACHE.get(cache_key)
     if cached_graph is not None:

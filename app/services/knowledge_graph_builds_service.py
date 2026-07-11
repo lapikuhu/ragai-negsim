@@ -379,6 +379,20 @@ async def run_knowledge_graph_build_srvc(
             graph.latest_build_error = None
             graph.last_updated = graph.built_at
             await commit_and_refresh(session, graph)
+            # Try to clear the negotiation graph cache for the knowledge graph 
+            # after a successful build.
+            try:
+                from app.services import simulations_service
+
+                simulations_service.clear_negotiation_graph_cache_for_knowledge_graph(
+                    graph.id
+                )
+            except Exception:
+                logger.warning(
+                    "Unable to clear negotiation graph cache after graph build | %s",
+                    log_context,
+                    exc_info=True,
+                )
             job.processed_chunks = len(nodes)
             job = (
                 await knowledge_graph_build_jobs_repo.mark_knowledge_graph_build_job_completed(
