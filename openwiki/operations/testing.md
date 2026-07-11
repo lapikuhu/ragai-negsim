@@ -24,16 +24,16 @@ Frontend tests cover:
 - API wiring and proxy behavior
 
 ## High-signal backend test files
-- `tests/test_simulations_service.py`
-- `tests/test_simulation_learner_service.py`
-- `tests/test_negotiation_graph.py`
-- `tests/test_evidence_ledger.py`
-- `tests/test_crag_grounding.py`
-- `tests/test_graphrag_retrieval.py`
-- `tests/test_raw_documents_service.py`
-- `tests/test_document_chunks_service.py`
-- `tests/test_langsmith_traceable_boundaries.py`
-- `tests/test_alpha_smoke_api.py`
+- `tests/unit/test_simulations_service.py`
+- `tests/unit/test_simulation_learner_service.py`
+- `tests/unit/test_negotiation_graph.py`
+- `tests/unit/test_evidence_ledger.py`
+- `tests/unit/test_crag_grounding.py`
+- `tests/unit/test_graphrag_retrieval.py`
+- `tests/unit/test_raw_documents_service.py`
+- `tests/unit/test_document_chunks_service.py`
+- `tests/unit/test_langsmith_traceable_boundaries.py`
+- `tests/unit/test_alpha_smoke_api.py`
 
 ## Operational scripts
 - `scripts/seeder.py` seeds roles, users, scenarios, personas, chunking profiles, and vector-store configs.

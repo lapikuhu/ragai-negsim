@@ -514,6 +514,7 @@ docker compose down
 - For completeness implement the BM25 retriever, even though it is not appropriate for the nature of the project.
 - Decouple chunking from indexing, keep complete pipeline as a feature.
 - Expand prompt guard module.
+- Expand LLM provides coverage, only OpenAI and Ollama supported at the moment.
 - Implement HippoRAG2 knowledge graphs (Unix-Linux only support).
 - Abstract RAG strategies: CRAG and GraphRAG cohabitate in a disjointed manner, a 3rd RAG option would further complicate things. Need abstraction for isolation and reusability.
 - Refactor project folder architecture to vertical slicing.
