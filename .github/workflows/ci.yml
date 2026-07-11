@@ -29,6 +29,7 @@ jobs:
             backend:
               - 'app/**'
               - 'tests/unit/**'
+              - 'tests/integration/**'
               - 'migrations/**'
               - 'scripts/**'
               - 'pyproject.toml'
@@ -72,6 +73,60 @@ jobs:
         env:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
         run: uv run pytest tests/unit -p pytest_asyncio.plugin --maxfail=1 -q
+
+  backend-neo4j-integration:
+    name: Backend Neo4j Integration
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+
+    services:
+      neo4j:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: neo4j/change_me_neo4j
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p change_me_neo4j 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 12
+          --health-start-period 30s
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Sync dependencies (frozen + dev)
+        run: uv sync --frozen --dev
+
+      - name: Quality gate compile check
+        run: uv run python -m compileall app tests/integration
+
+      - name: Neo4j integration tests (fail fast)
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+          ASYNC_DATABASE_URL: postgresql+asyncpg://postgres:change_me_postgres@127.0.0.1:5432/negsim
+          ADMIN_USERNAME: test-admin
+          ADMIN_EMAIL: test-admin@example.test
+          ADMIN_PASSWORD: test-password
+          NEO4J_URI: bolt://127.0.0.1:7687
+          NEO4J_USERNAME: neo4j
+          NEO4J_PASSWORD: change_me_neo4j
+          NEO4J_DATABASE: neo4j
+          SECRET_KEY: test-secret-key
+          ALGORITHM: HS256
+          OPENAI_API_KEY: test-openai-api-key
+        run: uv run pytest tests/integration -m "integration and neo4j" --maxfail=1 -q
 
   frontend:
     name: Frontend
