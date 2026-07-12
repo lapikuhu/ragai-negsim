@@ -4,12 +4,8 @@ from pydantic import BaseModel, Field
 from typing_extensions import NotRequired, TypedDict
 
 from app.airag.chains.negotiation.negotiation_model import (
-	CoachAdvice,
-	Evaluation,
 	Offer,
-	RetrievalResult,
 	Side,
-	SideProfile,
 )
 
 CounterpartAction = Literal[

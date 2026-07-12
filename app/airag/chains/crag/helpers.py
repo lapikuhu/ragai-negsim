@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 from typing import Any, Literal
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
-import re
 
 # local imports
 from app.airag.prompts.sys_prompts import DOC_GRADE_PROMPT, REWRITE_PROMPT, GEN_PROMPT

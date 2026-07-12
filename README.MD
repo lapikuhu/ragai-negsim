@@ -616,6 +616,8 @@ docker compose down
 - Implement HippoRAG2 knowledge graphs (Unix-Linux only support).
 - Abstract RAG strategies: CRAG and GraphRAG cohabitate in a disjointed manner, a 3rd RAG option would further complicate things. Need abstraction for isolation and reusability.
 - Refactor project folder architecture to vertical slicing.
+- Move FastAPI background intensive indexing jobs to dedicated worker queues (Celerey, Dramatiq).
+- Improve performance of indexing jobs.
 
 ## License
 MIT. See [LICENSE.md](LICENSE.md) for more info.

@@ -138,3 +138,185 @@ def test_require_persisted_graph_accepts_generation_with_nodes():
     knowledge_graph_builds_service._require_persisted_graph(
         {"node_count": 1, "relationship_count": 0}
     )
+
+
+@pytest.mark.asyncio
+async def test_interrupted_graph_build_recovery_cleans_candidate_and_preserves_active_generation(
+    monkeypatch,
+    recording_async_session_factory,
+):
+    session = recording_async_session_factory()
+    job = SimpleNamespace(
+        id=44,
+        knowledge_graph_index_id=5,
+        candidate_generation="candidate-generation",
+    )
+    graph = SimpleNamespace(
+        id=5,
+        active_generation="active-generation",
+        status="building",
+        latest_build_error=None,
+        last_updated=None,
+    )
+    unbuilt_job = SimpleNamespace(
+        id=46,
+        knowledge_graph_index_id=7,
+        candidate_generation="unbuilt-candidate-generation",
+    )
+    unbuilt_graph = SimpleNamespace(
+        id=7,
+        active_generation=None,
+        status="building",
+        latest_build_error=None,
+        last_updated=None,
+    )
+    deleted_generations = []
+    closed_stores = []
+    failed_jobs = []
+
+    class Store:
+        def __init__(self, generation):
+            self.generation = generation
+
+        def delete_generation(self):
+            deleted_generations.append(self.generation)
+
+        def close(self):
+            closed_stores.append(self.generation)
+
+    async def fake_list_interrupted(current_session):
+        assert current_session is session
+        return [job, unbuilt_job]
+
+    async def fake_get_graph(graph_id, current_session):
+        assert current_session is session
+        return {5: graph, 7: unbuilt_graph}[graph_id]
+
+    async def fake_commit_and_refresh(current_session, instance):
+        assert current_session is session
+        return instance
+
+    async def fake_mark_failed(current_job, detail, current_session):
+        failed_jobs.append((current_job, detail, current_session))
+        return current_job
+
+    monkeypatch.setattr(
+        knowledge_graph_builds_service,
+        "AsyncSessionLocal",
+        lambda: session,
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service.knowledge_graph_build_jobs_repo,
+        "list_interrupted_knowledge_graph_build_jobs",
+        fake_list_interrupted,
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service.knowledge_graph_indices_repo,
+        "get_knowledge_graph_index_by_id",
+        fake_get_graph,
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service,
+        "_create_scoped_store",
+        lambda graph_id, generation: Store(generation),
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service,
+        "commit_and_refresh",
+        fake_commit_and_refresh,
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service.knowledge_graph_build_jobs_repo,
+        "mark_knowledge_graph_build_job_failed",
+        fake_mark_failed,
+    )
+
+    await knowledge_graph_builds_service.fail_interrupted_knowledge_graph_builds_srvc()
+
+    assert deleted_generations == [
+        "candidate-generation",
+        "unbuilt-candidate-generation",
+    ]
+    assert closed_stores == [
+        "candidate-generation",
+        "unbuilt-candidate-generation",
+    ]
+    assert graph.status == "built"
+    assert unbuilt_graph.status == "failed"
+    assert graph.latest_build_error == (
+        "Knowledge graph build interrupted because the application was shut down or restarted."
+    )
+    assert [failed_job[0] for failed_job in failed_jobs] == [job, unbuilt_job]
+    assert [failed_job[1] for failed_job in failed_jobs] == [
+        "Knowledge graph build interrupted because the application was shut down or restarted.",
+        "Knowledge graph build interrupted because the application was shut down or restarted.",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_interrupted_graph_build_recovery_marks_job_failed_when_cleanup_fails_and_graph_is_missing(
+    monkeypatch,
+    recording_async_session_factory,
+):
+    session = recording_async_session_factory()
+    job = SimpleNamespace(
+        id=45,
+        knowledge_graph_index_id=6,
+        candidate_generation="abandoned-generation",
+    )
+    closed_stores = []
+    failed_jobs = []
+
+    class Store:
+        def delete_generation(self):
+            raise RuntimeError("Neo4j unavailable")
+
+        def close(self):
+            closed_stores.append("abandoned-generation")
+
+    async def fake_list_interrupted(current_session):
+        return [job]
+
+    async def fake_get_graph(graph_id, current_session):
+        return None
+
+    async def fake_mark_failed(current_job, detail, current_session):
+        failed_jobs.append((current_job, detail, current_session))
+        return current_job
+
+    monkeypatch.setattr(
+        knowledge_graph_builds_service,
+        "AsyncSessionLocal",
+        lambda: session,
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service.knowledge_graph_build_jobs_repo,
+        "list_interrupted_knowledge_graph_build_jobs",
+        fake_list_interrupted,
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service.knowledge_graph_indices_repo,
+        "get_knowledge_graph_index_by_id",
+        fake_get_graph,
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service,
+        "_create_scoped_store",
+        lambda graph_id, generation: Store(),
+    )
+    monkeypatch.setattr(
+        knowledge_graph_builds_service.knowledge_graph_build_jobs_repo,
+        "mark_knowledge_graph_build_job_failed",
+        fake_mark_failed,
+    )
+
+    await knowledge_graph_builds_service.fail_interrupted_knowledge_graph_builds_srvc()
+
+    assert closed_stores == ["abandoned-generation"]
+    assert failed_jobs == [
+        (
+            job,
+            "Knowledge graph build interrupted because the application was shut down or restarted.",
+            session,
+        )
+    ]

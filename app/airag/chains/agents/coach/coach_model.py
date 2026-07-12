@@ -7,13 +7,9 @@ import operator
 from app.airag.chains.negotiation.negotiation_model import (
 	CoachAdvice,
 	Confidence,
-	Evaluation,
 	Offer,
-	RetrievalResult,
 	Side,
-	SideProfile,
 )
-from app.airag.prompts.neg_prompts.md_loader import COACH_PROMPT
 
 # 
 CoachNextMove = Literal[

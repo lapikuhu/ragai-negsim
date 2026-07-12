@@ -37,7 +37,7 @@ from app.schemas.indexing_jobs_schemas import (
     IndexingJobWarningRead,
 )
 from app.services.chunking_profile_runtime import resolve_ingestion_profile_options
-from app.services.embeddings_service import _external_vector_id, _to_vector_documents
+from app.services.embeddings_service import _to_vector_documents
 from app.services.ingestion_service import ingest_raw_document_srvc
 from app.repositories.indexed_chunks_repo import bulk_create_indexed_chunks
 

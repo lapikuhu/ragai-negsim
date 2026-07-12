@@ -83,6 +83,26 @@ async def list_knowledge_graph_build_jobs(
     return list(result.all())
 
 
+async def list_interrupted_knowledge_graph_build_jobs(
+    session: AsyncSession,
+) -> list[KnowledgeGraphBuildJob]:
+    """
+    Return graph build jobs left appearing active by an application 
+    interruption.
+        Args:
+            session: The database session.
+        Returns:
+            A list of KnowledgeGraphBuildJob instances that appear 
+            still active.
+    """
+    result = await session.exec(
+        select(KnowledgeGraphBuildJob)
+        .where(KnowledgeGraphBuildJob.status.in_(ACTIVE_GRAPH_BUILD_STATUSES))
+        .order_by(KnowledgeGraphBuildJob.id.asc())
+    )
+    return list(result.all())
+
+
 async def create_knowledge_graph_build_job(
     job_in: KnowledgeGraphBuildJobCreate,
     session: AsyncSession,

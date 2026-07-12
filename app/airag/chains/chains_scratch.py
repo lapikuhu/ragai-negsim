@@ -1,11 +1,9 @@
-from app.core.config import settings
 from pathlib import Path
-from langchain_core.documents import Document
 
 # local imports
 from app.core.config import settings
 
-from ingestion.loaders import ingest_pdfs_from_corpus, ingest_single_pdf, convert_to_markdown, fast_document_converter
+from ingestion.loaders import ingest_single_pdf, convert_to_markdown, fast_document_converter
 from ingestion.ingestion import clean_markdown, split_md_on_headers
 from chunking.chunkers import chunk_document_list_semantic, chunk_document_list_recursive
 from embeddings.embeddings import choose_embedding_model

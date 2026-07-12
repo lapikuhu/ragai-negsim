@@ -12,7 +12,6 @@ from app.airag.chains.negotiation.negotiation_model import (
 	Evaluation,
 	ParentNegotiationState,
 )
-from app.airag.prompts.neg_prompts.md_loader import EVALUATOR_PROMPT
 
 from app.airag.chains.agents.evaluator.evaluator_nodes import (
     node_prepare_evaluator_context,

@@ -117,7 +117,7 @@ async def verify_raw_document_source_srvc(
         stat_result = source_file.stat()
         current_size = stat_result.st_size
         current_mtime = _to_utc_datetime(stat_result.st_mtime)
-        current_hash = _hash_bytes(source_file.read_bytes())
+        current_hash = _hash_bytes(source_file.read_bytes()) # Synchronous read?
         if raw_document.source_hash and current_hash != raw_document.source_hash:
             if raw_document.source_status != RAW_DOCUMENT_SOURCE_STATUS_CHANGED:
                 raw_document.source_status = RAW_DOCUMENT_SOURCE_STATUS_CHANGED
@@ -200,7 +200,7 @@ async def create_uploaded_raw_document_srvc(
     if len(file_bytes) > settings.MAX_UPLOAD_SIZE:
         raise ValueError(f"Uploaded file exceeds the maximum allowed size of {settings.MAX_UPLOAD_SIZE} bytes")
 
-    stored_path.write_bytes(file_bytes)
+    stored_path.write_bytes(file_bytes) #Synchronous write?
     stat_result = stored_path.stat()
     raw_document_in = RawDocumentCreate(
         name=name,
@@ -232,16 +232,21 @@ async def list_raw_documents_srvc(
     name_contains: str | None = None,
 ) -> list[RawDocument]:
     """
-    Service function to list raw documents with optional filters and pagination.
+    Service function to list raw documents with optional filters and 
+    pagination.
     Args:
         session: The database session to use for the query.
         skip: The number of records to skip for pagination.
         limit: The maximum number of records to return.
-        uploaded_by_user_id: Optional filter to return documents uploaded by a specific user.
-        corpus_id: Optional filter to return documents associated with a specific corpus.
-        name_contains: Optional filter to return documents whose names contain a specific substring.
+        uploaded_by_user_id: Optional filter to return documents uploaded 
+            by a specific user.
+        corpus_id: Optional filter to return documents associated with a 
+            specific corpus.
+        name_contains: Optional filter to return documents whose names 
+            contain a specific substring.
     Returns:
-        A list of RawDocument instances matching the filters and pagination criteria.
+        A list of RawDocument instances matching the filters and pagination 
+        criteria.
     """
     raw_documents = await list_raw_documents(session, skip, limit, uploaded_by_user_id, corpus_id, name_contains)
     verified_documents = []

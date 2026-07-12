@@ -31,8 +31,13 @@ from app.middleware.logging import RequestLoggingMiddleware
 async def lifespan(app: FastAPI):
     await startup_seed() # setup: seed startup data after Alembic migrations
     from app.services.indexing_jobs_service import fail_interrupted_indexing_jobs_srvc
-
+    from app.services.knowledge_graph_builds_service import (
+        fail_interrupted_knowledge_graph_builds_srvc,
+    )
+    # Fail any stalled indexing jobs and knowledge graph builds left 
+    # active by an application shutdown or restart
     await fail_interrupted_indexing_jobs_srvc()
+    await fail_interrupted_knowledge_graph_builds_srvc()
     
     print("Database setup complete. [OK]")
 

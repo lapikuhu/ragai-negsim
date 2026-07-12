@@ -43,7 +43,6 @@ from app.repositories import (
     rag_profiles_repo,
     knowledge_graph_indices_repo,
     document_chunks_repo,
-    raw_documents_repo,
     scenarios_repo,
     sessions_repo,
     simulation_evidence_ledgers_repo,

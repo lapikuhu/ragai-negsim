@@ -34,6 +34,10 @@ from app.schemas.knowledge_graph_build_jobs_schemas import (
 
 _GRAPH_BUILD_TASKS: dict[int, asyncio.Task[KnowledgeGraphBuildJobRead]] = {}
 logger = logging.getLogger(__name__)
+INTERRUPTED_FAILURE_DETAIL = (
+    "Knowledge graph build interrupted because the application was shut down "
+    "or restarted."
+)
 
 
 class KnowledgeGraphBuildCancelled(Exception):
@@ -565,3 +569,78 @@ async def cancel_knowledge_graph_build_job_srvc(
     job.cancel_requested = True
     job = await commit_and_refresh(session, job)
     return _job_read(job)
+
+
+async def _cleanup_interrupted_candidate_generation(job) -> None:
+    """
+    Cleanup the candidate generation for an interrupted knowledge graph 
+    build job.
+    Args:
+        job: The knowledge graph build job that was interrupted.
+    Returns:
+        None
+    """
+    store = None
+    # Try to delete the candidate generation from the Neo4j store
+    try:
+        store = _create_scoped_store(
+            job.knowledge_graph_index_id,
+            job.candidate_generation,
+        )
+        await asyncio.to_thread(store.delete_generation)
+    except Exception:
+        logger.exception(
+            "Unable to clean interrupted knowledge graph generation | "
+            "job_id=%s | graph_id=%s | generation=%s",
+            job.id,
+            job.knowledge_graph_index_id,
+            job.candidate_generation,
+        )
+    finally:
+        if store is not None:
+            try:
+                store.close()
+            except Exception:
+                logger.exception(
+                    "Unable to close interrupted knowledge graph store | "
+                    "job_id=%s | graph_id=%s | generation=%s",
+                    job.id,
+                    job.knowledge_graph_index_id,
+                    job.candidate_generation,
+                )
+
+
+async def fail_interrupted_knowledge_graph_builds_srvc() -> None:
+    """
+    Flag graph builds left active by an application shutdown or restart as failed.
+    Called on startup in main.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            interrupted_jobs = (
+                await knowledge_graph_build_jobs_repo.list_interrupted_knowledge_graph_build_jobs(
+                    session
+                )
+            )
+        except Exception:
+            logger.exception("Unable to list interrupted knowledge graph builds")
+            return
+
+        for job in interrupted_jobs:
+            await _cleanup_interrupted_candidate_generation(job)
+            graph = (
+                await knowledge_graph_indices_repo.get_knowledge_graph_index_by_id(
+                    job.knowledge_graph_index_id,
+                    session,
+                )
+            )
+            if graph is not None:
+                graph.status = "built" if graph.active_generation else "failed"
+                graph.latest_build_error = INTERRUPTED_FAILURE_DETAIL
+                graph.last_updated = utc_now()
+                await commit_and_refresh(session, graph)
+            await knowledge_graph_build_jobs_repo.mark_knowledge_graph_build_job_failed(
+                job,
+                INTERRUPTED_FAILURE_DETAIL,
+                session,
+            )
