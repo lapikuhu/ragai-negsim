@@ -2,7 +2,8 @@ import re
 
 def normalize_text(text: str) -> str:
     """
-    Normalize the input text by converting it to lowercase and removing extra whitespace.
+    Normalize the input text by converting it to lowercase and removing 
+    extra whitespace.
     Args:
         text (str): The input text to normalize.
     Returns:   
@@ -106,7 +107,8 @@ def exceeds_size_limit(text: str, limit: int = 10000) -> bool:
 
 def ensemble_guard(text: str) -> bool:
     """
-    Return True if the text fails any of the guard checks (prompt injection, PII, size limit).
+    Return True if the text fails any of the guard checks (prompt injection, 
+    PII, size limit).
     Args:
         text (str): The text to check against the ensemble of guards.
     Returns:
@@ -122,12 +124,14 @@ def ensemble_guard(text: str) -> bool:
 
 def ensemble_guard_with_error(text: str) -> bool:
     """
-    Return True if the text fails any of the guard checks (prompt injection, PII, size limit).
+    Return True if the text fails any of the guard checks (prompt injection, 
+    PII, size limit).
     Args:
         text (str): The text to check against the ensemble of guards.
     Returns:
         bool: True if any guard check fails, False otherwise.
-        error_message (str): A warning message indicating which guard check failed.
+        error_message (str): A warning message indicating which guard 
+        check failed.
     """
     if detect_injection(text):
         error_message = "Warning: The input text contains a prompt injection pattern."
@@ -142,7 +146,8 @@ def ensemble_guard_with_error(text: str) -> bool:
 
 def return_guarded_query(text: str) -> str:
     """
-    Return the original text if it passes all guard checks, otherwise return a warning message.
+    Return the original text if it passes all guard checks, otherwise 
+    return a warning message.
     Args:
         text (str): The text to check against the ensemble of guards.
     Returns:

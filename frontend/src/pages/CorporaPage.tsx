@@ -18,6 +18,10 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 import { formatDateTime } from "@/utils/format";
 import { getErrorMessage } from "@/api/client";
 
+function getDocumentFileName(sourcePath: string) {
+  return sourcePath.split(/[\\/]/).pop() || sourcePath;
+}
+
 export function CorporaPage() {
   const corpora = useCorporaQuery();
   const documents = useDocumentsQuery();
@@ -35,7 +39,8 @@ export function CorporaPage() {
   const normalizedDocumentSearch = documentSearch.trim().toLowerCase();
   const visibleDocuments = normalizedDocumentSearch
     ? availableDocuments.filter((document) => {
-        const haystack = `${document.name} ${document.description ?? ""} ${document.id}`.toLowerCase();
+        const fileName = getDocumentFileName(document.source_path);
+        const haystack = `${document.name} ${document.document_title ?? ""} ${fileName} ${document.description ?? ""} ${document.id}`.toLowerCase();
         return haystack.includes(normalizedDocumentSearch);
       })
     : availableDocuments;
@@ -148,7 +153,7 @@ export function CorporaPage() {
                 <Input
                   value={documentSearch}
                   onChange={(event) => setDocumentSearch(event.target.value)}
-                  placeholder="Search by name, description, or ID"
+                  placeholder="Search by title, filename, description, or ID"
                 />
                 <Button
                   type="button"
@@ -178,6 +183,7 @@ export function CorporaPage() {
                 <div className="grid gap-3">
                   {visibleDocuments.map((document) => {
                     const isSelected = selectedDocumentIds.includes(document.id);
+                    const fileName = getDocumentFileName(document.source_path);
                     return (
                       <label
                         key={document.id}
@@ -195,11 +201,14 @@ export function CorporaPage() {
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium text-slate-950">{document.name}</span>
+                            <span className="text-sm font-medium text-slate-950">
+                              {document.document_title ?? "Not available"}
+                            </span>
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
                               ID {document.id}
                             </span>
                           </div>
+                          <p className="mt-1 text-sm text-slate-600">{fileName}</p>
                           <p className="mt-1 text-sm text-slate-600">
                             {document.description ?? "No description"}
                           </p>
