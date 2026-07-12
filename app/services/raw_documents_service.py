@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 import re
-
 from fastapi import UploadFile
+import asyncio
 
 from app.core.config import settings
 from app.models.raw_documents import RawDocument
@@ -117,7 +117,7 @@ async def verify_raw_document_source_srvc(
         stat_result = source_file.stat()
         current_size = stat_result.st_size
         current_mtime = _to_utc_datetime(stat_result.st_mtime)
-        current_hash = _hash_bytes(source_file.read_bytes()) # Synchronous read?
+        current_hash =  _hash_bytes(await asyncio.to_thread(source_file.read_bytes))
         if raw_document.source_hash and current_hash != raw_document.source_hash:
             if raw_document.source_status != RAW_DOCUMENT_SOURCE_STATUS_CHANGED:
                 raw_document.source_status = RAW_DOCUMENT_SOURCE_STATUS_CHANGED
@@ -200,7 +200,7 @@ async def create_uploaded_raw_document_srvc(
     if len(file_bytes) > settings.MAX_UPLOAD_SIZE:
         raise ValueError(f"Uploaded file exceeds the maximum allowed size of {settings.MAX_UPLOAD_SIZE} bytes")
 
-    stored_path.write_bytes(file_bytes) #Synchronous write?
+    await asyncio.to_thread(stored_path.write_bytes, file_bytes)
     stat_result = stored_path.stat()
     raw_document_in = RawDocumentCreate(
         name=name,

@@ -3,7 +3,6 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain.agents import create_agent
 
 # local imports
-from app.core.config import settings
 from app.airag.llm_models.llm_models import get_openai_llm
 from app.airag.chains.crag.crag import make_crag, CRAGState
 from app.airag.retrieval.retrievers import make_hybrid_retriever
