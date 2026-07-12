@@ -19,7 +19,10 @@ async def test_queue_graph_build_snapshots_exact_indexed_chunks(
         locked_at=None,
         status="created",
     )
-    chunks = [SimpleNamespace(id=11), SimpleNamespace(id=12)]
+    chunks = [
+        SimpleNamespace(id=11, raw_document_id=101),
+        SimpleNamespace(id=12, raw_document_id=102),
+    ]
     captured = {}
 
     async def fake_get_graph(graph_id, session):
@@ -73,6 +76,8 @@ async def test_queue_graph_build_snapshots_exact_indexed_chunks(
     assert result.id == 44
     assert captured["job"].chunk_ids_snapshot == [11, 12]
     assert captured["job"].total_chunks == 2
+    assert captured["job"].total_documents == 2
+    assert captured["job"].processed_documents == 0
     assert captured["job"].candidate_generation
 
 
@@ -138,6 +143,150 @@ def test_require_persisted_graph_accepts_generation_with_nodes():
     knowledge_graph_builds_service._require_persisted_graph(
         {"node_count": 1, "relationship_count": 0}
     )
+
+
+def test_document_label_prefers_title_and_falls_back_to_filename():
+    titled_chunk = SimpleNamespace(
+        raw_document=SimpleNamespace(
+            document_title="Negotiation Handbook",
+            source_path="C:\\uploads\\negotiation-handbook.pdf",
+        )
+    )
+    untitled_chunk = SimpleNamespace(
+        raw_document=SimpleNamespace(
+            document_title=None,
+            source_path="/uploads/settlement-memo.pdf",
+        )
+    )
+
+    assert knowledge_graph_builds_service._document_label(titled_chunk) == "Negotiation Handbook"
+    assert knowledge_graph_builds_service._document_label(untitled_chunk) == "settlement-memo.pdf"
+
+
+@pytest.mark.asyncio
+async def test_graph_build_processes_documents_in_separate_batches_and_persists_progress(
+    monkeypatch,
+    recording_async_session_factory,
+):
+    session = recording_async_session_factory()
+    now = datetime.now(timezone.utc)
+    job = SimpleNamespace(
+        id=44,
+        knowledge_graph_index_id=5,
+        status="queued",
+        stage="validating",
+        build_config_snapshot={"extractors": ["schema"]},
+        chunk_ids_snapshot=[11, 12],
+        candidate_generation="candidate",
+        total_documents=2,
+        processed_documents=0,
+        current_raw_document_id=None,
+        current_document_label=None,
+        total_chunks=2,
+        processed_chunks=0,
+        node_count=0,
+        relationship_count=0,
+        cancel_requested=False,
+        failure_detail=None,
+        queued_at=now,
+        started_at=None,
+        completed_at=None,
+    )
+    graph = SimpleNamespace(
+        id=5,
+        corpus_index_id=9,
+        active_generation=None,
+        status="created",
+        latest_build_error=None,
+        last_updated=None,
+        built_at=None,
+    )
+    chunks = [
+        SimpleNamespace(
+            id=11,
+            raw_document_id=101,
+            raw_document=SimpleNamespace(document_title="First document", source_path="/uploads/first.pdf"),
+        ),
+        SimpleNamespace(
+            id=12,
+            raw_document_id=102,
+            raw_document=SimpleNamespace(document_title=None, source_path="C:\\uploads\\second.pdf"),
+        ),
+    ]
+    indexed_batches = []
+    updates = []
+
+    class Store:
+        def generation_stats(self):
+            return {"node_count": 7, "relationship_count": 9}
+
+        def delete_generation(self):
+            return None
+
+        def close(self):
+            return None
+
+    async def fake_load_records(job_id, current_session):
+        return job, graph
+
+    async def fake_list_chunks(index_id, current_session):
+        return chunks
+
+    async def fake_mark_running(current_job, current_session):
+        current_job.status = "running"
+        return current_job
+
+    async def fake_update(current_job, current_session, **values):
+        updates.append(values)
+        for key, value in values.items():
+            setattr(current_job, key, value)
+        return current_job
+
+    async def fake_mark_completed(current_job, current_session):
+        current_job.status = "completed"
+        current_job.stage = "finished"
+        return current_job
+
+    async def fake_noop(*_args):
+        return None
+
+    async def fake_commit_and_refresh(_session, instance):
+        return instance
+
+    def fake_build_nodes(document_chunks, **_kwargs):
+        return [SimpleNamespace(id=chunk.id) for chunk in document_chunks]
+
+    def fake_build_index(**kwargs):
+        indexed_batches.append([node.id for node in kwargs["nodes"]])
+
+    monkeypatch.setattr(knowledge_graph_builds_service, "AsyncSessionLocal", lambda: session)
+    monkeypatch.setattr(knowledge_graph_builds_service, "_load_build_records", fake_load_records)
+    monkeypatch.setattr(knowledge_graph_builds_service, "_raise_if_cancel_requested", fake_noop)
+    monkeypatch.setattr(knowledge_graph_builds_service.knowledge_graph_indices_repo, "ensure_knowledge_graph_mutable", fake_noop)
+    monkeypatch.setattr(knowledge_graph_builds_service.document_chunks_repo, "list_document_chunks_for_corpus_index", fake_list_chunks)
+    monkeypatch.setattr(knowledge_graph_builds_service.knowledge_graph_build_jobs_repo, "mark_knowledge_graph_build_job_running", fake_mark_running)
+    monkeypatch.setattr(knowledge_graph_builds_service.knowledge_graph_build_jobs_repo, "update_knowledge_graph_build_job", fake_update)
+    monkeypatch.setattr(knowledge_graph_builds_service.knowledge_graph_build_jobs_repo, "mark_knowledge_graph_build_job_completed", fake_mark_completed)
+    monkeypatch.setattr(knowledge_graph_builds_service, "commit_and_refresh", fake_commit_and_refresh)
+    monkeypatch.setattr(knowledge_graph_builds_service, "create_graph_llm", lambda _config: object())
+    monkeypatch.setattr(knowledge_graph_builds_service, "create_graph_embedding_model", lambda _config: object())
+    monkeypatch.setattr(knowledge_graph_builds_service, "create_kg_extractors", lambda _config, llm: [])
+    monkeypatch.setattr(knowledge_graph_builds_service, "_create_scoped_store", lambda *_args: Store())
+    monkeypatch.setattr(knowledge_graph_builds_service, "build_graph_text_nodes", fake_build_nodes)
+    monkeypatch.setattr(knowledge_graph_builds_service, "build_property_graph_index", fake_build_index)
+
+    result = await knowledge_graph_builds_service.run_knowledge_graph_build_srvc(44)
+
+    assert indexed_batches == [[11], [12]]
+    assert result.processed_documents == 2
+    assert result.processed_chunks == 2
+    assert result.node_count == 7
+    assert result.relationship_count == 9
+    assert {update.get("current_document_label") for update in updates if "current_document_label" in update} >= {
+        "First document",
+        "second.pdf",
+        None,
+    }
 
 
 @pytest.mark.asyncio

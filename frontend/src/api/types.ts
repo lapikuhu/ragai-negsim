@@ -231,8 +231,14 @@ export type KnowledgeGraphBuildJobRead = {
   knowledge_graph_index_id: number;
   status: string;
   stage: string;
+  total_documents: number;
+  processed_documents: number;
+  current_raw_document_id?: number | null;
+  current_document_label?: string | null;
   total_chunks: number;
   processed_chunks: number;
+  node_count: number;
+  relationship_count: number;
   candidate_generation: string;
   failure_detail?: string | null;
 };

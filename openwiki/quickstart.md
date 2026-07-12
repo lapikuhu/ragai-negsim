@@ -25,7 +25,7 @@ The backend is the main system under active development. It manages users, roles
 The app uses JWT-based auth with role-based FastAPI dependencies. Routes are split between general user access, teacher/admin access, and admin-only management.
 
 ### Documents, corpora, and retrieval
-Raw PDF documents are uploaded, linked to corpora, ingested, chunked, and stored for retrieval. The system supports both corrective RAG and GraphRAG flows and records sources in an evidence ledger. Recent security changes add stricter PDF upload validation, raw-document source verification now tracks changing on-disk file state, and recent prompt work intercepts simulation turns and learner questions at the service layer before graph or agent invocation, with guard checks also enforced in the shared LLM invocation path.
+Raw PDF documents are uploaded, linked to corpora, ingested, chunked, and stored for retrieval. The system supports both corrective RAG and GraphRAG flows and records sources in an evidence ledger. Recent security changes add stricter PDF upload validation, raw-document source verification now tracks changing on-disk file state, knowledge graph build jobs now expose live progress metadata in the Knowledge Graphs UI, and recent prompt work intercepts simulation turns and learner questions at the service layer before graph or agent invocation, with guard checks also enforced in the shared LLM invocation path.
 
 ### Simulations and agent orchestration
 Simulations are the core product object. They combine scenario data, counterpart personas, prompts, learner settings, retrieval context, coach feedback, and evaluator output in a LangGraph-driven negotiation workflow.

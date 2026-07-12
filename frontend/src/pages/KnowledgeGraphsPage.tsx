@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { getErrorMessage } from "@/api/client";
-import type { EmbeddingModelRead, LLMProvider } from "@/api/types";
+import type { EmbeddingModelRead, KnowledgeGraphBuildJobRead, LLMProvider } from "@/api/types";
 import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { formatDateTime } from "@/utils/format";
 import { useCorpusIndicesQuery, useEmbeddingModelsQuery } from "@/features/corpusIndices/corpusIndexQueries";
@@ -16,6 +16,7 @@ import {
   useBuildKnowledgeGraphMutation,
   useCreateKnowledgeGraphMutation,
   useDeleteKnowledgeGraphMutation,
+  useKnowledgeGraphBuildJobsQuery,
   useKnowledgeGraphsQuery,
 } from "@/features/knowledgeGraphs/knowledgeGraphQueries";
 import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
@@ -51,6 +52,7 @@ const semanticExtractorCopy: Record<
 
 export function KnowledgeGraphsPage() {
   const graphs = useKnowledgeGraphsQuery();
+  const buildJobs = useKnowledgeGraphBuildJobsQuery();
   const indices = useCorpusIndicesQuery();
   const llmCatalog = useLlmModelCatalogQuery();
   const embeddingModels = useEmbeddingModelsQuery();
@@ -105,6 +107,12 @@ export function KnowledgeGraphsPage() {
   }
 
   const items = graphs.data ?? [];
+  const latestBuildJobByGraphId = new Map<number, KnowledgeGraphBuildJobRead>();
+  for (const job of buildJobs.data ?? []) {
+    if (!latestBuildJobByGraphId.has(job.knowledge_graph_index_id)) {
+      latestBuildJobByGraphId.set(job.knowledge_graph_index_id, job);
+    }
+  }
   const builtIndices = (indices.data ?? []).filter((index) => index.status === "built");
   const selectedEmbeddingModel = (embeddingModels.data ?? []).find((model) => model.name === form.embeddingModel) ?? null;
   const selectedExtractors: GraphExtractor[] = form.includeImplicit
@@ -288,6 +296,9 @@ export function KnowledgeGraphsPage() {
                   render: (graph) => (
                     <div>
                       <div className="capitalize">{graph.status}</div>
+                      {latestBuildJobByGraphId.get(graph.id) ? (
+                        <GraphBuildProgress job={latestBuildJobByGraphId.get(graph.id)!} />
+                      ) : null}
                       {graph.latest_build_error ? (
                         <div className="mt-1 max-w-sm text-xs text-red-700">
                           {graph.latest_build_error}
@@ -357,6 +368,37 @@ export function KnowledgeGraphsPage() {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+function GraphBuildProgress({ job }: { job: KnowledgeGraphBuildJobRead }) {
+  const isActive = job.status === "queued" || job.status === "running";
+  const percent = job.total_chunks
+    ? Math.round((Math.min(job.processed_chunks, job.total_chunks) / job.total_chunks) * 100)
+    : 0;
+
+  if (!isActive && job.status !== "completed") {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 grid gap-1 text-xs text-slate-600">
+      <div className="font-medium capitalize text-slate-700">{job.stage}</div>
+      {isActive && job.current_document_label ? (
+        <div>Processing: {job.current_document_label}</div>
+      ) : null}
+      {isActive ? (
+        <>
+          <div>Documents {job.processed_documents} of {job.total_documents}</div>
+          <div>Chunks {job.processed_chunks} of {job.total_chunks}</div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200" aria-label={`${percent}% complete`}>
+            <div className="h-full bg-teal-600" style={{ width: `${percent}%` }} />
+          </div>
+        </>
+      ) : (
+        <div>Nodes {job.node_count} · Relationships {job.relationship_count}</div>
+      )}
     </div>
   );
 }

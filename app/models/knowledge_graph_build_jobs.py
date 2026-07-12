@@ -19,8 +19,14 @@ class KnowledgeGraphBuildJob(SQLModel, table=True):
     build_config_snapshot: dict = Field(default_factory=dict, sa_column=Column(JSON))
     chunk_ids_snapshot: list[int] = Field(default_factory=list, sa_column=Column(JSON))
     candidate_generation: str = Field(index=True, min_length=1)
+    total_documents: int = Field(default=0, ge=0)
+    processed_documents: int = Field(default=0, ge=0)
+    current_raw_document_id: int | None = Field(default=None, foreign_key="rawdocument.id")
+    current_document_label: str | None = None
     total_chunks: int = Field(default=0, ge=0)
     processed_chunks: int = Field(default=0, ge=0)
+    node_count: int = Field(default=0, ge=0)
+    relationship_count: int = Field(default=0, ge=0)
     cancel_requested: bool = Field(default=False)
     failure_detail: str | None = None
     queued_at: datetime = Field(
@@ -38,4 +44,3 @@ class KnowledgeGraphBuildJob(SQLModel, table=True):
     knowledge_graph_index: "KnowledgeGraphIndex" = Relationship(
         back_populates="build_jobs"
     )
-

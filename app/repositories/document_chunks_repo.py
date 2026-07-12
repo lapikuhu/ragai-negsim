@@ -412,6 +412,7 @@ async def list_document_chunks_for_corpus_index(
     """
     result = await session.exec(
         select(DocumentChunk)
+        .options(selectinload(DocumentChunk.raw_document))
         .join(
             IndexedChunk,
             IndexedChunk.document_chunk_id == DocumentChunk.id,

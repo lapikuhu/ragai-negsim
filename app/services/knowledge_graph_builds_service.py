@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections import defaultdict
 from uuid import uuid4
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -89,6 +90,21 @@ def _new_generation() -> str:
     return uuid4().hex
 
 
+def _document_label(chunk) -> str:
+    """
+    Return the label for a document chunk.
+
+    Args:
+        chunk: The document chunk.
+    Returns:
+        str: The label for the document chunk.
+    """
+    document = chunk.raw_document
+    if document.document_title:
+        return document.document_title
+    return document.source_path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
 def _create_scoped_store(graph_id: int, generation: str):
     """
     Create a scoped Neo4j property graph store for a specific graph and 
@@ -165,6 +181,7 @@ async def queue_knowledge_graph_build_srvc(
             build_config_snapshot=dict(graph.build_config),
             chunk_ids_snapshot=chunk_ids,
             candidate_generation=_new_generation(),
+            total_documents=len({chunk.raw_document_id for chunk in chunks}),
             total_chunks=len(chunk_ids),
         ),
         session,
@@ -299,26 +316,16 @@ async def run_knowledge_graph_build_srvc(
                 len(chunks_by_id),
             )
 
-            nodes = build_graph_text_nodes(
-                [chunks_by_id[chunk_id] for chunk_id in job.chunk_ids_snapshot],
-                graph_id=graph.id,
-                generation=job.candidate_generation,
-                corpus_index_id=graph.corpus_index_id,
-            )
-            job = (
-                await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
-                    job,
-                    session,
-                    stage="extracting",
-                    processed_chunks=len(nodes),
-                )
-            )
+            chunks_by_document = defaultdict(list)
+            for chunk_id in job.chunk_ids_snapshot:
+                chunk = chunks_by_id[chunk_id]
+                chunks_by_document[chunk.raw_document_id].append(chunk)
             logger.info(
-                "Knowledge graph text nodes prepared | %s | nodes=%d | "
-                "characters=%d",
+                "Knowledge graph document batches prepared | %s | documents=%d | "
+                "chunks=%d",
                 log_context,
-                len(nodes),
-                sum(len(node.text) for node in nodes),
+                len(chunks_by_document),
+                len(job.chunk_ids_snapshot),
             )
             llm = create_graph_llm(job.build_config_snapshot)
             embedding_model = create_graph_embedding_model(
@@ -332,27 +339,48 @@ async def run_knowledge_graph_build_srvc(
                 graph.id,
                 job.candidate_generation,
             )
-            job = (
-                await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
-                    job,
-                    session,
-                    stage="indexing",
-                )
-            )
             logger.info(
                 "Knowledge graph extraction and persistence started | %s | "
                 "extractors=%s",
                 log_context,
                 [extractor.class_name() for extractor in extractors],
             )
-            await asyncio.to_thread(
-                build_property_graph_index,
-                nodes=nodes,
-                graph_store=candidate_store,
-                llm=llm,
-                embedding_model=embedding_model,
-                kg_extractors=extractors,
-            )
+            for raw_document_id, document_chunks in chunks_by_document.items():
+                await _raise_if_cancel_requested(job, session)
+                job = await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
+                    job,
+                    session,
+                    stage="extracting",
+                    current_raw_document_id=raw_document_id,
+                    current_document_label=_document_label(document_chunks[0]),
+                )
+                nodes = build_graph_text_nodes(
+                    document_chunks,
+                    graph_id=graph.id,
+                    generation=job.candidate_generation,
+                    corpus_index_id=graph.corpus_index_id,
+                )
+                job = await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
+                    job,
+                    session,
+                    stage="indexing",
+                )
+                await asyncio.to_thread(
+                    build_property_graph_index,
+                    nodes=nodes,
+                    graph_store=candidate_store,
+                    llm=llm,
+                    embedding_model=embedding_model,
+                    kg_extractors=extractors,
+                )
+                job = await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
+                    job,
+                    session,
+                    processed_documents=job.processed_documents + 1,
+                    processed_chunks=job.processed_chunks + len(nodes),
+                    current_raw_document_id=None,
+                    current_document_label=None,
+                )
             job = (
                 await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
                     job,
@@ -397,12 +425,17 @@ async def run_knowledge_graph_build_srvc(
                     log_context,
                     exc_info=True,
                 )
-            job.processed_chunks = len(nodes)
             job = (
                 await knowledge_graph_build_jobs_repo.mark_knowledge_graph_build_job_completed(
                     job,
                     session,
                 )
+            )
+            job = await knowledge_graph_build_jobs_repo.update_knowledge_graph_build_job(
+                job,
+                session,
+                node_count=persistence_stats["node_count"],
+                relationship_count=persistence_stats["relationship_count"],
             )
 
             if old_generation and old_generation != graph.active_generation:

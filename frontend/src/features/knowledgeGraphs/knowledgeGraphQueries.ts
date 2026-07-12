@@ -21,6 +21,14 @@ export function getKnowledgeGraphRefetchInterval(
   return hasActiveJob ? 2000 : false;
 }
 
+function getKnowledgeGraphBuildJobRefetchInterval(
+  jobs: KnowledgeGraphBuildJobRead[],
+) {
+  return jobs.some((job) => job.status === "queued" || job.status === "running")
+    ? 2000
+    : false;
+}
+
 async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
   const response = await apiFetch(`${getApiBaseUrl()}${path}`, {
     ...init,
@@ -41,6 +49,14 @@ export async function listKnowledgeGraphs() {
     "/knowledge-graph-indexes/?skip=0&limit=100",
     { method: "GET" },
     "Unable to load knowledge graphs",
+  );
+}
+
+export async function listKnowledgeGraphBuildJobs() {
+  return jsonRequest<KnowledgeGraphBuildJobRead[]>(
+    "/knowledge-graph-build-jobs/?skip=0&limit=100",
+    { method: "GET" },
+    "Unable to load knowledge graph build jobs",
   );
 }
 
@@ -74,6 +90,15 @@ export function useKnowledgeGraphsQuery() {
     queryFn: listKnowledgeGraphs,
     refetchInterval: (query) =>
       getKnowledgeGraphRefetchInterval(query.state.data ?? []),
+  });
+}
+
+export function useKnowledgeGraphBuildJobsQuery() {
+  return useQuery({
+    queryKey: knowledgeGraphKeys.jobs,
+    queryFn: listKnowledgeGraphBuildJobs,
+    refetchInterval: (query) =>
+      getKnowledgeGraphBuildJobRefetchInterval(query.state.data ?? []),
   });
 }
 

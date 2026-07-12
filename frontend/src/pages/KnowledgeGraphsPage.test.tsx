@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { KnowledgeGraphsPage } from "./KnowledgeGraphsPage";
 
-const { useKnowledgeGraphsQuery, mutateAsync } = vi.hoisted(() => ({
+const { useKnowledgeGraphsQuery, useKnowledgeGraphBuildJobsQuery, mutateAsync } = vi.hoisted(() => ({
   useKnowledgeGraphsQuery: vi.fn(),
+  useKnowledgeGraphBuildJobsQuery: vi.fn(),
   mutateAsync: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ const llmCatalogState = vi.hoisted(() => ({
 
 vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
   useKnowledgeGraphsQuery,
+  useKnowledgeGraphBuildJobsQuery,
   useCreateKnowledgeGraphMutation: () => ({ isPending: false, mutateAsync }),
   useBuildKnowledgeGraphMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useDeleteKnowledgeGraphMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
@@ -111,6 +113,12 @@ describe("KnowledgeGraphsPage", () => {
           active_job_id: null,
         },
       ],
+      refetch: vi.fn(),
+    });
+    useKnowledgeGraphBuildJobsQuery.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [],
       refetch: vi.fn(),
     });
   });
@@ -240,5 +248,66 @@ describe("KnowledgeGraphsPage", () => {
         "Neo4j persistence produced an empty graph (nodes=0, relationships=0)",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("shows active document-level graph build progress", () => {
+    useKnowledgeGraphsQuery.mockReturnValueOnce({
+      isLoading: false,
+      isError: false,
+      data: [
+        {
+          id: 1,
+          name: "Negotiation ontology",
+          corpus_index_id: 77,
+          build_config: {
+            llm_provider: "openai",
+            llm_model: "gpt-4o-mini",
+            embedding_provider: "openai",
+            embedding_model: "text-embedding-3-small",
+            extractors: ["schema"],
+          },
+          status: "building",
+          active_generation: null,
+          latest_build_error: null,
+          locked_at: null,
+          built_at: null,
+          created_at: "2026-06-14T10:00:00Z",
+          last_updated: "2026-06-14T12:00:00Z",
+          rag_profile_ids: [],
+          simulation_ids: [],
+          active_job_id: 44,
+        },
+      ],
+      refetch: vi.fn(),
+    });
+    useKnowledgeGraphBuildJobsQuery.mockReturnValueOnce({
+      isLoading: false,
+      isError: false,
+      data: [
+        {
+          id: 44,
+          knowledge_graph_index_id: 1,
+          status: "running",
+          stage: "indexing",
+          total_documents: 3,
+          processed_documents: 1,
+          current_raw_document_id: 102,
+          current_document_label: "Negotiation Handbook",
+          total_chunks: 12,
+          processed_chunks: 4,
+          node_count: 0,
+          relationship_count: 0,
+          candidate_generation: "candidate",
+        },
+      ],
+      refetch: vi.fn(),
+    });
+
+    render(<KnowledgeGraphsPage />);
+
+    expect(screen.getByText("Processing: Negotiation Handbook")).toBeInTheDocument();
+    expect(screen.getByText("Documents 1 of 3")).toBeInTheDocument();
+    expect(screen.getByText("Chunks 4 of 12")).toBeInTheDocument();
+    expect(screen.getByText("indexing")).toBeInTheDocument();
   });
 });

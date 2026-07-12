@@ -3249,6 +3249,10 @@ export type components = {
             chunk_ids_snapshot?: number[];
             /** Completed At */
             completed_at?: string | null;
+            /** Current Document Label */
+            current_document_label?: string | null;
+            /** Current Raw Document Id */
+            current_raw_document_id?: number | null;
             /** Failure Detail */
             failure_detail?: string | null;
             /** Id */
@@ -3257,6 +3261,8 @@ export type components = {
             knowledge_graph_index_id: number;
             /** Processed Chunks */
             processed_chunks: number;
+            /** Processed Documents */
+            processed_documents: number;
             /**
              * Queued At
              * Format: date-time
@@ -3274,11 +3280,20 @@ export type components = {
              * @default queued
              */
             status: string;
+            /** Node Count */
+            node_count?: number;
+            /** Relationship Count */
+            relationship_count?: number;
             /**
              * Total Chunks
              * @default 0
              */
             total_chunks: number;
+            /**
+             * Total Documents
+             * @default 0
+             */
+            total_documents: number;
         };
         /** KnowledgeGraphIndexCreate */
         KnowledgeGraphIndexCreate: {

@@ -67,6 +67,15 @@ At the moment this is a front-door validation layer rather than a full policy en
 - `app/services/document_chunks_service.py` and `app/repositories/document_chunks_repo.py` support chunk browsing.
 - `app/services/corpus_service.py` and `app/services/corpus_indices_service.py` connect corpora to indices.
 - `app/services/rag_profiles_service.py` models retrieval profile settings.
+- `app/services/knowledge_graph_builds_service.py` orchestrates graph build jobs, tracks progress, and guards against stale chunk snapshots while a build is running.
+- `app/models/knowledge_graph_build_jobs.py` and `app/schemas/knowledge_graph_build_jobs_schemas.py` define the build-job progress fields now used by the UI.
+
+## Knowledge graph build jobs
+Knowledge graph builds now carry richer progress metadata so the UI can show a live in-progress state rather than just queued or completed jobs. Build jobs track the number of documents and chunks queued for a graph, the current raw document being processed, the current document label, and the node and relationship counts persisted into Neo4j.
+
+The build service snapshots the exact chunk IDs at queue time and refuses to continue if the corpus index changes before execution. That makes the build safer for long-running jobs and explains why the Knowledge Graphs page polls both graphs and build jobs while a job is active.
+
+The new migration `migrations/versions/d5e8f1a2b3c4_add_knowledge_graph_build_progress.py` adds the corresponding database columns. If you change build-job state again, update the model, schema, service, repository, migration, and the page together.
 
 ## What to watch out for
 - A retrieval change usually affects simulation grounding, learner answers, evidence ledger contents, and tests all at once.
