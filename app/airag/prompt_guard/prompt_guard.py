@@ -36,6 +36,46 @@ def detect_injection(text: str) -> bool:
 
 ### -------------------------- PII GUARD --------------------------- ###
 
+_EMAIL_ADDRESS_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9._%+-])"
+    r"[A-Za-z0-9]+(?:[._%+-][A-Za-z0-9]+)*"
+    r"@"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z]{2,63}"
+    r"(?![A-Za-z0-9-])"
+)
+_INTERNATIONAL_PHONE_PATTERN = re.compile(
+    r"(?<![\w+])\+(?:[\d ()-]*\d)(?![./]\d)"
+)
+
+
+def _contains_email_address(text: str) -> bool:
+    """
+    Return True when text contains a common ASCII email address.
+    Args:
+        text (str): The text to check for email addresses.
+    Returns:
+        bool: True if an email address is found, False otherwise.
+    """
+    return _EMAIL_ADDRESS_PATTERN.search(text) is not None
+
+
+def _contains_international_phone_number(text: str) -> bool:
+    """
+    Return True when text contains a formatted E.164 phone number.
+    Args:
+        text (str): The text to check for international phone numbers.
+    Returns:
+        bool: True if an international phone number is found, False 
+        otherwise.
+    """
+    for match in _INTERNATIONAL_PHONE_PATTERN.finditer(text):
+        digits = re.sub(r"[^\d]", "", match.group())
+        if 8 <= len(digits) <= 15 and digits[0] != "0":
+            return True
+    return False
+
+
 def contains_pii(text: str) -> bool:
     """
     Return True if the text contains personally identifiable information (PII).
@@ -45,8 +85,7 @@ def contains_pii(text: str) -> bool:
         bool: True if PII is found, False otherwise.
     """
     text = normalize_text(text)
-    # Add PII detection logic here
-    pass
+    return _contains_email_address(text) or _contains_international_phone_number(text)
 
 ### -------------------------- SIZE GUARD -------------------------- ###
 
@@ -56,6 +95,8 @@ def exceeds_size_limit(text: str, limit: int = 10000) -> bool:
     Args:
         text (str): The text query to check.
         limit (int): The maximum allowed length of the text query.
+    Returns:
+        bool: True if the text query exceeds the size limit, False otherwise.
     """
     return len(text) > limit
 
