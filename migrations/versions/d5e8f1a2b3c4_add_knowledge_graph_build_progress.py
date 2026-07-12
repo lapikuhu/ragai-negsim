@@ -1,7 +1,7 @@
 """add knowledge graph build progress
 
 Revision ID: d5e8f1a2b3c4
-Revises: 3bbdb71076fd
+Revises: 87637f9b0af7
 Create Date: 2026-07-12 00:00:00.000000
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "d5e8f1a2b3c4"
-down_revision = "3bbdb71076fd"
+down_revision = "87637f9b0af7"
 branch_labels = None
 depends_on = None
 
