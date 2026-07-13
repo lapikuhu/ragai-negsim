@@ -93,3 +93,17 @@ def test_scoped_schema_property_queries_materialize_aggregates_before_returning_
     assert "properties: properties" in node_query
     assert "WITH rel_type, collect({property: property, type: head(types)}) AS properties" in relationship_query
     assert "properties: properties" in relationship_query
+
+
+def test_scoped_schema_property_queries_use_neo4j_native_type_detection():
+    from app.airag.knowledge_graph.scoped_schema_store import (
+        ScopedSchemaNeo4jPropertyGraphStore,
+    )
+
+    node_query = ScopedSchemaNeo4jPropertyGraphStore._node_properties_query()
+    relationship_query = ScopedSchemaNeo4jPropertyGraphStore._relationship_properties_query()
+
+    assert "valueType(n[property])" in node_query
+    assert "valueType(rel[property])" in relationship_query
+    assert "apoc.meta.type" not in node_query
+    assert "apoc.meta.type" not in relationship_query

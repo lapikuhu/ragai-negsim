@@ -312,7 +312,12 @@ class ScopedSchemaNeo4jPropertyGraphStore(ScopedNeo4jPropertyGraphStore):
         WITH n, label
         WHERE NOT label IN $excluded_labels
         UNWIND keys(n) AS property
-        WITH label, property, collect(DISTINCT apoc.meta.type(n[property])) AS types
+        WITH label, property, collect(DISTINCT CASE
+            WHEN valueType(n[property]) STARTS WITH 'LIST<' THEN 'LIST'
+            WHEN valueType(n[property]) = 'LOCAL DATETIME NOT NULL' THEN 'LOCAL_DATE_TIME'
+            WHEN valueType(n[property]) = 'ZONED DATETIME NOT NULL' THEN 'DATE_TIME'
+            ELSE replace(valueType(n[property]), ' NOT NULL', '')
+        END) AS types
         WITH label, collect({property: property, type: head(types)}) AS properties
         RETURN {
             labels: label,
@@ -335,7 +340,12 @@ class ScopedSchemaNeo4jPropertyGraphStore(ScopedNeo4jPropertyGraphStore):
           AND target.graph_generation = $generation
         UNWIND keys(rel) AS property
         WITH type(rel) AS rel_type, property,
-             collect(DISTINCT apoc.meta.type(rel[property])) AS types
+             collect(DISTINCT CASE
+                WHEN valueType(rel[property]) STARTS WITH 'LIST<' THEN 'LIST'
+                WHEN valueType(rel[property]) = 'LOCAL DATETIME NOT NULL' THEN 'LOCAL_DATE_TIME'
+                WHEN valueType(rel[property]) = 'ZONED DATETIME NOT NULL' THEN 'DATE_TIME'
+                ELSE replace(valueType(rel[property]), ' NOT NULL', '')
+             END) AS types
         WITH rel_type, collect({property: property, type: head(types)}) AS properties
         RETURN {
             type: rel_type,
