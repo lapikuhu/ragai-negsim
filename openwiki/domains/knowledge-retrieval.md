@@ -68,6 +68,7 @@ At the moment this is a front-door validation layer rather than a full policy en
 - `app/services/corpus_service.py` and `app/services/corpus_indices_service.py` connect corpora to indices.
 - `app/services/rag_profiles_service.py` models retrieval profile settings.
 - `app/services/knowledge_graph_builds_service.py` orchestrates graph build jobs, tracks progress, and guards against stale chunk snapshots while a build is running.
+- `app/airag/knowledge_graph/scoped_schema_store.py` keeps Neo4j schema refresh scoped to the active logical graph generation.
 - `app/models/knowledge_graph_build_jobs.py` and `app/schemas/knowledge_graph_build_jobs_schemas.py` define the build-job progress fields now used by the UI.
 
 ## Knowledge graph build jobs

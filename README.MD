@@ -38,7 +38,7 @@ The generative-AI layer is built from three cooperating parts:
 Two retrieval strategies are currently available through reusable RAG profiles:
 
 - `CRAG` for corrective retrieval over the configured vector store. The CRAG graph retrieves candidate chunks, reranks them, grades their relevance, rewrites the query when evidence is weak, generates an answer from trusted context, checks answer quality, and falls back when the configured rewrite limit is reached.
-- `GraphRAG` for knowledge-graph retrieval backed by Neo4j. GraphRAG uses a built knowledge graph tied to a corpus index and can retrieve scoped evidence through semantic graph search, validated text-to-Cypher, or a hybrid mode that combines ranked evidence with reciprocal rank fusion.
+- `GraphRAG` for knowledge-graph retrieval backed by Neo4j. GraphRAG uses a built knowledge graph tied to a corpus index and can retrieve scoped evidence through semantic graph search, validated text-to-Cypher, or a hybrid mode that combines ranked evidence with reciprocal rank fusion. Each GraphRAG is stored as a subgraph under one Neo4j database. This runs contrary to Llammaindex assumptions (expects one graph database for one knowledge graph), but accommodates Neo4 Community edition (restricted to one database).
 
 RAG profiles expose strategy-specific settings instead of hard-coding retrieval behavior. CRAG profiles configure values such as retrieved document count, reranker choice, reranked document count, and maximum rewrite attempts. GraphRAG profiles configure retrieval mode, evidence limits, traversal depth, and the hybrid ranking constant.
 
@@ -618,6 +618,7 @@ docker compose down
 - Refactor project folder architecture to vertical slicing.
 - Move FastAPI background intensive indexing jobs to dedicated worker queues (Celerey, Dramatiq).
 - Improve performance of indexing jobs.
+- Manage short and long term memory concerns.
 
 ## License
 MIT. See [LICENSE.md](LICENSE.md) for more info.
