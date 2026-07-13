@@ -28,7 +28,8 @@ from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
 
 
 class ScopedSchemaNeo4jPropertyGraphStore(ScopedNeo4jPropertyGraphStore):
-    """A scoped store with an opt-in, in-memory LlamaIndex schema cache.
+    """
+    A scoped store with an opt-in, in-memory LlamaIndex schema cache.
 
     Schema refresh is disabled by default because current build and GraphRAG
     retrieval flows do not consume ``structured_schema``.  A future
