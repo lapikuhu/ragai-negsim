@@ -313,9 +313,10 @@ class ScopedSchemaNeo4jPropertyGraphStore(ScopedNeo4jPropertyGraphStore):
         WHERE NOT label IN $excluded_labels
         UNWIND keys(n) AS property
         WITH label, property, collect(DISTINCT apoc.meta.type(n[property])) AS types
+        WITH label, collect({property: property, type: head(types)}) AS properties
         RETURN {
             labels: label,
-            properties: collect({property: property, type: head(types)})
+            properties: properties
         } AS output
         """
 
@@ -335,9 +336,10 @@ class ScopedSchemaNeo4jPropertyGraphStore(ScopedNeo4jPropertyGraphStore):
         UNWIND keys(rel) AS property
         WITH type(rel) AS rel_type, property,
              collect(DISTINCT apoc.meta.type(rel[property])) AS types
+        WITH rel_type, collect({property: property, type: head(types)}) AS properties
         RETURN {
             type: rel_type,
-            properties: collect({property: property, type: head(types)})
+            properties: properties
         } AS output
         """
 

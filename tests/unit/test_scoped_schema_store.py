@@ -79,3 +79,17 @@ def test_enabled_scoped_schema_refresh_queries_only_its_generation():
         for query, _ in store.queries
         for forbidden in ("apoc.meta.data", "apoc.meta.subGraph", "SHOW CONSTRAINTS", "apoc.schema.nodes")
     )
+
+
+def test_scoped_schema_property_queries_materialize_aggregates_before_returning_maps():
+    from app.airag.knowledge_graph.scoped_schema_store import (
+        ScopedSchemaNeo4jPropertyGraphStore,
+    )
+
+    node_query = ScopedSchemaNeo4jPropertyGraphStore._node_properties_query()
+    relationship_query = ScopedSchemaNeo4jPropertyGraphStore._relationship_properties_query()
+
+    assert "WITH label, collect({property: property, type: head(types)}) AS properties" in node_query
+    assert "properties: properties" in node_query
+    assert "WITH rel_type, collect({property: property, type: head(types)}) AS properties" in relationship_query
+    assert "properties: properties" in relationship_query
