@@ -58,7 +58,9 @@ from app.airag.knowledge_graph.connection import (
     resolve_neo4j_uri,
 )
 from app.airag.knowledge_graph.retrieval import ScopedGraphRetriever
-from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
+from app.airag.knowledge_graph.scoped_schema_store import (
+    ScopedSchemaNeo4jPropertyGraphStore,
+)
 from app.core.config import settings
 from app.airag.llm_models.llm_models import get_llm
 from app.services.llm_models_service import normalize_llm_selection
@@ -1073,9 +1075,10 @@ async def _make_scoped_graph_retriever(
     )
     chunks_by_id = {chunk.id: chunk for chunk in chunks if chunk.id is not None}
     config = graph.build_config
-    graph_store = ScopedNeo4jPropertyGraphStore(
+    graph_store = ScopedSchemaNeo4jPropertyGraphStore(
         graph_id=graph.id,
         generation=graph.active_generation,
+        schema_refresh_enabled=False, # Disable schema refresh for performance
         username=settings.NEO4J_READ_USERNAME or settings.NEO4J_USERNAME,
         password=settings.NEO4J_READ_PASSWORD or settings.NEO4J_PASSWORD,
         url=resolve_neo4j_uri(settings.NEO4J_URI),

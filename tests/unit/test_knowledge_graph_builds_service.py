@@ -6,6 +6,26 @@ import pytest
 from app.services import knowledge_graph_builds_service
 
 
+def test_create_scoped_store_disables_schema_refresh(monkeypatch):
+    captured = {}
+
+    class Store:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(
+        knowledge_graph_builds_service,
+        "ScopedSchemaNeo4jPropertyGraphStore",
+        Store,
+    )
+
+    knowledge_graph_builds_service._create_scoped_store(5, "candidate")
+
+    assert captured["graph_id"] == 5
+    assert captured["generation"] == "candidate"
+    assert captured["schema_refresh_enabled"] is False
+
+
 @pytest.mark.asyncio
 async def test_queue_graph_build_snapshots_exact_indexed_chunks(
     monkeypatch,

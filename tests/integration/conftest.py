@@ -142,9 +142,11 @@ def scoped_neo4j_store(neo4j_cfg: dict[str, str], neo4j_driver: Driver):
     """
     Fixture for providing a scoped Neo4j property graph store.
     """
-    from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
+    from app.airag.knowledge_graph.scoped_schema_store import (
+        ScopedSchemaNeo4jPropertyGraphStore,
+    )
 
-    store = ScopedNeo4jPropertyGraphStore(
+    store = ScopedSchemaNeo4jPropertyGraphStore(
         graph_id=9001,
         generation=f"it-{uuid4().hex[:12]}",
         username=neo4j_cfg["username"],

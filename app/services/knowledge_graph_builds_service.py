@@ -17,7 +17,9 @@ from app.airag.knowledge_graph.connection import (
     resolve_neo4j_database,
     resolve_neo4j_uri,
 )
-from app.airag.knowledge_graph.scoped_store import ScopedNeo4jPropertyGraphStore
+from app.airag.knowledge_graph.scoped_schema_store import (
+    ScopedSchemaNeo4jPropertyGraphStore,
+)
 from app.core.config import settings
 from app.db.db import AsyncSessionLocal
 from app.repositories import (
@@ -113,11 +115,12 @@ def _create_scoped_store(graph_id: int, generation: str):
         graph_id (int): The ID of the knowledge graph.
         generation (str): The generation identifier.
     Returns:
-        ScopedNeo4jPropertyGraphStore: The scoped graph store instance.
+        ScopedSchemaNeo4jPropertyGraphStore: The scoped graph store instance.
     """
-    return ScopedNeo4jPropertyGraphStore(
+    return ScopedSchemaNeo4jPropertyGraphStore(
         graph_id=graph_id,
         generation=generation,
+        schema_refresh_enabled=False,
         username=settings.NEO4J_USERNAME,
         password=settings.NEO4J_PASSWORD,
         url=resolve_neo4j_uri(settings.NEO4J_URI),

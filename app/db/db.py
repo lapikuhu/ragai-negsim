@@ -125,8 +125,13 @@ NEO4J_USERNAME = settings.NEO4J_USERNAME
 NEO4J_PASSWORD = settings.NEO4J_PASSWORD
 
 def create_neo4j_graph_store():
-    """Creates a Neo4j graph store instance using the connection parameters 
-    defined in the settings.
+    """Create an unscoped Neo4j graph store using the configured connection.
+
+    This generic compatibility helper is intentionally outside the logical
+    knowledge-graph paths.  Those paths must use
+    ``ScopedSchemaNeo4jPropertyGraphStore`` so LlamaIndex schema inspection
+    cannot scan unrelated graph generations.
+
     Args:   
         None
     Returns:
