@@ -119,28 +119,9 @@ git clone <your-repo-url>
 cd ragai-negsim
 ```
 
-### 2. Install Python dependencies
+### 2. Install local prerequisites
 
-Using `uv`:
-
-```powershell
-uv sync
-```
-
-If Alembic is not already available in your environment, install it as well:
-
-```powershell
-uv add alembic
-```
-
-If you prefer `pip`:
-
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-pip install alembic
-```
+Install Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), and Node.js with npm. The development launcher synchronizes the locked Python and frontend dependencies on every run.
 
 ### 3. Configure environment variables
 
@@ -175,7 +156,7 @@ After the database exists and your `.env` points to it, the FastAPI startup hook
 
 ### Alembic and schema versioning
 
-This repository now includes:
+This repositorυ now includes:
 
 - `alembic.ini` at the repo root
 - `migrations/env.py`
@@ -219,6 +200,11 @@ and teacher users, negotiation scenarios, counterpart personas, chunking
 profiles, and vector-store configurations. Scenario creation uses the configured
 OpenAI model, so `OPENAI_API_KEY` must be valid.
 
+For the full local development flow, use `python scripts/dev.py` from the
+repository root. That launcher now runs dependency sync, frontend install,
+Alembic migrations, and seeding before starting the backend and frontend dev
+servers.
+
 
 To rebuild the database from scratch and then seed starter data in one step,
 run:
@@ -235,15 +221,25 @@ SQLModel metadata, and then runs the normal seeder.
 
 Demo pdf are provided under the demo_docs folder. These are publicly available reports from the Program On Negotiation of the Harvard Law of School: https://www.pon.harvard.edu/
 
-## Starting FastAPI
+## Quickstart the development app for the 1st time
 
-Day-0 alembic versioning:
+Create the PostgreSQL database, ensure PostgreSQL and Neo4j are reachable, and configure `.env`. A valid `OPENAI_API_KEY` is required for the first time starter scenarios to be seeded. Assumes npm and uv are available.
+
+From the repository root, run:
+
 ```powershell
-alembic revision --autogenerate -m "initial schema"
-alembic upgrade head
+python scripts/dev.py
 ```
 
-Run the API with the package entrypoint:
+The launcher runs `uv sync --frozen`, `npm ci`, `alembic upgrade head`, and the starter-data seeder before starting FastAPI and Vite in the same terminal. Press Ctrl+C to stop both services.
+
+Development URLs:
+
+- Frontend app: `http://localhost:5173/`
+- Backend API: `http://127.0.0.1:8000`
+
+
+Run the API with the package entrypoint in one terminal:
 
 ```powershell
 uv run uvicorn app.main:app --reload
@@ -420,25 +416,13 @@ Authored by CODEX.
 
 A React + Vite frontend now lives in [frontend/README.md]
 
-Typical local setup:
-
-1. Start FastAPI from the repository root:
+Typical local setup from the repository root:
 
 ```powershell
-uv run uvicorn app.main:app --reload
-```
-or
-```powershell
-uv run uvicorn app.main:app --reload --reload-dir app
+python scripts/dev.py
 ```
 
-2. Start Vite from `frontend/`:
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
+The launcher requires a configured `.env`, reachable PostgreSQL and Neo4j instances, Python 3.12+, uv, npm, and a valid OpenAI key for first-time scenario seeding. For manual troubleshooting, start FastAPI with `uv run uvicorn app.main:app --reload`, then run `npm run dev` from `frontend/`.
 
 Development URLs:
 

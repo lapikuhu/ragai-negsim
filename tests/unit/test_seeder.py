@@ -363,7 +363,8 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
     monkeypatch.setattr(seeder.chunking_profiles_repo, "get_chunking_profile_by_name", fake_get_chunking_profile_by_name)
     monkeypatch.setattr(seeder.vector_stores_repo, "get_vector_store_by_name", fake_get_vector_store_by_name)
 
-    await seeder.seed_all(session)
+    with pytest.raises(RuntimeError, match="1 seeding operation failed"):
+        await seeder.seed_all(session)
 
     assert session.rollback_calls == 1
     assert created_users == ["teacher1"]

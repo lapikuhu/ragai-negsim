@@ -80,7 +80,7 @@ def log_step(status: str, message: str) -> None:
     print(f"[{status}] {message}")
 
 
-async def rollback_and_log(session: AsyncSession, label: str, exc: Exception) -> None:
+async def rollback_and_log(session: AsyncSession, label: str, exc: Exception) -> str:
     """
     Rollback the current transaction and log the failure.
     Args:
@@ -90,6 +90,7 @@ async def rollback_and_log(session: AsyncSession, label: str, exc: Exception) ->
     """
     await session.rollback()
     log_step("failed", f"{label}: {exc}")
+    return label
 
 
 async def ensure_admin_user(session: AsyncSession):
@@ -120,7 +121,7 @@ async def seed_user(
     username: str,
     password: str,
     role_name: str,
-) -> None:
+) -> str | None:
     """
     Seed a user in the database.
     Args:
@@ -135,7 +136,7 @@ async def seed_user(
     existing_user = await users_repo.get_user_by_username(username, session)
     if existing_user is not None:
         log_step("skipped", f"user {username} already exists")
-        return
+        return None
 
     role = await users_repo.get_role_by_name(role_name, session)
     if role is None or role.id is None:
@@ -148,10 +149,10 @@ async def seed_user(
             admin_user,
         )
     except Exception as exc:
-        await rollback_and_log(session, f"user {username}", exc)
-        return
+        return await rollback_and_log(session, f"user {username}", exc)
 
     log_step("created", f"user {username}")
+    return None
 
 
 async def seed_scenario(
@@ -160,7 +161,7 @@ async def seed_scenario(
     *,
     name: str,
     description: str,
-) -> None:
+) -> str | None:
     """
     Seed a scenario in the database.
     Args:
@@ -174,7 +175,7 @@ async def seed_scenario(
     existing_scenario = await scenarios_repo.get_scenario_by_name(name, session)
     if existing_scenario is not None:
         log_step("skipped", f"scenario {name} already exists")
-        return
+        return None
 
     try:
         model = get_chat_model(provider="openai", model_name="gpt-4o-mini", temperature=0.0)
@@ -196,10 +197,10 @@ async def seed_scenario(
             admin_user,
         )
     except Exception as exc:
-        await rollback_and_log(session, f"scenario {name}", exc)
-        return
+        return await rollback_and_log(session, f"scenario {name}", exc)
 
     log_step("created", f"scenario {name}")
+    return None
 
 
 async def seed_persona(
@@ -208,7 +209,7 @@ async def seed_persona(
     *,
     name: str,
     description: str,
-) -> None:
+) -> str | None:
     """
     Seed a persona in the database.
     Args:
@@ -225,7 +226,7 @@ async def seed_persona(
     )
     if existing_persona is not None:
         log_step("skipped", f"persona {name} already exists")
-        return
+        return None
 
     try:
         await counterpart_personas_service.create_counterpart_persona_srvc(
@@ -234,10 +235,10 @@ async def seed_persona(
             admin_user,
         )
     except Exception as exc:
-        await rollback_and_log(session, f"persona {name}", exc)
-        return
+        return await rollback_and_log(session, f"persona {name}", exc)
 
     log_step("created", f"persona {name}")
+    return None
 
 
 async def seed_chunking_profile(
@@ -245,7 +246,7 @@ async def seed_chunking_profile(
     *,
     name: str,
     strategy: str,
-) -> None:
+) -> str | None:
     """
     Seed a chunking profile in the database.
     Args:
@@ -258,7 +259,7 @@ async def seed_chunking_profile(
     existing_profile = await chunking_profiles_repo.get_chunking_profile_by_name(name, session)
     if existing_profile is not None:
         log_step("skipped", f"chunking profile {name} already exists")
-        return
+        return None
 
     try:
         await chunking_profiles_service.create_chunking_profile_srvc(
@@ -266,13 +267,13 @@ async def seed_chunking_profile(
             session,
         )
     except Exception as exc:
-        await rollback_and_log(session, f"chunking profile {name}", exc)
-        return
+        return await rollback_and_log(session, f"chunking profile {name}", exc)
 
     log_step("created", f"chunking profile {name}")
+    return None
 
 
-async def seed_vector_store(session: AsyncSession, vector_store_data: dict[str, Any]) -> None:
+async def seed_vector_store(session: AsyncSession, vector_store_data: dict[str, Any]) -> str | None:
     """
     Seed a vector store in the database.
     Args:
@@ -287,7 +288,7 @@ async def seed_vector_store(session: AsyncSession, vector_store_data: dict[str, 
     )
     if existing_store is not None:
         log_step("skipped", f"vector store {vector_store_data['name']} already exists")
-        return
+        return None
 
     try:
         await vector_stores_service.create_vector_store_srvc(
@@ -295,32 +296,36 @@ async def seed_vector_store(session: AsyncSession, vector_store_data: dict[str, 
             session,
         )
     except Exception as exc:
-        await rollback_and_log(session, f"vector store {vector_store_data['name']}", exc)
-        return
+        return await rollback_and_log(session, f"vector store {vector_store_data['name']}", exc)
 
     log_step("created", f"vector store {vector_store_data['name']}")
+    return None
 
 
 async def run_seed_steps(
-    steps: list[Callable[[], Awaitable[None]]],
-) -> None:
+    steps: list[Callable[[], Awaitable[str | None]]],
+) -> list[str]:
     """
     Run a series of seeding steps sequentially.
     Args:
-        steps (list[Callable[[], Awaitable[None]]]): A list of asynchronous functions
+        steps (list[Callable[[], Awaitable[str | None]]]): A list of asynchronous functions
             representing the seeding steps to run.
     Returns:
-        None
+        The labels of seed operations that failed after rolling back.
     """
+    failures = []
     for step in steps:
-        await step()
+        failure = await step()
+        if failure is not None:
+            failures.append(failure)
+    return failures
 
 
 async def seed_all(session: AsyncSession) -> None:
     log_step("started", "seed run")
     admin_user = await ensure_admin_user(session)
 
-    await run_seed_steps(
+    failures = await run_seed_steps(
         [
             lambda: seed_user(
                 session,
@@ -374,6 +379,8 @@ async def seed_all(session: AsyncSession) -> None:
             ],
         ]
     )
+    if failures:
+        raise RuntimeError(f"{len(failures)} seeding operation failed: {', '.join(failures)}")
     log_step("completed", "seed run")
 
 

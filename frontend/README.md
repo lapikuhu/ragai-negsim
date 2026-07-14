@@ -22,25 +22,20 @@ http://127.0.0.1:8000
 
 The Vite dev server proxies supported API paths to that backend through [vite.config.ts](ragai-negsim/frontend/vite.config.ts:1).
 
-## Install dependencies
-
-From the `frontend/` directory:
-
-```powershell
-npm install
-```
-
 ## Run the dev server
 
-Start the backend from the repository root:
+For the complete local application, start from the repository root:
 
 ```powershell
-uv run uvicorn app.main:app --reload
+python scripts/dev.py
 ```
 
-Start the frontend from `frontend/`:
+The launcher requires Python 3.12+, uv, Node/npm, a configured root `.env`, reachable PostgreSQL and Neo4j instances, and a valid OpenAI key for first-time scenario seeding. It runs locked dependency installation, migrations, and starter-data seeding before starting both development servers.
+
+For frontend-only troubleshooting after the backend is already running, use:
 
 ```powershell
+npm ci
 npm run dev
 ```
 
