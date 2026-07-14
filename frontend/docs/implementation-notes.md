@@ -1,8 +1,8 @@
 # Frontend Implementation Notes
 
-Date: 2026-06-28
+Date: 2026-07-14
 
-This file summarizes the current frontend implementation shape and the backend contract assumptions it depends on.
+This file summarizes the current frontend implementation shape, API wiring, route map, and verification status.
 
 Last checked against:
 
@@ -12,7 +12,6 @@ Last checked against:
 - `frontend/src/components/layout/nav.ts`
 - `frontend/src/features/*/*Queries.ts`
 - `frontend/src/pages/*Page.tsx`
-- `frontend/docs/backend-gaps.md`
 
 ## 1. Detected API domains
 
@@ -58,7 +57,6 @@ Implemented authenticated pages:
 - `/documents/:documentId`
 - `/corpora`
 - `/corpora/:corpusId`
-- `/settings`
 
 Implemented teacher/admin pages:
 
@@ -123,7 +121,7 @@ Authentication is implemented against the current backend contract:
 - user registration uses `/users/register`
 - role choices now load from `/users/roles` instead of being hard-coded in the user form
 
-## 6. Schema-backed features vs disabled or gap-tracked features
+## 6. Schema-backed and composed features
 
 Implemented directly against real endpoints:
 
@@ -146,31 +144,14 @@ Implemented directly against real endpoints:
 - embedding model catalog and LLM model catalog
 - knowledge graph index list/create/build/rebuild/delete with active build polling
 
-Read-only or derived due current backend shape:
+Composed or derived frontend views:
 
 - dashboard composes simulations, raw documents, and sessions from existing list endpoints while tolerating role-based `401`/`403` responses
-- corpus detail resolves from corpus list data and related corpus indices because no dedicated corpus read route exists
-- evaluations page uses simulation review/completed-simulation resources, not a standalone evaluation API
-- settings page is documentation-oriented because no general settings or user-preference endpoints exist
+- corpus detail resolves display data from the corpus list and related corpus indices
+- evaluations page uses simulation review and completed-simulation resources
 - legacy corpus embed-job queueing returns a corpus-index polling URL, while the richer job monitor exists under the newer `/indexing-jobs` workflow
 
-## 7. Missing backend endpoints or ambiguities
-
-Important gaps after the 2026-06-28 refresh:
-
-- no `GET /corpora/{corpus_id}` route
-- no standalone `GET /evaluations/` or `GET /evaluations/{evaluation_id}` API
-- no app-level settings endpoints
-- no user preference endpoints
-- no dedicated dashboard summary endpoint; dashboard is composed from list endpoints
-- legacy `POST /corpora/{corpus_id}/chunking-profiles/{profile_id}/vector-stores/{vector_store_id}/embed-jobs` does not expose a job-id polling resource, although `/indexing-jobs` covers the newer full indexing workflow
-
-Resolved since the original 2026-06-05 notes:
-
-- role metadata is available through `GET /users/roles`
-- job monitoring is available through `/indexing-jobs/`, `/indexing-jobs/active`, `/indexing-jobs/{job_id}`, and `/indexing-jobs/{job_id}/cancel`
-
-## 8. Role-gated routes and UI actions
+## 7. Role-gated routes and UI actions
 
 Observed backend dependency behavior and current UI routing:
 
@@ -189,9 +170,9 @@ Observed backend dependency behavior and current UI routing:
 - `counterpart-personas`: teacher or admin for writes
 - `simulations`: authenticated users with per-simulation access checks
 - `simulations/:id/review`: teacher review dependency in the backend; UI exposes evaluation routes to teacher/admin
-- dashboard, documents, corpora, simulations, and settings: authenticated users
+- dashboard, documents, corpora, and simulations: authenticated users
 
-## 9. Normalized display labels for OpenAPI tags
+## 8. Normalized display labels for OpenAPI tags
 
 UI label mapping:
 
@@ -211,13 +192,20 @@ UI label mapping:
 
 ## Verification status
 
+Documentation refresh on 2026-07-14 checked:
+
+- `frontend/docs/implementation-notes.md`
+- `frontend/src/app/router.tsx`
+- `frontend/src/components/layout/nav.ts`
+- `frontend/package.json`
+
 Previously verified during the original implementation session:
 
 - `npm run generate-api`
 - `npm run typecheck`
 - Vite dev server responded at `http://localhost:5173/`
 
-Not rerun during the 2026-06-28 documentation refresh:
+Not rerun during the 2026-07-14 documentation refresh:
 
 - `npm run generate-api`
 - `npm run typecheck`

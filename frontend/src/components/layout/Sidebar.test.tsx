@@ -63,7 +63,7 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /simulations/i })).toHaveAttribute("href", "/simulations");
     expect(screen.getByRole("link", { name: /documents/i })).toHaveAttribute("href", "/documents");
     expect(screen.getByRole("link", { name: /corpora/i })).toHaveAttribute("href", "/corpora");
-    expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByRole("link", { name: /settings/i })).not.toBeInTheDocument();
     expect(screen.queryByText("Scenarios")).not.toBeInTheDocument();
     expect(screen.queryByText("Personas")).not.toBeInTheDocument();
     expect(screen.queryByText("Evaluations")).not.toBeInTheDocument();

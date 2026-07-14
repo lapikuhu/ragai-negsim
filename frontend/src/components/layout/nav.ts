@@ -23,6 +23,5 @@ export const navigationItems: NavItem[] = [
   { label: "Evaluations", to: "/evaluations", description: "Review outputs and feedback", roles: ["teacher", "admin"] },
   { label: "Vector Stores", to: "/vector-stores", description: "Admin vector store lifecycle management", roles: ["admin"] },
   { label: "Models", to: "/models", description: "Embedding models and supporting store overview", roles: ["admin"] },
-  { label: "Users", to: "/users", description: "User administration", roles: ["admin"] },
-  { label: "Settings", to: "/settings", description: "Read-only capability map" }
+  { label: "Users", to: "/users", description: "User administration", roles: ["admin"] }
 ];

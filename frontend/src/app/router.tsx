@@ -23,9 +23,9 @@ import { EvaluationReviewPage } from "@/pages/EvaluationReviewPage";
 import { ModelsPage } from "@/pages/ModelsPage";
 import { IndexingPage } from "@/pages/IndexingPage";
 import { UsersPage } from "@/pages/UsersPage";
-import { SettingsPage } from "@/pages/SettingsPage";
 import { VectorStoresPage } from "@/pages/VectorStoresPage";
 import { KnowledgeGraphsPage } from "@/pages/KnowledgeGraphsPage";
+import { NotFoundPage } from "@/pages/NotFoundPage";
 
 export const router = createBrowserRouter([
   {
@@ -45,8 +45,7 @@ export const router = createBrowserRouter([
               { path: "documents", element: <DocumentsPage /> },
               { path: "documents/:documentId", element: <DocumentDetailPage /> },
               { path: "corpora", element: <CorporaPage /> },
-              { path: "corpora/:corpusId", element: <CorpusDetailPage /> },
-              { path: "settings", element: <SettingsPage /> }
+              { path: "corpora/:corpusId", element: <CorpusDetailPage /> }
             ]
           }
         ]
@@ -85,7 +84,8 @@ export const router = createBrowserRouter([
             ]
           }
         ]
-      }
+      },
+      { path: "*", element: <NotFoundPage /> }
     ]
   }
 ]);

@@ -20,7 +20,7 @@ Development expects the FastAPI backend at:
 http://127.0.0.1:8000
 ```
 
-The Vite dev server proxies supported API paths to that backend through [vite.config.ts](ragai-negsim/frontend/vite.config.ts:1).
+The Vite dev server proxies supported API paths to that backend through [vite.config.ts](vite.config.ts).
 
 ## Run the dev server
 
@@ -58,8 +58,8 @@ npm run generate-api
 This command:
 
 - fetches `http://127.0.0.1:8000/openapi.json`
-- updates [openapi.json](ragai-negsim/frontend/openapi.json:1)
-- regenerates [schema.d.ts](ragai-negsim/frontend/src/api/generated/schema.d.ts:1)
+- updates [openapi.json](openapi.json)
+- regenerates [schema.d.ts](src/api/generated/schema.d.ts)
 
 ## Typecheck
 
@@ -91,5 +91,5 @@ Implemented against real backend endpoints:
 
 See:
 
-- [implementation-notes.md](ragai-negsim/frontend/docs/implementation-notes.md:1)
-- [backend-gaps.md](ragai-negsim/frontend/docs/backend-gaps.md:1)
+- [implementation-notes.md](docs/implementation-notes.md)
+- [backend-gaps.md](docs/backend-gaps.md)
