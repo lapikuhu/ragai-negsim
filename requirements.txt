@@ -4,7 +4,6 @@ accelerate==1.13.0
     # via
     #   docling
     #   docling-ibm-models
-    #   ragai-negsim
 aiohappyeyeballs==2.6.1
     # via
     #   aiohttp
@@ -173,15 +172,10 @@ docling-core==2.73.0
     #   docling
     #   docling-ibm-models
     #   docling-parse
-    #   ragai-negsim
 docling-ibm-models==3.13.0
-    # via
-    #   docling
-    #   ragai-negsim
+    # via docling
 docling-parse==5.8.0
-    # via
-    #   docling
-    #   ragai-negsim
+    # via docling
 durationpy==0.10
     # via kubernetes
 ecdsa==0.19.2
@@ -235,18 +229,13 @@ greenlet==3.5.0
     #   ragai-negsim
     #   sqlalchemy
 griffe==2.0.2
-    # via
-    #   banks
-    #   ragai-negsim
+    # via banks
 griffecli==2.0.2
-    # via
-    #   griffe
-    #   ragai-negsim
+    # via griffe
 griffelib==2.0.2
     # via
     #   griffe
     #   griffecli
-    #   ragai-negsim
 grpcio==1.80.0
     # via
     #   chromadb
@@ -645,13 +634,9 @@ openai==2.37.0
     #   llama-index-llms-openai
     #   ragai-negsim
 opencv-python==4.13.0.92
-    # via
-    #   ragai-negsim
-    #   rapidocr
+    # via rapidocr
 openpyxl==3.1.5
-    # via
-    #   docling
-    #   ragai-negsim
+    # via docling
 opentelemetry-api==1.42.1
     # via
     #   chromadb
@@ -703,7 +688,6 @@ pandas==3.0.2
     # via
     #   docling
     #   docling-core
-    #   ragai-negsim
 parso==0.8.6
     # via
     #   jedi
@@ -859,9 +843,7 @@ pyopencl==2026.1.2
 pypdf==6.10.1
     # via ragai-negsim
 pypdfium2==5.7.0
-    # via
-    #   docling
-    #   ragai-negsim
+    # via docling
 pypika==0.51.1
     # via chromadb
 pyproject-hooks==1.2.0
@@ -877,9 +859,7 @@ python-dateutil==2.9.0.post0
     #   pandas
     #   ragai-negsim
 python-docx==1.2.0
-    # via
-    #   docling
-    #   ragai-negsim
+    # via docling
 python-dotenv==1.2.2
     # via
     #   pydantic-settings
@@ -890,9 +870,7 @@ python-jose==3.5.0
 python-multipart==0.0.30
     # via ragai-negsim
 python-pptx==1.0.2
-    # via
-    #   docling
-    #   ragai-negsim
+    # via docling
 pytools==2026.1.1
     # via pyopencl
 pytz==2026.2
@@ -926,9 +904,7 @@ pyzmq==27.1.0
     #   jupyter-client
     #   ragai-negsim
 rapidocr==3.8.1
-    # via
-    #   docling
-    #   ragai-negsim
+    # via docling
 referencing==0.37.0
     # via
     #   jsonschema
@@ -995,9 +971,7 @@ scipy==1.17.1
     #   scikit-learn
     #   sentence-transformers
 semchunk==3.2.5
-    # via
-    #   docling-core
-    #   ragai-negsim
+    # via docling-core
 sentence-transformers==5.5.0
     # via ragai-negsim
 setuptools==81.0.0
@@ -1088,7 +1062,6 @@ torch==2.11.0
     #   accelerate
     #   docling
     #   docling-ibm-models
-    #   ragai-negsim
     #   safetensors
     #   sentence-transformers
     #   torchvision
@@ -1096,7 +1069,6 @@ torchvision==0.26.0
     # via
     #   docling
     #   docling-ibm-models
-    #   ragai-negsim
 tornado==6.5.5
     # via
     #   ipykernel
@@ -1129,28 +1101,17 @@ transformers==5.5.4
     # via
     #   docling-core
     #   docling-ibm-models
-    #   ragai-negsim
     #   sentence-transformers
 tree-sitter==0.25.2
-    # via
-    #   docling-core
-    #   ragai-negsim
+    # via docling-core
 tree-sitter-c==0.24.1
-    # via
-    #   docling-core
-    #   ragai-negsim
+    # via docling-core
 tree-sitter-javascript==0.25.0
-    # via
-    #   docling-core
-    #   ragai-negsim
+    # via docling-core
 tree-sitter-python==0.25.0
-    # via
-    #   docling-core
-    #   ragai-negsim
+    # via docling-core
 tree-sitter-typescript==0.23.2
-    # via
-    #   docling-core
-    #   ragai-negsim
+    # via docling-core
 triton==3.6.0 ; sys_platform == 'linux'
     # via torch
 truststore==0.10.4
