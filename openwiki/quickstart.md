@@ -53,7 +53,7 @@ The React frontend mirrors backend domains with routes for simulations, document
 - The backend expects environment configuration from `.env`, with examples in `.env.example`.
 - PostgreSQL is the application database, and Neo4j is used for graph-retrieval features.
 - Startup code seeds baseline data after the database schema exists.
-- For the full local development flow, `python scripts/dev.py` runs dependency sync, frontend install, Alembic migrations, seeding, and then starts the backend and frontend dev servers.
+- For the full local development flow, `python scripts/dev.py` runs dependency sync, frontend install, Alembic migrations, seeding, and then starts the backend and frontend dev servers. The launcher checks for `.env`, `uv`, and `npm` before it starts.
 - The repository currently includes recent work on learner assistance, CRAG/GraphRAG source capture, raw document corpora, simulation review workflows, and integration coverage for PostgreSQL and Neo4j.
 
 ## Source pointers

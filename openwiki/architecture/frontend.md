@@ -1,6 +1,6 @@
 # Frontend architecture
 
-The frontend is a React + TypeScript application that mirrors the backend's major domains. It uses React Router for navigation, TanStack Query for server-state management, and an authenticated app shell for protected routes.
+The frontend is a React + TypeScript application that mirrors the backend's major domains. It uses React Router for navigation, TanStack Query for server-state management, and an authenticated app shell for protected routes. The router now ends with a catch-all 404 page (`NotFoundPage`) for unknown paths.
 
 ## Entry points
 - `frontend/src/main.tsx` bootstraps React, the query client, authentication, and routing.
@@ -20,6 +20,7 @@ This mirrors the backend's authorization model and makes the UI a useful map of 
 ## Important pages
 - `SimulationsPage.tsx` and `SimulationCockpitPage.tsx` are the primary learner workflow pages.
 - `DocumentsPage.tsx`, `DocumentDetailPage.tsx`, and `DocumentChunksPage.tsx` cover document and chunk management.
+- `NotFoundPage.tsx` handles unknown routes and returns users to the dashboard.
 - `CorporaPage.tsx` and `CorpusDetailPage.tsx` cover corpus management.
 - `ScenariosPage.tsx`, `PersonasPage.tsx`, and `PromptsPage.tsx` support authoring and review.
 - `EvaluationsPage.tsx` and `EvaluationReviewPage.tsx` are used for teacher/admin review.
