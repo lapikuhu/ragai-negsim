@@ -10,6 +10,7 @@ from . import knowledge_graph_build_jobs
 from . import knowledge_graph_indices
 from . import prompts
 from . import rag_profiles
+from . import rag_eval
 from . import raw_documents
 from . import scenarios
 from . import sessions
@@ -32,6 +33,7 @@ __all__ = [
     "knowledge_graph_indices",
     "prompts",
     "rag_profiles",
+    "rag_eval",
     "raw_documents",
     "scenarios",
     "sessions",

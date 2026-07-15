@@ -6,6 +6,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .knowledge_graph_indices import KnowledgeGraphIndex
+    from .rag_eval import RagEvalPairProfile
     from .simulations import Simulation
     from .users import User
 
@@ -34,6 +35,9 @@ class RagProfile(SQLModel, table=True):
         sa_relationship_kwargs={"foreign_keys": "[RagProfile.last_edit_by_user_id]"},
     )
     simulations: list["Simulation"] = Relationship(back_populates="rag_profile")
+    rag_eval_pair_profiles: list["RagEvalPairProfile"] = Relationship(
+        back_populates="rag_profile"
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),

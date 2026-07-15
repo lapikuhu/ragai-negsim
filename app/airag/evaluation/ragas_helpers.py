@@ -120,7 +120,6 @@ class RagasEvaluator:
     async def _score_metric(self, metric_name: str, result: EvalQueryResult) -> float:
         """
         Score a specific metric for a given evaluation query result.
-
         Args:
             metric_name: The name of the metric to score.
             result: The evaluation query result.

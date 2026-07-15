@@ -11,6 +11,9 @@ from langchain_core.documents import Document
 
 @dataclass(frozen=True)
 class EvalSourceDocument:
+    """
+    Represents a source document used in evaluation.
+    """
     document_id: str
     number: int
     path: Path
@@ -19,6 +22,9 @@ class EvalSourceDocument:
 
 @dataclass(frozen=True)
 class EvalSupportRow:
+    """
+    Represents a support row used in evaluation.
+    """
     support_id: str
     query: str
     support: str
@@ -27,6 +33,9 @@ class EvalSupportRow:
 
 @dataclass(frozen=True)
 class EvalSpanLocator:
+    """
+    Represents a span locator within a document used in evaluation.
+    """
     document_number: int
     row_ordinal: int
     section_heading: str | None = None
@@ -35,6 +44,9 @@ class EvalSpanLocator:
 
 @dataclass(frozen=True)
 class EvalSupportSpan:
+    """
+    Represents a support span used in evaluation.
+    """
     evaluation_id: str
     support_id: str
     document_id: str
@@ -46,6 +58,9 @@ class EvalSupportSpan:
 
 @dataclass(frozen=True)
 class EvalDocument:
+    """
+    Represents a document used in evaluation.
+    """
     document_id: str
     path: Path
     content: str
@@ -54,6 +69,9 @@ class EvalDocument:
 
 @dataclass(frozen=True)
 class EvalExample:
+    """
+    Represents an evaluation example.
+    """
     evaluation_id: str
     query: str
     support: str
@@ -62,6 +80,9 @@ class EvalExample:
 
 @dataclass(frozen=True)
 class EvalCorpus:
+    """
+    Represents a corpus used in evaluation.
+    """
     documents: tuple[Document, ...]
     eval_documents: tuple[EvalDocument, ...]
     support_spans: tuple[EvalSupportSpan, ...]
@@ -70,12 +91,18 @@ class EvalCorpus:
 
 @dataclass(frozen=True)
 class EvalExecutionResult:
+    """
+    Represents the result of an evaluation execution.
+    """
     answer: str | None
     documents: Sequence[Document]
 
 
 @dataclass(frozen=True)
 class EvalQueryResult:
+    """
+    Represents the result of an evaluation query.
+    """
     evaluation_id: str
     query: str
     answer: str | None
@@ -89,6 +116,9 @@ class EvalQueryResult:
 
 @dataclass(frozen=True)
 class EvalRunResult:
+    """
+    Represents the result of an evaluation run.
+    """
     k: int
     results: tuple[EvalQueryResult, ...]
     hit_rate_at_k: float
@@ -100,11 +130,17 @@ EvalRunner = Callable[[str], EvalExecutionResult]
 
 @dataclass(frozen=True)
 class RagasQueryResult:
+    """
+    Represents the result of a Ragas query.
+    """
     evaluation_id: str
     metric_scores: Mapping[str, float]
 
 
 @dataclass(frozen=True)
 class RagasRunResult:
+    """
+    Represents the result of a Ragas run.
+    """
     results: tuple[RagasQueryResult, ...]
     metric_means: Mapping[str, float]
