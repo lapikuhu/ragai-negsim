@@ -3,7 +3,7 @@
 ## What this repository is
 This repository is a FastAPI + React application for an educational negotiation simulator. Learners practice negotiation scenarios against AI counterparts, receive coach feedback and evaluation, and work with uploaded course or domain documents that ground the simulation flow.
 
-The backend is the main system under active development. It manages users, roles, raw document uploads, corpora, chunking and indexing, retrieval profiles, simulations, learner-assistant questions, and the LangGraph-based agent flows that drive negotiation turns.
+The backend is the main system under active development. It manages users, roles, raw document uploads, corpora, chunking and indexing, retrieval profiles, simulations, learner-assistant questions, the LangGraph-based agent flows that drive negotiation turns, and the evaluation helpers used to score retrieval against the synthetic suite.
 
 ## Start here
 - [Backend architecture](architecture/backend.md)

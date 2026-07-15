@@ -11,7 +11,7 @@ Backend tests cover:
 - service logic
 - repository and schema behavior
 - negotiation graph routing
-- retrieval and evidence ledger behavior
+- retrieval, synthetic evaluation, and evidence ledger behavior
 - authentication and role boundaries
 - startup and seed scripts
 - PostgreSQL and Neo4j integration paths when real services are available
@@ -31,6 +31,8 @@ Frontend tests cover:
 - `tests/unit/test_evidence_ledger.py`
 - `tests/unit/test_crag_grounding.py`
 - `tests/unit/test_graphrag_retrieval.py`
+- `tests/unit/test_rag_eval_helpers.py`
+- `tests/unit/test_ragas_helpers.py`
 - `tests/unit/test_raw_documents_service.py`
 - `tests/unit/test_document_chunks_service.py`
 - `tests/unit/test_langsmith_traceable_boundaries.py`
@@ -65,7 +67,7 @@ When changing database-backed models or schemas:
 
 ## When editing behavior
 Use the tests to decide how far a change must propagate:
-- retrieval changes usually require evidence- and grounding-related tests
+- retrieval changes usually require evidence-, grounding-, and evaluation-related tests
 - simulation changes usually require service, route, and graph tests
 - frontend page changes usually require page tests and router/sidebar updates
 - config or dependency changes often require startup or auth tests
