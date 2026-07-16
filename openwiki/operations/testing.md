@@ -33,6 +33,10 @@ Frontend tests cover:
 - `tests/unit/test_graphrag_retrieval.py`
 - `tests/unit/test_rag_eval_helpers.py`
 - `tests/unit/test_ragas_helpers.py`
+- `tests/unit/test_rag_eval_retrieval_config.py` covers retrieval-config validation, GraphRAG pair creation requirements, and snapshotting the pair config onto a run.
+- `tests/unit/test_rag_eval_runtime.py` covers the shared in-memory corpus adapters, selected retrieval embeddings, GraphRAG's scoped graph build, and success/failure cleanup.
+- `tests/unit/test_rag_eval_answer_generation.py` covers the grounded-answer prompt, abstention path, and cancellation-aware answer generation.
+- `tests/unit/test_rag_eval_service.py` covers persisted evaluation stages (`chunking`, `building_graph`, `retrieving`, `generating_answer`, `judging`, `finished`) and recovery when temporary GraphRAG cleanup must be retried.
 - `tests/unit/test_raw_documents_service.py`
 - `tests/unit/test_document_chunks_service.py`
 - `tests/unit/test_langsmith_traceable_boundaries.py`
@@ -68,6 +72,7 @@ When changing database-backed models or schemas:
 ## When editing behavior
 Use the tests to decide how far a change must propagate:
 - retrieval changes usually require evidence-, grounding-, and evaluation-related tests
+- GraphRAG evaluation changes must confirm that the temporary Neo4j scope is removed on success, failure, cancellation/recovery, and that a failed recovery cleanup leaves the run retryable rather than terminalizing it
 - simulation changes usually require service, route, and graph tests
 - frontend page changes usually require page tests and router/sidebar updates
 - config or dependency changes often require startup or auth tests

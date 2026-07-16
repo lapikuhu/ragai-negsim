@@ -47,6 +47,15 @@ GraphRAG uses a knowledge graph backed by Neo4j. It can retrieve evidence throug
 
 Both strategies now return sources. That source capture is important because the evidence ledger and learner assistant rely on it to explain where an answer came from.
 
+### Isolated RAG evaluation
+RAG evaluation does not borrow an existing corpus index or a production knowledge graph. Each run chunks the synthetic evaluation corpus in memory and tags its chunks with evaluation IDs before selecting a retrieval adapter. CRAG builds a temporary FAISS store from those chunks. GraphRAG builds a temporary Neo4j generation in a deterministic run-specific scope, using the pair snapshot's extraction model, embedding model, and simple extractor; no evaluation chunks, graph-build jobs, or graph records are persisted in the application database.
+
+The GraphRAG scope is deleted before construction (to remove stale data) and in a `finally` path after retrieval, including build and retrieval errors. Startup recovery retries deletion for interrupted GraphRAG runs before marking them failed. If Neo4j is unavailable and cleanup fails, the run remains active at `cleanup_pending` so a future startup can retry rather than terminalizing an orphaned scope. Run APIs expose only status, stage, configurations, results, and metrics—not temporary graph identifiers or contents.
+
+Recent RAG evaluation changes also persist a retrieval configuration on each pair profile. The schema currently requires an `embedding_model` for all evaluation pairs, and GraphRAG pairs must additionally supply a `graph_build` block with `llm_provider`, `llm_model`, and `max_paths_per_chunk`. When a run starts, the service snapshots that retrieval config into `retrieval_config_snapshot` so the evaluation uses the configuration that existed at queue time, not whatever the pair profile might contain later. The run also snapshots a dedicated answer-generation LLM selection and a separate judge LLM plus embedding model, so retrieval, answer generation, and judging are independently reproducible. The matching migrations seed a default retrieval config for existing rows and backfill the run snapshot columns from each pair profile and run.
+
+RAG evaluation separates retrieval, answer generation, and judging. Retrieval adapters return evidence and Hit@k/MRR only. Each run then uses its own snapshotted answer-generation provider/model with a fixed, versioned grounding prompt to produce an answer from the retrieved contexts; a query with no contexts receives a fixed abstention without an LLM call. Ragas receives that generated answer and uses a separately selected, snapshotted judge LLM and embedding model. This prevents copied retrieval passages from being treated as answers when scoring faithfulness or answer relevancy.
+
 ## Evidence ledger and source cards
 `app/airag/observability/evidence_ledger.py` defines how source cards are built and stored. Important details:
 - Only a safe subset of metadata is copied into source cards.
@@ -92,6 +101,8 @@ The new migration `migrations/versions/d5e8f1a2b3c4_add_knowledge_graph_build_pr
 - `tests/test_graphrag_profile_binding.py`
 - `tests/test_knowledge_graph_builds_service.py`
 - `tests/test_knowledge_graph_domain.py`
+- `tests/unit/test_rag_eval_runtime.py`
+- `tests/unit/test_rag_eval_service.py`
 
 ## Source pointers
 - `app/airag/observability/evidence_ledger.py`

@@ -7,7 +7,6 @@ from sqlalchemy import (
     DateTime as SQLAlchemyDateTime,
     Index,
     JSON,
-    UniqueConstraint,
     text,
 )
 from sqlmodel import Field, Relationship, SQLModel
@@ -19,18 +18,11 @@ if TYPE_CHECKING:
 
 
 class RagEvalPairProfile(SQLModel, table=True):
-    __table_args__ = (
-        UniqueConstraint(
-            "rag_profile_id",
-            "chunking_profile_id",
-            name="uq_rag_eval_pair_rag_chunking",
-        ),
-    )
-
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True, min_length=3)
     rag_profile_id: int = Field(foreign_key="ragprofile.id", index=True)
     chunking_profile_id: int = Field(foreign_key="chunkingprofile.id", index=True)
+    retrieval_config: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
     created_by_user_id: int = Field(foreign_key="user.id")
     last_edit_by_user_id: int | None = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(
@@ -80,6 +72,11 @@ class RagEvalRun(SQLModel, table=True):
     k: int = Field(ge=1)
     rag_profile_snapshot: dict = Field(default_factory=dict, sa_column=Column(JSON))
     chunking_profile_snapshot: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    retrieval_config_snapshot: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    answer_generation_model_snapshot: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, nullable=False),
+    )
     evaluation_model_snapshot: dict = Field(default_factory=dict, sa_column=Column(JSON))
     aggregate_hit_rate_at_k: float | None = None
     aggregate_mrr_at_k: float | None = None

@@ -3,7 +3,7 @@
 ## What this repository is
 This repository is a FastAPI + React application for an educational negotiation simulator. Learners practice negotiation scenarios against AI counterparts, receive coach feedback and evaluation, and work with uploaded course or domain documents that ground the simulation flow.
 
-The backend is the main system under active development. It manages users, roles, raw document uploads, corpora, chunking and indexing, retrieval profiles, simulations, learner-assistant questions, the LangGraph-based agent flows that drive negotiation turns, and the evaluation helpers used to score retrieval against the synthetic suite.
+The backend is the main system under active development. It manages users, roles, raw document uploads, corpora, chunking and indexing, retrieval profiles, simulations, learner-assistant questions, the LangGraph-based agent flows that drive negotiation turns, and the evaluation helpers used to score retrieval, answer generation, and judging against the synthetic suite.
 
 ## Start here
 - [Backend architecture](architecture/backend.md)
@@ -54,7 +54,7 @@ The React frontend mirrors backend domains with routes for simulations, document
 - PostgreSQL is the application database, and Neo4j is used for graph-retrieval features.
 - Startup code seeds baseline data after the database schema exists.
 - For the full local development flow, `python scripts/dev.py` runs dependency sync, frontend install, Alembic migrations, seeding, and then starts the backend and frontend dev servers. The launcher checks for `.env`, `uv`, and `npm` before it starts.
-- The repository currently includes recent work on learner assistance, CRAG/GraphRAG source capture, raw document corpora, simulation review workflows, and integration coverage for PostgreSQL and Neo4j.
+- The repository currently includes recent work on learner assistance, CRAG/GraphRAG source capture, RAG evaluation retrieval configuration, raw document corpora, simulation review workflows, and integration coverage for PostgreSQL and Neo4j.
 
 ## Source pointers
 - Backend entrypoint: `app/main.py`

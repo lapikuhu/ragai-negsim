@@ -20,6 +20,7 @@ def test_rag_eval_models_capture_audited_pair_and_run_snapshots():
         k=5,
         rag_profile_snapshot={"strategy": "crag"},
         chunking_profile_snapshot={"strategy": "recursive"},
+        answer_generation_model_snapshot={"llm_provider": "openai", "llm_model": "gpt-4.1"},
         evaluation_model_snapshot={"provider": "openai", "model": "gpt-4.1"},
     )
     result = RagEvalQueryResult(
@@ -34,6 +35,8 @@ def test_rag_eval_models_capture_audited_pair_and_run_snapshots():
     assert pair.last_edit_by_user_id is None
     assert run.status == "queued"
     assert run.aggregate_ragas_metrics == {}
+    assert run.answer_generation_model_snapshot["llm_model"] == "gpt-4.1"
+    assert RagEvalRun.__table__.c.answer_generation_model_snapshot.nullable is False
     assert result.hit_at_k is False
 
 
@@ -65,16 +68,7 @@ def test_rag_eval_run_table_has_active_pair_index_and_status_constraint():
 
 
 @pytest.mark.asyncio
-async def test_create_pair_rejects_existing_rag_chunk_combination(monkeypatch):
-    async def fake_get_pair_by_profile_ids(rag_profile_id, chunking_profile_id, session):
-        return SimpleNamespace(id=8)
-
-    monkeypatch.setattr(
-        rag_eval_repo,
-        "get_rag_eval_pair_profile_by_profile_ids",
-        fake_get_pair_by_profile_ids,
-    )
-
+async def test_create_pair_allows_shared_rag_chunk_combination_when_names_differ(monkeypatch):
     async def fake_get_pair_by_name(name, session):
         return None
 
@@ -84,16 +78,24 @@ async def test_create_pair_rejects_existing_rag_chunk_combination(monkeypatch):
         fake_get_pair_by_name,
     )
 
-    with pytest.raises(ValueError, match="RAG/chunking pair already exists"):
-        await rag_eval_repo.create_rag_eval_pair_profile(
-            RagEvalPairProfileCreate(
-                name="baseline",
-                rag_profile_id=1,
-                chunking_profile_id=2,
-                created_by_user_id=3,
-            ),
-            object(),
-        )
+    async def fake_commit_and_refresh(_session, profile):
+        return profile
+
+    monkeypatch.setattr(rag_eval_repo, "commit_and_refresh", fake_commit_and_refresh)
+
+    profile = await rag_eval_repo.create_rag_eval_pair_profile(
+        RagEvalPairProfileCreate(
+            name="baseline",
+            rag_profile_id=1,
+            chunking_profile_id=2,
+            retrieval_config={"embedding_model": "text-embedding-3-small"},
+            created_by_user_id=3,
+        ),
+        object(),
+    )
+
+    assert profile.rag_profile_id == 1
+    assert profile.chunking_profile_id == 2
 
 
 @pytest.mark.asyncio

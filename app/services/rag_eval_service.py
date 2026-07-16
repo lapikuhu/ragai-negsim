@@ -2,16 +2,25 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.airag.evaluation.rag_eval_runtime import create_rag_eval_runtime
+from app.airag.evaluation.rag_eval_runtime import (
+    cleanup_rag_eval_graph_scope,
+    create_rag_eval_runtime,
+)
+from app.airag.evaluation.answer_generation import (
+    RagEvalAnswerGenerationCancelled,
+    generate_grounded_answers,
+)
 from app.airag.evaluation.ragas_helpers import RagasEvaluator
 from app.db.db import AsyncSessionLocal, AsyncSession
 from app.models.rag_eval import RagEvalPairProfile, RagEvalRun
 from app.models.users import User
 from app.repositories import chunking_profiles_repo, rag_eval_repo, rag_profiles_repo
+from app.services.llm_models_service import normalize_llm_selection
 from app.schemas.rag_eval_schemas import (
     RagEvalPairProfileCreate,
     RagEvalPairProfileCreateRequest,
@@ -24,6 +33,7 @@ from app.schemas.rag_eval_schemas import (
     RagEvalRunDetailRead,
     RagEvalRunRead,
     RagEvalRunStartRequest,
+    validate_rag_eval_retrieval_config,
 )
 
 _tasks: dict[int, asyncio.Task] = {}
@@ -64,6 +74,8 @@ async def create_rag_eval_pair_profile_srvc(data: RagEvalPairProfileCreateReques
     Returns:
         RagEvalPairProfileRead: The read schema representation of the newly 
         created profile.
+    Raises:
+        ValueError: If the referenced RAG or chunking profile is not found.
     """
     rag = await rag_profiles_repo.get_rag_profile_by_id(data.rag_profile_id, session)
     if rag is None:
@@ -71,6 +83,7 @@ async def create_rag_eval_pair_profile_srvc(data: RagEvalPairProfileCreateReques
     chunking = await chunking_profiles_repo.get_chunking_profile_by_id(data.chunking_profile_id, session)
     if chunking is None:
         raise ValueError("Chunking profile not found")
+    validate_rag_eval_retrieval_config(data.retrieval_config, rag.strategy)
     profile = await rag_eval_repo.create_rag_eval_pair_profile(
         RagEvalPairProfileCreate(**data.model_dump(), created_by_user_id=current_user.id), session
     )
@@ -132,6 +145,11 @@ async def update_rag_eval_pair_profile_srvc(pair_id: int,
     profile = await rag_eval_repo.get_rag_eval_pair_profile_by_id(pair_id, session)
     if profile is None:
         raise ValueError("RAG evaluation pair profile not found")
+    if data.retrieval_config is not None:
+        rag = await rag_profiles_repo.get_rag_profile_by_id(profile.rag_profile_id, session)
+        if rag is None:
+            raise ValueError("RAG evaluation pair profile references a missing profile")
+        validate_rag_eval_retrieval_config(data.retrieval_config, rag.strategy)
     updated = await rag_eval_repo.update_rag_eval_pair_profile(profile, 
                                                                RagEvalPairProfileUpdate(**data.model_dump(exclude_unset=True), last_edit_by_user_id=current_user.id), 
                                                                session)
@@ -188,11 +206,29 @@ async def start_rag_eval_run_srvc(pair_id: int,
     chunking = await chunking_profiles_repo.get_chunking_profile_by_id(pair.chunking_profile_id, session)
     if rag is None or chunking is None:
         raise ValueError("RAG evaluation pair profile references a missing profile")
+    validate_rag_eval_retrieval_config(pair.retrieval_config, rag.strategy)
+    answer_selection = normalize_llm_selection(
+        data.answer_llm_provider, data.answer_llm_model
+    )
+    judge_selection = normalize_llm_selection(
+        data.judge_llm_provider, data.judge_llm_model
+    )
     run = await rag_eval_repo.create_rag_eval_run(RagEvalRunCreate(
         pair_profile_id=pair_id, k=data.k,
         rag_profile_snapshot=_profile_snapshot(rag),
         chunking_profile_snapshot=_profile_snapshot(chunking),
-        evaluation_model_snapshot={"llm_provider": data.llm_provider, "llm_model": data.llm_model, "embedding_model": data.embedding_model},
+        retrieval_config_snapshot=deepcopy(pair.retrieval_config),
+        answer_generation_model_snapshot={
+            "llm_provider": answer_selection["provider"],
+            "llm_model": answer_selection["model"],
+            "temperature": 0,
+            "prompt_version": "grounded_answer_v1",
+        },
+        evaluation_model_snapshot={
+            "llm_provider": judge_selection["provider"],
+            "llm_model": judge_selection["model"],
+            "embedding_model": data.judge_embedding_model,
+        },
     ), session)
     if run.id is not None:
         _tasks[run.id] = asyncio.create_task(_execute_rag_eval_run(run.id))
@@ -212,9 +248,27 @@ async def _execute_rag_eval_run(run_id: int) -> None:
         try:
             run = await rag_eval_repo.mark_rag_eval_run_running(run, session)
             runtime = create_rag_eval_runtime()
-            result = await runtime.run(rag_snapshot=run.rag_profile_snapshot, 
-                                       chunking_snapshot=run.chunking_profile_snapshot, 
-                                       k=run.k)
+            result = await runtime.run(
+                run_id=run.id,
+                rag_snapshot=run.rag_profile_snapshot,
+                chunking_snapshot=run.chunking_profile_snapshot,
+                retrieval_config_snapshot=run.retrieval_config_snapshot,
+                k=run.k,
+                stage_callback=lambda stage: rag_eval_repo.update_rag_eval_run(
+                    run, session, stage=stage
+                ),
+            )
+            await session.refresh(run)
+            if run.cancel_requested:
+                await rag_eval_repo.mark_rag_eval_run_cancelled(run, session)
+                return
+            await rag_eval_repo.update_rag_eval_run(run, session, stage="generating_answer")
+            result = await generate_grounded_answers(
+                result,
+                provider=run.answer_generation_model_snapshot["llm_provider"],
+                model=run.answer_generation_model_snapshot["llm_model"],
+                should_cancel=lambda: _is_rag_eval_run_cancel_requested(run, session),
+            )
             await session.refresh(run)
             if run.cancel_requested:
                 await rag_eval_repo.mark_rag_eval_run_cancelled(run, session)
@@ -222,6 +276,7 @@ async def _execute_rag_eval_run(run_id: int) -> None:
             evaluator = RagasEvaluator.from_model_selection(
                 run.evaluation_model_snapshot["llm_provider"], run.evaluation_model_snapshot["llm_model"], run.evaluation_model_snapshot["embedding_model"]
             )
+            await rag_eval_repo.update_rag_eval_run(run, session, stage="judging")
             ragas = await evaluator.evaluate(result)
             ragas_by_id = {item.evaluation_id: item.metric_scores for item in ragas.results}
             for row in result.results:
@@ -237,11 +292,18 @@ async def _execute_rag_eval_run(run_id: int) -> None:
                                                             hit_rate_at_k=result.hit_rate_at_k, 
                                                             mrr_at_k=result.mrr_at_k, 
                                                             ragas_metrics=ragas.metric_means)
+        except RagEvalAnswerGenerationCancelled:
+            await rag_eval_repo.mark_rag_eval_run_cancelled(run, session)
         except Exception as exc:
             if run.status in {"queued", "running"}:
                 await rag_eval_repo.mark_rag_eval_run_failed(run, str(exc), session)
         finally:
             _tasks.pop(run_id, None)
+
+
+async def _is_rag_eval_run_cancel_requested(run: RagEvalRun, session: AsyncSession) -> bool:
+    await session.refresh(run)
+    return bool(run.cancel_requested)
 
 
 async def list_rag_eval_runs_srvc(session: AsyncSession, 
@@ -313,8 +375,8 @@ async def cancel_rag_eval_run_srvc(run_id: int,
 async def fail_interrupted_rag_eval_runs_srvc() -> None:
     """
     Fail all interrupted RAG evaluation runs.
-    This function marks all runs with status "queued" or "running" as failed,
-    indicating that they were interrupted by an application restart.
+    This function marks all runs with status "queued" or "running" as
+    failed.
     Args:
         None
     Returns:
@@ -323,4 +385,15 @@ async def fail_interrupted_rag_eval_runs_srvc() -> None:
     async with AsyncSessionLocal() as session:
         for run in await rag_eval_repo.list_rag_eval_runs(session, skip=0, limit=10_000):
             if run.status in {"queued", "running"}:
+                if run.rag_profile_snapshot.get("strategy") == "graphrag":
+                    try:
+                        # Delete the temp graph
+                        await cleanup_rag_eval_graph_scope(run.id)
+                    except Exception:
+                        # Preserve this active run for the next startup retry: terminating it
+                        # here would leave an unreachable temporary graph generation behind.
+                        await rag_eval_repo.update_rag_eval_run(
+                            run, session, stage="cleanup_pending"
+                        )
+                        continue
                 await rag_eval_repo.mark_rag_eval_run_failed(run, "RAG evaluation interrupted by application restart", session)

@@ -55,27 +55,6 @@ async def get_rag_eval_pair_profile_by_name(
     return result.first()
 
 
-async def get_rag_eval_pair_profile_by_profile_ids(
-    rag_profile_id: int, chunking_profile_id: int, session: AsyncSession
-) -> RagEvalPairProfile | None:
-    """
-    Get a RAG evaluation pair profile by its RAG and chunking profile IDs.
-    Args:
-        rag_profile_id (int): The ID of the RAG profile.
-        chunking_profile_id (int): The ID of the chunking profile.
-        session (AsyncSession): The database session.
-    Returns:
-        RagEvalPairProfile | None: The RAG evaluation pair profile if found, else None
-    """
-    result = await session.exec(
-        select(RagEvalPairProfile).where(
-            RagEvalPairProfile.rag_profile_id == rag_profile_id,
-            RagEvalPairProfile.chunking_profile_id == chunking_profile_id,
-        )
-    )
-    return result.first()
-
-
 async def ensure_rag_eval_pair_profile_name_available(
     name: str, session: AsyncSession, exclude_pair_profile_id: int | None = None
 ) -> None:
@@ -120,15 +99,9 @@ async def create_rag_eval_pair_profile(
     Returns:
         RagEvalPairProfile: The created RAG evaluation pair profile.
     Raises:
-        ValueError: If the profile name is already taken or if a pair 
-        with the same RAG and chunking profile IDs already exists.
+        ValueError: If the profile name is already taken.
     """
     await ensure_rag_eval_pair_profile_name_available(profile_in.name, session)
-    existing_pair = await get_rag_eval_pair_profile_by_profile_ids(
-        profile_in.rag_profile_id, profile_in.chunking_profile_id, session
-    )
-    if existing_pair is not None:
-        raise ValueError("RAG/chunking pair already exists")
     return await commit_and_refresh(
         session, RagEvalPairProfile(**profile_in.model_dump())
     )
