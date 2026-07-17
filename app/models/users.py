@@ -16,7 +16,7 @@ if TYPE_CHECKING: # Avoid circular imports by only importing Role for type check
     from .scenarios import Scenario
     from .counterpart_personas import CounterPartPersonas
     from .rag_profiles import RagProfile
-    from .rag_eval import RagEvalPairProfile
+    from .rag_eval import RagEvalConfiguration
 
 class User(SQLModel, table=True):
     id : int | None = Field(default=None, primary_key=True)
@@ -73,11 +73,11 @@ class User(SQLModel, table=True):
         back_populates="last_edit_by_user",
         sa_relationship_kwargs={"foreign_keys": "[RagProfile.last_edit_by_user_id]"},
     )
-    rag_eval_pair_profiles_created: list["RagEvalPairProfile"] = Relationship(
+    rag_eval_configurations_created: list["RagEvalConfiguration"] = Relationship(
         back_populates="created_by_user",
-        sa_relationship_kwargs={"foreign_keys": "[RagEvalPairProfile.created_by_user_id]"},
+        sa_relationship_kwargs={"foreign_keys": "[RagEvalConfiguration.created_by_user_id]"},
     )
-    rag_eval_pair_profiles_last_edited: list["RagEvalPairProfile"] = Relationship(
+    rag_eval_configurations_last_edited: list["RagEvalConfiguration"] = Relationship(
         back_populates="last_edit_by_user",
-        sa_relationship_kwargs={"foreign_keys": "[RagEvalPairProfile.last_edit_by_user_id]"},
+        sa_relationship_kwargs={"foreign_keys": "[RagEvalConfiguration.last_edit_by_user_id]"},
     )

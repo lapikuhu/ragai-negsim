@@ -1,7 +1,13 @@
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import ConfigDict, Field as PydanticField, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field as PydanticField,
+    field_validator,
+    model_validator,
+)
 from sqlmodel import Field, SQLModel
 
 from app.airag.embeddings.embeddings import get_embedding_model_info
@@ -281,8 +287,94 @@ def dump_rag_eval_configuration_snapshot(
     return normalized.model_dump(mode="json")
 
 
-# Legacy run/result transport schemas are retained until their persistence and API
-# replacements land. Configuration CRUD uses only the typed schemas above.
+class RagEvalFinalChunk(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rank: StrictPositiveInt
+    content: str = PydanticField(min_length=1)
+    metadata: dict[str, Any] = PydanticField(default_factory=dict)
+
+
+class RagEvalQueryResultCreate(_StrictSchema):
+    example_id: str = PydanticField(min_length=1)
+    category: str = PydanticField(min_length=1)
+    answerable: bool
+    query: str = PydanticField(min_length=1)
+    reference_answer: str | None = None
+    actual_answer: str = PydanticField(min_length=1)
+    final_chunks: list[RagEvalFinalChunk] = PydanticField(default_factory=list)
+    first_relevant_rank: StrictPositiveInt | None = None
+    hit_at_k: bool | None = None
+    mrr_at_k: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
+    successful_abstention: bool | None = None
+    false_positive_context: bool | None = None
+    faithfulness: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
+    answer_relevancy: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
+    context_precision: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
+    context_recall: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
+    answer_correctness: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
+
+    @model_validator(mode="after")
+    def validate_answerability_metrics(self) -> "RagEvalQueryResultCreate":
+        if self.answerable:
+            if (
+                self.successful_abstention is not None
+                or self.false_positive_context is not None
+            ):
+                raise ValueError(
+                    "Answerable rows cannot contain unanswerable-only metrics"
+                )
+        elif (
+            self.first_relevant_rank is not None
+            or self.hit_at_k is not None
+            or self.mrr_at_k is not None
+        ):
+            raise ValueError("Unanswerable rows cannot contain retrieval rank metrics")
+        return self
+
+
+class RagEvalQueryResultRead(RagEvalQueryResultCreate):
+    id: int
+    run_id: int
+
+
+class RagEvalRunRead(_StrictSchema):
+    id: int
+    configuration_id: int
+    status: Literal["queued", "running", "completed", "failed", "cancelled"]
+    stage: Literal[
+        "queued",
+        "preparing",
+        "chunking",
+        "building_index",
+        "building_graph",
+        "evaluating",
+        "scoring",
+        "cleaning_up",
+        "persisting",
+        "finished",
+        "cleanup_pending",
+    ]
+    progress: Annotated[float, PydanticField(ge=0.0, le=100.0)]
+    completed_examples: Annotated[int, PydanticField(ge=0)]
+    total_examples: Annotated[int, PydanticField(ge=0)]
+    queued_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    cancel_requested: bool
+    cancellation_requested_at: datetime | None = None
+    failure_code: str | None = None
+    failure_message: str | None = None
+    configuration_snapshot: dict[str, Any]
+    suite_version: str
+    suite_content_hash: str
+    resolved_pipeline_snapshot: dict[str, Any]
+    overall_metrics: dict[str, Any]
+    category_metrics: dict[str, Any]
+
+
+class RagEvalRunDetailRead(RagEvalRunRead):
+    query_results: list[RagEvalQueryResultRead] = PydanticField(default_factory=list)
 
 
 class RagEvalGraphBuildConfig(SQLModel):
@@ -299,16 +391,15 @@ class RagEvalRetrievalConfig(SQLModel):
 def validate_rag_eval_retrieval_config(
     retrieval_config: RagEvalRetrievalConfig | dict[str, Any], strategy: str
 ) -> RagEvalRetrievalConfig:
-    config = (
-        retrieval_config
-        if isinstance(retrieval_config, RagEvalRetrievalConfig)
-        else RagEvalRetrievalConfig.model_validate(retrieval_config)
-    )
+    config = RagEvalRetrievalConfig.model_validate(retrieval_config)
     if strategy == "graphrag" and config.graph_build is None:
         raise ValueError("GraphRAG evaluation retrieval_config requires graph_build")
     return config
 
 
+# Temporary transport declarations keep the legacy route/service importable while
+# those layers are replaced in a later task. Target persistence APIs above use only
+# complete RagEvalConfiguration payloads.
 class RagEvalPairProfileBase(SQLModel):
     name: str = Field(min_length=3)
     rag_profile_id: int
@@ -342,6 +433,8 @@ class RagEvalPairProfileRead(RagEvalPairProfileBase):
 
 
 class RagEvalRunCreate(SQLModel):
+    """Legacy service import shim; target enqueues use a configuration instance."""
+
     pair_profile_id: int
     k: int = Field(ge=1)
     rag_profile_snapshot: dict[str, Any] = Field(default_factory=dict)
@@ -358,46 +451,3 @@ class RagEvalRunStartRequest(SQLModel):
     judge_llm_provider: str
     judge_llm_model: str
     judge_embedding_model: str
-
-
-class RagEvalQueryResultCreate(SQLModel):
-    run_id: int
-    evaluation_id: str = Field(min_length=1)
-    query: str = Field(min_length=1)
-    reference_answer: str | None = None
-    answer: str | None = None
-    retrieved_contexts: list[str] = Field(default_factory=list)
-    retrieved_evaluation_ids: list[str] = Field(default_factory=list)
-    reference_rank: int | None = Field(default=None, ge=1)
-    hit_at_k: bool = False
-    mrr_contribution: float = Field(default=0.0, ge=0.0)
-    ragas_metrics: dict[str, Any] = Field(default_factory=dict)
-
-
-class RagEvalQueryResultRead(RagEvalQueryResultCreate):
-    id: int
-
-
-class RagEvalRunRead(SQLModel):
-    id: int
-    pair_profile_id: int
-    status: str
-    stage: str
-    cancel_requested: bool
-    failure_detail: str | None = None
-    k: int
-    rag_profile_snapshot: dict[str, Any]
-    chunking_profile_snapshot: dict[str, Any]
-    retrieval_config_snapshot: dict[str, Any]
-    answer_generation_model_snapshot: dict[str, Any]
-    evaluation_model_snapshot: dict[str, Any]
-    aggregate_hit_rate_at_k: float | None = None
-    aggregate_mrr_at_k: float | None = None
-    aggregate_ragas_metrics: dict[str, Any]
-    queued_at: datetime
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-
-
-class RagEvalRunDetailRead(RagEvalRunRead):
-    query_results: list[RagEvalQueryResultRead] = Field(default_factory=list)
