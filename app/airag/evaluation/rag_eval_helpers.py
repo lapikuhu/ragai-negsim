@@ -429,24 +429,6 @@ def tag_chunks_with_evaluation_ids(
     return tagged
 
 
-def make_invoke_runner(retriever: Any) -> EvalRunner:
-    invoke = getattr(retriever, "invoke", None)
-    if not callable(invoke):
-        raise ValueError("Retriever must provide a callable invoke(query) method")
-
-    def runner(query: str) -> EvalExecutionResult:
-        documents = invoke(query)
-        if not isinstance(documents, (list, tuple)) or not all(
-            isinstance(document, Document) for document in documents
-        ):
-            raise ValueError(
-                "Retriever invoke(query) must return a sequence of LangChain Documents"
-            )
-        return EvalExecutionResult(answer=None, documents=documents)
-
-    return runner
-
-
 def _document_evaluation_ids(document: Document) -> tuple[str, ...]:
     evaluation_ids = document.metadata.get("evaluation_ids", [])
     if not isinstance(evaluation_ids, list) or not all(

@@ -1,27 +1,38 @@
-"""Isolated runtime boundary for persisted RAG evaluation runs.
+"""Isolated CRAG and GraphRAG resources for full-pipeline evaluation."""
 
-The service depends on this small interface so orchestration can be tested without
-FAISS, providers, or Neo4j.  Production CRAG evaluation only creates in-memory
-resources; GraphRAG deliberately refuses to borrow a profile's live graph.
-"""
 from __future__ import annotations
+
 import asyncio
 from dataclasses import dataclass
-from collections.abc import Awaitable, Callable
-from typing import Protocol
+from importlib.metadata import PackageNotFoundError, version
+from typing import Any
+
 from langchain_core.documents import Document
 
-#local imports
+from app.airag.chunking.chunkers import get_default_embeddings
+from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.evaluation.eval_chunking import prepare_evaluation_chunks
+from app.airag.evaluation.eval_models import (
+    EvalCorpus,
+    EvalQueryResult,
+    EvalRunResult,
+)
+from app.airag.evaluation.rag_eval_engine import (
+    CancellationCallback,
+    EvaluationResources,
+    EvaluationSpecification,
+    FullPipelineEvaluator,
+    ProgressCallback,
+    RagEvaluationCancelled,
+    check_cancellation,
+    report_progress,
+)
 from app.airag.evaluation.rag_eval_helpers import (
+    calculate_hit_rate_at_k,
+    calculate_mrr_at_k,
     create_eval_corpus,
-    make_invoke_runner,
-    run_eval_suite,
     tag_chunks_with_evaluation_ids,
 )
-from app.airag.evaluation.eval_models import EvalQueryResult, EvalRunResult
-from app.airag.evaluation.rag_eval_strategies import EVALUATION_STRATEGIES
-from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.knowledge_graph.connection import resolve_neo4j_database, resolve_neo4j_uri
 from app.airag.knowledge_graph.k_graph import (
     build_graph_text_nodes,
@@ -31,24 +42,73 @@ from app.airag.knowledge_graph.k_graph import (
     create_kg_extractors,
 )
 from app.airag.knowledge_graph.retrieval import ScopedGraphRetriever
-from app.airag.knowledge_graph.scoped_schema_store import ScopedSchemaNeo4jPropertyGraphStore
+from app.airag.knowledge_graph.scoped_schema_store import (
+    ScopedSchemaNeo4jPropertyGraphStore,
+)
+from app.airag.pipeline_factory import build_response_pipeline
 from app.core.config import settings
 
 
-RagEvalStageCallback = Callable[[str], Awaitable[None]]
+HIDDEN_CHUNKING_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
-class RagEvalRuntime(Protocol):
-    async def run(
-        self,
-        *,
-        run_id: int,
-        rag_snapshot: dict,
-        chunking_snapshot: dict,
-        retrieval_config_snapshot: dict,
-        k: int,
-        stage_callback: RagEvalStageCallback | None = None,
-    ) -> EvalRunResult: ...
+def _package_version(distribution: str) -> str:
+    try:
+        return version(distribution)
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def normalize_evaluation_specification(configuration: Any) -> EvaluationSpecification:
+    """Map validated user-facing schema names onto internal runtime controls."""
+    chunking = configuration.chunking.model_dump(mode="python")
+    rag = configuration.rag.model_dump(mode="python")
+    strategy = rag.pop("strategy")
+    component_names = {
+        "document_grader": "document_grader",
+        "query_rewriter": "rewrite",
+        "answer_generator": "generate",
+        "hallucination_grader": "hallucination_grader",
+        "answer_grader": "answer_grader",
+        "fallback_generator": "fallback",
+    }
+    llm_components = {
+        internal: dict(rag.pop(external))
+        for external, internal in component_names.items()
+    }
+    if strategy == "crag":
+        response_pipeline = {
+            "reranker": rag.pop("reranker"),
+            "top_n": rag.pop("top_n"),
+            "max_rewrite_attempts": rag.pop("rewrite_limit"),
+            "llm_components": llm_components,
+        }
+    else:
+        response_pipeline = {
+            "reranker": "none",
+            "top_n": rag["evidence_limit"],
+            "max_rewrite_attempts": 1,
+            "llm_components": llm_components,
+        }
+        rag["rrf_k"] = rag.pop("rrf_constant")
+    chunking_strategy = chunking.pop("strategy")
+    return EvaluationSpecification(
+        strategy=strategy,
+        chunking={"strategy": chunking_strategy, "config": chunking},
+        response_pipeline=response_pipeline,
+        retrieval=rag,
+        k=configuration.metrics.k,
+    )
+
+
+def resolve_chunking_embedding(strategy: str) -> tuple[Any | None, dict[str, Any] | None]:
+    """Resolve the hidden semantic boundary model and its non-secret identity."""
+    if strategy not in {"semantic", "hybrid"}:
+        return None, None
+    return get_default_embeddings(), {
+        "provider": "huggingface",
+        "model": HIDDEN_CHUNKING_EMBEDDING_MODEL,
+    }
 
 
 @dataclass(frozen=True)
@@ -62,29 +122,12 @@ class EvalGraphChunk:
 
 
 def _evaluation_graph_scope(run_id: int) -> tuple[int, str]:
-    """
-    Get the evaluation graph scope for a given run ID.
-    Args:
-        run_id: The unique identifier for the RAG evaluation run.
-    Returns:
-        A tuple containing the graph ID and generation string.
-    Raises:
-        ValueError: If the run_id is not positive.
-    """
     if run_id < 1:
         raise ValueError("RAG evaluation run_id must be positive")
     return -run_id, "rag-eval"
 
 
 def _create_evaluation_graph_store(run_id: int) -> ScopedSchemaNeo4jPropertyGraphStore:
-    """
-    Create the evaluation graph store for a given run ID.
-    Args:
-        run_id: The unique identifier for the RAG evaluation run.
-    Returns:
-        ScopedSchemaNeo4jPropertyGraphStore: The evaluation graph store 
-        instance.
-    """
     graph_id, generation = _evaluation_graph_scope(run_id)
     return ScopedSchemaNeo4jPropertyGraphStore(
         graph_id=graph_id,
@@ -98,13 +141,7 @@ def _create_evaluation_graph_store(run_id: int) -> ScopedSchemaNeo4jPropertyGrap
 
 
 async def cleanup_rag_eval_graph_scope(run_id: int) -> None:
-    """
-    Delete and close the deterministic temporary graph scope for a run.
-    Args:
-        run_id: The unique identifier for the RAG evaluation run.
-    Returns:
-        None
-    """
+    """Delete and close a deterministic graph generation for restart recovery."""
     store = _create_evaluation_graph_store(run_id)
     try:
         await asyncio.to_thread(store.delete_generation)
@@ -113,22 +150,10 @@ async def cleanup_rag_eval_graph_scope(run_id: int) -> None:
 
 
 def _make_eval_graph_chunks(chunks: list[Document]) -> list[EvalGraphChunk]:
-    """
-    Create evaluation graph chunks from a list of documents.
-    Args:
-        chunks: A list of Document instances to be converted into 
-            evaluation graph chunks.
-    Returns:
-        A list of EvalGraphChunk instances.
-    Raises:
-        ValueError: If any document is missing the required 
-        eval_document_id metadata.
-    """
-    document_ids = {
-        chunk.metadata.get("eval_document_id")
-        for chunk in chunks
-    }
-    if not all(isinstance(document_id, str) and document_id for document_id in document_ids):
+    document_ids = {chunk.metadata.get("eval_document_id") for chunk in chunks}
+    if not all(
+        isinstance(document_id, str) and document_id for document_id in document_ids
+    ):
         raise ValueError("Evaluation graph chunks must include eval_document_id metadata")
     raw_document_ids = {
         document_id: index
@@ -147,219 +172,112 @@ def _make_eval_graph_chunks(chunks: list[Document]) -> list[EvalGraphChunk]:
     ]
 
 
-class DefaultRagEvalRuntime:
-    async def run(
+async def _prepare_tagged_chunks(
+    specification: EvaluationSpecification,
+    corpus: EvalCorpus,
+    progress_callback: ProgressCallback | None,
+    should_cancel: CancellationCallback | None,
+) -> tuple[list[Document], dict[str, Any] | None]:
+    await check_cancellation(should_cancel)
+    await report_progress(progress_callback, "chunking", 0.0)
+    strategy = str(specification.chunking["strategy"])
+    embeddings, embedding_metadata = resolve_chunking_embedding(strategy)
+    chunks = await asyncio.to_thread(
+        prepare_evaluation_chunks,
+        corpus.documents,
+        dict(specification.chunking),
+        embeddings=embeddings,
+    )
+    tagged = tag_chunks_with_evaluation_ids(chunks, corpus)
+    await report_progress(progress_callback, "chunking", 1.0)
+    await check_cancellation(should_cancel)
+    return tagged, embedding_metadata
+
+
+class CragEvaluationAdapter:
+    """Build an in-memory FAISS retriever for one evaluation run."""
+
+    async def prepare(
         self,
         *,
+        specification: EvaluationSpecification,
+        corpus: EvalCorpus,
         run_id: int,
-        rag_snapshot: dict,
-        chunking_snapshot: dict,
-        retrieval_config_snapshot: dict,
-        k: int,
-        stage_callback: RagEvalStageCallback | None = None,
-    ) -> EvalRunResult:
-        """
-        Generate an evaluation run result for the given RAG evaluation run.
-        Args:
-            run_id: The unique identifier for the RAG evaluation run.
-            rag_snapshot: The RAG snapshot configuration.
-            chunking_snapshot: The chunking snapshot configuration.
-            retrieval_config_snapshot: The retrieval configuration snapshot.
-            k: The number of top retrieved results to consider.
-            stage_callback: An optional callback for reporting evaluation 
-                stages.
-        Returns:
-            An EvalRunResult instance containing the evaluation results.
-        Raises:
-            ValueError: If the RAG evaluation strategy is unsupported.
-        """
-        strategy = rag_snapshot.get("strategy")
-        definition = EVALUATION_STRATEGIES.require(strategy)
-
-        await self._report_stage(stage_callback, "chunking")
-        corpus = create_eval_corpus()
-        chunks = prepare_evaluation_chunks(corpus.documents, chunking_snapshot)
-        chunks = tag_chunks_with_evaluation_ids(chunks, corpus)
-        evaluate = getattr(self, definition.handler_name)
-        retrieval_result = await evaluate(
-            run_id=run_id,
-            corpus=corpus,
-            chunks=chunks,
-            rag_snapshot=rag_snapshot,
-            retrieval_config_snapshot=retrieval_config_snapshot,
-            k=k,
-            stage_callback=stage_callback,
-        )
-        results = tuple(
-            EvalQueryResult(
-                evaluation_id=row.evaluation_id,
-                query=row.query,
-                answer=row.answer,
-                reference=row.reference,
-                retrieved_contexts=row.retrieved_contexts,
-                retrieved_evaluation_ids=row.retrieved_evaluation_ids,
-                first_relevant_rank=row.first_relevant_rank,
-                hit_at_k=row.hit_at_k,
-                reciprocal_rank_at_k=row.reciprocal_rank_at_k,
-            )
-            for row in retrieval_result.results
-        )
-        return EvalRunResult(
-            k=retrieval_result.k,
-            results=results,
-            hit_rate_at_k=retrieval_result.hit_rate_at_k,
-            mrr_at_k=retrieval_result.mrr_at_k,
-        )
-
-    @staticmethod
-    async def _report_stage(stage_callback: RagEvalStageCallback | None, stage: str) -> None:
-        """
-        Report the current stage of the RAG evaluation.
-        Args:
-            stage_callback: The callback to report the stage to.
-            stage: The name of the current stage.
-        """
-        if stage_callback is not None:
-            await stage_callback(stage)
-
-    async def _evaluate_crag(
-        self,
-        *,
-        run_id: int,
-        corpus,
-        chunks: list[Document],
-        rag_snapshot: dict,
-        retrieval_config_snapshot: dict,
-        k: int,
-        stage_callback: RagEvalStageCallback | None,
-    ) -> EvalRunResult:
-        """
-        Evaluate a CRAG RAG strategy.
-        Args:
-            run_id: The unique identifier for the evaluation run.
-            corpus: The evaluation corpus.
-            chunks: The list of document chunks to index.
-            rag_snapshot: The RAG evaluation snapshot containing configuration.
-            retrieval_config_snapshot: The retrieval configuration snapshot.
-            k: The number of top results to retrieve.
-            stage_callback: The callback to report the current stage.
-        Returns:
-            An EvalRunResult containing the evaluation results.
-        """
+        progress_callback: ProgressCallback | None,
+        should_cancel: CancellationCallback | None,
+    ) -> EvaluationResources:
         del run_id
-        await self._report_stage(stage_callback, "retrieving")
-        return await asyncio.to_thread(
-            self._run_crag,
-            corpus=corpus,
-            chunks=chunks,
-            rag_snapshot=rag_snapshot,
-            retrieval_config_snapshot=retrieval_config_snapshot,
-            k=k,
+        chunks, chunking_embedding = await _prepare_tagged_chunks(
+            specification, corpus, progress_callback, should_cancel
         )
-
-    async def _evaluate_graphrag(
-        self,
-        *,
-        run_id: int,
-        corpus,
-        chunks: list[Document],
-        rag_snapshot: dict,
-        retrieval_config_snapshot: dict,
-        k: int,
-        stage_callback: RagEvalStageCallback | None,
-    ) -> EvalRunResult:
-        """
-        Evaluate a GraphRAG RAG strategy.
-        Args:
-            run_id: The unique identifier for the evaluation run.
-            corpus: The evaluation corpus.
-            chunks: The list of document chunks to index.
-            rag_snapshot: The RAG evaluation snapshot containing configuration.
-            retrieval_config_snapshot: The retrieval configuration snapshot.
-            k: The number of top results to retrieve.
-            stage_callback: The callback to report the current stage.
-        Returns:
-            An EvalRunResult containing the evaluation results.
-        """
-        return await self._run_graphrag(
-            run_id=run_id,
-            corpus=corpus,
-            chunks=chunks,
-            rag_snapshot=rag_snapshot,
-            retrieval_config_snapshot=retrieval_config_snapshot,
-            k=k,
-            stage_callback=stage_callback,
-        )
-
-    @staticmethod
-    def _run_crag(*, corpus,
-                  chunks,
-                  rag_snapshot: dict,
-                  retrieval_config_snapshot: dict,
-                  k: int) -> EvalRunResult:
-        """
-        Run a CRAG evaluation using FAISS as the retrieval backend.
-        Args:
-            corpus: The evaluation corpus.
-            chunks: The list of document chunks to index.
-            rag_snapshot: The RAG evaluation snapshot containing configuration.
-            retrieval_config_snapshot: The retrieval configuration snapshot.
-            k: The number of top results to retrieve.
-        Returns:
-            An EvalRunResult containing the evaluation results.
-        """
-        embedding_model = retrieval_config_snapshot.get("embedding_model")
-        if not isinstance(embedding_model, str) or not embedding_model.strip():
-            raise ValueError("RAG evaluation retrieval config requires an embedding_model")
-        embeddings, _ = choose_embedding_model(embedding_model)
+        await report_progress(progress_callback, "building_index", 0.0)
+        await check_cancellation(should_cancel)
+        model = str(specification.retrieval["retrieval_embedding_model"])
+        embeddings, metadata = choose_embedding_model(model)
+        await check_cancellation(should_cancel)
         from langchain_community.vectorstores import FAISS
 
-        store = FAISS.from_documents(chunks, embeddings)
-        top_k = int(rag_snapshot.get("config", {}).get("top_k", k))
-        runner = make_invoke_runner(store.as_retriever(search_kwargs={"k": top_k}))
-        return run_eval_suite(corpus, runner, k=k)
+        store = await asyncio.to_thread(FAISS.from_documents, chunks, embeddings)
+        await check_cancellation(should_cancel)
+        top_k = int(specification.retrieval["top_k"])
+        retriever = store.as_retriever(search_kwargs={"k": top_k})
+        await report_progress(progress_callback, "building_index", 1.0)
+        return EvaluationResources(
+            retriever=retriever,
+            resolved_metadata={
+                "retrieval_embedding": {"model": model, **dict(metadata or {})},
+                "chunking_embedding": chunking_embedding,
+                "fixed_dependency_versions": {
+                    "faiss-cpu": _package_version("faiss-cpu"),
+                    "langchain-community": _package_version("langchain-community"),
+                },
+            },
+            cleanup=lambda: None,
+        )
 
-    @staticmethod
-    async def _run_graphrag(
+
+class GraphRagEvaluationAdapter:
+    """Build and own one deterministic run-scoped temporary property graph."""
+
+    async def prepare(
+        self,
         *,
+        specification: EvaluationSpecification,
+        corpus: EvalCorpus,
         run_id: int,
-        corpus,
-        chunks: list[Document],
-        rag_snapshot: dict,
-        retrieval_config_snapshot: dict,
-        k: int,
-        stage_callback: RagEvalStageCallback | None,
-    ) -> EvalRunResult:
-        """
-        Run a GraphRAG evaluation using a property graph as the retrieval
-        backend.
-        Args:
-            run_id: The unique identifier for this evaluation run.
-            corpus: The evaluation corpus.
-            chunks: The list of document chunks to index.
-            rag_snapshot: The RAG evaluation snapshot containing configuration.
-            retrieval_config_snapshot: The retrieval configuration snapshot.
-            k: The number of top results to retrieve.
-            stage_callback: An optional callback for reporting
-                evaluation stages.
-        Returns:
-            An EvalRunResult containing the evaluation results.
-        """
-        graph_build = retrieval_config_snapshot.get("graph_build")
-        if not isinstance(graph_build, dict):
-            raise ValueError("GraphRAG evaluation retrieval config requires graph_build")
-        graph_config = {
-            **graph_build,
-            "embedding_model": retrieval_config_snapshot.get("embedding_model"),
-            "extractors": ["simple"],
-        }
+        progress_callback: ProgressCallback | None,
+        should_cancel: CancellationCallback | None,
+    ) -> EvaluationResources:
+        chunks, chunking_embedding = await _prepare_tagged_chunks(
+            specification, corpus, progress_callback, should_cancel
+        )
         graph_id, generation = _evaluation_graph_scope(run_id)
         store = _create_evaluation_graph_store(run_id)
+
+        async def cleanup() -> None:
+            try:
+                await asyncio.to_thread(store.delete_generation)
+            finally:
+                store.close()
+
         try:
             await asyncio.to_thread(store.delete_generation)
-            await DefaultRagEvalRuntime._report_stage(stage_callback, "building_graph")
+            await report_progress(progress_callback, "building_graph", 0.0)
+            await check_cancellation(should_cancel)
+            extraction = dict(specification.retrieval["extraction_llm"])
+            graph_config = {
+                "llm_provider": extraction["provider"],
+                "llm_model": extraction["model"],
+                "embedding_model": specification.retrieval["graph_embedding_model"],
+                "max_paths_per_chunk": specification.retrieval["max_paths_per_chunk"],
+                # Schema extraction is corpus-specific and meaningless for the generic
+                # evaluation suite; evaluation accepts no schema or implicit extractor.
+                "extractors": ["simple"],
+            }
             llm = create_graph_llm(graph_config)
+            await check_cancellation(should_cancel)
             embedding_model = create_graph_embedding_model(graph_config)
+            await check_cancellation(should_cancel)
             extractors = create_kg_extractors(graph_config, llm=llm)
             graph_chunks = _make_eval_graph_chunks(chunks)
             nodes = build_graph_text_nodes(
@@ -376,7 +294,7 @@ class DefaultRagEvalRuntime:
                 embedding_model=embedding_model,
                 kg_extractors=extractors,
             )
-            config = rag_snapshot.get("config", {})
+            await check_cancellation(should_cancel)
             retriever = ScopedGraphRetriever(
                 graph_store=store,
                 graph_id=graph_id,
@@ -384,22 +302,159 @@ class DefaultRagEvalRuntime:
                 embedding_model=embedding_model,
                 llm=llm,
                 chunks_by_id={chunk.id: chunk for chunk in graph_chunks},
-                mode=config.get("retrieval_mode", "semantic"),
-                evidence_limit=int(config.get("evidence_limit", k)),
-                traversal_depth=int(config.get("traversal_depth", 2)),
-                rrf_k=int(config.get("rrf_k", 60)),
+                mode=str(specification.retrieval["retrieval_mode"]),
+                evidence_limit=int(specification.retrieval["evidence_limit"]),
+                traversal_depth=int(specification.retrieval["traversal_depth"]),
+                rrf_k=int(specification.retrieval["rrf_k"]),
             )
-            await DefaultRagEvalRuntime._report_stage(stage_callback, "retrieving")
-            return await asyncio.to_thread(
-                run_eval_suite,
-                corpus,
-                make_invoke_runner(retriever),
-                k=k,
+            await report_progress(progress_callback, "building_graph", 1.0)
+            return EvaluationResources(
+                retriever=retriever,
+                resolved_metadata={
+                    "extraction_llm": extraction,
+                    "graph_embedding": {
+                        "model": specification.retrieval["graph_embedding_model"]
+                    },
+                    "chunking_embedding": chunking_embedding,
+                    "extractor": {
+                        "implementation": "simple",
+                        "max_paths_per_chunk": specification.retrieval[
+                            "max_paths_per_chunk"
+                        ],
+                    },
+                    "fixed_dependency_versions": {
+                        "llama-index-core": _package_version("llama-index-core"),
+                    },
+                },
+                cleanup=cleanup,
             )
-        finally:
-            await asyncio.to_thread(store.delete_generation)
-            store.close()
+        except BaseException:
+            await cleanup()
+            raise
 
 
-def create_rag_eval_runtime() -> RagEvalRuntime:
+def adapter_for_strategy(strategy: str):
+    normalized = strategy.strip().lower()
+    if normalized == "crag":
+        return CragEvaluationAdapter()
+    if normalized == "graphrag":
+        return GraphRagEvaluationAdapter()
+    raise ValueError(f"Unsupported RAG evaluation strategy: {strategy}")
+
+
+class DefaultRagEvalRuntime:
+    """Compatibility façade while persistence adopts typed configurations."""
+
+    def __init__(self) -> None:
+        self._evaluator = FullPipelineEvaluator(
+            pipeline_builder=build_response_pipeline
+        )
+
+    async def run(
+        self,
+        *,
+        run_id: int,
+        rag_snapshot: dict,
+        chunking_snapshot: dict,
+        retrieval_config_snapshot: dict,
+        k: int,
+        stage_callback=None,
+        should_cancel: CancellationCallback | None = None,
+    ) -> EvalRunResult:
+        strategy = str(rag_snapshot["strategy"])
+        rag_config = dict(rag_snapshot.get("config") or {})
+        components = rag_config.get("llm_components") or {}
+        response_pipeline = {
+            **rag_config,
+            "llm_components": components,
+            "max_rewrite_attempts": rag_config.get(
+                "max_rewrite_attempts",
+                rag_config.get("rewrite_limit", 2 if strategy == "crag" else 1),
+            ),
+        }
+        if strategy == "crag":
+            retrieval = {
+                "retrieval_embedding_model": retrieval_config_snapshot[
+                    "embedding_model"
+                ],
+                "top_k": int(rag_config.get("top_k", k)),
+            }
+        else:
+            graph_build = dict(retrieval_config_snapshot["graph_build"])
+            retrieval = {
+                "extraction_llm": {
+                    "provider": graph_build["llm_provider"],
+                    "model": graph_build["llm_model"],
+                },
+                "graph_embedding_model": retrieval_config_snapshot["embedding_model"],
+                "max_paths_per_chunk": graph_build.get("max_paths_per_chunk", 10),
+                "retrieval_mode": rag_config.get("retrieval_mode", "semantic"),
+                "evidence_limit": rag_config.get("evidence_limit", k),
+                "traversal_depth": rag_config.get("traversal_depth", 2),
+                "rrf_k": rag_config.get("rrf_k", rag_config.get("rrf_constant", 60)),
+            }
+        specification = EvaluationSpecification(
+            strategy=strategy,
+            chunking={
+                "strategy": chunking_snapshot["strategy"],
+                "config": dict(chunking_snapshot.get("config") or {}),
+            },
+            response_pipeline=response_pipeline,
+            retrieval=retrieval,
+            k=k,
+        )
+        corpus = create_eval_corpus()
+        last_stage = None
+
+        async def forward_progress(update):
+            nonlocal last_stage
+            if stage_callback is not None and update.stage != last_stage:
+                last_stage = update.stage
+                await stage_callback(update.stage)
+
+        evaluated = await self._evaluator.evaluate(
+            specification=specification,
+            corpus=corpus,
+            adapter=adapter_for_strategy(strategy),
+            run_id=run_id,
+            progress_callback=forward_progress,
+            should_cancel=should_cancel,
+        )
+        query_results = []
+        for example, row in zip(corpus.examples, evaluated.results, strict=True):
+            retrieved_ids = tuple(
+                document.evaluation_ids for document in row.ranked_documents
+            )
+            first_rank = next(
+                (
+                    rank
+                    for rank, ids in enumerate(retrieved_ids[:k], start=1)
+                    if example.evaluation_id in ids
+                ),
+                None,
+            )
+            query_results.append(
+                EvalQueryResult(
+                    evaluation_id=row.evaluation_id,
+                    query=row.query,
+                    answer=row.answer,
+                    reference=row.reference_answer,
+                    retrieved_contexts=row.contexts,
+                    retrieved_evaluation_ids=retrieved_ids,
+                    first_relevant_rank=first_rank,
+                    hit_at_k=first_rank is not None,
+                    reciprocal_rank_at_k=(
+                        0.0 if first_rank is None else 1.0 / first_rank
+                    ),
+                )
+            )
+        return EvalRunResult(
+            k=k,
+            results=tuple(query_results),
+            hit_rate_at_k=calculate_hit_rate_at_k(query_results),
+            mrr_at_k=calculate_mrr_at_k(query_results),
+        )
+
+
+def create_rag_eval_runtime() -> DefaultRagEvalRuntime:
     return DefaultRagEvalRuntime()

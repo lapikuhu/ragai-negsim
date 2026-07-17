@@ -177,12 +177,6 @@ async def test_execute_run_persists_runtime_stages_then_judging(monkeypatch):
     monkeypatch.setattr(rag_eval_service.rag_eval_repo, "update_rag_eval_run", fake_update)
     monkeypatch.setattr(rag_eval_service.rag_eval_repo, "mark_rag_eval_run_completed", fake_mark_completed)
     monkeypatch.setattr(rag_eval_service, "create_rag_eval_runtime", lambda: Runtime())
-    async def fake_generate(result, *, provider, model, should_cancel):
-        assert (provider, model) == ("ollama", "qwen2.5:3b")
-        assert await should_cancel() is False
-        return result
-
-    monkeypatch.setattr(rag_eval_service, "generate_grounded_answers", fake_generate, raising=False)
     monkeypatch.setattr(
         rag_eval_service.RagasEvaluator,
         "from_model_selection",
@@ -191,4 +185,4 @@ async def test_execute_run_persists_runtime_stages_then_judging(monkeypatch):
 
     await rag_eval_service._execute_rag_eval_run(42)
 
-    assert stages == ["chunking", "retrieving", "generating_answer", "judging", "finished"]
+    assert stages == ["chunking", "retrieving", "judging", "finished"]

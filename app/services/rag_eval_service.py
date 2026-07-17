@@ -6,14 +6,11 @@ from copy import deepcopy
 from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.airag.evaluation.rag_eval_runtime import (
+    RagEvaluationCancelled,
     cleanup_rag_eval_graph_scope,
     create_rag_eval_runtime,
 )
 from app.airag.evaluation.rag_eval_strategies import EVALUATION_STRATEGIES
-from app.airag.evaluation.answer_generation import (
-    RagEvalAnswerGenerationCancelled,
-    generate_grounded_answers,
-)
 from app.airag.evaluation.ragas_helpers import RagasEvaluator
 from app.db.db import AsyncSessionLocal, AsyncSession
 from app.models.rag_eval import RagEvalPairProfile, RagEvalRun
@@ -260,16 +257,6 @@ async def _execute_rag_eval_run(run_id: int) -> None:
                 stage_callback=lambda stage: rag_eval_repo.update_rag_eval_run(
                     run, session, stage=stage
                 ),
-            )
-            await session.refresh(run)
-            if run.cancel_requested:
-                await rag_eval_repo.mark_rag_eval_run_cancelled(run, session)
-                return
-            await rag_eval_repo.update_rag_eval_run(run, session, stage="generating_answer")
-            result = await generate_grounded_answers(
-                result,
-                provider=run.answer_generation_model_snapshot["llm_provider"],
-                model=run.answer_generation_model_snapshot["llm_model"],
                 should_cancel=lambda: _is_rag_eval_run_cancel_requested(run, session),
             )
             await session.refresh(run)
@@ -295,7 +282,7 @@ async def _execute_rag_eval_run(run_id: int) -> None:
                                                             hit_rate_at_k=result.hit_rate_at_k, 
                                                             mrr_at_k=result.mrr_at_k, 
                                                             ragas_metrics=ragas.metric_means)
-        except RagEvalAnswerGenerationCancelled:
+        except RagEvaluationCancelled:
             await rag_eval_repo.mark_rag_eval_run_cancelled(run, session)
         except Exception as exc:
             if run.status in {"queued", "running"}:

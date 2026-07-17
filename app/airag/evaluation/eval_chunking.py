@@ -1,6 +1,7 @@
 """Chunk synthetic evaluation documents using persisted chunking profiles."""
 from __future__ import annotations
 from collections.abc import Sequence
+from typing import Any
 from langchain_core.documents import Document
 
 # local imports
@@ -13,7 +14,10 @@ from app.airag.chunking.chunkers import (
 
 
 def prepare_evaluation_chunks(
-    documents: Sequence[Document], chunking_snapshot: dict,
+    documents: Sequence[Document],
+    chunking_snapshot: dict,
+    *,
+    embeddings: Any = None,
 ) -> list[Document]:
     """
     Chunk evaluation documents and attach source offsets for scoring.
@@ -32,10 +36,12 @@ def prepare_evaluation_chunks(
     if strategy == "recursive":
         chunks = chunk_document_list_recursive(source_documents, **config)
     elif strategy == "semantic":
-        # TODO: Make the chunk-boundary embedding model configurable and snapshot it.
+        if embeddings is not None:
+            config["embeddings"] = embeddings
         chunks = chunk_document_list_semantic(source_documents, **config)
     elif strategy == "hybrid":
-        # TODO: Make the chunk-boundary embedding model configurable and snapshot it.
+        if embeddings is not None:
+            config["embeddings"] = embeddings
         chunks = chunk_document_list_hybrid(source_documents, **config)
     else:  # normalize_chunking_profile_config raises first; kept for type narrowing.
         raise ValueError(f"Unsupported chunking strategy: {strategy}")

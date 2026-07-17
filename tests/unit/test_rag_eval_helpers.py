@@ -13,7 +13,6 @@ from app.airag.evaluation.rag_eval_helpers import (
     calculate_hit_rate_at_k,
     calculate_mrr_at_k,
     create_eval_corpus,
-    make_invoke_runner,
     run_eval_suite,
     tag_chunks_with_evaluation_ids,
 )
@@ -210,18 +209,6 @@ def test_run_eval_suite_applies_rank_cutoff_and_validates_k(tmp_path):
     assert result.mrr_at_k == 0.0
     with pytest.raises(ValueError, match="k must be at least 1"):
         run_eval_suite(corpus, runner, k=0)
-
-
-def test_make_invoke_runner_normalizes_langchain_retriever_documents():
-    class Retriever:
-        def invoke(self, query: str):
-            assert query == "Question?"
-            return [Document(page_content="context", metadata={})]
-
-    result = make_invoke_runner(Retriever())("Question?")
-
-    assert result.answer is None
-    assert result.documents[0].page_content == "context"
 
 
 def test_calculate_hit_rate_at_k_averages_query_hits():
