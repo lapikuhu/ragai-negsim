@@ -32,7 +32,7 @@ def test_choose_reranker_uses_cross_encoder_by_default(monkeypatch):
     assert result[0].metadata["rerank_score"] == 0.9
 
 
-def test_choose_reranker_none_preserves_documents_without_truncation():
+def test_choose_reranker_none_preserves_order_and_caps_documents():
     selected = reranking.choose_reranker("none")
     docs = [
         Document(page_content="alpha", metadata={"source": "a"}),
@@ -41,7 +41,7 @@ def test_choose_reranker_none_preserves_documents_without_truncation():
 
     result = selected("question", docs, 1)
 
-    assert [doc.page_content for doc in result] == ["alpha", "beta"]
+    assert [doc.page_content for doc in result] == ["alpha"]
     assert "rerank_score" not in result[0].metadata
     assert result[0] is not docs[0]
 

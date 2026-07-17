@@ -1,6 +1,9 @@
 from types import SimpleNamespace
 
 import pytest
+from langchain_core.documents import Document
+
+from app.airag.reranking.reranking import choose_reranker
 
 
 COMPONENT_SELECTIONS = {
@@ -77,6 +80,33 @@ def test_normalize_graphrag_response_configuration_preserves_simulation_defaults
     assert config.top_n == 7
     assert config.max_rewrite_attempts == 1
     assert config.llm_components == COMPONENT_SELECTIONS
+
+
+def test_graphrag_default_no_reranker_still_caps_ranked_documents():
+    from app.airag.pipeline_factory import normalize_response_pipeline_config
+
+    config = normalize_response_pipeline_config(
+        "graphrag",
+        {
+            "evidence_limit": 2,
+            "llm_components": COMPONENT_SELECTIONS,
+        },
+    )
+    documents = [
+        Document(page_content="first", metadata={"rank": 1}),
+        Document(page_content="second", metadata={"rank": 2}),
+        Document(page_content="third", metadata={"rank": 3}),
+    ]
+
+    ranked = choose_reranker(config.reranker)(
+        "negotiation question",
+        documents,
+        config.top_n,
+    )
+
+    assert [document.page_content for document in ranked] == ["first", "second"]
+    assert ranked[0] is not documents[0]
+    assert all("rerank_score" not in document.metadata for document in ranked)
 
 
 def test_response_pipeline_delegates_invocation_to_compiled_graph():

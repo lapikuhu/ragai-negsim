@@ -83,17 +83,17 @@ def cross_encoder_rerank(
     return [_clone_document(document, score) for document, score in ranked[:top_k]]
 
 
-def none_rerank(_question: str, docs: list[Document], _top_k: int = 3) -> list[Document]:
+def none_rerank(_question: str, docs: list[Document], top_k: int = 3) -> list[Document]:
     """
-    Preserve the incoming retrieval order without truncation.
+    Preserve the incoming retrieval order while enforcing the configured limit.
     Args:
         _question: The user's question (unused in this reranker).
         docs: A list of Document objects to preserve.
-        _top_k: The maximum number of top documents to return (unused in this reranker).
+        top_k: The maximum number of documents to return.
     Returns:
         A list of Document objects in their original order.
     """
-    return [_clone_document(document) for document in docs]
+    return [_clone_document(document) for document in docs[:top_k]]
 
 
 def make_cohere_document_reranker(

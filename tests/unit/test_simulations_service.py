@@ -2718,6 +2718,67 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_build_graphrag_passes_scoped_retriever_to_shared_factory(monkeypatch):
+    scoped_retriever = object()
+    normalized_config = object()
+    built_pipeline = object()
+    knowledge_graph = SimpleNamespace(id=8)
+    rag_profile = SimpleNamespace(
+        strategy="graphrag",
+        config={
+            "retrieval_mode": "hybrid",
+            "evidence_limit": 4,
+            "traversal_depth": 3,
+            "rrf_k": 50,
+        },
+    )
+    captured = {}
+
+    async def fake_make_scoped_graph_retriever(graph, profile, session):
+        captured["scoped_args"] = (graph, profile, session)
+        return scoped_retriever
+
+    def fake_normalize_response_pipeline_config(strategy, config):
+        captured["normalize_args"] = (strategy, config)
+        return normalized_config
+
+    def fake_build_response_pipeline(retriever, config):
+        captured["factory_args"] = (retriever, config)
+        return built_pipeline
+
+    monkeypatch.setattr(
+        simulations_service,
+        "_make_scoped_graph_retriever",
+        fake_make_scoped_graph_retriever,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "normalize_response_pipeline_config",
+        fake_normalize_response_pipeline_config,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "build_response_pipeline",
+        fake_build_response_pipeline,
+    )
+
+    strategy, pipeline = await simulations_service._build_retrieval_graph(
+        corpus_index=object(),
+        vector_store=object(),
+        rag_profile=rag_profile,
+        knowledge_graph=knowledge_graph,
+        session="session",
+    )
+
+    assert (strategy, pipeline) == ("graphrag", built_pipeline)
+    assert captured == {
+        "scoped_args": (knowledge_graph, rag_profile, "session"),
+        "normalize_args": ("graphrag", rag_profile.config),
+        "factory_args": (scoped_retriever, normalized_config),
+    }
+
+
+@pytest.mark.asyncio
 async def test_graphrag_negotiation_graph_cache_tracks_active_generation(monkeypatch):
     simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
     build_calls = []
