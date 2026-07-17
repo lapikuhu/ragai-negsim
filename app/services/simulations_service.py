@@ -23,6 +23,10 @@ from app.airag.observability.llm_usage import (
 )
 from app.airag.prompt_guard.prompt_guard import return_guarded_query
 from app.airag.observability.evidence_ledger import build_agent_ledger_record
+from app.airag.pipeline_factory import (
+    build_response_pipeline,
+    normalize_response_pipeline_config,
+)
 from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import (
     is_terminal_acceptance_message,
 )
@@ -1009,52 +1013,6 @@ async def _instantiate_vector_store_for_index(corpus_index: Any, vector_store: A
     raise ValueError(f"Unsupported vector store backend: {vector_store.backend}")
 
 
-def _make_crag_graph(retriever: Any, rag_profile: Any) -> Any:
-    """
-    Create a CRAG graph using the provided retriever.
-    Args:
-        retriever: The retriever object.
-    Returns:
-        The CRAG graph.
-    """
-    from app.airag.chains.crag.crag import CRAGState, make_crag
-    from app.airag.chains.crag.helpers import make_crag_component_chains
-
-    config = getattr(rag_profile, "config", {})
-    return make_crag(
-        retriever_obj=retriever,
-        state_schema=CRAGState,
-        max_rewrite_attempts=config.get("max_rewrite_attempts", 2),
-        reranker_name=config.get("reranker", "cross_encoder"),
-        rerank_top_k=config.get("top_n", 3),
-        component_chains=make_crag_component_chains(config.get("llm_components")),
-    )
-
-
-def _make_graphrag_graph(retriever: Any, rag_profile: Any) -> Any:
-    """
-    Create a GraphRAG graph using the provided retriever.
-    Args:
-        retriever: The retriever object.
-        rag_profile: The RAG profile object.
-    Returns:
-        The GraphRAG graph.
-    """
-    from app.airag.chains.crag.crag import CRAGState, make_crag
-    from app.airag.chains.crag.helpers import make_crag_component_chains
-
-    return make_crag(
-        retriever_obj=retriever,
-        state_schema=CRAGState,
-        max_rewrite_attempts=1,
-        reranker_name="none",
-        rerank_top_k=rag_profile.config.get("evidence_limit", 6),
-        component_chains=make_crag_component_chains(
-            rag_profile.config.get("llm_components")
-        ),
-    )
-
-
 async def _make_scoped_graph_retriever(
     graph: Any,
     rag_profile: Any,
@@ -1163,7 +1121,11 @@ async def _build_retrieval_graph(
             rag_profile,
             session,
         )
-        return "graphrag", _make_graphrag_graph(retriever, rag_profile)
+        pipeline_config = normalize_response_pipeline_config(
+            "graphrag",
+            rag_profile.config,
+        )
+        return "graphrag", build_response_pipeline(retriever, pipeline_config)
 
     vector_store_runtime = await _instantiate_vector_store_for_index(
         corpus_index,
@@ -1174,7 +1136,11 @@ async def _build_retrieval_graph(
         k=rag_profile.config.get("top_k", 4),
         metadata_filter={"corpus_index_id": corpus_index.id},
     )
-    return "crag", _make_crag_graph(retriever, rag_profile)
+    pipeline_config = normalize_response_pipeline_config(
+        "crag",
+        rag_profile.config,
+    )
+    return "crag", build_response_pipeline(retriever, pipeline_config)
 
 
 async def _get_retrieval_graph_for_simulation(

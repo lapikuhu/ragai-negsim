@@ -59,6 +59,24 @@ def test_make_crag_rerank_node_fails_open(monkeypatch):
     assert any("rerank" in message.lower() for message in messages)
 
 
+def test_fallback_clears_final_context_and_documents():
+    class StaticFallbackChain:
+        def invoke(self, _payload, _config=None):
+            return "No relevant source was found."
+
+    node = crag_nodes.make_node_fallback(StaticFallbackChain())
+    result = node(
+        {
+            "question": "What is BATNA?",
+            "context": "stale context",
+            "documents": [Document(page_content="stale", metadata={})],
+        }
+    )
+
+    assert result["context"] == ""
+    assert result["documents"] == []
+
+
 def test_make_crag_places_rerank_between_retrieve_and_grade():
     calls = []
 

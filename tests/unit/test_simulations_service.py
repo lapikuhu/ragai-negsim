@@ -2602,8 +2602,14 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         assert metadata_filter == {"corpus_index_id": 77}
         return ("dense", metadata_filter)
 
-    def fake_make_crag_graph(retriever, rag_profile):
-        return ("crag", retriever, rag_profile.id, rag_profile.config["reranker"])
+    normalized_configs = []
+
+    def fake_normalize_response_pipeline_config(strategy, config):
+        normalized_configs.append((strategy, config))
+        return ("normalized", strategy, config)
+
+    def fake_build_response_pipeline(retriever, config):
+        return ("pipeline", retriever, config)
 
     def fake_make_negotiation_graph(
         rag_graph=None,
@@ -2656,7 +2662,16 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         fake_instantiate_chroma_vector_store,
     )
     monkeypatch.setattr(simulations_service, "make_dense_retriever", fake_make_dense_retriever)
-    monkeypatch.setattr(simulations_service, "_make_crag_graph", fake_make_crag_graph)
+    monkeypatch.setattr(
+        simulations_service,
+        "normalize_response_pipeline_config",
+        fake_normalize_response_pipeline_config,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "build_response_pipeline",
+        fake_build_response_pipeline,
+    )
     monkeypatch.setattr(
         simulations_service,
         "make_negotiation_graph",
@@ -2668,7 +2683,31 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
 
     assert first is second
     assert len(build_calls) == 1
-    assert build_calls[0][0] == ("crag", ("dense", {"corpus_index_id": 77}), 500, "none")
+    assert build_calls[0][0] == (
+        "pipeline",
+        ("dense", {"corpus_index_id": 77}),
+        (
+            "normalized",
+            "crag",
+            {
+                "top_k": 6,
+                "reranker": "none",
+                "top_n": 6,
+                "max_rewrite_attempts": 0,
+            },
+        ),
+    )
+    assert normalized_configs == [
+        (
+            "crag",
+            {
+                "top_k": 6,
+                "reranker": "none",
+                "top_n": 6,
+                "max_rewrite_attempts": 0,
+            },
+        )
+    ]
     assert build_calls[0][1] == "crag"
     assert build_calls[0][2] == "DB coach {phase}"
     assert build_calls[0][3] == "DB counterpart {phase}"

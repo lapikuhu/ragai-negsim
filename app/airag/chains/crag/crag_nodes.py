@@ -427,7 +427,7 @@ def make_node_fallback(chain=fallback_chain):
         return {
             "answer": answer,
             "context": "",
-            "documents": state.get("documents", []),
+            "documents": [],
             "evidence_ledger": ledger,
         }
     return node_fallback
