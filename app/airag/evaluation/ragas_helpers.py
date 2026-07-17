@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from ragas.dataset_schema import SingleTurnSample
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
@@ -183,11 +184,11 @@ class RagasEvaluator:
             RuntimeError: If the metric scoring fails after retrying.
         """
         metric = self.metrics[metric_name]
-        payload = self._metric_payload(metric_name, result)
+        sample = SingleTurnSample(**self._metric_payload(metric_name, result))
         for attempt in range(2):
             await check_cancellation(should_cancel)
             try:
-                scored = await metric.ascore(**payload)
+                scored = await metric.single_turn_ascore(sample)
             except Exception as exc:
                 await check_cancellation(should_cancel)
                 if attempt == 1:
@@ -196,7 +197,7 @@ class RagasEvaluator:
                     ) from exc
             else:
                 await check_cancellation(should_cancel)
-                return float(scored.value)
+                return float(scored)
         raise AssertionError("unreachable")
 
     async def score_query(

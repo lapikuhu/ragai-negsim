@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
+from ragas.dataset_schema import SingleTurnSample
 
 from app.airag.evaluation.eval_models import EvalQueryResult, EvalRunResult
 from app.airag.evaluation.rag_eval_engine import (
@@ -19,12 +18,24 @@ class FakeMetric:
         self.failures = failures
         self.calls: list[dict] = []
 
-    async def ascore(self, **kwargs):
-        self.calls.append(kwargs)
+    async def single_turn_ascore(self, sample: SingleTurnSample) -> float:
+        self.calls.append(sample.model_dump(exclude_none=True))
         if self.failures:
             self.failures -= 1
             raise RuntimeError("temporary failure")
-        return SimpleNamespace(value=self.value)
+        return self.value
+
+
+class ContractMetric:
+    """Test double matching the locked RAGAS 0.3.1 metric contract."""
+
+    def __init__(self, value: float):
+        self.value = value
+        self.calls: list[SingleTurnSample] = []
+
+    async def single_turn_ascore(self, sample: SingleTurnSample) -> float:
+        self.calls.append(sample)
+        return self.value
 
 
 def _eval_run(answer: str | None = "Generated answer") -> EvalRunResult:
@@ -46,6 +57,28 @@ def _eval_run(answer: str | None = "Generated answer") -> EvalRunResult:
         hit_rate_at_k=1.0,
         mrr_at_k=1.0,
     )
+
+
+@pytest.mark.asyncio
+async def test_evaluator_uses_ragas_031_single_turn_scoring_contract():
+    metrics = {
+        "faithfulness": ContractMetric(0.1),
+        "answer_relevancy": ContractMetric(0.2),
+        "context_precision": ContractMetric(0.3),
+        "context_recall": ContractMetric(0.4),
+        "answer_correctness": ContractMetric(0.5),
+    }
+
+    result = await RagasEvaluator(
+        llm=object(), embeddings=object(), metrics=metrics
+    ).evaluate(_eval_run())
+
+    assert result.metric_means["faithfulness"] == 0.1
+    sample = metrics["faithfulness"].calls[0]
+    assert isinstance(sample, SingleTurnSample)
+    assert sample.user_input == "What is it?"
+    assert sample.response == "Generated answer"
+    assert sample.retrieved_contexts == ["First context", "Second context"]
 
 
 @pytest.mark.asyncio
