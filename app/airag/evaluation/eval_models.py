@@ -25,9 +25,11 @@ class EvalSupportRow:
     """
     Represents a support row used in evaluation.
     """
-    support_id: str
+    evaluation_id: str
+    category: str
+    answerable: bool
     query: str
-    support: str
+    reference_answer: str
     ordinal: int
 
 
@@ -36,10 +38,9 @@ class EvalSpanLocator:
     """
     Represents a span locator within a document used in evaluation.
     """
+    evaluation_id: str
     document_number: int
-    row_ordinal: int
-    section_heading: str | None = None
-    start_anchor: str | None = None
+    quote: str
 
 
 @dataclass(frozen=True)
@@ -74,8 +75,25 @@ class EvalExample:
     """
     evaluation_id: str
     query: str
-    support: str
-    document_id: str
+    reference_answer: str
+    legacy_document_id: str = ""
+    category: str = "direct_retrieval"
+    answerable: bool = True
+    support_spans: tuple[EvalSupportSpan, ...] = ()
+
+    @property
+    def support(self) -> str:
+        """Backward-compatible name used by the current evaluation runtime."""
+        return self.reference_answer
+
+    @property
+    def document_id(self) -> str:
+        """Return the first evidence document for legacy single-span consumers."""
+        return (
+            self.support_spans[0].document_id
+            if self.support_spans
+            else self.legacy_document_id
+        )
 
 
 @dataclass(frozen=True)
@@ -87,6 +105,8 @@ class EvalCorpus:
     eval_documents: tuple[EvalDocument, ...]
     support_spans: tuple[EvalSupportSpan, ...]
     examples: tuple[EvalExample, ...]
+    suite_version: str = ""
+    suite_content_hash: str = ""
 
 
 @dataclass(frozen=True)

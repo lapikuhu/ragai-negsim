@@ -31,11 +31,31 @@ def _write_pair(
     docs_dir.mkdir(exist_ok=True)
     supports_dir.mkdir(exist_ok=True)
     (docs_dir / f"synth_doc_{number}.md").write_text(document_text, encoding="utf-8")
+    normalized_supports = [
+        {
+            "id": row["id"],
+            "category": "direct_retrieval",
+            "answerable": True,
+            "query": row["query"],
+            "reference_answer": row["support"],
+        }
+        for row in supports
+    ]
     (supports_dir / f"support_{number}.md").write_text(
-        json.dumps(supports), encoding="utf-8"
+        json.dumps(normalized_supports), encoding="utf-8"
     )
     if headings is not None:
-        (tmp_path / "support_spans.json").write_text(json.dumps(headings), encoding="utf-8")
+        locators = [
+            {
+                "example_id": supports[heading["row_ordinal"] - 1]["id"],
+                "document_number": heading["document_number"],
+                "quote": heading["quote"],
+            }
+            for heading in headings
+        ]
+        (tmp_path / "support_spans.json").write_text(
+            json.dumps({"version": "test", "locators": locators}), encoding="utf-8"
+        )
 
 
 def test_create_eval_corpus_pairs_documents_and_assigns_row_ids(tmp_path):
@@ -44,24 +64,26 @@ def test_create_eval_corpus_pairs_documents_and_assigns_row_ids(tmp_path):
         1,
         "Intro.\n## Topic\nSource passage.\n## Next\nEnding.",
         [
-            {"id": "topic", "query": "First?", "support": "Reference one."},
-            {"id": "topic", "query": "Second?", "support": "Reference two."},
+            {"id": "topic-1", "query": "First?", "support": "Reference one."},
+            {"id": "topic-2", "query": "Second?", "support": "Reference two."},
         ],
         headings=[
-            {"document_number": 1, "row_ordinal": 1, "section_heading": "## Topic"},
-            {"document_number": 1, "row_ordinal": 2, "section_heading": "## Topic"},
+            {"document_number": 1, "row_ordinal": 1, "quote": "Source passage."},
+            {"document_number": 1, "row_ordinal": 2, "quote": "Source passage."},
         ],
     )
 
-    corpus = create_eval_corpus(tmp_path)
+    corpus = create_eval_corpus(
+        tmp_path, expected_category_counts={"direct_retrieval": 2}
+    )
 
     assert len(corpus.documents) == 1
     assert corpus.documents[0].metadata["eval_document_id"] == "synth_doc_1"
     assert [example.evaluation_id for example in corpus.examples] == [
-        "synth_doc_1:topic:1",
-        "synth_doc_1:topic:2",
+        "topic-1",
+        "topic-2",
     ]
-    assert [(span.start, span.end) for span in corpus.support_spans] == [(7, 32), (7, 32)]
+    assert [(span.start, span.end) for span in corpus.support_spans] == [(16, 31), (16, 31)]
 
 
 def test_create_eval_corpus_rejects_missing_support_span_locator(tmp_path):
@@ -73,7 +95,9 @@ def test_create_eval_corpus_rejects_missing_support_span_locator(tmp_path):
     )
 
     with pytest.raises(ValueError, match="Missing support span locator"):
-        create_eval_corpus(tmp_path)
+        create_eval_corpus(
+            tmp_path, expected_category_counts={"direct_retrieval": 1}
+        )
 
 
 def test_create_eval_corpus_rejects_ambiguous_section_heading(tmp_path):
@@ -82,11 +106,13 @@ def test_create_eval_corpus_rejects_ambiguous_section_heading(tmp_path):
         1,
         "## Topic\nOne.\n## Topic\nTwo.",
         [{"id": "topic", "query": "Question?", "support": "Repeated."}],
-        headings=[{"document_number": 1, "row_ordinal": 1, "section_heading": "## Topic"}],
+        headings=[{"document_number": 1, "row_ordinal": 1, "quote": "## Topic"}],
     )
 
     with pytest.raises(ValueError, match="multiple times"):
-        create_eval_corpus(tmp_path)
+        create_eval_corpus(
+            tmp_path, expected_category_counts={"direct_retrieval": 1}
+        )
 
 
 def test_tag_chunks_with_evaluation_ids_preserves_metadata_and_tags_overlap(tmp_path):
@@ -95,9 +121,11 @@ def test_tag_chunks_with_evaluation_ids_preserves_metadata_and_tags_overlap(tmp_
         1,
         "Intro.\n## Topic\nSource passage.\n## Next\nEnding.",
         [{"id": "topic", "query": "Question?", "support": "Reference."}],
-        headings=[{"document_number": 1, "row_ordinal": 1, "section_heading": "## Topic"}],
+        headings=[{"document_number": 1, "row_ordinal": 1, "quote": "Source passage."}],
     )
-    corpus = create_eval_corpus(tmp_path)
+    corpus = create_eval_corpus(
+        tmp_path, expected_category_counts={"direct_retrieval": 1}
+    )
     chunks = [
         Document(
             page_content="Source passage.",
@@ -111,7 +139,7 @@ def test_tag_chunks_with_evaluation_ids_preserves_metadata_and_tags_overlap(tmp_
 
     tagged = tag_chunks_with_evaluation_ids(chunks, corpus)
 
-    assert tagged[0].metadata["evaluation_ids"] == ["synth_doc_1:topic:1"]
+    assert tagged[0].metadata["evaluation_ids"] == ["topic"]
     assert tagged[0].metadata["keep"] is True
     assert "evaluation_ids" not in tagged[1].metadata
 
@@ -126,11 +154,13 @@ def test_run_eval_suite_calculates_hit_rate_and_mrr_at_k(tmp_path):
             {"id": "two", "query": "Two?", "support": "Two."},
         ],
         headings=[
-            {"document_number": 1, "row_ordinal": 1, "section_heading": "## One"},
-            {"document_number": 1, "row_ordinal": 2, "section_heading": "## Two"},
+            {"document_number": 1, "row_ordinal": 1, "quote": "Source one."},
+            {"document_number": 1, "row_ordinal": 2, "quote": "Source two."},
         ],
     )
-    corpus = create_eval_corpus(tmp_path)
+    corpus = create_eval_corpus(
+        tmp_path, expected_category_counts={"direct_retrieval": 2}
+    )
 
     def runner(query: str) -> EvalExecutionResult:
         if query == "One?":
@@ -138,7 +168,7 @@ def test_run_eval_suite_calculates_hit_rate_and_mrr_at_k(tmp_path):
                 answer="one answer",
                 documents=[
                     Document(page_content="irrelevant", metadata={}),
-                    Document(page_content="one", metadata={"evaluation_ids": ["synth_doc_1:one:1"]}),
+                    Document(page_content="one", metadata={"evaluation_ids": ["one"]}),
                 ],
             )
         return EvalExecutionResult(answer="two answer", documents=[])
@@ -160,15 +190,17 @@ def test_run_eval_suite_applies_rank_cutoff_and_validates_k(tmp_path):
         1,
         "## Topic\nSource passage.",
         [{"id": "topic", "query": "Question?", "support": "Expected support."}],
-        headings=[{"document_number": 1, "row_ordinal": 1, "section_heading": "## Topic"}],
+        headings=[{"document_number": 1, "row_ordinal": 1, "quote": "Source passage."}],
     )
-    corpus = create_eval_corpus(tmp_path)
+    corpus = create_eval_corpus(
+        tmp_path, expected_category_counts={"direct_retrieval": 1}
+    )
 
     runner = lambda _query: EvalExecutionResult(
         answer=None,
         documents=[
             Document(page_content="x", metadata={}),
-            Document(page_content="x", metadata={"evaluation_ids": ["synth_doc_1:topic:1"]}),
+            Document(page_content="x", metadata={"evaluation_ids": ["topic"]}),
         ],
     )
 

@@ -1,52 +1,72 @@
 [
   {
-    "id": "truth_is_subjectivity",
-    "query": "What does Kierkegaard mean by the claim that truth is subjectivity?",
-    "support": "Kierkegaard does not mean that every personal opinion is factually correct. He argues that ethical and religious truths must be inwardly appropriated through commitment, passion, sincerity, and action, rather than merely understood from a detached intellectual perspective."
+    "id": "paraphrased-001",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "Which sequence fixes the soonest date a project can finish?",
+    "reference_answer": "The critical path is the longest chain of dependent project tasks and determines the earliest possible completion date."
   },
   {
-    "id": "aesthetic_ethical_religious",
-    "query": "How do Kierkegaard’s aesthetic, ethical, and religious modes of existence differ?",
-    "support": "The aesthetic life is centered on pleasure, novelty, and avoiding binding commitments. The ethical life emphasizes responsibility, continuity, duty, and deliberate self-commitment. The religious life goes further by placing the individual in a direct and personally accountable relationship with God."
+    "id": "paraphrased-002",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "What describes extra work accumulating without schedule or budget changes?",
+    "reference_answer": "Scope creep is the gradual addition of unapproved work without matching adjustments to time, cost, or resources."
   },
   {
-    "id": "anxiety_and_freedom",
-    "query": "Why does Kierkegaard connect anxiety with human freedom?",
-    "support": "Kierkegaard describes anxiety as the dizziness of freedom because it arises when a person becomes aware of multiple possibilities and recognizes that they may choose badly. Anxiety reveals both the reality of freedom and the responsibility that accompanies it."
+    "id": "paraphrased-003",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "Where should a team track threats, owners, and responses?",
+    "reference_answer": "A risk register records identified threats, their likelihood and impact, owners, and planned responses."
   },
   {
-    "id": "despair_and_selfhood",
-    "query": "What is despair in Kierkegaard’s account of the self?",
-    "support": "Despair is not simply sadness but a disorder in the way the self relates to itself. It may involve failing to recognize that one has a self, refusing to be oneself, or trying to become completely self-sufficient without acknowledging dependence on God."
+    "id": "paraphrased-004",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "Which meeting turns reflection on recent work into process changes?",
+    "reference_answer": "A retrospective is a recurring team meeting used to inspect recent work and choose process improvements."
   },
   {
-    "id": "leap_and_commitment",
-    "query": "What role does the leap play in Kierkegaard’s understanding of faith and decision-making?",
-    "support": "The leap refers to the transition from reflection to commitment when complete certainty is unavailable. Reason can clarify evidence, risks, and possibilities, but it cannot remove every uncertainty from decisions involving faith, trust, marriage, vocation, or ethical responsibility."
+    "id": "paraphrased-005",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "What rule reduces multitasking by limiting active tasks?",
+    "reference_answer": "A work-in-progress limit caps simultaneous tasks so a team finishes work before starting more."
   },
   {
-    "id": "truth_is_subjectivity",
-    "query": "Why does Kierkegaard think that simply knowing the correct doctrine is not enough?",
-    "support": "Kierkegaard does not mean that every personal opinion is factually correct. He argues that ethical and religious truths must be inwardly appropriated through commitment, passion, sincerity, and action, rather than merely understood from a detached intellectual perspective."
+    "id": "paraphrased-006",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "What relationship makes one task wait for another?",
+    "reference_answer": "A dependency exists when one task cannot start or finish until another task reaches a required state."
   },
   {
-    "id": "aesthetic_ethical_religious",
-    "query": "How does a life built around enjoyment differ from one based on duty or faith?",
-    "support": "The aesthetic life is centered on pleasure, novelty, and avoiding binding commitments. The ethical life emphasizes responsibility, continuity, duty, and deliberate self-commitment. The religious life goes further by placing the individual in a direct and personally accountable relationship with God."
+    "id": "paraphrased-007",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "What zero-duration marker identifies a major project checkpoint?",
+    "reference_answer": "A milestone marks a significant project event or checkpoint and has no duration of its own."
   },
   {
-    "id": "anxiety_and_freedom",
-    "query": "Why can having several possible courses of action make a person uneasy?",
-    "support": "Kierkegaard describes anxiety as the dizziness of freedom because it arises when a person becomes aware of multiple possibilities and recognizes that they may choose badly. Anxiety reveals both the reality of freedom and the responsibility that accompanies it."
+    "id": "paraphrased-008",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "Who counts as someone with an interest in or influence on a project?",
+    "reference_answer": "A stakeholder is a person or group that affects, is affected by, or perceives itself affected by a project."
   },
   {
-    "id": "despair_and_selfhood",
-    "query": "How can someone be inwardly lost even when they do not feel obviously unhappy?",
-    "support": "Despair is not simply sadness but a disorder in the way the self relates to itself. It may involve failing to recognize that one has a self, refusing to be oneself, or trying to become completely self-sufficient without acknowledging dependence on God."
+    "id": "paraphrased-009",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "What approved plan serves as the comparison point for later performance?",
+    "reference_answer": "A project baseline is the approved scope, schedule, or cost plan used as the reference for measuring change."
   },
   {
-    "id": "leap_and_commitment",
-    "query": "What happens when reflection can no longer settle an important life decision?",
-    "support": "The leap refers to the transition from reflection to commitment when complete certainty is unavailable. Reason can clarify evidence, risks, and possibilities, but it cannot remove every uncertainty from decisions involving faith, trust, marriage, vocation, or ethical responsibility."
+    "id": "paraphrased-010",
+    "category": "paraphrased_retrieval",
+    "answerable": true,
+    "query": "What process governs evaluation and approval of proposed project changes?",
+    "reference_answer": "Change control is the formal process for proposing, assessing, approving, and recording project changes."
   }
 ]

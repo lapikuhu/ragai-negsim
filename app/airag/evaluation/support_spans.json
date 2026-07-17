@@ -1,42 +1,455 @@
-[
-  {"document_number": 1, "row_ordinal": 1, "section_heading": "## 1. Know What You Really Need"},
-  {"document_number": 1, "row_ordinal": 2, "section_heading": "## 2. Understand the Other Side’s Interests"},
-  {"document_number": 1, "row_ordinal": 3, "section_heading": "## 3. Create Options Before Dividing Value"},
-  {"document_number": 1, "row_ordinal": 4, "section_heading": "## 4. Use Information Carefully"},
-  {"document_number": 1, "row_ordinal": 5, "section_heading": "## 5. Maintain a Credible Alternative"},
-  {"document_number": 2, "row_ordinal": 1, "section_heading": "## 1. BATNA"},
-  {"document_number": 2, "row_ordinal": 2, "section_heading": "## 2. Reservation Point"},
-  {"document_number": 2, "row_ordinal": 3, "section_heading": "## 3. Target Point"},
-  {"document_number": 2, "row_ordinal": 4, "section_heading": "## 4. ZOPA"},
-  {"document_number": 2, "row_ordinal": 5, "section_heading": "## 5. Anchoring"},
-  {"document_number": 3, "row_ordinal": 1, "start_anchor": "Rather, he argued that certain truths"},
-  {"document_number": 3, "row_ordinal": 2, "start_anchor": "The aesthetic mode is centered"},
-  {"document_number": 3, "row_ordinal": 3, "start_anchor": "Human freedom therefore gives rise to anxiety."},
-  {"document_number": 3, "row_ordinal": 4, "start_anchor": "In *The Sickness Unto Death*, despair is described"},
-  {"document_number": 3, "row_ordinal": 5, "start_anchor": "Kierkegaard is often associated with the idea of a"},
-  {"document_number": 3, "row_ordinal": 6, "start_anchor": "Rather, he argued that certain truths"},
-  {"document_number": 3, "row_ordinal": 7, "start_anchor": "The aesthetic mode is centered"},
-  {"document_number": 3, "row_ordinal": 8, "start_anchor": "Human freedom therefore gives rise to anxiety."},
-  {"document_number": 3, "row_ordinal": 9, "start_anchor": "In *The Sickness Unto Death*, despair is described"},
-  {"document_number": 3, "row_ordinal": 10, "start_anchor": "Kierkegaard is often associated with the idea of a"},
-  {"document_number": 4, "row_ordinal": 1, "section_heading": "## A City Shaped by Empires"},
-  {"document_number": 4, "row_ordinal": 2, "section_heading": "## Sultanahmet: The Monumental Heart"},
-  {"document_number": 4, "row_ordinal": 3, "section_heading": "## The Bosphorus"},
-  {"document_number": 4, "row_ordinal": 4, "section_heading": "## The Asian Side"},
-  {"document_number": 4, "row_ordinal": 5, "section_heading": "## Museums and Cultural Institutions"},
-  {"document_number": 4, "row_ordinal": 6, "section_heading": "## A City Shaped by Empires"},
-  {"document_number": 4, "row_ordinal": 7, "section_heading": "## Sultanahmet: The Monumental Heart"},
-  {"document_number": 4, "row_ordinal": 8, "section_heading": "## The Bosphorus"},
-  {"document_number": 4, "row_ordinal": 9, "section_heading": "## The Asian Side"},
-  {"document_number": 4, "row_ordinal": 10, "section_heading": "## Museums and Cultural Institutions"},
-  {"document_number": 5, "row_ordinal": 1, "start_anchor": "The neo-classical revival that repeatedly appears"},
-  {"document_number": 5, "row_ordinal": 2, "start_anchor": "This nostalgia is not innocent."},
-  {"document_number": 5, "row_ordinal": 3, "start_anchor": "Under these conditions, floor-plan efficiency"},
-  {"document_number": 5, "row_ordinal": 4, "start_anchor": "The task, then, is not to choose"},
-  {"document_number": 5, "row_ordinal": 5, "start_anchor": "A more serious architecture would stop"},
-  {"document_number": 5, "row_ordinal": 6, "start_anchor": "The neo-classical revival that repeatedly appears"},
-  {"document_number": 5, "row_ordinal": 7, "start_anchor": "This nostalgia is not innocent."},
-  {"document_number": 5, "row_ordinal": 8, "start_anchor": "Under these conditions, floor-plan efficiency"},
-  {"document_number": 5, "row_ordinal": 9, "start_anchor": "The task, then, is not to choose"},
-  {"document_number": 5, "row_ordinal": 10, "start_anchor": "A more serious architecture would stop"}
-]
+{
+  "version": "2.0",
+  "locators": [
+    {
+      "example_id": "direct-001",
+      "document_number": 1,
+      "quote": "A negotiator's BATNA is the best realistic option available if the current negotiation ends without agreement."
+    },
+    {
+      "example_id": "direct-002",
+      "document_number": 1,
+      "quote": "A reservation point is the least favorable deal a negotiator is willing to accept before walking away."
+    },
+    {
+      "example_id": "direct-003",
+      "document_number": 1,
+      "quote": "A target point is the realistic outcome a negotiator plans to pursue through offers and concessions."
+    },
+    {
+      "example_id": "direct-004",
+      "document_number": 1,
+      "quote": "The zone of possible agreement is the overlap between the terms each side can accept."
+    },
+    {
+      "example_id": "direct-005",
+      "document_number": 1,
+      "quote": "Anchoring occurs when an initial serious proposal influences the range of later discussion."
+    },
+    {
+      "example_id": "direct-006",
+      "document_number": 1,
+      "quote": "Interests are the underlying needs and concerns that explain why a party takes a stated position."
+    },
+    {
+      "example_id": "direct-007",
+      "document_number": 1,
+      "quote": "Integrative bargaining creates value by trading across issues that the parties value differently."
+    },
+    {
+      "example_id": "direct-008",
+      "document_number": 1,
+      "quote": "Objective criteria are independent standards, such as market data or precedent, used to evaluate proposals."
+    },
+    {
+      "example_id": "direct-009",
+      "document_number": 1,
+      "quote": "A concession is a movement from a prior demand, ideally exchanged for movement by the other side."
+    },
+    {
+      "example_id": "direct-010",
+      "document_number": 1,
+      "quote": "A caucus is a private break in which one side or a mediator can reassess options away from the joint table."
+    },
+    {
+      "example_id": "direct-011",
+      "document_number": 2,
+      "quote": "A deadline can accelerate decisions, but an artificial deadline may damage trust if exposed."
+    },
+    {
+      "example_id": "direct-012",
+      "document_number": 2,
+      "quote": "A package offer presents several connected terms together so trade-offs can be assessed as a whole."
+    },
+    {
+      "example_id": "direct-013",
+      "document_number": 2,
+      "quote": "A contingent agreement ties future obligations to an uncertain event that the parties predict differently."
+    },
+    {
+      "example_id": "direct-014",
+      "document_number": 2,
+      "quote": "Strategic silence gives the other side room to respond and can prevent unnecessary self-concessions."
+    },
+    {
+      "example_id": "direct-015",
+      "document_number": 2,
+      "quote": "An open question invites explanation and cannot usually be answered with only yes or no."
+    },
+    {
+      "example_id": "direct-016",
+      "document_number": 2,
+      "quote": "A negotiation summary checks shared understanding by restating agreed points and unresolved issues."
+    },
+    {
+      "example_id": "direct-017",
+      "document_number": 2,
+      "quote": "Decision authority is the formal power a representative has to commit their organization to a deal."
+    },
+    {
+      "example_id": "direct-018",
+      "document_number": 2,
+      "quote": "Logrolling exchanges concessions on issues each side values differently, allowing mutual gains."
+    },
+    {
+      "example_id": "direct-019",
+      "document_number": 2,
+      "quote": "Multiple equivalent simultaneous offers reveal preferences by presenting several packages of equal value to the sender."
+    },
+    {
+      "example_id": "direct-020",
+      "document_number": 2,
+      "quote": "An impasse is a point where talks stall because no currently proposed option is acceptable to both sides."
+    },
+    {
+      "example_id": "paraphrased-001",
+      "document_number": 3,
+      "quote": "The critical path is the longest chain of dependent project tasks and determines the earliest possible completion date."
+    },
+    {
+      "example_id": "paraphrased-002",
+      "document_number": 3,
+      "quote": "Scope creep is the gradual addition of unapproved work without matching adjustments to time, cost, or resources."
+    },
+    {
+      "example_id": "paraphrased-003",
+      "document_number": 3,
+      "quote": "A risk register records identified threats, their likelihood and impact, owners, and planned responses."
+    },
+    {
+      "example_id": "paraphrased-004",
+      "document_number": 3,
+      "quote": "A retrospective is a recurring team meeting used to inspect recent work and choose process improvements."
+    },
+    {
+      "example_id": "paraphrased-005",
+      "document_number": 3,
+      "quote": "A work-in-progress limit caps simultaneous tasks so a team finishes work before starting more."
+    },
+    {
+      "example_id": "paraphrased-006",
+      "document_number": 3,
+      "quote": "A dependency exists when one task cannot start or finish until another task reaches a required state."
+    },
+    {
+      "example_id": "paraphrased-007",
+      "document_number": 3,
+      "quote": "A milestone marks a significant project event or checkpoint and has no duration of its own."
+    },
+    {
+      "example_id": "paraphrased-008",
+      "document_number": 3,
+      "quote": "A stakeholder is a person or group that affects, is affected by, or perceives itself affected by a project."
+    },
+    {
+      "example_id": "paraphrased-009",
+      "document_number": 3,
+      "quote": "A project baseline is the approved scope, schedule, or cost plan used as the reference for measuring change."
+    },
+    {
+      "example_id": "paraphrased-010",
+      "document_number": 3,
+      "quote": "Change control is the formal process for proposing, assessing, approving, and recording project changes."
+    },
+    {
+      "example_id": "paraphrased-011",
+      "document_number": 4,
+      "quote": "Team velocity is the amount of work completed in an iteration and is useful for forecasting that same team's capacity."
+    },
+    {
+      "example_id": "paraphrased-012",
+      "document_number": 4,
+      "quote": "Backlog refinement clarifies, splits, estimates, and reorders upcoming work before implementation."
+    },
+    {
+      "example_id": "paraphrased-013",
+      "document_number": 4,
+      "quote": "Acceptance criteria are testable conditions that a work item must satisfy to be accepted as complete."
+    },
+    {
+      "example_id": "paraphrased-014",
+      "document_number": 4,
+      "quote": "A burn-down chart displays remaining work over time toward the end of an iteration or release."
+    },
+    {
+      "example_id": "paraphrased-015",
+      "document_number": 4,
+      "quote": "Resource leveling adjusts task dates to resolve over-allocation of limited people or equipment."
+    },
+    {
+      "example_id": "paraphrased-016",
+      "document_number": 4,
+      "quote": "Lead time measures elapsed time from a request being made until the requested value is delivered."
+    },
+    {
+      "example_id": "paraphrased-017",
+      "document_number": 4,
+      "quote": "Cycle time measures elapsed time from starting work on an item until that item is finished."
+    },
+    {
+      "example_id": "paraphrased-018",
+      "document_number": 4,
+      "quote": "A definition of done is a shared quality checklist applied to every completed increment."
+    },
+    {
+      "example_id": "paraphrased-019",
+      "document_number": 4,
+      "quote": "A RACI matrix identifies who is responsible, accountable, consulted, and informed for each activity."
+    },
+    {
+      "example_id": "paraphrased-020",
+      "document_number": 4,
+      "quote": "A timebox is a fixed maximum period allocated to an activity, after which the activity stops or is reviewed."
+    },
+    {
+      "example_id": "hard-negative-001",
+      "document_number": 5,
+      "quote": "A BATNA is the action taken if no deal is reached, whereas a reservation point is the worst deal still acceptable."
+    },
+    {
+      "example_id": "hard-negative-002",
+      "document_number": 5,
+      "quote": "A target is the desired realistic result, whereas a reservation point is the acceptance boundary."
+    },
+    {
+      "example_id": "hard-negative-003",
+      "document_number": 5,
+      "quote": "A position states what a party demands, whereas an interest explains the need motivating that demand."
+    },
+    {
+      "example_id": "hard-negative-004",
+      "document_number": 5,
+      "quote": "A mediator facilitates voluntary agreement, whereas an arbitrator issues a decision under the agreed process."
+    },
+    {
+      "example_id": "hard-negative-005",
+      "document_number": 5,
+      "quote": "Distributive bargaining allocates a fixed pool, whereas integrative bargaining searches for trades that can expand joint value."
+    },
+    {
+      "example_id": "hard-negative-006",
+      "document_number": 5,
+      "quote": "Lead time begins at the request, whereas cycle time begins only when active work starts."
+    },
+    {
+      "example_id": "hard-negative-007",
+      "document_number": 5,
+      "quote": "A risk is an uncertain future event, whereas an issue is a problem that has already occurred."
+    },
+    {
+      "example_id": "hard-negative-008",
+      "document_number": 5,
+      "quote": "The responsible person performs the work, whereas the accountable person owns the final outcome and approval."
+    },
+    {
+      "example_id": "hard-negative-009",
+      "document_number": 5,
+      "quote": "A milestone has zero duration and marks an event, whereas a task consumes time and produces work."
+    },
+    {
+      "example_id": "hard-negative-010",
+      "document_number": 5,
+      "quote": "Verification checks whether a product was built to specification, whereas validation checks whether it meets user needs."
+    },
+    {
+      "example_id": "relational-001",
+      "document_number": 7,
+      "quote": "Harbor City operates a tidal-energy array as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-001",
+      "document_number": 8,
+      "quote": "Program 1 is designed to stabilize winter electricity supply; it stores surplus power for periods of peak demand."
+    },
+    {
+      "example_id": "relational-002",
+      "document_number": 7,
+      "quote": "Pine County operates a community seed bank as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-002",
+      "document_number": 8,
+      "quote": "Program 2 is designed to protect rare crop varieties; it lends locally adapted seeds to farmers."
+    },
+    {
+      "example_id": "relational-003",
+      "document_number": 7,
+      "quote": "Mesa Town operates a solar microgrid as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-003",
+      "document_number": 8,
+      "quote": "Program 3 is designed to keep emergency shelters powered; it operates independently during grid outages."
+    },
+    {
+      "example_id": "relational-004",
+      "document_number": 7,
+      "quote": "River Borough operates restored wetlands as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-004",
+      "document_number": 8,
+      "quote": "Program 4 is designed to reduce downstream storm surges; it holds floodwater before it reaches homes."
+    },
+    {
+      "example_id": "relational-005",
+      "document_number": 7,
+      "quote": "Summit Village operates an avalanche sensor network as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-005",
+      "document_number": 8,
+      "quote": "Program 5 is designed to shorten avalanche warnings; it sends real-time snow movement alerts."
+    },
+    {
+      "example_id": "relational-006",
+      "document_number": 7,
+      "quote": "Cedar District operates a mobile health clinic as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-006",
+      "document_number": 8,
+      "quote": "Program 6 is designed to reach remote patients; it rotates primary care through isolated neighborhoods."
+    },
+    {
+      "example_id": "relational-007",
+      "document_number": 7,
+      "quote": "Lake Ward operates a rainwater capture system as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-007",
+      "document_number": 8,
+      "quote": "Program 7 is designed to reduce potable-water demand; it supplies captured rainwater for irrigation."
+    },
+    {
+      "example_id": "relational-008",
+      "document_number": 7,
+      "quote": "Orchard City operates a cold-storage cooperative as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-008",
+      "document_number": 8,
+      "quote": "Program 8 is designed to reduce harvest spoilage; it keeps produce cool before shipment."
+    },
+    {
+      "example_id": "relational-009",
+      "document_number": 7,
+      "quote": "Delta County operates a floodplain park as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-009",
+      "document_number": 8,
+      "quote": "Program 9 is designed to lower insured flood losses; it gives the river safe space during high water."
+    },
+    {
+      "example_id": "relational-010",
+      "document_number": 7,
+      "quote": "Granite Town operates a recycled-glass plant as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-010",
+      "document_number": 8,
+      "quote": "Program 10 is designed to reduce landfill demand; it turns discarded bottles into paving aggregate."
+    },
+    {
+      "example_id": "relational-011",
+      "document_number": 7,
+      "quote": "Willow Borough operates an electric bus depot as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-011",
+      "document_number": 8,
+      "quote": "Program 11 is designed to cut transit emissions; it charges buses using overnight renewable power."
+    },
+    {
+      "example_id": "relational-012",
+      "document_number": 7,
+      "quote": "Prairie Village operates a soil-testing laboratory as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-012",
+      "document_number": 8,
+      "quote": "Program 12 is designed to target fertilizer use; it measures nutrient levels before planting."
+    },
+    {
+      "example_id": "relational-013",
+      "document_number": 7,
+      "quote": "Coral District operates a reef nursery as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-013",
+      "document_number": 8,
+      "quote": "Program 13 is designed to increase juvenile coral survival; it raises fragments before reef transplantation."
+    },
+    {
+      "example_id": "relational-014",
+      "document_number": 7,
+      "quote": "Maple Ward operates a public tool library as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-014",
+      "document_number": 8,
+      "quote": "Program 14 is designed to extend the life of household equipment; it allows residents to borrow repair tools."
+    },
+    {
+      "example_id": "relational-015",
+      "document_number": 7,
+      "quote": "Dune City operates a desalination pilot as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-015",
+      "document_number": 8,
+      "quote": "Program 15 is designed to provide drought backup water; it uses renewable energy to remove salt."
+    },
+    {
+      "example_id": "relational-016",
+      "document_number": 7,
+      "quote": "Forest County operates a wildfire watchtower network as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-016",
+      "document_number": 8,
+      "quote": "Program 16 is designed to detect fires earlier; it combines cameras with volunteer patrols."
+    },
+    {
+      "example_id": "relational-017",
+      "document_number": 7,
+      "quote": "Bay Town operates a fish-market traceability system as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-017",
+      "document_number": 8,
+      "quote": "Program 17 is designed to discourage illegal catches; it records each catch from boat to buyer."
+    },
+    {
+      "example_id": "relational-018",
+      "document_number": 7,
+      "quote": "Cliff Village operates a cable-car transit link as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-018",
+      "document_number": 8,
+      "quote": "Program 18 is designed to connect the ridge without widening roads; it moves passengers above the steep slope."
+    },
+    {
+      "example_id": "relational-019",
+      "document_number": 7,
+      "quote": "Meadow Borough operates a pollinator corridor as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-019",
+      "document_number": 8,
+      "quote": "Program 19 is designed to support native bee populations; it links flowering habitats across neighborhoods."
+    },
+    {
+      "example_id": "relational-020",
+      "document_number": 7,
+      "quote": "Stone District operates a building-heat recovery loop as its featured resilience resource."
+    },
+    {
+      "example_id": "relational-020",
+      "document_number": 8,
+      "quote": "Program 20 is designed to lower winter heating demand; it shares recovered waste heat among buildings."
+    }
+  ]
+}

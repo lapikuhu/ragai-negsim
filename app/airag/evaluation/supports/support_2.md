@@ -1,27 +1,72 @@
 [
   {
-    "id": "batna_definition",
-    "query": "What is a BATNA in negotiation, and how is it used?",
-    "support": "BATNA means Best Alternative to a Negotiated Agreement. It is the best realistic option available if the current negotiation ends without a deal. A negotiator uses the BATNA to compare proposed agreements against the value of walking away."
+    "id": "direct-011",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "What risk follows from inventing a negotiation deadline?",
+    "reference_answer": "A deadline can accelerate decisions, but an artificial deadline may damage trust if exposed."
   },
   {
-    "id": "reservation_point_definition",
-    "query": "What is a reservation point, and how does it guide a negotiator?",
-    "support": "A reservation point is the least favorable deal a negotiator is willing to accept. It is used as a boundary for concessions and helps the negotiator decide when an offer is worse than choosing the available alternative."
+    "id": "direct-012",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "What kind of offer combines several connected terms?",
+    "reference_answer": "A package offer presents several connected terms together so trade-offs can be assessed as a whole."
   },
   {
-    "id": "target_point_definition",
-    "query": "What is a target point in negotiation, and how is it used?",
-    "support": "A target point is the realistic outcome a negotiator aims to achieve. It is used to guide opening offers, counteroffers, and concessions while keeping the negotiation focused on a planned result."
+    "id": "direct-013",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "How can parties handle different predictions about an uncertain event?",
+    "reference_answer": "A contingent agreement ties future obligations to an uncertain event that the parties predict differently."
   },
   {
-    "id": "zopa_definition",
-    "query": "What is the ZOPA, and why is it important during negotiation?",
-    "support": "ZOPA means Zone of Possible Agreement. It is the range in which both sides could accept a deal. Negotiators use the ZOPA to determine whether their acceptable terms overlap and whether an agreement is possible."
+    "id": "direct-014",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "Why might a negotiator pause silently after an offer?",
+    "reference_answer": "Strategic silence gives the other side room to respond and can prevent unnecessary self-concessions."
   },
   {
-    "id": "anchoring_definition",
-    "query": "What is anchoring in negotiation, and how can an anchor be used?",
-    "support": "Anchoring is the tendency for the first serious number or proposal to influence later discussion. A negotiator can use a credible opening offer as an anchor to shape expectations and establish a favorable starting point."
+    "id": "direct-015",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "What type of question invites a detailed explanation?",
+    "reference_answer": "An open question invites explanation and cannot usually be answered with only yes or no."
+  },
+  {
+    "id": "direct-016",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "Why should a negotiator summarize the discussion?",
+    "reference_answer": "A negotiation summary checks shared understanding by restating agreed points and unresolved issues."
+  },
+  {
+    "id": "direct-017",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "What determines whether a representative can commit an organization?",
+    "reference_answer": "Decision authority is the formal power a representative has to commit their organization to a deal."
+  },
+  {
+    "id": "direct-018",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "What technique trades concessions across differently valued issues?",
+    "reference_answer": "Logrolling exchanges concessions on issues each side values differently, allowing mutual gains."
+  },
+  {
+    "id": "direct-019",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "What does presenting several equally valued packages reveal?",
+    "reference_answer": "Multiple equivalent simultaneous offers reveal preferences by presenting several packages of equal value to the sender."
+  },
+  {
+    "id": "direct-020",
+    "category": "direct_retrieval",
+    "answerable": true,
+    "query": "What is it called when talks stall with no acceptable option?",
+    "reference_answer": "An impasse is a point where talks stall because no currently proposed option is acceptable to both sides."
   }
 ]
