@@ -166,7 +166,7 @@ RagEvaluationConfiguration = Annotated[
 
 
 class RagEvalMetricsConfiguration(_StrictSchema):
-    k: StrictPositiveInt = 4
+    k: StrictPositiveInt = 3
     ragas_judge: LLMSelection
     judge_embedding_model: str = PydanticField(
         default="text-embedding-3-small",
@@ -269,7 +269,15 @@ def dump_rag_eval_configuration_snapshot(
     configuration: RagEvalConfigurationBase | dict[str, Any],
 ) -> dict[str, Any]:
     """Return a canonical JSON-compatible user-authored configuration snapshot."""
-    normalized = RagEvalConfigurationCreateRequest.model_validate(configuration)
+    raw_configuration = (
+        configuration.model_dump(
+            include={"name", "chunking", "rag", "metrics"},
+            mode="python",
+        )
+        if isinstance(configuration, RagEvalConfigurationBase)
+        else configuration
+    )
+    normalized = RagEvalConfigurationCreateRequest.model_validate(raw_configuration)
     return normalized.model_dump(mode="json")
 
 

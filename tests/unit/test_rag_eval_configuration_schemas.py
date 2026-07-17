@@ -173,6 +173,18 @@ def test_rag_discriminator_normalizes_each_supported_variant(rag, expected_type)
     assert config.rag.document_grader.model == "gpt-4o-mini"
 
 
+def test_default_crag_and_metric_controls_form_a_valid_configuration():
+    rag = crag_payload()
+    rag.pop("top_n")
+    payload = configuration_payload(rag=rag)
+    payload["metrics"].pop("k")
+
+    config = RagEvalConfigurationCreateRequest.model_validate(payload)
+
+    assert config.rag.top_n == 3
+    assert config.metrics.k == 3
+
+
 def test_configuration_contains_no_profile_foreign_keys():
     with pytest.raises(ValidationError) as exc:
         RagEvalConfigurationCreateRequest.model_validate(
@@ -402,3 +414,11 @@ def test_snapshot_dump_is_normalized_stable_and_excludes_read_metadata():
         "model": "gpt-4o-mini",
     }
     assert set(first) == {"name", "chunking", "rag", "metrics"}
+
+
+def test_snapshot_dump_revalidates_an_existing_mutated_configuration_instance():
+    config = RagEvalConfigurationCreateRequest.model_validate(configuration_payload())
+    config.metrics.k = config.rag.top_n + 1
+
+    with pytest.raises(ValidationError, match="metrics.k"):
+        dump_rag_eval_configuration_snapshot(config)
