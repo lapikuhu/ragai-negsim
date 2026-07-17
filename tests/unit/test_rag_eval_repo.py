@@ -307,6 +307,57 @@ async def test_multiple_queued_runs_are_allowed_and_claimed_fifo(db_session):
 
 
 @pytest.mark.asyncio
+async def test_only_fifo_claim_can_transition_a_queued_run_to_running(db_session):
+    configuration = await rag_eval_repo.create_rag_eval_configuration(
+        configuration_input(), db_session
+    )
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    earliest = await rag_eval_repo.enqueue_rag_eval_run(
+        configuration,
+        suite_version="2026.1",
+        suite_content_hash="earliest",
+        total_examples=1,
+        session=db_session,
+    )
+    later = await rag_eval_repo.enqueue_rag_eval_run(
+        configuration,
+        suite_version="2026.1",
+        suite_content_hash="later",
+        total_examples=1,
+        session=db_session,
+    )
+    earliest.queued_at = base
+    later.queued_at = base + timedelta(seconds=1)
+    await db_session.commit()
+
+    with pytest.raises(ValueError, match="claim_next_rag_eval_run"):
+        await rag_eval_repo.transition_rag_eval_run(
+            later,
+            "running",
+            stage="preparing",
+            session=db_session,
+        )
+    with pytest.raises(ValueError, match="claim_next_rag_eval_run"):
+        await rag_eval_repo.update_rag_eval_run(
+            later,
+            db_session,
+            status="running",
+            stage="preparing",
+        )
+    with pytest.raises(ValueError, match="claim_next_rag_eval_run"):
+        await rag_eval_repo.mark_rag_eval_run_running(later, db_session)
+
+    await db_session.refresh(later)
+    assert later.status == "queued"
+    claimed = await rag_eval_repo.claim_next_rag_eval_run(db_session)
+    assert claimed is not None
+    assert claimed.id == earliest.id
+    assert claimed.status == "running"
+    await db_session.refresh(later)
+    assert later.status == "queued"
+
+
+@pytest.mark.asyncio
 async def test_queued_cancellation_is_terminal_and_never_claimed(db_session):
     configuration = await rag_eval_repo.create_rag_eval_configuration(
         configuration_input(), db_session

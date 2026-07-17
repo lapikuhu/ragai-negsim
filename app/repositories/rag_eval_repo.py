@@ -296,6 +296,11 @@ async def transition_rag_eval_run(
     if run.id is None:
         raise ValueError("RAG evaluation run must be persisted")
     expected_status = run.status
+    if expected_status == "queued" and next_status == "running":
+        raise ValueError(
+            "Queued RAG evaluation runs may only be started by "
+            "claim_next_rag_eval_run"
+        )
     if next_status != expected_status:
         _validate_rag_eval_run_transition(expected_status, next_status)
     if stage is not None and stage not in RAG_EVAL_RUN_STAGES:
@@ -564,13 +569,9 @@ async def mark_rag_eval_run_running(
     run: RagEvalRun,
     session: AsyncSession,
 ) -> RagEvalRun:
-    return await transition_rag_eval_run(
-        run,
-        "running",
-        stage="preparing",
-        started_at=utc_now(),
-        cancel_requested=False,
-        session=session,
+    raise ValueError(
+        "Queued RAG evaluation runs may only be started by "
+        "claim_next_rag_eval_run"
     )
 
 
