@@ -287,12 +287,26 @@ def dump_rag_eval_configuration_snapshot(
     return normalized.model_dump(mode="json")
 
 
+class RagEvalFinalChunkMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    chunk_index: int | None = PydanticField(default=None, ge=0)
+    source: str | None = None
+    score: float | None = None
+    rerank_score: float | None = None
+    retrieval_strategy: str | None = None
+    retrieval_mode: str | None = None
+    evidence_path: str | None = None
+
+
 class RagEvalFinalChunk(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     rank: StrictPositiveInt
     content: str = PydanticField(min_length=1)
-    metadata: dict[str, Any] = PydanticField(default_factory=dict)
+    metadata: RagEvalFinalChunkMetadata = PydanticField(
+        default_factory=RagEvalFinalChunkMetadata
+    )
 
 
 class RagEvalQueryResultCreate(_StrictSchema):
@@ -313,6 +327,19 @@ class RagEvalQueryResultCreate(_StrictSchema):
     context_precision: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
     context_recall: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
     answer_correctness: Annotated[float, PydanticField(ge=0.0, le=1.0)] | None = None
+
+    @field_validator("final_chunks")
+    @classmethod
+    def validate_final_chunk_ranks(
+        cls,
+        value: list[RagEvalFinalChunk],
+    ) -> list[RagEvalFinalChunk]:
+        ranks = [chunk.rank for chunk in value]
+        if ranks != list(range(1, len(value) + 1)):
+            raise ValueError(
+                "final_chunks must have ordered consecutive ranks starting at 1"
+            )
+        return value
 
     @model_validator(mode="after")
     def validate_answerability_metrics(self) -> "RagEvalQueryResultCreate":

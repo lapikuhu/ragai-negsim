@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
+from pydantic import ValidationError
 from sqlalchemy import CheckConstraint, Index
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
@@ -94,7 +95,7 @@ def query_result(example_id: str = "direct-001") -> RagEvalQueryResultCreate:
 
 
 @pytest_asyncio.fixture
-async def db_session():
+async def db_engine():
     engine = create_async_engine(
         "sqlite+aiosqlite://",
         connect_args={"check_same_thread": False},
@@ -102,9 +103,14 @@ async def db_session():
     )
     async with engine.begin() as connection:
         await connection.run_sync(SQLModel.metadata.create_all)
-    async with AsyncSession(engine, expire_on_commit=False) as session:
-        yield session
+    yield engine
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session(db_engine):
+    async with AsyncSession(db_engine, expire_on_commit=False) as session:
+        yield session
 
 
 def test_target_models_have_complete_shape_without_profile_foreign_keys():
@@ -330,6 +336,76 @@ async def test_queued_cancellation_is_terminal_and_never_claimed(db_session):
 
 
 @pytest.mark.asyncio
+async def test_stale_queued_cancellation_uses_running_cas_without_overwriting_claim(
+    db_engine,
+):
+    async with AsyncSession(db_engine, expire_on_commit=False) as stale_session:
+        configuration = await rag_eval_repo.create_rag_eval_configuration(
+            configuration_input(), stale_session
+        )
+        stale_run = await rag_eval_repo.enqueue_rag_eval_run(
+            configuration,
+            suite_version="2026.1",
+            suite_content_hash="race",
+            total_examples=1,
+            session=stale_session,
+        )
+
+        async with AsyncSession(db_engine, expire_on_commit=False) as claim_session:
+            claimed = await rag_eval_repo.claim_next_rag_eval_run(claim_session)
+            assert claimed is not None
+
+        assert stale_run.status == "queued"
+        cancelled = await rag_eval_repo.request_rag_eval_run_cancel(
+            stale_run, stale_session
+        )
+
+        assert cancelled.status == "running"
+        assert cancelled.cancel_requested is True
+        assert cancelled.cancellation_requested_at is not None
+
+
+@pytest.mark.asyncio
+async def test_stale_transition_cannot_overwrite_new_terminal_status(db_engine):
+    async with AsyncSession(db_engine, expire_on_commit=False) as stale_session:
+        configuration = await rag_eval_repo.create_rag_eval_configuration(
+            configuration_input(), stale_session
+        )
+        stale_run = await rag_eval_repo.enqueue_rag_eval_run(
+            configuration,
+            suite_version="2026.1",
+            suite_content_hash="race",
+            total_examples=1,
+            session=stale_session,
+        )
+        await rag_eval_repo.claim_next_rag_eval_run(stale_session)
+
+        async with AsyncSession(db_engine, expire_on_commit=False) as winner_session:
+            winner = await winner_session.get(RagEvalRun, stale_run.id)
+            assert winner is not None
+            await rag_eval_repo.transition_rag_eval_run(
+                winner,
+                "failed",
+                stage="finished",
+                failure_code="winner",
+                session=winner_session,
+            )
+
+        assert stale_run.status == "running"
+        with pytest.raises(ValueError, match="changed concurrently"):
+            await rag_eval_repo.transition_rag_eval_run(
+                stale_run,
+                "cancelled",
+                stage="finished",
+                session=stale_session,
+            )
+
+        await stale_session.refresh(stale_run)
+        assert stale_run.status == "failed"
+        assert stale_run.failure_code == "winner"
+
+
+@pytest.mark.asyncio
 async def test_global_running_constraint_allows_many_queued_but_one_running(db_session):
     configuration = await rag_eval_repo.create_rag_eval_configuration(
         configuration_input(), db_session
@@ -402,6 +478,47 @@ async def test_transitions_progress_and_restart_helpers(db_session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "immutable_field",
+    [
+        "configuration_snapshot",
+        "configuration_id",
+        "queued_at",
+        "suite_version",
+        "suite_content_hash",
+    ],
+)
+async def test_generic_run_update_rejects_immutable_fields(
+    db_session,
+    immutable_field,
+):
+    configuration = await rag_eval_repo.create_rag_eval_configuration(
+        configuration_input(), db_session
+    )
+    run = await rag_eval_repo.enqueue_rag_eval_run(
+        configuration,
+        suite_version="2026.1",
+        suite_content_hash="immutable",
+        total_examples=1,
+        session=db_session,
+    )
+    original_snapshot = run.configuration_snapshot
+
+    with pytest.raises(ValueError, match="not mutable"):
+        await rag_eval_repo.update_rag_eval_run(
+            run,
+            db_session,
+            **{immutable_field: "tampered"},
+        )
+
+    await db_session.refresh(run)
+    assert run.configuration_snapshot == original_snapshot
+    assert run.configuration_id == configuration.id
+    assert run.suite_version == "2026.1"
+    assert run.suite_content_hash == "immutable"
+
+
+@pytest.mark.asyncio
 async def test_atomic_finalization_persists_results_and_aggregates_together(db_session):
     configuration = await rag_eval_repo.create_rag_eval_configuration(
         configuration_input(), db_session
@@ -440,7 +557,7 @@ async def test_atomic_finalization_persists_results_and_aggregates_together(db_s
 
 
 @pytest.mark.asyncio
-async def test_atomic_finalization_rolls_back_all_rows_and_aggregates_on_failure(
+async def test_atomic_finalization_rejects_duplicate_examples_before_writes(
     db_session,
 ):
     configuration = await rag_eval_repo.create_rag_eval_configuration(
@@ -456,7 +573,7 @@ async def test_atomic_finalization_rolls_back_all_rows_and_aggregates_on_failure
     await rag_eval_repo.claim_next_rag_eval_run(db_session)
     run_id = run.id
 
-    with pytest.raises(IntegrityError):
+    with pytest.raises(ValueError, match="duplicate example_id"):
         await rag_eval_repo.finalize_rag_eval_run_success(
             run,
             [query_result(), query_result()],
@@ -479,3 +596,128 @@ async def test_atomic_finalization_rolls_back_all_rows_and_aggregates_on_failure
     assert persisted_run.overall_metrics == {}
     assert persisted_run.category_metrics == {}
     assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_atomic_finalization_rejects_incomplete_buffer_before_writes(db_session):
+    configuration = await rag_eval_repo.create_rag_eval_configuration(
+        configuration_input(), db_session
+    )
+    run = await rag_eval_repo.enqueue_rag_eval_run(
+        configuration,
+        suite_version="2026.1",
+        suite_content_hash="abc",
+        total_examples=2,
+        session=db_session,
+    )
+    await rag_eval_repo.claim_next_rag_eval_run(db_session)
+
+    with pytest.raises(ValueError, match="exactly 2 query results"):
+        await rag_eval_repo.finalize_rag_eval_run_success(
+            run,
+            [query_result()],
+            overall_metrics={"hit_at_k": 1.0},
+            category_metrics={},
+            resolved_pipeline_snapshot={},
+            session=db_session,
+        )
+
+    await db_session.refresh(run)
+    assert run.status == "running"
+    assert await rag_eval_repo.list_rag_eval_query_results(run.id, db_session) == []
+
+
+@pytest.mark.asyncio
+async def test_stale_finalization_cannot_overwrite_failed_run(db_engine):
+    async with AsyncSession(db_engine, expire_on_commit=False) as stale_session:
+        configuration = await rag_eval_repo.create_rag_eval_configuration(
+            configuration_input(), stale_session
+        )
+        stale_run = await rag_eval_repo.enqueue_rag_eval_run(
+            configuration,
+            suite_version="2026.1",
+            suite_content_hash="race",
+            total_examples=1,
+            session=stale_session,
+        )
+        await rag_eval_repo.claim_next_rag_eval_run(stale_session)
+
+        async with AsyncSession(db_engine, expire_on_commit=False) as winner_session:
+            winner = await winner_session.get(RagEvalRun, stale_run.id)
+            assert winner is not None
+            await rag_eval_repo.transition_rag_eval_run(
+                winner,
+                "failed",
+                stage="finished",
+                failure_code="winner",
+                session=winner_session,
+            )
+
+        with pytest.raises(ValueError, match="Only a running evaluation"):
+            await rag_eval_repo.finalize_rag_eval_run_success(
+                stale_run,
+                [query_result()],
+                overall_metrics={},
+                category_metrics={},
+                resolved_pipeline_snapshot={},
+                session=stale_session,
+            )
+
+        await stale_session.refresh(stale_run)
+        assert stale_run.status == "failed"
+        assert await rag_eval_repo.list_rag_eval_query_results(
+            stale_run.id, stale_session
+        ) == []
+
+
+@pytest.mark.parametrize(
+    "final_chunks",
+    [
+        [{"rank": 2, "content": "second", "metadata": {}}],
+        [
+            {"rank": 1, "content": "first", "metadata": {}},
+            {"rank": 1, "content": "duplicate", "metadata": {}},
+        ],
+        [
+            {"rank": 1, "content": "first", "metadata": {}},
+            {"rank": 3, "content": "gap", "metadata": {}},
+        ],
+    ],
+)
+def test_final_chunks_require_consecutive_unique_ordered_ranks(final_chunks):
+    payload = query_result().model_dump(mode="json")
+    payload["final_chunks"] = final_chunks
+
+    with pytest.raises(ValidationError, match="consecutive ranks"):
+        RagEvalQueryResultCreate.model_validate(payload)
+
+
+def test_final_chunk_metadata_rejects_non_safe_keys_and_wrong_types():
+    payload = query_result().model_dump(mode="json")
+    payload["final_chunks"][0]["metadata"] = {
+        "source": "support_1.md",
+        "private_prompt": "secret",
+    }
+    with pytest.raises(ValidationError, match="private_prompt"):
+        RagEvalQueryResultCreate.model_validate(payload)
+
+    payload["final_chunks"][0]["metadata"] = {"chunk_index": "0"}
+    with pytest.raises(ValidationError, match="chunk_index"):
+        RagEvalQueryResultCreate.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("ephemeral_field", "value"),
+    [
+        ("graph_id", 1),
+        ("graph_generation", "run-scope"),
+        ("raw_document_id", 1),
+        ("document_chunk_id", 1),
+    ],
+)
+def test_final_chunk_metadata_rejects_ephemeral_internal_ids(ephemeral_field, value):
+    payload = query_result().model_dump(mode="json")
+    payload["final_chunks"][0]["metadata"] = {ephemeral_field: value}
+
+    with pytest.raises(ValidationError, match=ephemeral_field):
+        RagEvalQueryResultCreate.model_validate(payload)

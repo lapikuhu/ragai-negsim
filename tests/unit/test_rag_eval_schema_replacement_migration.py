@@ -108,5 +108,11 @@ def test_schema_replacement_migration_recreates_target_tables_and_constraints(
         and columns == ["status"]
         and kwargs["unique"] is True
         and str(kwargs["postgresql_where"]) == "status = 'running'"
+        and str(kwargs["sqlite_where"]) == "status = 'running'"
         for name, table, columns, kwargs in indexes
+    )
+    assert any(
+        name == "ix_rag_eval_run_fifo_queue"
+        and str(kwargs["sqlite_where"]) == "status = 'queued'"
+        for name, _table, _columns, kwargs in indexes
     )

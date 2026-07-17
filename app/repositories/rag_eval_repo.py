@@ -1,5 +1,6 @@
 from typing import Any, Iterable
 
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import or_
 from sqlmodel import select
@@ -41,6 +42,17 @@ _RAG_EVAL_RUN_TRANSITIONS = {
     "completed": set(),
     "failed": set(),
     "cancelled": set(),
+}
+_MUTABLE_RAG_EVAL_RUN_FIELDS = {
+    "stage",
+    "progress",
+    "completed_examples",
+    "total_examples",
+    "cancel_requested",
+    "cancellation_requested_at",
+    "failure_code",
+    "failure_message",
+    "resolved_pipeline_snapshot",
 }
 
 
@@ -281,21 +293,42 @@ async def transition_rag_eval_run(
     stage: str | None = None,
     **values: Any,
 ) -> RagEvalRun:
-    if next_status != run.status:
-        _validate_rag_eval_run_transition(run.status, next_status)
+    if run.id is None:
+        raise ValueError("RAG evaluation run must be persisted")
+    expected_status = run.status
+    if next_status != expected_status:
+        _validate_rag_eval_run_transition(expected_status, next_status)
     if stage is not None and stage not in RAG_EVAL_RUN_STAGES:
         raise ValueError(f"Invalid RAG evaluation run stage: {stage!r}")
-    run.status = next_status
+    invalid_fields = set(values) - _MUTABLE_RAG_EVAL_RUN_FIELDS - {
+        "started_at",
+        "completed_at",
+    }
+    if invalid_fields:
+        fields = ", ".join(sorted(invalid_fields))
+        raise ValueError(f"RAG evaluation run fields are not mutable: {fields}")
+
+    updates = dict(values)
+    updates["status"] = next_status
     if stage is not None:
-        run.stage = stage
-    for key, value in values.items():
-        if not hasattr(run, key):
-            raise ValueError(f"Unknown RAG evaluation run field: {key}")
-        setattr(run, key, value)
-    if next_status in TERMINAL_RAG_EVAL_RUN_STATUSES and run.completed_at is None:
-        run.completed_at = utc_now()
-    session.add(run)
+        updates["stage"] = stage
+    if next_status in TERMINAL_RAG_EVAL_RUN_STATUSES:
+        updates.setdefault("completed_at", utc_now())
     try:
+        with session.no_autoflush:
+            result = await session.exec(
+                update(RagEvalRun)
+                .where(
+                    RagEvalRun.id == run.id,
+                    RagEvalRun.status == expected_status,
+                )
+                .values(**updates)
+                .execution_options(synchronize_session=False)
+            )
+        if result.rowcount != 1:
+            await session.rollback()
+            await session.refresh(run)
+            raise ValueError("RAG evaluation run changed concurrently")
         await session.commit()
         await session.refresh(run)
         return run
@@ -321,32 +354,65 @@ async def update_rag_eval_run_progress(
         raise ValueError("progress must be between 0 and 100")
     if not 0 <= completed_examples <= total_examples:
         raise ValueError("completed_examples must be between 0 and total_examples")
-    run.stage = stage
-    run.progress = progress
-    run.completed_examples = completed_examples
-    run.total_examples = total_examples
-    return await commit_and_refresh(session, run)
+    return await transition_rag_eval_run(
+        run,
+        run.status,
+        stage=stage,
+        progress=progress,
+        completed_examples=completed_examples,
+        total_examples=total_examples,
+        session=session,
+    )
 
 
 async def request_rag_eval_run_cancel(
     run: RagEvalRun,
     session: AsyncSession,
 ) -> RagEvalRun:
-    if run.status in TERMINAL_RAG_EVAL_RUN_STATUSES:
-        raise ValueError("Cannot cancel a finished RAG evaluation run")
+    if run.id is None:
+        raise ValueError("RAG evaluation run must be persisted")
     now = utc_now()
-    if run.status == "queued":
-        return await transition_rag_eval_run(
-            run,
-            "cancelled",
-            stage="finished",
-            cancellation_requested_at=now,
-            cancel_requested=False,
-            session=session,
-        )
-    run.cancel_requested = True
-    run.cancellation_requested_at = now
-    return await commit_and_refresh(session, run)
+    try:
+        with session.no_autoflush:
+            queued_result = await session.exec(
+                update(RagEvalRun)
+                .where(
+                    RagEvalRun.id == run.id,
+                    RagEvalRun.status == "queued",
+                )
+                .values(
+                    status="cancelled",
+                    stage="finished",
+                    completed_at=now,
+                    cancellation_requested_at=now,
+                    cancel_requested=False,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            if queued_result.rowcount == 0:
+                running_result = await session.exec(
+                    update(RagEvalRun)
+                    .where(
+                        RagEvalRun.id == run.id,
+                        RagEvalRun.status == "running",
+                    )
+                    .values(
+                        cancel_requested=True,
+                        cancellation_requested_at=now,
+                    )
+                    .execution_options(synchronize_session=False)
+                )
+                if running_result.rowcount == 0:
+                    await session.rollback()
+                    await session.refresh(run)
+                    raise ValueError("Cannot cancel a finished RAG evaluation run")
+        await session.commit()
+        await session.refresh(run)
+        return run
+    except Exception:
+        if session.in_transaction():
+            await session.rollback()
+        raise
 
 
 async def list_interrupted_rag_eval_runs(
@@ -374,8 +440,6 @@ async def finalize_rag_eval_run_success(
     resolved_pipeline_snapshot: dict[str, Any],
     session: AsyncSession,
 ) -> RagEvalRun:
-    if run.status != "running":
-        raise ValueError("Only a running evaluation can be finalized")
     buffered = [
         (
             item
@@ -386,31 +450,51 @@ async def finalize_rag_eval_run_success(
     ]
     if run.id is None:
         raise ValueError("RAG evaluation run must be persisted")
+    example_ids = [item.example_id for item in buffered]
+    if len(example_ids) != len(set(example_ids)):
+        raise ValueError("Final RAG evaluation results contain duplicate example_id")
 
-    rows = [
-        RagEvalQueryResult(
-            run_id=run.id,
-            **item.model_dump(mode="json"),
-        )
-        for item in buffered
-    ]
     try:
+        locked_result = await session.exec(
+            select(RagEvalRun)
+            .where(RagEvalRun.id == run.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        locked_run = locked_result.first()
+        if locked_run is None:
+            raise ValueError("RAG evaluation run does not exist")
+        if locked_run.status != "running":
+            raise ValueError("Only a running evaluation can be finalized")
+        if len(buffered) != locked_run.total_examples:
+            raise ValueError(
+                "Successful finalization requires exactly "
+                f"{locked_run.total_examples} query results"
+            )
+
+        rows = [
+            RagEvalQueryResult(
+                run_id=locked_run.id,
+                **item.model_dump(mode="json"),
+            )
+            for item in buffered
+        ]
         session.add_all(rows)
         await session.flush()
-        run.status = "completed"
-        run.stage = "finished"
-        run.progress = 100.0
-        run.completed_examples = run.total_examples
-        run.completed_at = utc_now()
-        run.cancel_requested = False
-        run.resolved_pipeline_snapshot = dict(resolved_pipeline_snapshot)
-        run.overall_metrics = dict(overall_metrics)
-        run.category_metrics = dict(category_metrics)
-        session.add(run)
+        locked_run.status = "completed"
+        locked_run.stage = "finished"
+        locked_run.progress = 100.0
+        locked_run.completed_examples = locked_run.total_examples
+        locked_run.completed_at = utc_now()
+        locked_run.cancel_requested = False
+        locked_run.resolved_pipeline_snapshot = dict(resolved_pipeline_snapshot)
+        locked_run.overall_metrics = dict(overall_metrics)
+        locked_run.category_metrics = dict(category_metrics)
+        session.add(locked_run)
         await session.flush()
         await session.commit()
-        await session.refresh(run)
-        return run
+        await session.refresh(locked_run)
+        return locked_run
     except Exception:
         await session.rollback()
         raise
@@ -461,6 +545,10 @@ async def update_rag_eval_run(
     session: AsyncSession,
     **values: Any,
 ) -> RagEvalRun:
+    invalid_fields = set(values) - _MUTABLE_RAG_EVAL_RUN_FIELDS - {"status"}
+    if invalid_fields:
+        fields = ", ".join(sorted(invalid_fields))
+        raise ValueError(f"RAG evaluation run fields are not mutable: {fields}")
     next_status = values.pop("status", run.status)
     stage = values.pop("stage", None)
     return await transition_rag_eval_run(

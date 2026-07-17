@@ -125,6 +125,7 @@ def upgrade() -> None:
         ["queued_at", "id"],
         unique=False,
         postgresql_where=sa.text("status = 'queued'"),
+        sqlite_where=sa.text("status = 'queued'"),
     )
     op.create_index(
         "uq_rag_eval_run_global_running",
@@ -132,6 +133,7 @@ def upgrade() -> None:
         ["status"],
         unique=True,
         postgresql_where=sa.text("status = 'running'"),
+        sqlite_where=sa.text("status = 'running'"),
     )
 
     op.create_table(
