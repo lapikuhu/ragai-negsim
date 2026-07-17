@@ -721,6 +721,52 @@ async def test_stale_finalization_cannot_overwrite_failed_run(db_engine):
         ) == []
 
 
+@pytest.mark.asyncio
+async def test_atomic_finalization_refuses_locked_run_with_late_cancellation(
+    db_engine,
+):
+    async with AsyncSession(db_engine, expire_on_commit=False) as stale_session:
+        configuration = await rag_eval_repo.create_rag_eval_configuration(
+            configuration_input(), stale_session
+        )
+        stale_run = await rag_eval_repo.enqueue_rag_eval_run(
+            configuration,
+            suite_version="2026.1",
+            suite_content_hash="late-cancel",
+            total_examples=1,
+            session=stale_session,
+        )
+        await rag_eval_repo.claim_next_rag_eval_run(stale_session)
+
+        async with AsyncSession(db_engine, expire_on_commit=False) as cancel_session:
+            cancelling = await cancel_session.get(RagEvalRun, stale_run.id)
+            assert cancelling is not None
+            await rag_eval_repo.request_rag_eval_run_cancel(
+                cancelling,
+                cancel_session,
+            )
+
+        with pytest.raises(rag_eval_repo.RagEvalFinalizationCancelled):
+            await rag_eval_repo.finalize_rag_eval_run_success(
+                stale_run,
+                [query_result()],
+                overall_metrics={"overall_score": 1.0},
+                category_metrics={"direct_retrieval": {"overall_score": 1.0}},
+                resolved_pipeline_snapshot={"pipeline_version": "2"},
+                session=stale_session,
+            )
+
+        await stale_session.refresh(stale_run)
+        assert stale_run.status == "running"
+        assert stale_run.cancel_requested is True
+        assert stale_run.overall_metrics == {}
+        assert stale_run.category_metrics == {}
+        assert await rag_eval_repo.list_rag_eval_query_results(
+            stale_run.id,
+            stale_session,
+        ) == []
+
+
 @pytest.mark.parametrize(
     "final_chunks",
     [

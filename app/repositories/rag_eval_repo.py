@@ -56,6 +56,10 @@ _MUTABLE_RAG_EVAL_RUN_FIELDS = {
 }
 
 
+class RagEvalFinalizationCancelled(Exception):
+    """Raised when cancellation wins the locked success-finalization race."""
+
+
 def _configuration_payload(
     configuration: RagEvalConfiguration,
 ) -> RagEvalConfigurationCreateRequest:
@@ -471,6 +475,8 @@ async def finalize_rag_eval_run_success(
             raise ValueError("RAG evaluation run does not exist")
         if locked_run.status != "running":
             raise ValueError("Only a running evaluation can be finalized")
+        if locked_run.cancel_requested:
+            raise RagEvalFinalizationCancelled()
         if len(buffered) != locked_run.total_examples:
             raise ValueError(
                 "Successful finalization requires exactly "

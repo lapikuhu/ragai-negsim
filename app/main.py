@@ -16,7 +16,10 @@ from app.web.routes.knowledge_graph_indices_route import router as knowledge_gra
 from app.web.routes.llm_models_route import router as llm_models_router
 from app.web.routes.prompts_route import router as prompts_router
 from app.web.routes.rag_profiles_route import router as rag_profiles_router
-from app.web.routes.rag_eval_route import pair_router as rag_eval_pair_router, run_router as rag_eval_run_router
+from app.web.routes.rag_eval_route import (
+    configuration_router as rag_eval_configuration_router,
+    run_router as rag_eval_run_router,
+)
 from app.web.routes.raw_documents_route import router as raw_documents_router
 from app.web.routes.scenarios_route import router as scenarios_router
 from app.web.routes.sessions_route import router as sessions_router
@@ -39,14 +42,21 @@ async def lifespan(app: FastAPI):
     # active by an application shutdown or restart
     await fail_interrupted_indexing_jobs_srvc()
     await fail_interrupted_knowledge_graph_builds_srvc()
-    from app.services.rag_eval_service import fail_interrupted_rag_eval_runs_srvc
-    await fail_interrupted_rag_eval_runs_srvc()
+    from app.services.rag_eval_service import (
+        shutdown_rag_eval_coordinator_srvc,
+        startup_rag_eval_coordinator_srvc,
+    )
+    # One application-owned coordinator assumes the supported single-Uvicorn-worker
+    # deployment. Queued rows remain durable across application restarts.
+    await startup_rag_eval_coordinator_srvc()
     
     print("Database setup complete. [OK]")
 
-    yield # execution pauses here and the app starts accepting requests
-
-    print("Shutting down application... [OK]")
+    try:
+        yield # execution pauses here and the app starts accepting requests
+    finally:
+        await shutdown_rag_eval_coordinator_srvc()
+        print("Shutting down application... [OK]")
 
 # Configure the logger before the app starts 
 # Handles only HTTP request logging, not the root logger.
@@ -80,7 +90,7 @@ app.include_router(knowledge_graph_build_jobs_router)
 app.include_router(llm_models_router)
 app.include_router(prompts_router)
 app.include_router(rag_profiles_router)
-app.include_router(rag_eval_pair_router)
+app.include_router(rag_eval_configuration_router)
 app.include_router(rag_eval_run_router)
 app.include_router(raw_documents_router)
 app.include_router(scenarios_router)
