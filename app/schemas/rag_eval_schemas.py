@@ -8,7 +8,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from sqlmodel import Field, SQLModel
+from sqlmodel import SQLModel
 
 from app.airag.embeddings.embeddings import get_embedding_model_info
 from app.airag.reranking.reranking import is_reranker_available
@@ -402,79 +402,3 @@ class RagEvalRunRead(_StrictSchema):
 
 class RagEvalRunDetailRead(RagEvalRunRead):
     query_results: list[RagEvalQueryResultRead] = PydanticField(default_factory=list)
-
-
-class RagEvalGraphBuildConfig(SQLModel):
-    llm_provider: str = Field(min_length=1)
-    llm_model: str = Field(min_length=1)
-    max_paths_per_chunk: int = Field(ge=1)
-
-
-class RagEvalRetrievalConfig(SQLModel):
-    embedding_model: str = Field(min_length=1)
-    graph_build: RagEvalGraphBuildConfig | None = None
-
-
-def validate_rag_eval_retrieval_config(
-    retrieval_config: RagEvalRetrievalConfig | dict[str, Any], strategy: str
-) -> RagEvalRetrievalConfig:
-    config = RagEvalRetrievalConfig.model_validate(retrieval_config)
-    if strategy == "graphrag" and config.graph_build is None:
-        raise ValueError("GraphRAG evaluation retrieval_config requires graph_build")
-    return config
-
-
-# Temporary transport declarations keep the legacy route/service importable while
-# those layers are replaced in a later task. Target persistence APIs above use only
-# complete RagEvalConfiguration payloads.
-class RagEvalPairProfileBase(SQLModel):
-    name: str = Field(min_length=3)
-    rag_profile_id: int
-    chunking_profile_id: int
-    retrieval_config: RagEvalRetrievalConfig
-
-
-class RagEvalPairProfileCreateRequest(RagEvalPairProfileBase):
-    pass
-
-
-class RagEvalPairProfileCreate(RagEvalPairProfileBase):
-    created_by_user_id: int
-
-
-class RagEvalPairProfileUpdateRequest(SQLModel):
-    name: str | None = Field(default=None, min_length=3)
-    retrieval_config: RagEvalRetrievalConfig | None = None
-
-
-class RagEvalPairProfileUpdate(RagEvalPairProfileUpdateRequest):
-    last_edit_by_user_id: int | None = None
-
-
-class RagEvalPairProfileRead(RagEvalPairProfileBase):
-    id: int
-    created_by_user_id: int
-    last_edit_by_user_id: int | None = None
-    created_at: datetime
-    last_updated: datetime
-
-
-class RagEvalRunCreate(SQLModel):
-    """Legacy service import shim; target enqueues use a configuration instance."""
-
-    pair_profile_id: int
-    k: int = Field(ge=1)
-    rag_profile_snapshot: dict[str, Any] = Field(default_factory=dict)
-    chunking_profile_snapshot: dict[str, Any] = Field(default_factory=dict)
-    retrieval_config_snapshot: dict[str, Any] = Field(default_factory=dict)
-    answer_generation_model_snapshot: dict[str, Any] = Field(default_factory=dict)
-    evaluation_model_snapshot: dict[str, Any] = Field(default_factory=dict)
-
-
-class RagEvalRunStartRequest(SQLModel):
-    k: int = Field(default=4, ge=1)
-    answer_llm_provider: str
-    answer_llm_model: str
-    judge_llm_provider: str
-    judge_llm_model: str
-    judge_embedding_model: str

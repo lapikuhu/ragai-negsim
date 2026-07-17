@@ -15,12 +15,16 @@ Route modules live under `app/web/routes/` and expose the API surface. They are 
 ### Services
 Service modules under `app/services/` contain application logic. This is where orchestration happens for simulations, ingestion, chunking, retrieval, sessions, and user-adjacent workflows.
 
+RAG evaluation has a dedicated persistent coordinator in `app/services/rag_eval_coordinator.py`. It claims queued database rows in global FIFO order, runs at most one evaluation at a time, and reports stage, progress, completed-example counts, and cancellation. Queue rows survive restart. Startup recovery cleans interrupted GraphRAG scopes before failing interrupted runs; an unsuccessful cleanup leaves the run at `cleanup_pending` and blocks later queue work until cleanup succeeds. The in-process ownership model supports a single Uvicorn worker.
+
 ### Repositories
 Repository modules under `app/repositories/` isolate persistence queries and keep route/service code from reaching directly into SQLModel/SQLAlchemy query logic.
 
 ### Schemas and models
 - `app/models/` contains the SQLModel ORM models.
 - `app/schemas/` contains request/response shapes and domain-specific payloads.
+
+`RagEvalConfiguration` is a complete, typed, FK-free user-authored configuration for chunking, CRAG or GraphRAG, response-pipeline LLMs, and metrics. Enqueueing copies a normalized immutable configuration snapshot plus the suite version and content hash onto `RagEvalRun`; later configuration edits affect only future runs. Successful query rows and aggregates are persisted atomically after execution, scoring, and resource cleanup.
 
 ## Access control and dependencies
 The project uses FastAPI dependencies for most cross-cutting concerns:
@@ -45,6 +49,15 @@ The API is broad, but the most important route families are:
 - RAG profiles, vector stores, and knowledge graphs
 - scenarios, prompts, and counterpart personas
 - simulations and learner/evaluation flows
+- admin-only RAG evaluation configurations and runs
+
+The RAG evaluation API is:
+- `POST/GET /rag-eval-configurations/`
+- `GET/PATCH/DELETE /rag-eval-configurations/{id}`
+- `POST /rag-eval-configurations/{id}/runs`
+- `GET /rag-eval-runs/`
+- `GET /rag-eval-runs/{id}`
+- `POST /rag-eval-runs/{id}/cancel`
 
 ## Recent evolution worth knowing
 Recent commits show the backend changing in a few important ways:
@@ -61,6 +74,7 @@ Recent commits show the backend changing in a few important ways:
 - Scenario services now stamp the current editor/user on create and update operations, and scenario read models continue to keep private side context out of public payloads.
 - CRAG retrieval now blocks injection-like queries before retrieval and logs the blocked pipeline step instead of returning documents.
 - Coach, counterpart, and evaluator agent projections continue to enforce strict context separation so private fields only flow into the intended prompt.
+- CRAG production and evaluation now share the canonical response-pipeline factory, while evaluation supplies an isolated in-memory FAISS index or a deterministic run-scoped Neo4j generation.
 
 These changes matter because many services now return richer metadata than the old route names suggest, and some request paths now reject unsafe payloads before the runnable, graph, or upload code ever executes. When modifying a domain, inspect the service layer and tests first; route signatures often lag behind the true business rules.
 

@@ -3,7 +3,7 @@
 ## What this repository is
 This repository is a FastAPI + React application for an educational negotiation simulator. Learners practice negotiation scenarios against AI counterparts, receive coach feedback and evaluation, and work with uploaded course or domain documents that ground the simulation flow.
 
-The backend is the main system under active development. It manages users, roles, raw document uploads, corpora, chunking and indexing, retrieval profiles, simulations, learner-assistant questions, the LangGraph-based agent flows that drive negotiation turns, and the evaluation helpers used to score retrieval, answer generation, and judging against the synthetic suite.
+The backend is the main system under active development. It manages users, roles, raw document uploads, corpora, chunking and indexing, retrieval profiles, simulations, learner-assistant questions, the LangGraph-based agent flows that drive negotiation turns, and a persistent RAG-evaluation system. RAG evaluation runs the shared production CRAG/GraphRAG response pipeline against isolated resources and scores its real final answer contexts.
 
 ## Start here
 - [Backend architecture](architecture/backend.md)
@@ -30,6 +30,9 @@ Raw PDF documents are uploaded, linked to corpora, ingested, chunked, and stored
 ### Simulations and agent orchestration
 Simulations are the core product object. They combine scenario data, counterpart personas, prompts, learner settings, retrieval context, coach feedback, and evaluator output in a LangGraph-driven negotiation workflow.
 
+### RAG evaluation
+Admins manage complete, FK-free evaluation configurations at `/rag-eval-configurations/` and enqueue or inspect persistent runs through `/rag-eval-runs/`. A single application-owned FIFO coordinator executes one run at a time. The supported deployment for this in-process coordinator is one Uvicorn worker.
+
 ### Frontend application
 The React frontend mirrors backend domains with routes for simulations, documents, corpora, evaluations, knowledge graphs, indexing, and admin management.
 
@@ -54,7 +57,7 @@ The React frontend mirrors backend domains with routes for simulations, document
 - PostgreSQL is the application database, and Neo4j is used for graph-retrieval features.
 - Startup code seeds baseline data after the database schema exists.
 - For the full local development flow, `python scripts/dev.py` runs dependency sync, frontend install, Alembic migrations, seeding, and then starts the backend and frontend dev servers. The launcher checks for `.env`, `uv`, and `npm` before it starts.
-- The repository currently includes recent work on learner assistance, CRAG/GraphRAG source capture, RAG evaluation retrieval configuration, raw document corpora, simulation review workflows, and integration coverage for PostgreSQL and Neo4j.
+- The repository currently includes recent work on learner assistance, CRAG/GraphRAG source capture, persistent full-pipeline RAG evaluation, raw document corpora, simulation review workflows, and integration coverage for PostgreSQL and Neo4j.
 
 ## Source pointers
 - Backend entrypoint: `app/main.py`
@@ -66,3 +69,5 @@ The React frontend mirrors backend domains with routes for simulations, document
 - Simulation service: `app/services/simulations_service.py`
 - Learner service: `app/services/simulation_learner_service.py`
 - Evidence ledger: `app/airag/observability/evidence_ledger.py`
+- RAG evaluation coordinator: `app/services/rag_eval_coordinator.py`
+- RAG evaluation routes: `app/web/routes/rag_eval_route.py`

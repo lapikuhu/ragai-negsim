@@ -523,64 +523,6 @@ async def list_rag_eval_query_results(
     return list(result.all())
 
 
-# Temporary compatibility names for the legacy service layer.
-get_rag_eval_pair_profile_by_id = get_rag_eval_configuration_by_id
-get_rag_eval_pair_profile_by_name = get_rag_eval_configuration_by_name
-ensure_rag_eval_pair_profile_name_available = (
-    ensure_rag_eval_configuration_name_available
-)
-list_rag_eval_pair_profiles = list_rag_eval_configurations
-create_rag_eval_pair_profile = create_rag_eval_configuration
-rag_eval_pair_profile_has_runs = rag_eval_configuration_has_runs
-update_rag_eval_pair_profile = update_rag_eval_configuration
-delete_rag_eval_pair_profile = delete_rag_eval_configuration
-
-
-async def get_active_rag_eval_run(
-    configuration_id: int,
-    session: AsyncSession,
-) -> RagEvalRun | None:
-    result = await session.exec(
-        select(RagEvalRun)
-        .where(
-            RagEvalRun.configuration_id == configuration_id,
-            RagEvalRun.status.in_({"queued", "running"}),
-        )
-        .order_by(RagEvalRun.id.desc())
-    )
-    return result.first()
-
-
-async def update_rag_eval_run(
-    run: RagEvalRun,
-    session: AsyncSession,
-    **values: Any,
-) -> RagEvalRun:
-    invalid_fields = set(values) - _MUTABLE_RAG_EVAL_RUN_FIELDS - {"status"}
-    if invalid_fields:
-        fields = ", ".join(sorted(invalid_fields))
-        raise ValueError(f"RAG evaluation run fields are not mutable: {fields}")
-    next_status = values.pop("status", run.status)
-    stage = values.pop("stage", None)
-    return await transition_rag_eval_run(
-        run,
-        next_status,
-        stage=stage,
-        session=session,
-        **values,
-    )
-
-
-async def mark_rag_eval_run_running(
-    run: RagEvalRun,
-    session: AsyncSession,
-) -> RagEvalRun:
-    raise ValueError(
-        "Queued RAG evaluation runs may only be started by "
-        "claim_next_rag_eval_run"
-    )
-
-
 async def mark_rag_eval_run_failed(
     run: RagEvalRun,
     detail: str,
@@ -608,24 +550,3 @@ async def mark_rag_eval_run_cancelled(
         cancel_requested=False,
         session=session,
     )
-
-
-async def create_rag_eval_run(*_args: Any, **_kwargs: Any) -> RagEvalRun:
-    """Legacy service shim; new callers must use enqueue_rag_eval_run."""
-    raise RuntimeError("Use enqueue_rag_eval_run with a complete configuration")
-
-
-async def create_rag_eval_query_result(
-    *_args: Any,
-    **_kwargs: Any,
-) -> RagEvalQueryResult:
-    """Legacy service shim; successful results must use atomic finalization."""
-    raise RuntimeError("Use finalize_rag_eval_run_success for atomic persistence")
-
-
-async def mark_rag_eval_run_completed(
-    *_args: Any,
-    **_kwargs: Any,
-) -> RagEvalRun:
-    """Legacy service shim; successful results must use atomic finalization."""
-    raise RuntimeError("Use finalize_rag_eval_run_success for atomic persistence")

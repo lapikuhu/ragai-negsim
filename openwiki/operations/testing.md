@@ -33,10 +33,16 @@ Frontend tests cover:
 - `tests/unit/test_graphrag_retrieval.py`
 - `tests/unit/test_rag_eval_helpers.py`
 - `tests/unit/test_ragas_helpers.py`
-- `tests/unit/test_rag_eval_retrieval_config.py` covers retrieval-config validation, GraphRAG pair creation requirements, and snapshotting the pair config onto a run.
-- `tests/unit/test_rag_eval_runtime.py` covers the shared in-memory corpus adapters, selected retrieval embeddings, GraphRAG's scoped graph build, and success/failure cleanup.
-- `tests/unit/test_rag_eval_answer_generation.py` covers the grounded-answer prompt, abstention path, and cancellation-aware answer generation.
-- `tests/unit/test_rag_eval_service.py` covers persisted evaluation stages (`chunking`, `building_graph`, `retrieving`, `generating_answer`, `judging`, `finished`) and recovery when temporary GraphRAG cleanup must be retried.
+- `tests/unit/test_rag_eval_chunking.py` covers synthetic chunking dispatch and alignment metadata for the evaluation corpus.
+- `tests/unit/test_rag_eval_strategies.py` covers the isolated strategy registry and rejection of unsupported RAG evaluation modes.
+- `tests/unit/test_rag_eval_suite.py` fixes the versioned suite at 80 examples with the exact category distribution, paired files, multi-document evidence, precise locators, and deterministic hashing.
+- `tests/unit/test_rag_eval_configuration_schemas.py` covers complete typed CRAG/GraphRAG configurations, normalization, and cross-field validation.
+- `tests/unit/test_rag_eval_runtime_adapters.py` and `tests/unit/test_rag_eval_full_pipeline_runtime.py` cover isolated resources, the shared canonical response pipeline, final contexts, progress, cancellation, and cleanup.
+- `tests/unit/test_rag_eval_metrics.py` covers final-context Hit/MRR, unanswerable abstention/false positives, five RAGAS metrics, and overall/category aggregation.
+- `tests/unit/test_rag_eval_repo.py` covers immutable snapshots, FIFO claims, the one-running invariant, queued cancellation, transitions, and atomic finalization.
+- `tests/unit/test_rag_eval_coordinator.py` and `tests/unit/test_rag_eval_target_service.py` cover durable coordination, restart recovery, cleanup blocking, progress, cancellation, and service behavior.
+- `tests/unit/test_rag_eval_api.py` covers the exact admin-only configuration/run routes, pagination and filters, response codes, and sanitized errors.
+- `tests/unit/test_rag_eval_legacy_cleanup.py` prevents transitional pair-profile and first-generation runtime imports or routes from returning.
 - `tests/unit/test_raw_documents_service.py`
 - `tests/unit/test_document_chunks_service.py`
 - `tests/unit/test_langsmith_traceable_boundaries.py`
@@ -73,6 +79,7 @@ When changing database-backed models or schemas:
 Use the tests to decide how far a change must propagate:
 - retrieval changes usually require evidence-, grounding-, and evaluation-related tests
 - GraphRAG evaluation changes must confirm that the temporary Neo4j scope is removed on success, failure, cancellation/recovery, and that a failed recovery cleanup leaves the run retryable rather than terminalizing it
+- RAG-evaluation coordinator tests assume one Uvicorn worker; multi-process ownership requires a separate leader-election design
 - simulation changes usually require service, route, and graph tests
 - frontend page changes usually require page tests and router/sidebar updates
 - config or dependency changes often require startup or auth tests

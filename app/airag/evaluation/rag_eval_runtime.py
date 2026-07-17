@@ -12,27 +12,18 @@ from langchain_core.documents import Document
 from app.airag.chunking.chunkers import get_default_embeddings
 from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.evaluation.eval_chunking import prepare_evaluation_chunks
-from app.airag.evaluation.eval_models import (
-    EvalCorpus,
-    EvalQueryResult,
-    EvalRunResult,
-)
+from app.airag.evaluation.eval_models import EvalCorpus
 from app.airag.evaluation.rag_eval_engine import (
     CancellationCallback,
     EvaluationResources,
     EvaluationSpecification,
     FullPipelineEvaluator,
     ProgressCallback,
-    RagEvaluationCancelled,
+    RagEvaluationCancelled as RagEvaluationCancelled,
     check_cancellation,
     report_progress,
 )
-from app.airag.evaluation.rag_eval_helpers import (
-    calculate_hit_rate_at_k,
-    calculate_mrr_at_k,
-    create_eval_corpus,
-    tag_chunks_with_evaluation_ids,
-)
+from app.airag.evaluation.rag_eval_helpers import tag_chunks_with_evaluation_ids
 from app.airag.knowledge_graph.connection import resolve_neo4j_database, resolve_neo4j_uri
 from app.airag.knowledge_graph.k_graph import (
     build_graph_text_nodes,
@@ -371,123 +362,5 @@ class DefaultRagEvalRuntime:
         )
 
 
-class LegacyRagEvalRuntime:
-    """Explicit compatibility adapter for the pre-typed persisted run contract."""
-
-    def __init__(self) -> None:
-        self._evaluator = FullPipelineEvaluator(
-            pipeline_builder=build_response_pipeline
-        )
-
-    async def run(
-        self,
-        *,
-        run_id: int,
-        rag_snapshot: dict,
-        chunking_snapshot: dict,
-        retrieval_config_snapshot: dict,
-        k: int,
-        stage_callback=None,
-        should_cancel: CancellationCallback | None = None,
-    ) -> EvalRunResult:
-        strategy = str(rag_snapshot["strategy"])
-        rag_config = dict(rag_snapshot.get("config") or {})
-        components = rag_config.get("llm_components") or {}
-        response_pipeline = {
-            **rag_config,
-            "llm_components": components,
-            "max_rewrite_attempts": rag_config.get(
-                "max_rewrite_attempts",
-                rag_config.get("rewrite_limit", 2 if strategy == "crag" else 1),
-            ),
-        }
-        if strategy == "crag":
-            retrieval = {
-                "retrieval_embedding_model": retrieval_config_snapshot[
-                    "embedding_model"
-                ],
-                "top_k": int(rag_config.get("top_k", k)),
-            }
-        else:
-            graph_build = dict(retrieval_config_snapshot["graph_build"])
-            retrieval = {
-                "extraction_llm": {
-                    "provider": graph_build["llm_provider"],
-                    "model": graph_build["llm_model"],
-                },
-                "graph_embedding_model": retrieval_config_snapshot["embedding_model"],
-                "max_paths_per_chunk": graph_build.get("max_paths_per_chunk", 10),
-                "retrieval_mode": rag_config.get("retrieval_mode", "semantic"),
-                "evidence_limit": rag_config.get("evidence_limit", k),
-                "traversal_depth": rag_config.get("traversal_depth", 2),
-                "rrf_k": rag_config.get("rrf_k", rag_config.get("rrf_constant", 60)),
-            }
-        specification = EvaluationSpecification(
-            strategy=strategy,
-            chunking={
-                "strategy": chunking_snapshot["strategy"],
-                "config": dict(chunking_snapshot.get("config") or {}),
-            },
-            response_pipeline=response_pipeline,
-            retrieval=retrieval,
-            k=k,
-        )
-        corpus = create_eval_corpus()
-        last_stage = None
-
-        async def forward_progress(update):
-            nonlocal last_stage
-            if stage_callback is not None and update.stage != last_stage:
-                last_stage = update.stage
-                await stage_callback(update.stage)
-
-        evaluated = await self._evaluator.evaluate(
-            specification=specification,
-            corpus=corpus,
-            adapter=adapter_for_strategy(strategy),
-            run_id=run_id,
-            progress_callback=forward_progress,
-            should_cancel=should_cancel,
-        )
-        query_results = []
-        for example, row in zip(corpus.examples, evaluated.results, strict=True):
-            retrieved_ids = tuple(
-                document.evaluation_ids for document in row.ranked_documents
-            )
-            first_rank = next(
-                (
-                    rank
-                    for rank, ids in enumerate(retrieved_ids[:k], start=1)
-                    if example.evaluation_id in ids
-                ),
-                None,
-            )
-            query_results.append(
-                EvalQueryResult(
-                    evaluation_id=row.evaluation_id,
-                    query=row.query,
-                    answer=row.answer,
-                    reference=row.reference_answer,
-                    retrieved_contexts=row.contexts,
-                    retrieved_evaluation_ids=retrieved_ids,
-                    first_relevant_rank=first_rank,
-                    hit_at_k=first_rank is not None,
-                    reciprocal_rank_at_k=(
-                        0.0 if first_rank is None else 1.0 / first_rank
-                    ),
-                )
-            )
-        return EvalRunResult(
-            k=k,
-            results=tuple(query_results),
-            hit_rate_at_k=calculate_hit_rate_at_k(query_results),
-            mrr_at_k=calculate_mrr_at_k(query_results),
-        )
-
-
 def create_rag_eval_runtime() -> DefaultRagEvalRuntime:
     return DefaultRagEvalRuntime()
-
-
-def create_legacy_rag_eval_runtime() -> LegacyRagEvalRuntime:
-    return LegacyRagEvalRuntime()

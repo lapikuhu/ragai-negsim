@@ -47,6 +47,9 @@ The assistant is designed to provide answers without leaking private prompt or r
 ### Evidence ledger
 The evidence ledger records retrieval sources, pipeline steps, quality checks, model metadata, and token usage. This is what lets later review pages and tests inspect why the model answered the way it did.
 
+### RAG evaluation is a separate lifecycle
+The persistent RAG-evaluation coordinator is adjacent to, but independent from, learner simulations. It reuses the canonical CRAG/GraphRAG response pipeline so evaluation covers real query rewriting, grading, answer generation, fallback behavior, and final contexts. It does not create simulations or borrow their live vector stores or graphs. Admins create complete evaluation configurations and enqueue immutable run snapshots through the dedicated RAG-evaluation routes.
+
 ## Data flow for a turn
 1. The frontend sends a turn or learner question to the simulations API.
 2. The service loads the simulation and runtime context.
@@ -63,6 +66,7 @@ The evidence ledger records retrieval sources, pipeline steps, quality checks, m
 - `app/airag/observability/evidence_ledger.py`
 - `app/services/simulations_service.py`
 - `app/services/simulation_learner_service.py`
+- `app/services/rag_eval_coordinator.py`
 - `app/web/routes/simulations_route.py`
 
 ## Change guidance

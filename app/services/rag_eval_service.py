@@ -150,12 +150,7 @@ async def list_rag_eval_runs_srvc(
     limit: int,
     configuration_id: int | None = None,
     status: str | None = None,
-    pair_profile_id: int | None = None,
 ) -> list[RagEvalRunRead]:
-    # ``pair_profile_id`` is a temporary route-import bridge until Task 8
-    # replaces the legacy route. It maps to the target configuration ID.
-    if configuration_id is None:
-        configuration_id = pair_profile_id
     runs = await rag_eval_repo.list_rag_eval_runs(
         session,
         skip=skip,
@@ -207,25 +202,3 @@ async def shutdown_rag_eval_coordinator_srvc(
     coordinator: RagEvalCoordinator = rag_eval_coordinator,
 ) -> None:
     await coordinator.stop()
-
-
-# Temporary import bridges for the legacy route module. Task 8 replaces that route
-# with the configuration/run API and removes these names.
-create_rag_eval_pair_profile_srvc = create_rag_eval_configuration_srvc
-list_rag_eval_pair_profiles_srvc = list_rag_eval_configurations_srvc
-get_rag_eval_pair_profile_srvc = get_rag_eval_configuration_srvc
-update_rag_eval_pair_profile_srvc = update_rag_eval_configuration_srvc
-delete_rag_eval_pair_profile_srvc = delete_rag_eval_configuration_srvc
-
-
-async def start_rag_eval_run_srvc(
-    configuration_id: int,
-    _legacy_request: Any,
-    session: AsyncSession,
-) -> RagEvalRunRead:
-    return await enqueue_rag_eval_run_srvc(configuration_id, session)
-
-
-async def fail_interrupted_rag_eval_runs_srvc() -> None:
-    """Compatibility startup hook; coordinator startup owns recovery now."""
-    await startup_rag_eval_coordinator_srvc()

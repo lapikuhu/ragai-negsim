@@ -337,16 +337,6 @@ async def test_only_fifo_claim_can_transition_a_queued_run_to_running(db_session
             stage="preparing",
             session=db_session,
         )
-    with pytest.raises(ValueError, match="claim_next_rag_eval_run"):
-        await rag_eval_repo.update_rag_eval_run(
-            later,
-            db_session,
-            status="running",
-            stage="preparing",
-        )
-    with pytest.raises(ValueError, match="claim_next_rag_eval_run"):
-        await rag_eval_repo.mark_rag_eval_run_running(later, db_session)
-
     await db_session.refresh(later)
     assert later.status == "queued"
     claimed = await rag_eval_repo.claim_next_rag_eval_run(db_session)
@@ -539,7 +529,7 @@ async def test_transitions_progress_and_restart_helpers(db_session):
         "suite_content_hash",
     ],
 )
-async def test_generic_run_update_rejects_immutable_fields(
+async def test_run_transition_rejects_immutable_fields(
     db_session,
     immutable_field,
 ):
@@ -556,9 +546,10 @@ async def test_generic_run_update_rejects_immutable_fields(
     original_snapshot = run.configuration_snapshot
 
     with pytest.raises(ValueError, match="not mutable"):
-        await rag_eval_repo.update_rag_eval_run(
+        await rag_eval_repo.transition_rag_eval_run(
             run,
-            db_session,
+            "queued",
+            session=db_session,
             **{immutable_field: "tampered"},
         )
 

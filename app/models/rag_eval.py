@@ -170,8 +170,3 @@ class RagEvalQueryResult(SQLModel, table=True):
     answer_correctness: float | None = None
 
     run: "RagEvalRun" = Relationship(back_populates="query_results")
-
-
-# Import compatibility for the legacy route/service while those layers are replaced.
-# New persistence code must use RagEvalConfiguration.
-RagEvalPairProfile = RagEvalConfiguration
