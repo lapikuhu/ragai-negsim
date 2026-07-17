@@ -8,6 +8,7 @@ from typing import Any
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
+    AnswerCorrectness,
     AnswerRelevancy,
     ContextPrecision,
     ContextRecall,
@@ -16,10 +17,13 @@ from ragas.metrics import (
 
 from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.evaluation.eval_models import (
-    EvalQueryResult,
     EvalRunResult,
     RagasQueryResult,
     RagasRunResult,
+)
+from app.airag.evaluation.rag_eval_engine import (
+    CancellationCallback,
+    check_cancellation,
 )
 from app.airag.llm_models.llm_models import get_llm
 from app.services.llm_models_service import normalize_llm_selection
@@ -31,6 +35,7 @@ _METRIC_NAMES = (
     "answer_relevancy",
     "context_precision",
     "context_recall",
+    "answer_correctness",
 )
 
 
@@ -50,6 +55,7 @@ class RagasEvaluator:
             "answer_relevancy": AnswerRelevancy(llm=llm, embeddings=embeddings),
             "context_precision": ContextPrecision(llm=llm),
             "context_recall": ContextRecall(llm=llm),
+            "answer_correctness": AnswerCorrectness(llm=llm, embeddings=embeddings),
         }
         if set(self.metrics) != set(_METRIC_NAMES):
             raise ValueError(f"Ragas metrics must be exactly: {', '.join(_METRIC_NAMES)}")
@@ -91,8 +97,32 @@ class RagasEvaluator:
             embeddings=LangchainEmbeddingsWrapper(project_embeddings),
         )
 
+    @classmethod
+    def from_normalized_configuration(
+        cls,
+        configuration: Mapping[str, Any],
+    ) -> "RagasEvaluator":
+        """Use the normalized run configuration's judge and embedding selections."""
+        metrics = configuration.get("metrics")
+        if not isinstance(metrics, Mapping):
+            raise ValueError("Normalized configuration must contain metrics")
+        judge = metrics.get("ragas_judge")
+        if not isinstance(judge, Mapping):
+            raise ValueError("Normalized metrics must contain ragas_judge")
+        provider = judge.get("provider")
+        model = judge.get("model")
+        embedding_model = metrics.get("judge_embedding_model")
+        if not all(
+            isinstance(value, str) and value.strip()
+            for value in (provider, model, embedding_model)
+        ):
+            raise ValueError(
+                "Normalized Ragas judge provider, model, and embedding model are required"
+            )
+        return cls.from_model_selection(provider, model, embedding_model)
+
     @staticmethod
-    def _metric_payload(metric_name: str, result: EvalQueryResult) -> dict[str, Any]:
+    def _metric_payload(metric_name: str, result: Any) -> dict[str, Any]:
         """
         Generate the payload for a specific metric.
 
@@ -106,18 +136,40 @@ class RagasEvaluator:
             ValueError: If the evaluation result has no generated answer."""
         if result.answer is None or not result.answer.strip():
             raise ValueError(f"Evaluation {result.evaluation_id} has no generated answer")
+        reference = getattr(result, "reference_answer", None)
+        if reference is None:
+            reference = result.reference
+        ranked_documents = getattr(result, "ranked_documents", None)
+        if ranked_documents is not None:
+            contexts = tuple(document.content for document in ranked_documents)
+        else:
+            contexts = getattr(result, "contexts", None)
+        if contexts is None:
+            contexts = result.retrieved_contexts
         payload = {
             "user_input": result.query,
             "response": result.answer,
-            "retrieved_contexts": list(result.retrieved_contexts),
+            "retrieved_contexts": list(contexts),
         }
-        if metric_name in {"context_precision", "context_recall"}:
-            payload["reference"] = result.reference
+        if metric_name in {
+            "context_precision",
+            "context_recall",
+            "answer_correctness",
+        }:
+            payload["reference"] = reference
         if metric_name == "answer_relevancy":
+            payload.pop("retrieved_contexts")
+        if metric_name == "answer_correctness":
             payload.pop("retrieved_contexts")
         return payload
 
-    async def _score_metric(self, metric_name: str, result: EvalQueryResult) -> float:
+    async def _score_metric(
+        self,
+        metric_name: str,
+        result: Any,
+        *,
+        should_cancel: CancellationCallback | None = None,
+    ) -> float:
         """
         Score a specific metric for a given evaluation query result.
         Args:
@@ -133,17 +185,44 @@ class RagasEvaluator:
         metric = self.metrics[metric_name]
         payload = self._metric_payload(metric_name, result)
         for attempt in range(2):
+            await check_cancellation(should_cancel)
             try:
                 scored = await metric.ascore(**payload)
-                return float(scored.value)
             except Exception as exc:
+                await check_cancellation(should_cancel)
                 if attempt == 1:
                     raise RuntimeError(
                         f"Ragas metric {metric_name} failed for evaluation {result.evaluation_id}"
                     ) from exc
+            else:
+                await check_cancellation(should_cancel)
+                return float(scored.value)
         raise AssertionError("unreachable")
 
-    async def evaluate(self, eval_run: EvalRunResult) -> RagasRunResult:
+    async def score_query(
+        self,
+        result: Any,
+        *,
+        should_cancel: CancellationCallback | None = None,
+    ) -> dict[str, float]:
+        """Score one completed pipeline query with the fixed five-metric suite."""
+        scores: dict[str, float] = {}
+        for metric_name in _METRIC_NAMES:
+            await check_cancellation(should_cancel)
+            scores[metric_name] = await self._score_metric(
+                metric_name,
+                result,
+                should_cancel=should_cancel,
+            )
+            await check_cancellation(should_cancel)
+        return scores
+
+    async def evaluate(
+        self,
+        eval_run: EvalRunResult,
+        *,
+        should_cancel: CancellationCallback | None = None,
+    ) -> RagasRunResult:
         """
         Score every query in an ``EvalRunResult`` and aggregate each metric.
         Args:
@@ -158,10 +237,9 @@ class RagasEvaluator:
             raise ValueError("Cannot run Ragas evaluation for an empty EvalRunResult")
         query_results: list[RagasQueryResult] = []
         for result in eval_run.results:
-            scores = {
-                metric_name: await self._score_metric(metric_name, result)
-                for metric_name in _METRIC_NAMES
-            }
+            await check_cancellation(should_cancel)
+            scores = await self.score_query(result, should_cancel=should_cancel)
+            await check_cancellation(should_cancel)
             query_results.append(
                 RagasQueryResult(evaluation_id=result.evaluation_id, metric_scores=scores)
             )
