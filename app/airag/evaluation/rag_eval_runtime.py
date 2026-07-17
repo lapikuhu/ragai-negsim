@@ -343,7 +343,36 @@ def adapter_for_strategy(strategy: str):
 
 
 class DefaultRagEvalRuntime:
-    """Compatibility façade while persistence adopts typed configurations."""
+    """Production entry point for a validated typed evaluation configuration."""
+
+    def __init__(self, *, pipeline_builder=None, adapter_selector=None) -> None:
+        self._evaluator = FullPipelineEvaluator(
+            pipeline_builder=pipeline_builder or build_response_pipeline
+        )
+        self._adapter_selector = adapter_selector or adapter_for_strategy
+
+    async def run(
+        self,
+        *,
+        run_id: int,
+        configuration,
+        corpus: EvalCorpus,
+        progress_callback: ProgressCallback | None = None,
+        should_cancel: CancellationCallback | None = None,
+    ):
+        specification = normalize_evaluation_specification(configuration)
+        return await self._evaluator.evaluate(
+            specification=specification,
+            corpus=corpus,
+            adapter=self._adapter_selector(specification.strategy),
+            run_id=run_id,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
+        )
+
+
+class LegacyRagEvalRuntime:
+    """Explicit compatibility adapter for the pre-typed persisted run contract."""
 
     def __init__(self) -> None:
         self._evaluator = FullPipelineEvaluator(
@@ -458,3 +487,7 @@ class DefaultRagEvalRuntime:
 
 def create_rag_eval_runtime() -> DefaultRagEvalRuntime:
     return DefaultRagEvalRuntime()
+
+
+def create_legacy_rag_eval_runtime() -> LegacyRagEvalRuntime:
+    return LegacyRagEvalRuntime()

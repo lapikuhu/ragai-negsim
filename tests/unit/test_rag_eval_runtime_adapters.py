@@ -343,3 +343,145 @@ async def test_graphrag_adapter_cleans_scope_on_build_failure_or_cancellation(
         )
 
     assert events[-2:] == ["delete", "close"]
+
+
+@pytest.mark.asyncio
+async def test_default_runtime_uses_typed_configuration_and_returns_rich_result(
+    monkeypatch,
+):
+    from app.schemas.llm_models_schemas import (
+        LLMModelCatalogItem,
+        LLMModelCatalogResponse,
+        LLMProviderCatalog,
+    )
+    from app.schemas.rag_eval_schemas import RagEvalConfigurationCreateRequest
+    from app.services import llm_models_service
+
+    models = [
+        "doc-model",
+        "rewrite-model",
+        "generate-model",
+        "hall-model",
+        "answer-model",
+        "fallback-model",
+        "judge-model",
+    ]
+    monkeypatch.setattr(
+        llm_models_service,
+        "list_llm_model_catalog",
+        lambda: LLMModelCatalogResponse(
+            providers=[
+                LLMProviderCatalog(
+                    provider="openai",
+                    models=[LLMModelCatalogItem(name=model) for model in models],
+                )
+            ]
+        ),
+    )
+    configuration = RagEvalConfigurationCreateRequest.model_validate(
+        {
+            "name": "typed runtime",
+            "chunking": {
+                "strategy": "recursive",
+                "chunk_size": 100,
+                "chunk_overlap": 0,
+            },
+            "rag": {
+                "strategy": "crag",
+                "retrieval_embedding_model": "text-embedding-3-small",
+                "top_k": 2,
+                "reranker": "none",
+                "top_n": 2,
+                "rewrite_limit": 3,
+                "document_grader": {"provider": "openai", "model": "doc-model"},
+                "query_rewriter": {
+                    "provider": "openai",
+                    "model": "rewrite-model",
+                },
+                "answer_generator": {
+                    "provider": "openai",
+                    "model": "generate-model",
+                },
+                "hallucination_grader": {
+                    "provider": "openai",
+                    "model": "hall-model",
+                },
+                "answer_grader": {
+                    "provider": "openai",
+                    "model": "answer-model",
+                },
+                "fallback_generator": {
+                    "provider": "openai",
+                    "model": "fallback-model",
+                },
+            },
+            "metrics": {
+                "k": 2,
+                "ragas_judge": {"provider": "openai", "model": "judge-model"},
+                "judge_embedding_model": "text-embedding-3-small",
+            },
+        }
+    )
+    captured = {}
+    final_document = Document(
+        page_content="final evidence",
+        metadata={"evaluation_ids": ["example-1"], "source": "suite.md"},
+    )
+
+    class Pipeline:
+        resolved_metadata = {"pipeline_version": "pipeline-v1"}
+
+        async def ainvoke(self, _state):
+            return {
+                "answer": "real answer",
+                "documents": [final_document],
+                "context": "final evidence",
+            }
+
+    def builder(_retriever, pipeline_config):
+        captured["pipeline_config"] = pipeline_config
+        return Pipeline()
+
+    resources = rag_eval_runtime.EvaluationResources(
+        retriever=object(),
+        resolved_metadata={"retrieval_embedding": {"model": "selected"}},
+        cleanup=lambda: None,
+    )
+    monkeypatch.setattr(
+        rag_eval_runtime,
+        "adapter_for_strategy",
+        lambda strategy: _AdapterForDefault(strategy, resources),
+    )
+    monkeypatch.setattr(rag_eval_runtime, "build_response_pipeline", builder)
+
+    result = await rag_eval_runtime.create_rag_eval_runtime().run(
+        run_id=101,
+        configuration=configuration,
+        corpus=_corpus(),
+    )
+
+    assert captured["pipeline_config"].llm_components == {
+        "document_grader": {"provider": "openai", "model": "doc-model"},
+        "rewrite": {"provider": "openai", "model": "rewrite-model"},
+        "generate": {"provider": "openai", "model": "generate-model"},
+        "hallucination_grader": {"provider": "openai", "model": "hall-model"},
+        "answer_grader": {"provider": "openai", "model": "answer-model"},
+        "fallback": {"provider": "openai", "model": "fallback-model"},
+    }
+    assert result.results[0].answer == "real answer"
+    assert result.results[0].category == "direct_retrieval"
+    assert result.results[0].answerable is True
+    assert result.results[0].ranked_documents[0].content == "final evidence"
+    assert result.resolved_pipeline_snapshot["pipeline_version"] == "pipeline-v1"
+    assert result.resolved_pipeline_snapshot["retrieval_embedding"] == {
+        "model": "selected"
+    }
+
+
+class _AdapterForDefault:
+    def __init__(self, strategy, resources):
+        assert strategy == "crag"
+        self.resources = resources
+
+    async def prepare(self, **_kwargs):
+        return self.resources

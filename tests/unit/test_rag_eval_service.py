@@ -176,7 +176,9 @@ async def test_execute_run_persists_runtime_stages_then_judging(monkeypatch):
     monkeypatch.setattr(rag_eval_service.rag_eval_repo, "mark_rag_eval_run_running", fake_mark_running)
     monkeypatch.setattr(rag_eval_service.rag_eval_repo, "update_rag_eval_run", fake_update)
     monkeypatch.setattr(rag_eval_service.rag_eval_repo, "mark_rag_eval_run_completed", fake_mark_completed)
-    monkeypatch.setattr(rag_eval_service, "create_rag_eval_runtime", lambda: Runtime())
+    monkeypatch.setattr(
+        rag_eval_service, "create_legacy_rag_eval_runtime", lambda: Runtime()
+    )
     monkeypatch.setattr(
         rag_eval_service.RagasEvaluator,
         "from_model_selection",

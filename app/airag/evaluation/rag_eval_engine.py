@@ -10,10 +10,19 @@ from typing import Any, Protocol
 from langchain_core.documents import Document
 
 from app.airag.evaluation.eval_models import EvalCorpus
-from app.airag.observability.evidence_ledger import SAFE_SOURCE_METADATA
 from app.airag.pipeline_factory import (
     ResponsePipelineConfig,
     normalize_response_pipeline_config,
+)
+
+EVALUATION_SAFE_METADATA = (
+    "chunk_index",
+    "source",
+    "score",
+    "rerank_score",
+    "retrieval_strategy",
+    "retrieval_mode",
+    "evidence_path",
 )
 
 
@@ -137,8 +146,6 @@ def _ranked_documents(final_state: Mapping[str, Any]) -> tuple[RankedEvaluationD
         if not isinstance(document, Document):
             raise ValueError("Response pipeline final documents must be Documents")
         content = str(document.page_content or "")
-        if content not in context:
-            continue
         raw_ids = document.metadata.get("evaluation_ids", ())
         if not isinstance(raw_ids, (list, tuple)) or not all(
             isinstance(item, str) for item in raw_ids
@@ -146,7 +153,7 @@ def _ranked_documents(final_state: Mapping[str, Any]) -> tuple[RankedEvaluationD
             raise ValueError("Final document evaluation_ids must be strings")
         safe_metadata = {
             name: document.metadata[name]
-            for name in SAFE_SOURCE_METADATA
+            for name in EVALUATION_SAFE_METADATA
             if name in document.metadata
         }
         ranked.append(
@@ -256,5 +263,8 @@ class FullPipelineEvaluator:
                 resolved_pipeline_snapshot=snapshot,
             )
         finally:
+            try:
+                await report_progress(progress_callback, "cleaning_up", 0.0)
+            finally:
+                await _maybe_await(resources.cleanup())
             await report_progress(progress_callback, "cleaning_up", 1.0)
-            await _maybe_await(resources.cleanup())

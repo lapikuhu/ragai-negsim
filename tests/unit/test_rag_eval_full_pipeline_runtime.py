@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
 import pytest
@@ -186,6 +186,104 @@ async def test_fallback_empty_context_cannot_expose_stale_retrieval():
 
 
 @pytest.mark.asyncio
+async def test_nonempty_context_uses_authoritative_final_documents_in_order():
+    documents = [
+        Document(
+            page_content="short",
+            metadata={"evaluation_ids": ["example-1"], "source": "one"},
+        ),
+        Document(
+            page_content="a longer document containing short",
+            metadata={"evaluation_ids": ["example-1"], "source": "two"},
+        ),
+        Document(
+            page_content="short",
+            metadata={"evaluation_ids": ["example-1"], "source": "three"},
+        ),
+    ]
+    pipeline = _Pipeline(
+        states=[
+            {
+                "question": "Question?",
+                "answer": "Answer",
+                "documents": documents,
+                "context": "short",
+            }
+        ],
+        resolved_metadata={"pipeline_version": "pipeline-v1"},
+    )
+    resources = EvaluationResources(
+        retriever=object(),
+        resolved_metadata={},
+        cleanup=lambda: None,
+    )
+
+    result = await FullPipelineEvaluator(
+        pipeline_builder=lambda _retriever, _config: pipeline
+    ).evaluate(
+        specification=_specification(),
+        corpus=_corpus(EvalExample("example-1", "Question?", "Reference")),
+        adapter=_Adapter(resources),
+        run_id=81,
+    )
+
+    assert result.results[0].contexts == (
+        "short",
+        "a longer document containing short",
+        "short",
+    )
+    assert [item.rank for item in result.results[0].ranked_documents] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_evaluation_metadata_excludes_temporary_graph_scope_identifiers():
+    document = Document(
+        page_content="graph evidence",
+        metadata={
+            "evaluation_ids": ["example-1"],
+            "source": "suite.md",
+            "score": 0.8,
+            "chunk_index": 4,
+            "graph_id": -91,
+            "graph_generation": "rag-eval",
+            "raw_document_id": 8,
+            "document_chunk_id": 44,
+        },
+    )
+    pipeline = _Pipeline(
+        states=[
+            {
+                "question": "Question?",
+                "answer": "Answer",
+                "documents": [document],
+                "context": "graph evidence",
+            }
+        ],
+        resolved_metadata={"pipeline_version": "pipeline-v1"},
+    )
+    resources = EvaluationResources(
+        retriever=object(),
+        resolved_metadata={"extractor": {"implementation": "simple"}},
+        cleanup=lambda: None,
+    )
+
+    result = await FullPipelineEvaluator(
+        pipeline_builder=lambda _retriever, _config: pipeline
+    ).evaluate(
+        specification=replace(_specification(), strategy="graphrag"),
+        corpus=_corpus(EvalExample("example-1", "Question?", "Reference")),
+        adapter=_Adapter(resources),
+        run_id=91,
+    )
+
+    assert result.results[0].ranked_documents[0].metadata == {
+        "source": "suite.md",
+        "score": 0.8,
+        "chunk_index": 4,
+    }
+
+
+@pytest.mark.asyncio
 async def test_cancellation_between_examples_reports_progress_and_cleans_up():
     examples = (
         EvalExample("example-1", "First?", "First reference"),
@@ -235,6 +333,48 @@ async def test_cancellation_between_examples_reports_progress_and_cleans_up():
         for item in progress
     )
     assert progress[-1].stage == "cleaning_up"
+    assert [
+        item.progress for item in progress if item.stage == "cleaning_up"
+    ] == [0.0, 1.0]
+    assert cleaned == [True]
+
+
+@pytest.mark.asyncio
+async def test_cleanup_runs_when_cleaning_progress_callback_raises():
+    pipeline = _Pipeline(
+        states=[
+            {
+                "question": "Question?",
+                "answer": "Answer",
+                "documents": [],
+                "context": "",
+            }
+        ],
+        resolved_metadata={"pipeline_version": "pipeline-v1"},
+    )
+    cleaned = []
+    resources = EvaluationResources(
+        retriever=object(),
+        resolved_metadata={},
+        cleanup=lambda: cleaned.append(True),
+    )
+
+    def progress(update):
+        if update.stage == "cleaning_up":
+            assert update.progress == 0.0
+            raise RuntimeError("progress persistence failed")
+
+    with pytest.raises(RuntimeError, match="progress persistence failed"):
+        await FullPipelineEvaluator(
+            pipeline_builder=lambda _retriever, _config: pipeline
+        ).evaluate(
+            specification=_specification(),
+            corpus=_corpus(EvalExample("example-1", "Question?", "Reference")),
+            adapter=_Adapter(resources),
+            run_id=92,
+            progress_callback=progress,
+        )
+
     assert cleaned == [True]
 
 

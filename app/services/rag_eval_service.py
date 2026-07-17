@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.airag.evaluation.rag_eval_runtime import (
     RagEvaluationCancelled,
     cleanup_rag_eval_graph_scope,
-    create_rag_eval_runtime,
+    create_legacy_rag_eval_runtime,
 )
 from app.airag.evaluation.rag_eval_strategies import EVALUATION_STRATEGIES
 from app.airag.evaluation.ragas_helpers import RagasEvaluator
@@ -247,7 +247,7 @@ async def _execute_rag_eval_run(run_id: int) -> None:
             return
         try:
             run = await rag_eval_repo.mark_rag_eval_run_running(run, session)
-            runtime = create_rag_eval_runtime()
+            runtime = create_legacy_rag_eval_runtime()
             result = await runtime.run(
                 run_id=run.id,
                 rag_snapshot=run.rag_profile_snapshot,
