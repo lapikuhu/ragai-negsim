@@ -5,15 +5,14 @@ FAISS, providers, or Neo4j.  Production CRAG evaluation only creates in-memory
 resources; GraphRAG deliberately refuses to borrow a profile's live graph.
 """
 from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass
 from collections.abc import Awaitable, Callable
 from typing import Protocol
-
 from langchain_core.documents import Document
 
-from app.airag.chunking.chunkers import chunk_document_list_recursive
+#local imports
+from app.airag.evaluation.eval_chunking import prepare_evaluation_chunks
 from app.airag.evaluation.rag_eval_helpers import (
     create_eval_corpus,
     make_invoke_runner,
@@ -21,6 +20,7 @@ from app.airag.evaluation.rag_eval_helpers import (
     tag_chunks_with_evaluation_ids,
 )
 from app.airag.evaluation.eval_models import EvalQueryResult, EvalRunResult
+from app.airag.evaluation.rag_eval_strategies import EVALUATION_STRATEGIES
 from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.knowledge_graph.connection import resolve_neo4j_database, resolve_neo4j_uri
 from app.airag.knowledge_graph.k_graph import (
@@ -174,41 +174,22 @@ class DefaultRagEvalRuntime:
             ValueError: If the RAG evaluation strategy is unsupported.
         """
         strategy = rag_snapshot.get("strategy")
-        if strategy not in {"crag", "graphrag"}:
-            raise ValueError(f"Unsupported RAG evaluation strategy: {strategy}")
+        definition = EVALUATION_STRATEGIES.require(strategy)
 
         await self._report_stage(stage_callback, "chunking")
         corpus = create_eval_corpus()
-        config = chunking_snapshot.get("config", {})
-        if chunking_snapshot.get("strategy") != "recursive":
-            raise ValueError("The default evaluation runtime currently supports recursive chunking only")
-        chunks = chunk_document_list_recursive(
-            list(corpus.documents),
-            chunk_size=config.get("chunk_size", 1000),
-            chunk_overlap=config.get("chunk_overlap", 200),
-            separators=config.get("separators"),
-        )
+        chunks = prepare_evaluation_chunks(corpus.documents, chunking_snapshot)
         chunks = tag_chunks_with_evaluation_ids(chunks, corpus)
-        if strategy == "crag":
-            await self._report_stage(stage_callback, "retrieving")
-            retrieval_result = await asyncio.to_thread(
-                self._run_crag,
-                corpus=corpus,
-                chunks=chunks,
-                rag_snapshot=rag_snapshot,
-                retrieval_config_snapshot=retrieval_config_snapshot,
-                k=k,
-            )
-        else:
-            retrieval_result = await self._run_graphrag(
-                run_id=run_id,
-                corpus=corpus,
-                chunks=chunks,
-                rag_snapshot=rag_snapshot,
-                retrieval_config_snapshot=retrieval_config_snapshot,
-                k=k,
-                stage_callback=stage_callback,
-            )
+        evaluate = getattr(self, definition.handler_name)
+        retrieval_result = await evaluate(
+            run_id=run_id,
+            corpus=corpus,
+            chunks=chunks,
+            rag_snapshot=rag_snapshot,
+            retrieval_config_snapshot=retrieval_config_snapshot,
+            k=k,
+            stage_callback=stage_callback,
+        )
         results = tuple(
             EvalQueryResult(
                 evaluation_id=row.evaluation_id,
@@ -240,6 +221,75 @@ class DefaultRagEvalRuntime:
         """
         if stage_callback is not None:
             await stage_callback(stage)
+
+    async def _evaluate_crag(
+        self,
+        *,
+        run_id: int,
+        corpus,
+        chunks: list[Document],
+        rag_snapshot: dict,
+        retrieval_config_snapshot: dict,
+        k: int,
+        stage_callback: RagEvalStageCallback | None,
+    ) -> EvalRunResult:
+        """
+        Evaluate a CRAG RAG strategy.
+        Args:
+            run_id: The unique identifier for the evaluation run.
+            corpus: The evaluation corpus.
+            chunks: The list of document chunks to index.
+            rag_snapshot: The RAG evaluation snapshot containing configuration.
+            retrieval_config_snapshot: The retrieval configuration snapshot.
+            k: The number of top results to retrieve.
+            stage_callback: The callback to report the current stage.
+        Returns:
+            An EvalRunResult containing the evaluation results.
+        """
+        del run_id
+        await self._report_stage(stage_callback, "retrieving")
+        return await asyncio.to_thread(
+            self._run_crag,
+            corpus=corpus,
+            chunks=chunks,
+            rag_snapshot=rag_snapshot,
+            retrieval_config_snapshot=retrieval_config_snapshot,
+            k=k,
+        )
+
+    async def _evaluate_graphrag(
+        self,
+        *,
+        run_id: int,
+        corpus,
+        chunks: list[Document],
+        rag_snapshot: dict,
+        retrieval_config_snapshot: dict,
+        k: int,
+        stage_callback: RagEvalStageCallback | None,
+    ) -> EvalRunResult:
+        """
+        Evaluate a GraphRAG RAG strategy.
+        Args:
+            run_id: The unique identifier for the evaluation run.
+            corpus: The evaluation corpus.
+            chunks: The list of document chunks to index.
+            rag_snapshot: The RAG evaluation snapshot containing configuration.
+            retrieval_config_snapshot: The retrieval configuration snapshot.
+            k: The number of top results to retrieve.
+            stage_callback: The callback to report the current stage.
+        Returns:
+            An EvalRunResult containing the evaluation results.
+        """
+        return await self._run_graphrag(
+            run_id=run_id,
+            corpus=corpus,
+            chunks=chunks,
+            rag_snapshot=rag_snapshot,
+            retrieval_config_snapshot=retrieval_config_snapshot,
+            k=k,
+            stage_callback=stage_callback,
+        )
 
     @staticmethod
     def _run_crag(*, corpus,

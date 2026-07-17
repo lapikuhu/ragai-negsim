@@ -4,13 +4,12 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 from typing import Any
-
 from sqlmodel.ext.asyncio.session import AsyncSession
-
 from app.airag.evaluation.rag_eval_runtime import (
     cleanup_rag_eval_graph_scope,
     create_rag_eval_runtime,
 )
+from app.airag.evaluation.rag_eval_strategies import EVALUATION_STRATEGIES
 from app.airag.evaluation.answer_generation import (
     RagEvalAnswerGenerationCancelled,
     generate_grounded_answers,
@@ -83,6 +82,7 @@ async def create_rag_eval_pair_profile_srvc(data: RagEvalPairProfileCreateReques
     chunking = await chunking_profiles_repo.get_chunking_profile_by_id(data.chunking_profile_id, session)
     if chunking is None:
         raise ValueError("Chunking profile not found")
+    EVALUATION_STRATEGIES.require(rag.strategy)
     validate_rag_eval_retrieval_config(data.retrieval_config, rag.strategy)
     profile = await rag_eval_repo.create_rag_eval_pair_profile(
         RagEvalPairProfileCreate(**data.model_dump(), created_by_user_id=current_user.id), session
@@ -206,6 +206,7 @@ async def start_rag_eval_run_srvc(pair_id: int,
     chunking = await chunking_profiles_repo.get_chunking_profile_by_id(pair.chunking_profile_id, session)
     if rag is None or chunking is None:
         raise ValueError("RAG evaluation pair profile references a missing profile")
+    EVALUATION_STRATEGIES.require(rag.strategy)
     validate_rag_eval_retrieval_config(pair.retrieval_config, rag.strategy)
     answer_selection = normalize_llm_selection(
         data.answer_llm_provider, data.answer_llm_model
@@ -240,6 +241,8 @@ async def _execute_rag_eval_run(run_id: int) -> None:
     Execute a RAG evaluation run.
     Args:
         run_id (int): The ID of the RAG evaluation run to execute.
+    Returns:
+        None
     """
     async with AsyncSessionLocal() as session:
         run = await rag_eval_repo.get_rag_eval_run_by_id(run_id, session)
@@ -302,6 +305,14 @@ async def _execute_rag_eval_run(run_id: int) -> None:
 
 
 async def _is_rag_eval_run_cancel_requested(run: RagEvalRun, session: AsyncSession) -> bool:
+    """
+    Check if a RAG evaluation run has a cancellation requested.
+    Args:
+        run (RagEvalRun): The RAG evaluation run.
+        session (AsyncSession): The database session.
+    Returns:
+        bool: True if cancellation has been requested, False otherwise.
+    """
     await session.refresh(run)
     return bool(run.cancel_requested)
 

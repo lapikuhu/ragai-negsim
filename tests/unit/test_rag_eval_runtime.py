@@ -44,7 +44,7 @@ async def test_crag_runtime_uses_retrieval_embedding_from_run_snapshot(monkeypat
     monkeypatch.setattr(rag_eval_runtime, "create_eval_corpus", lambda: corpus)
     monkeypatch.setattr(
         rag_eval_runtime,
-        "chunk_document_list_recursive",
+        "prepare_evaluation_chunks",
         lambda *_args, **_kwargs: [Document(page_content="support", metadata={"eval_document_id": "doc", "start_index": 0})],
     )
     monkeypatch.setattr(rag_eval_runtime, "tag_chunks_with_evaluation_ids", lambda chunks, _corpus: chunks)
@@ -116,7 +116,7 @@ async def test_crag_runtime_offloads_faiss_build_and_eval_suite(monkeypatch):
     monkeypatch.setattr(rag_eval_runtime, "create_eval_corpus", lambda: corpus)
     monkeypatch.setattr(
         rag_eval_runtime,
-        "chunk_document_list_recursive",
+        "prepare_evaluation_chunks",
         lambda *_args, **_kwargs: [Document(page_content="support", metadata={"eval_document_id": "doc"})],
     )
     monkeypatch.setattr(rag_eval_runtime, "tag_chunks_with_evaluation_ids", lambda chunks, _corpus: chunks)
@@ -165,7 +165,7 @@ async def test_runtime_reports_chunking_and_retrieving_stages_for_crag(monkeypat
     monkeypatch.setattr(rag_eval_runtime, "create_eval_corpus", lambda: corpus)
     monkeypatch.setattr(
         rag_eval_runtime,
-        "chunk_document_list_recursive",
+        "prepare_evaluation_chunks",
         lambda *_args, **_kwargs: [Document(page_content="support", metadata={"eval_document_id": "doc"})],
     )
     monkeypatch.setattr(rag_eval_runtime, "tag_chunks_with_evaluation_ids", lambda chunks, _corpus: chunks)
@@ -226,7 +226,7 @@ async def test_graphrag_runtime_builds_a_scoped_simple_graph_and_deletes_it(monk
     monkeypatch.setattr(rag_eval_runtime, "create_eval_corpus", lambda: corpus)
     monkeypatch.setattr(
         rag_eval_runtime,
-        "chunk_document_list_recursive",
+        "prepare_evaluation_chunks",
         lambda *_args, **_kwargs: [Document(page_content="support", metadata={"eval_document_id": "doc", "start_index": 0, "chunk_index": 0})],
     )
     monkeypatch.setattr(
@@ -309,7 +309,7 @@ async def test_graphrag_runtime_deletes_scope_when_build_or_retrieval_fails(monk
     monkeypatch.setattr(rag_eval_runtime, "create_eval_corpus", lambda: corpus)
     monkeypatch.setattr(
         rag_eval_runtime,
-        "chunk_document_list_recursive",
+        "prepare_evaluation_chunks",
         lambda *_args, **_kwargs: [Document(page_content="support", metadata={"eval_document_id": "doc"})],
     )
     monkeypatch.setattr(rag_eval_runtime, "tag_chunks_with_evaluation_ids", lambda chunks, _corpus: chunks)

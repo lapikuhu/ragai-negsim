@@ -8,6 +8,7 @@ import re
 from typing import Any
 from langchain_core.documents import Document
 
+# local imports
 from app.airag.evaluation.eval_models import (
     EvalCorpus,
     EvalDocument,
@@ -27,7 +28,7 @@ _SYNTHETIC_DOCUMENT_NAME = re.compile(r"^synth_doc_(?P<number>[1-9]\d*)\.md$")
 _SUPPORT_NAME = re.compile(r"^support_(?P<number>[1-9]\d*)\.md$")
 _REQUIRED_SUPPORT_FIELDS = ("id", "query", "support")
 
-
+# Where the synthetic evaluation suite is located relative to this file.
 def _suite_root(root: str | Path | None) -> Path:
     return Path(root) if root is not None else Path(__file__).resolve().parent
 
@@ -488,7 +489,18 @@ def calculate_mrr_at_k(results: Sequence[EvalQueryResult]) -> float:
 
 
 def run_eval_suite(corpus: EvalCorpus, runner: EvalRunner, k: int) -> EvalRunResult:
-    """Run every example and calculate HitRate@k and MRR@k from tagged chunks."""
+    """
+    Run every example and calculate HitRate@k and MRR@k from tagged chunks.
+    Args:
+        corpus: The EvalCorpus containing the examples to evaluate.
+        runner: An EvalRunner that executes queries and returns EvalExecutionResult.
+        k: The number of top retrieved chunks to consider for scoring.
+    Returns:
+        An EvalRunResult containing the scored query results and aggregate metrics.
+    Raises:
+        ValueError: If the corpus has no example, or if the runner returns 
+            the wrong shape.
+    """
     if isinstance(k, bool) or not isinstance(k, int) or k < 1:
         raise ValueError("k must be at least 1")
 

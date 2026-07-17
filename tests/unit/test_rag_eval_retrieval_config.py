@@ -57,6 +57,30 @@ async def test_create_graphrag_pair_requires_graph_build_configuration(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_create_pair_rejects_rag_strategy_without_evaluation_adapter(monkeypatch):
+    async def get_rag_profile(*_args):
+        return SimpleNamespace(id=1, strategy="basic-rag")
+
+    async def get_chunking_profile(*_args):
+        return SimpleNamespace(id=2)
+
+    monkeypatch.setattr(rag_eval_service.rag_profiles_repo, "get_rag_profile_by_id", get_rag_profile)
+    monkeypatch.setattr(rag_eval_service.chunking_profiles_repo, "get_chunking_profile_by_id", get_chunking_profile)
+
+    with pytest.raises(ValueError, match="Unsupported RAG evaluation strategy: basic-rag"):
+        await rag_eval_service.create_rag_eval_pair_profile_srvc(
+            RagEvalPairProfileCreateRequest(
+                name="unsupported strategy",
+                rag_profile_id=1,
+                chunking_profile_id=2,
+                retrieval_config={"embedding_model": "text-embedding-3-small"},
+            ),
+            object(),
+            SimpleNamespace(id=3),
+        )
+
+
+@pytest.mark.asyncio
 async def test_start_run_snapshots_pair_retrieval_configuration(monkeypatch):
     pair = SimpleNamespace(
         id=9,
