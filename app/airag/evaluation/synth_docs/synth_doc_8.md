@@ -1,81 +1,81 @@
-# Program Outcomes
+# Initiative Outcomes
 
-## 1. Outcome 1
+## 1. Blue Current Initiative
 
-Program 1 is designed to stabilize winter electricity supply; it stores surplus power for periods of peak demand.
+The Blue Current Initiative stores surplus tidal power for peak-demand periods, stabilizing the winter electricity supply.
 
-## 2. Outcome 2
+## 2. Heritage Seed Network
 
-Program 2 is designed to protect rare crop varieties; it lends locally adapted seeds to farmers.
+Through the Heritage Seed Network, farmers borrow locally adapted seed varieties, protecting rare crops from disappearing.
 
-## 3. Outcome 3
+## 3. Sunhaven Resilience Plan
 
-Program 3 is designed to keep emergency shelters powered; it operates independently during grid outages.
+The Sunhaven Resilience Plan isolates its power network during wider grid failures so emergency shelters remain supplied.
 
-## 4. Outcome 4
+## 4. Living River Partnership
 
-Program 4 is designed to reduce downstream storm surges; it holds floodwater before it reaches homes.
+The Living River Partnership holds stormwater in the wetland basin before it reaches homes, reducing downstream surge damage.
 
-## 5. Outcome 5
+## 5. PeakWatch Alliance
 
-Program 5 is designed to shorten avalanche warnings; it sends real-time snow movement alerts.
+The PeakWatch Alliance sends real-time snow-movement alerts from the sensors, shortening the time needed to warn exposed neighborhoods.
 
-## 6. Outcome 6
+## 6. ReachCare Circuit
 
-Program 6 is designed to reach remote patients; it rotates primary care through isolated neighborhoods.
+The ReachCare Circuit rotates primary-care visits through isolated neighborhoods that lack a permanent clinic.
 
-## 7. Outcome 7
+## 7. Rainwise Commons
 
-Program 7 is designed to reduce potable-water demand; it supplies captured rainwater for irrigation.
+Rainwise Commons supplies captured rainwater to parks and community gardens, reducing demand for potable water in irrigation.
 
-## 8. Outcome 8
+## 8. FreshRoute Cooperative
 
-Program 8 is designed to reduce harvest spoilage; it keeps produce cool before shipment.
+The FreshRoute Cooperative cools produce immediately after harvest and holds it until shipment, reducing spoilage for small farms.
 
-## 9. Outcome 9
+## 9. Room for River Accord
 
-Program 9 is designed to lower insured flood losses; it gives the river safe space during high water.
+The Room for River Accord lets high water spread safely across the park instead of developed property, lowering insured flood losses.
 
-## 10. Outcome 10
+## 10. GlassLoop Works
 
-Program 10 is designed to reduce landfill demand; it turns discarded bottles into paving aggregate.
+GlassLoop Works converts discarded bottles into paving aggregate, diverting glass from landfill disposal.
 
-## 11. Outcome 11
+## 11. NightCharge Transit Project
 
-Program 11 is designed to cut transit emissions; it charges buses using overnight renewable power.
+The NightCharge Transit Project charges the bus fleet overnight with contracted renewable electricity, cutting daytime transit emissions.
 
-## 12. Outcome 12
+## 12. GroundTruth Farming Service
 
-Program 12 is designed to target fertilizer use; it measures nutrient levels before planting.
+The GroundTruth Farming Service measures field nutrient levels before planting and recommends only the fertilizer each plot needs.
 
-## 13. Outcome 13
+## 13. ReefStart Collaborative
 
-Program 13 is designed to increase juvenile coral survival; it raises fragments before reef transplantation.
+The ReefStart Collaborative raises coral fragments in protected conditions before transplanting them, increasing juvenile coral survival.
 
-## 14. Outcome 14
+## 14. Mend and Share Network
 
-Program 14 is designed to extend the life of household equipment; it allows residents to borrow repair tools.
+The Mend and Share Network lends specialized repair tools that residents rarely own, helping household equipment remain in use longer.
 
-## 15. Outcome 15
+## 15. ClearDune Water Project
 
-Program 15 is designed to provide drought backup water; it uses renewable energy to remove salt.
+The ClearDune Water Project removes salt from seawater during prolonged dry periods, providing a backup source without fossil-powered treatment.
 
-## 16. Outcome 16
+## 16. Fireline Early Alert
 
-Program 16 is designed to detect fires earlier; it combines cameras with volunteer patrols.
+Fireline Early Alert combines tower cameras with volunteer patrol reports to identify smoke before fires spread widely.
 
-## 17. Outcome 17
+## 17. HarborProof Ledger
 
-Program 17 is designed to discourage illegal catches; it records each catch from boat to buyer.
+The HarborProof Ledger follows each catch from boat to buyer, allowing inspectors to flag fish without a lawful origin.
 
-## 18. Outcome 18
+## 18. HighPath Mobility Link
 
-Program 18 is designed to connect the ridge without widening roads; it moves passengers above the steep slope.
+The HighPath Mobility Link carries passengers above the steep slope, connecting the ridge without widening the narrow road.
 
-## 19. Outcome 19
+## 19. BeeLine Habitat Compact
 
-Program 19 is designed to support native bee populations; it links flowering habitats across neighborhoods.
+The BeeLine Habitat Compact connects flowering sites across neighborhoods, giving native bees continuous forage and nesting routes.
 
-## 20. Outcome 20
+## 20. WarmStone Exchange
 
-Program 20 is designed to lower winter heating demand; it shares recovered waste heat among buildings.
+The WarmStone Exchange transfers waste heat from commercial buildings to nearby homes, lowering winter heating demand.

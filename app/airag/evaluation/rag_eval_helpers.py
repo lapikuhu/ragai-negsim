@@ -117,6 +117,18 @@ def load_eval_supports(
             category = raw["category"]
             if category not in _CATEGORIES:
                 raise ValueError(f"Support row {ordinal} in {path.name} has invalid category")
+            bridge_entity = raw.get("bridge_entity")
+            if category == "relational_multi_hop" and (
+                not isinstance(bridge_entity, str) or not bridge_entity.strip()
+            ):
+                raise ValueError(
+                    f"Relational support row {ordinal} in {path.name} "
+                    "requires a named bridge_entity"
+                )
+            if bridge_entity is not None and not isinstance(bridge_entity, str):
+                raise ValueError(
+                    f"Support row {ordinal} in {path.name} has invalid bridge_entity"
+                )
             rows.append(
                 EvalSupportRow(
                     evaluation_id=raw["id"],
@@ -125,6 +137,7 @@ def load_eval_supports(
                     query=raw["query"],
                     reference_answer=raw["reference_answer"],
                     ordinal=ordinal,
+                    bridge_entity=bridge_entity,
                 )
             )
         loaded[number] = tuple(rows)
@@ -314,6 +327,23 @@ def create_eval_corpus(
             raise ValueError(
                 f"Unanswerable example {row.evaluation_id!r} must not have support locators"
             )
+        if row.category == "relational_multi_hop":
+            bridge = row.bridge_entity or ""
+            if bridge in row.query:
+                raise ValueError(
+                    f"Relational example {row.evaluation_id!r} query must not encode "
+                    "its bridge entity"
+                )
+            if len(spans) < 2 or len({span.document_id for span in spans}) < 2:
+                raise ValueError(
+                    f"Relational example {row.evaluation_id!r} requires evidence "
+                    "from at least two documents"
+                )
+            if any(bridge not in span.support for span in spans):
+                raise ValueError(
+                    f"Relational example {row.evaluation_id!r} bridge entity must "
+                    "appear in every evidence passage"
+                )
         examples.append(
             EvalExample(
                 evaluation_id=row.evaluation_id,
@@ -322,9 +352,11 @@ def create_eval_corpus(
                 query=row.query,
                 reference_answer=row.reference_answer,
                 support_spans=spans,
+                bridge_entity=row.bridge_entity,
             )
         )
 
+    ordered_documents = [documents[number] for number in sorted(documents)]
     eval_documents = tuple(
         EvalDocument(
             document_id=document.document_id,
@@ -332,7 +364,7 @@ def create_eval_corpus(
             content=document.content,
             support_spans=tuple(spans_by_document.get(document.document_id, ())),
         )
-        for document in documents.values()
+        for document in ordered_documents
     )
     source_documents = tuple(
         Document(
@@ -342,7 +374,7 @@ def create_eval_corpus(
                 "source": str(document.path),
             },
         )
-        for document in documents.values()
+        for document in ordered_documents
     )
     support_spans = tuple(
         span for document in eval_documents for span in document.support_spans

@@ -254,202 +254,202 @@
     {
       "example_id": "relational-001",
       "document_number": 7,
-      "quote": "Harbor City operates a tidal-energy array as its featured resilience resource."
+      "quote": "Harbor City assigned its tidal-energy array to the Blue Current Initiative for year-round grid support."
     },
     {
       "example_id": "relational-001",
       "document_number": 8,
-      "quote": "Program 1 is designed to stabilize winter electricity supply; it stores surplus power for periods of peak demand."
+      "quote": "The Blue Current Initiative stores surplus tidal power for peak-demand periods, stabilizing the winter electricity supply."
     },
     {
       "example_id": "relational-002",
       "document_number": 7,
-      "quote": "Pine County operates a community seed bank as its featured resilience resource."
+      "quote": "Pine County contributes its community seed bank to the Heritage Seed Network, which coordinates local crop conservation."
     },
     {
       "example_id": "relational-002",
       "document_number": 8,
-      "quote": "Program 2 is designed to protect rare crop varieties; it lends locally adapted seeds to farmers."
+      "quote": "Through the Heritage Seed Network, farmers borrow locally adapted seed varieties, protecting rare crops from disappearing."
     },
     {
       "example_id": "relational-003",
       "document_number": 7,
-      "quote": "Mesa Town operates a solar microgrid as its featured resilience resource."
+      "quote": "Mesa Town placed its solar microgrid under the Sunhaven Resilience Plan to serve critical community facilities."
     },
     {
       "example_id": "relational-003",
       "document_number": 8,
-      "quote": "Program 3 is designed to keep emergency shelters powered; it operates independently during grid outages."
+      "quote": "The Sunhaven Resilience Plan isolates its power network during wider grid failures so emergency shelters remain supplied."
     },
     {
       "example_id": "relational-004",
       "document_number": 7,
-      "quote": "River Borough operates restored wetlands as its featured resilience resource."
+      "quote": "River Borough manages its restored wetlands as the upstream centerpiece of the Living River Partnership."
     },
     {
       "example_id": "relational-004",
       "document_number": 8,
-      "quote": "Program 4 is designed to reduce downstream storm surges; it holds floodwater before it reaches homes."
+      "quote": "The Living River Partnership holds stormwater in the wetland basin before it reaches homes, reducing downstream surge damage."
     },
     {
       "example_id": "relational-005",
       "document_number": 7,
-      "quote": "Summit Village operates an avalanche sensor network as its featured resilience resource."
+      "quote": "Summit Village shares its avalanche sensor network with the PeakWatch Alliance for mountain hazard monitoring."
     },
     {
       "example_id": "relational-005",
       "document_number": 8,
-      "quote": "Program 5 is designed to shorten avalanche warnings; it sends real-time snow movement alerts."
+      "quote": "The PeakWatch Alliance sends real-time snow-movement alerts from the sensors, shortening the time needed to warn exposed neighborhoods."
     },
     {
       "example_id": "relational-006",
       "document_number": 7,
-      "quote": "Cedar District operates a mobile health clinic as its featured resilience resource."
+      "quote": "Cedar District operates its mobile health clinic as the traveling unit of the ReachCare Circuit."
     },
     {
       "example_id": "relational-006",
       "document_number": 8,
-      "quote": "Program 6 is designed to reach remote patients; it rotates primary care through isolated neighborhoods."
+      "quote": "The ReachCare Circuit rotates primary-care visits through isolated neighborhoods that lack a permanent clinic."
     },
     {
       "example_id": "relational-007",
       "document_number": 7,
-      "quote": "Lake Ward operates a rainwater capture system as its featured resilience resource."
+      "quote": "Lake Ward connected its public rainwater capture system to the Rainwise Commons conservation initiative."
     },
     {
       "example_id": "relational-007",
       "document_number": 8,
-      "quote": "Program 7 is designed to reduce potable-water demand; it supplies captured rainwater for irrigation."
+      "quote": "Rainwise Commons supplies captured rainwater to parks and community gardens, reducing demand for potable water in irrigation."
     },
     {
       "example_id": "relational-008",
       "document_number": 7,
-      "quote": "Orchard City operates a cold-storage cooperative as its featured resilience resource."
+      "quote": "Orchard City's cold-storage cooperative is the consolidation hub for the FreshRoute Cooperative."
     },
     {
       "example_id": "relational-008",
       "document_number": 8,
-      "quote": "Program 8 is designed to reduce harvest spoilage; it keeps produce cool before shipment."
+      "quote": "The FreshRoute Cooperative cools produce immediately after harvest and holds it until shipment, reducing spoilage for small farms."
     },
     {
       "example_id": "relational-009",
       "document_number": 7,
-      "quote": "Delta County operates a floodplain park as its featured resilience resource."
+      "quote": "Delta County dedicated its floodplain park to the Room for River Accord as controlled overflow space."
     },
     {
       "example_id": "relational-009",
       "document_number": 8,
-      "quote": "Program 9 is designed to lower insured flood losses; it gives the river safe space during high water."
+      "quote": "The Room for River Accord lets high water spread safely across the park instead of developed property, lowering insured flood losses."
     },
     {
       "example_id": "relational-010",
       "document_number": 7,
-      "quote": "Granite Town operates a recycled-glass plant as its featured resilience resource."
+      "quote": "Granite Town supplies its recycled-glass plant to GlassLoop Works, a regional materials-recovery initiative."
     },
     {
       "example_id": "relational-010",
       "document_number": 8,
-      "quote": "Program 10 is designed to reduce landfill demand; it turns discarded bottles into paving aggregate."
+      "quote": "GlassLoop Works converts discarded bottles into paving aggregate, diverting glass from landfill disposal."
     },
     {
       "example_id": "relational-011",
       "document_number": 7,
-      "quote": "Willow Borough operates an electric bus depot as its featured resilience resource."
+      "quote": "Willow Borough designated its electric bus depot as the operating base of the NightCharge Transit Project."
     },
     {
       "example_id": "relational-011",
       "document_number": 8,
-      "quote": "Program 11 is designed to cut transit emissions; it charges buses using overnight renewable power."
+      "quote": "The NightCharge Transit Project charges the bus fleet overnight with contracted renewable electricity, cutting daytime transit emissions."
     },
     {
       "example_id": "relational-012",
       "document_number": 7,
-      "quote": "Prairie Village operates a soil-testing laboratory as its featured resilience resource."
+      "quote": "Prairie Village made its soil-testing laboratory the analytical center for the GroundTruth Farming Service."
     },
     {
       "example_id": "relational-012",
       "document_number": 8,
-      "quote": "Program 12 is designed to target fertilizer use; it measures nutrient levels before planting."
+      "quote": "The GroundTruth Farming Service measures field nutrient levels before planting and recommends only the fertilizer each plot needs."
     },
     {
       "example_id": "relational-013",
       "document_number": 7,
-      "quote": "Coral District operates a reef nursery as its featured resilience resource."
+      "quote": "Coral District contributes its reef nursery to the ReefStart Collaborative's restoration work."
     },
     {
       "example_id": "relational-013",
       "document_number": 8,
-      "quote": "Program 13 is designed to increase juvenile coral survival; it raises fragments before reef transplantation."
+      "quote": "The ReefStart Collaborative raises coral fragments in protected conditions before transplanting them, increasing juvenile coral survival."
     },
     {
       "example_id": "relational-014",
       "document_number": 7,
-      "quote": "Maple Ward operates a public tool library as its featured resilience resource."
+      "quote": "Maple Ward enrolled its public tool library in the Mend and Share Network for neighborhood repair access."
     },
     {
       "example_id": "relational-014",
       "document_number": 8,
-      "quote": "Program 14 is designed to extend the life of household equipment; it allows residents to borrow repair tools."
+      "quote": "The Mend and Share Network lends specialized repair tools that residents rarely own, helping household equipment remain in use longer."
     },
     {
       "example_id": "relational-015",
       "document_number": 7,
-      "quote": "Dune City operates a desalination pilot as its featured resilience resource."
+      "quote": "Dune City incorporated its renewable-powered desalination pilot into the ClearDune Water Project."
     },
     {
       "example_id": "relational-015",
       "document_number": 8,
-      "quote": "Program 15 is designed to provide drought backup water; it uses renewable energy to remove salt."
+      "quote": "The ClearDune Water Project removes salt from seawater during prolonged dry periods, providing a backup source without fossil-powered treatment."
     },
     {
       "example_id": "relational-016",
       "document_number": 7,
-      "quote": "Forest County operates a wildfire watchtower network as its featured resilience resource."
+      "quote": "Forest County linked its wildfire watchtower network to Fireline Early Alert, a countywide detection initiative."
     },
     {
       "example_id": "relational-016",
       "document_number": 8,
-      "quote": "Program 16 is designed to detect fires earlier; it combines cameras with volunteer patrols."
+      "quote": "Fireline Early Alert combines tower cameras with volunteer patrol reports to identify smoke before fires spread widely."
     },
     {
       "example_id": "relational-017",
       "document_number": 7,
-      "quote": "Bay Town operates a fish-market traceability system as its featured resilience resource."
+      "quote": "Bay Town routes records from its fish-market traceability system into the HarborProof Ledger."
     },
     {
       "example_id": "relational-017",
       "document_number": 8,
-      "quote": "Program 17 is designed to discourage illegal catches; it records each catch from boat to buyer."
+      "quote": "The HarborProof Ledger follows each catch from boat to buyer, allowing inspectors to flag fish without a lawful origin."
     },
     {
       "example_id": "relational-018",
       "document_number": 7,
-      "quote": "Cliff Village operates a cable-car transit link as its featured resilience resource."
+      "quote": "Cliff Village committed its cable-car transit link to the HighPath Mobility Link for ridge access."
     },
     {
       "example_id": "relational-018",
       "document_number": 8,
-      "quote": "Program 18 is designed to connect the ridge without widening roads; it moves passengers above the steep slope."
+      "quote": "The HighPath Mobility Link carries passengers above the steep slope, connecting the ridge without widening the narrow road."
     },
     {
       "example_id": "relational-019",
       "document_number": 7,
-      "quote": "Meadow Borough operates a pollinator corridor as its featured resilience resource."
+      "quote": "Meadow Borough registered its pollinator corridor with the BeeLine Habitat Compact."
     },
     {
       "example_id": "relational-019",
       "document_number": 8,
-      "quote": "Program 19 is designed to support native bee populations; it links flowering habitats across neighborhoods."
+      "quote": "The BeeLine Habitat Compact connects flowering sites across neighborhoods, giving native bees continuous forage and nesting routes."
     },
     {
       "example_id": "relational-020",
       "document_number": 7,
-      "quote": "Stone District operates a building-heat recovery loop as its featured resilience resource."
+      "quote": "Stone District assigned its building-heat recovery loop to the WarmStone Exchange district-energy scheme."
     },
     {
       "example_id": "relational-020",
       "document_number": 8,
-      "quote": "Program 20 is designed to lower winter heating demand; it shares recovered waste heat among buildings."
+      "quote": "The WarmStone Exchange transfers waste heat from commercial buildings to nearby homes, lowering winter heating demand."
     }
   ]
 }

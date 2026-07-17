@@ -31,6 +31,7 @@ class EvalSupportRow:
     query: str
     reference_answer: str
     ordinal: int
+    bridge_entity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ class EvalExample:
     category: str = "direct_retrieval"
     answerable: bool = True
     support_spans: tuple[EvalSupportSpan, ...] = ()
+    bridge_entity: str | None = None
 
     @property
     def support(self) -> str:

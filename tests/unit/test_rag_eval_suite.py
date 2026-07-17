@@ -4,6 +4,7 @@ import hashlib
 import json
 from collections import Counter
 from pathlib import Path
+import re
 
 import pytest
 
@@ -53,7 +54,7 @@ def _row(
     *,
     answerable: bool = True,
 ) -> dict:
-    return {
+    row = {
         "id": example_id,
         "category": category,
         "answerable": answerable,
@@ -62,6 +63,9 @@ def _row(
             f"Answer for {example_id}." if answerable else "Not answerable from the corpus."
         ),
     }
+    if category == MULTI_HOP:
+        row["bridge_entity"] = "Bridge Initiative"
+    return row
 
 
 def _locator(example_id: str, number: int, quote: str) -> dict:
@@ -72,8 +76,11 @@ def _create_small_suite(tmp_path: Path):
     _write_suite(
         tmp_path,
         documents={
-            1: "Alpha evidence gives the first fact.\n\nShared bridge fact.",
-            2: "Beta evidence gives the second fact.",
+            1: (
+                "Alpha evidence gives the first fact.\n\n"
+                "Bridge Initiative connects the first fact."
+            ),
+            2: "Bridge Initiative connects the second fact.",
         },
         supports={
             1: [_row("direct-001"), _row("multi-001", MULTI_HOP)],
@@ -81,8 +88,12 @@ def _create_small_suite(tmp_path: Path):
         },
         locators=[
             _locator("direct-001", 1, "Alpha evidence gives the first fact."),
-            _locator("multi-001", 1, "Shared bridge fact."),
-            _locator("multi-001", 2, "Beta evidence gives the second fact."),
+            _locator(
+                "multi-001", 1, "Bridge Initiative connects the first fact."
+            ),
+            _locator(
+                "multi-001", 2, "Bridge Initiative connects the second fact."
+            ),
         ],
     )
     return create_eval_corpus(
@@ -102,8 +113,8 @@ def test_suite_supports_multi_locator_and_cross_document_evidence(tmp_path):
         "synth_doc_2",
     ]
     assert [span.support for span in multi.support_spans] == [
-        "Shared bridge fact.",
-        "Beta evidence gives the second fact.",
+        "Bridge Initiative connects the first fact.",
+        "Bridge Initiative connects the second fact.",
     ]
 
 
@@ -270,6 +281,41 @@ def test_suite_hash_is_deterministic_and_covers_raw_used_files(tmp_path):
     assert changed.suite_content_hash != corpus.suite_content_hash
 
 
+def test_suite_orders_documents_by_numeric_suffix_when_created_out_of_order(tmp_path):
+    numbers = list(range(10, 0, -1))
+    _write_suite(
+        tmp_path,
+        documents={
+            number: f"Evidence for document {number}."
+            for number in numbers
+        },
+        supports={
+            number: [_row(f"example-{number:02d}")]
+            for number in numbers
+        },
+        locators=[
+            _locator(
+                f"example-{number:02d}",
+                number,
+                f"Evidence for document {number}.",
+            )
+            for number in numbers
+        ],
+    )
+
+    corpus = create_eval_corpus(
+        tmp_path, expected_category_counts={DIRECT: 10}
+    )
+
+    expected_ids = [f"synth_doc_{number}" for number in range(1, 11)]
+    assert [
+        document.metadata["eval_document_id"] for document in corpus.documents
+    ] == expected_ids
+    assert [
+        document.document_id for document in corpus.eval_documents
+    ] == expected_ids
+
+
 def test_real_suite_has_exact_reviewed_distribution_and_precise_locators():
     corpus = create_eval_corpus()
 
@@ -283,8 +329,27 @@ def test_real_suite_has_exact_reviewed_distribution_and_precise_locators():
         for document in corpus.eval_documents
         for span in document.support_spans
     )
-    assert any(
-        len({span.document_id for span in example.support_spans}) > 1
+    relational_examples = [
+        example
+        for example in corpus.examples
+        if example.category == MULTI_HOP
+    ]
+    assert all(
+        len(example.support_spans) >= 2
+        and len({span.document_id for span in example.support_spans}) >= 2
+        for example in relational_examples
+    )
+    assert all(
+        example.bridge_entity
+        and example.bridge_entity not in example.query
+        and all(
+            example.bridge_entity in span.support
+            for span in example.support_spans
+        )
+        and not any(
+            re.search(r"\bProgram \d+\b", span.support)
+            for span in example.support_spans
+        )
         for example in corpus.examples
         if example.category == MULTI_HOP
     )

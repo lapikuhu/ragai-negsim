@@ -3,70 +3,80 @@
     "id": "relational-001",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Harbor City operate, and how does Program 1 use it to stabilize winter electricity supply?",
-    "reference_answer": "Harbor City operates a tidal-energy array. Program 1 uses the resource to stabilize winter electricity supply because it stores surplus power for periods of peak demand."
+    "bridge_entity": "Blue Current Initiative",
+    "query": "How does Harbor City's marine-energy asset help residents when seasonal electricity demand peaks?",
+    "reference_answer": "Harbor City's tidal-energy array is assigned to the Blue Current Initiative, which stores surplus tidal power for peak demand and stabilizes the winter electricity supply."
   },
   {
     "id": "relational-002",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Pine County operate, and how does Program 2 use it to protect rare crop varieties?",
-    "reference_answer": "Pine County operates a community seed bank. Program 2 uses the resource to protect rare crop varieties because it lends locally adapted seeds to farmers."
+    "bridge_entity": "Heritage Seed Network",
+    "query": "What conservation benefit reaches farmers through Pine County's agricultural repository?",
+    "reference_answer": "Pine County's community seed bank participates in the Heritage Seed Network, which lends locally adapted seeds to farmers and protects rare crop varieties."
   },
   {
     "id": "relational-003",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Mesa Town operate, and how does Program 3 use it to keep emergency shelters powered?",
-    "reference_answer": "Mesa Town operates a solar microgrid. Program 3 uses the resource to keep emergency shelters powered because it operates independently during grid outages."
+    "bridge_entity": "Sunhaven Resilience Plan",
+    "query": "During a regional outage, what role does Mesa Town's local energy system play for critical facilities?",
+    "reference_answer": "Mesa Town's solar microgrid serves the Sunhaven Resilience Plan, whose isolated network keeps emergency shelters powered during wider grid outages."
   },
   {
     "id": "relational-004",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does River Borough operate, and how does Program 4 use it to reduce downstream storm surges?",
-    "reference_answer": "River Borough operates restored wetlands. Program 4 uses the resource to reduce downstream storm surges because it holds floodwater before it reaches homes."
+    "bridge_entity": "Living River Partnership",
+    "query": "How does River Borough's restored landscape lessen storm damage for downstream homes?",
+    "reference_answer": "River Borough's restored wetlands anchor the Living River Partnership, which holds stormwater before it reaches homes and reduces downstream surge damage."
   },
   {
     "id": "relational-005",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Summit Village operate, and how does Program 5 use it to shorten avalanche warnings?",
-    "reference_answer": "Summit Village operates an avalanche sensor network. Program 5 uses the resource to shorten avalanche warnings because it sends real-time snow movement alerts."
+    "bridge_entity": "PeakWatch Alliance",
+    "query": "What safety improvement comes from Summit Village's mountain-monitoring equipment?",
+    "reference_answer": "Summit Village shares its avalanche sensor network with the PeakWatch Alliance, which issues real-time snow-movement alerts and shortens warnings for exposed neighborhoods."
   },
   {
     "id": "relational-006",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Cedar District operate, and how does Program 6 use it to reach remote patients?",
-    "reference_answer": "Cedar District operates a mobile health clinic. Program 6 uses the resource to reach remote patients because it rotates primary care through isolated neighborhoods."
+    "bridge_entity": "ReachCare Circuit",
+    "query": "How are isolated neighborhoods served by Cedar District's traveling medical asset?",
+    "reference_answer": "Cedar District's mobile health clinic is the traveling unit of the ReachCare Circuit, which rotates primary-care visits through isolated neighborhoods."
   },
   {
     "id": "relational-007",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Lake Ward operate, and how does Program 7 use it to reduce potable-water demand?",
-    "reference_answer": "Lake Ward operates a rainwater capture system. Program 7 uses the resource to reduce potable-water demand because it supplies captured rainwater for irrigation."
+    "bridge_entity": "Rainwise Commons",
+    "query": "What municipal water-saving use is made of Lake Ward's captured rainfall?",
+    "reference_answer": "Lake Ward's rainwater capture system supports Rainwise Commons, which irrigates parks and community gardens with captured rainwater and reduces potable-water demand."
   },
   {
     "id": "relational-008",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Orchard City operate, and how does Program 8 use it to reduce harvest spoilage?",
-    "reference_answer": "Orchard City operates a cold-storage cooperative. Program 8 uses the resource to reduce harvest spoilage because it keeps produce cool before shipment."
+    "bridge_entity": "FreshRoute Cooperative",
+    "query": "How does Orchard City's shared storage asset protect small farmers' harvests?",
+    "reference_answer": "Orchard City's cold-storage cooperative hubs the FreshRoute Cooperative, which cools produce after harvest and holds it until shipment to reduce spoilage."
   },
   {
     "id": "relational-009",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Delta County operate, and how does Program 9 use it to lower insured flood losses?",
-    "reference_answer": "Delta County operates a floodplain park. Program 9 uses the resource to lower insured flood losses because it gives the river safe space during high water."
+    "bridge_entity": "Room for River Accord",
+    "query": "Why does Delta County reserve parkland beside the river during high-water events?",
+    "reference_answer": "Delta County's floodplain park provides overflow space for the Room for River Accord, allowing high water to avoid developed property and lowering insured flood losses."
   },
   {
     "id": "relational-010",
     "category": "relational_multi_hop",
     "answerable": true,
-    "query": "Which resource does Granite Town operate, and how does Program 10 use it to reduce landfill demand?",
-    "reference_answer": "Granite Town operates a recycled-glass plant. Program 10 uses the resource to reduce landfill demand because it turns discarded bottles into paving aggregate."
+    "bridge_entity": "GlassLoop Works",
+    "query": "What happens to discarded bottles processed through Granite Town's recovery asset?",
+    "reference_answer": "Granite Town's recycled-glass plant serves GlassLoop Works, which converts discarded bottles into paving aggregate and diverts glass from landfills."
   }
 ]
