@@ -1,14 +1,13 @@
 """Isolated CRAG and GraphRAG resources for full-pipeline evaluation."""
 
 from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
-
 from langchain_core.documents import Document
 
+# local imports
 from app.airag.chunking.chunkers import get_default_embeddings
 from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.evaluation.eval_chunking import prepare_evaluation_chunks
@@ -334,7 +333,9 @@ def adapter_for_strategy(strategy: str):
 
 
 class DefaultRagEvalRuntime:
-    """Production entry point for a validated typed evaluation configuration."""
+    """
+    Production entry point for a validated typed evaluation configuration.
+    """
 
     def __init__(self, *, pipeline_builder=None, adapter_selector=None) -> None:
         self._evaluator = FullPipelineEvaluator(

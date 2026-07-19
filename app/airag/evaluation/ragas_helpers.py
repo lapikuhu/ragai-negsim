@@ -1,10 +1,10 @@
 """Optional Ragas quality evaluation over completed deterministic eval runs."""
 
 from __future__ import annotations
-
 from collections.abc import Mapping
 from typing import Any
 
+# local imports
 from ragas.dataset_schema import SingleTurnSample
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
@@ -103,7 +103,17 @@ class RagasEvaluator:
         cls,
         configuration: Mapping[str, Any],
     ) -> "RagasEvaluator":
-        """Use the normalized run configuration's judge and embedding selections."""
+        """
+        Use the normalized run configuration's judge and embedding selections.
+        Args:
+            configuration: The normalized run configuration containing the
+                judge and embedding selections.
+        Returns:
+            An instance of RagasEvaluator.
+        Raises:
+            ValueError: If the configuration is missing required judge or
+                embedding selections.
+        """
         metrics = configuration.get("metrics")
         if not isinstance(metrics, Mapping):
             raise ValueError("Normalized configuration must contain metrics")
@@ -206,7 +216,16 @@ class RagasEvaluator:
         *,
         should_cancel: CancellationCallback | None = None,
     ) -> dict[str, float]:
-        """Score one completed pipeline query with the fixed five-metric suite."""
+        """
+        Score one completed pipeline query with the fixed five-metric suite.
+        Args:
+            result: The evaluation query result to score.
+            should_cancel: Optional callback to check for cancellation.
+        Returns:
+            A dictionary containing the scores for each metric.
+        Raises:
+            ValueError: If the evaluation result has no generated answer.
+        """
         scores: dict[str, float] = {}
         for metric_name in _METRIC_NAMES:
             await check_cancellation(should_cancel)

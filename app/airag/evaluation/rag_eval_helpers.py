@@ -29,6 +29,7 @@ from app.airag.evaluation.eval_models import (
 
 _SYNTHETIC_DOCUMENT_NAME = re.compile(r"^synth_doc_(?P<number>[1-9]\d*)\.md$")
 _SUPPORT_NAME = re.compile(r"^support_(?P<number>[1-9]\d*)\.md$")
+# CHECK: Sensitive against actual eval content
 _CATEGORIES = {
     "direct_retrieval",
     "paraphrased_retrieval",
@@ -46,12 +47,36 @@ _REAL_CATEGORY_COUNTS = {
 
 
 def _suite_root(root: str | Path | None) -> Path:
+    """
+    Determine the root directory of the evaluation suite defaulting to 
+    the current file's directory if not provided.
+    Args:
+        root: Optional path to the evaluation suite root.
+    Returns:
+        Path object representing the root directory of the evaluation suite.
+    """
     return Path(root) if root is not None else Path(__file__).resolve().parent
 
 
 def _discover_numbered_files(
     directory: Path, pattern: re.Pattern[str], kind: str
 ) -> dict[int, Path]:
+    """
+    Discover and validate numbered files in a directory based on a regex 
+    pattern.
+    Args:
+        directory: The directory to search for files.
+        pattern: A compiled regex pattern to match filenames.
+        kind: A descriptive name for the type of files being discovered 
+            (used in error messages).
+    Returns:
+        A dictionary mapping the extracted number from the filename to 
+        the corresponding Path object.
+    Raises:
+        ValueError: If the directory does not exist, if filenames do not 
+        match the pattern, if there are duplicate numbers, or if 
+        numbering is not sequential.
+    """
     if not directory.is_dir():
         raise ValueError(f"Evaluation {kind} directory does not exist: {directory}")
     files: dict[int, Path] = {}
@@ -71,6 +96,16 @@ def _discover_numbered_files(
 
 
 def load_eval_documents(root: str | Path | None = None) -> dict[int, EvalSourceDocument]:
+    """
+    Load and validate synthetic evaluation source documents from the 
+    specified root directory.
+    Args:
+        root: Optional path to the evaluation suite root. If not provided, 
+            defaults to the current file's directory.
+    Returns:
+        A dictionary mapping document numbers to EvalSourceDocument 
+        instances.
+    """
     paths = _discover_numbered_files(
         _suite_root(root) / "synth_docs", _SYNTHETIC_DOCUMENT_NAME, "document"
     )
@@ -88,6 +123,18 @@ def load_eval_documents(root: str | Path | None = None) -> dict[int, EvalSourceD
 def load_eval_supports(
     root: str | Path | None = None,
 ) -> dict[int, tuple[EvalSupportRow, ...]]:
+    """
+    Load the evaluation support rows from the specified root directory.
+    Args:
+        root: Optional path to the evaluation suite root. If not provided,
+            defaults to the current file's directory.
+    Returns:
+        A dictionary mapping support numbers to tuples of EvalSupportRow
+        instances.
+    Raises:
+        ValueError: If the support files are missing, invalid, or contain
+            duplicate or inconsistent data.
+    """
     paths = _discover_numbered_files(
         _suite_root(root) / "supports", _SUPPORT_NAME, "support"
     )
@@ -147,6 +194,18 @@ def load_eval_supports(
 def load_eval_span_locators(
     root: str | Path | None = None,
 ) -> tuple[str, tuple[EvalSpanLocator, ...]]:
+    """
+    Load evaluation support span locators from the specified root directory.
+    Args:
+        root: Optional path to the evaluation suite root. If not provided,
+            defaults to the current file's directory.
+    Returns:
+        A tuple containing the version string and a tuple of EvalSpanLocator 
+        instances.
+    Raises:
+        ValueError: If the support span locator file is missing, invalid, 
+        or contains duplicate or inconsistent data.
+    """
     path = _suite_root(root) / "support_spans.json"
     if not path.is_file():
         raise ValueError(f"Missing support span locator file: {path}")
@@ -197,6 +256,21 @@ def pair_eval_documents_and_supports(
     documents: dict[int, EvalSourceDocument],
     supports: dict[int, tuple[EvalSupportRow, ...]],
 ) -> tuple[tuple[EvalSourceDocument, tuple[EvalSupportRow, ...]], ...]:
+    """
+    Pair synthetic evaluation documents with their corresponding support 
+    rows based on their numbering.
+    Args:
+        documents: A dictionary mapping document numbers to EvalSourceDocument
+            instances.
+        supports: A dictionary mapping support numbers to tuples of EvalSupportRow
+            instances.
+    Returns:
+        A tuple of tuples, each containing an EvalSourceDocument and its
+        corresponding tuple of EvalSupportRow instances.
+    Raises:
+        ValueError: If there are unmatched documents or supports, or if the
+            evaluation suite contains no document/support pairs.
+    """
     document_numbers = set(documents)
     support_numbers = set(supports)
     if document_numbers != support_numbers:
@@ -212,8 +286,21 @@ def pair_eval_documents_and_supports(
         raise ValueError("Evaluation suite contains no document/support pairs")
     return tuple((documents[number], supports[number]) for number in sorted(document_numbers))
 
-
+# Check
 def _find_unique_quote(document: EvalSourceDocument, locator: EvalSpanLocator) -> tuple[int, int]:
+    """
+    Find the unique occurrence of a support quote in a document's content 
+    and return its start and end indices.
+    Args:
+        document: The EvalSourceDocument in which to search for the quote.
+        locator: The EvalSpanLocator containing the quote to find.
+    Returns:
+        A tuple of two integers representing the start and end indices 
+        of the quote in the document's content.
+    Raises:
+        ValueError: If the quote is not found, occurs multiple times, or 
+        is out of bounds.
+    """
     first = document.content.find(locator.quote)
     if first < 0:
         raise ValueError(
@@ -235,6 +322,17 @@ def _suite_content_hash(
     document_numbers: Sequence[int],
     support_numbers: Sequence[int],
 ) -> str:
+    """
+    Hash the content of the evaluation suite files to produce a unique digest.
+    Used to check that the evaluation suite content has not changed between
+    runs.
+    Args:
+        root: The root directory of the evaluation suite.
+        document_numbers: A sequence of document numbers to include in the hash.
+        support_numbers: A sequence of support numbers to include in the hash.
+    Returns:
+        A hexadecimal string representing the SHA-256 hash of the suite content.
+    """
     relative_paths = ["support_spans.json"]
     relative_paths.extend(
         f"synth_docs/synth_doc_{number}.md" for number in document_numbers
@@ -253,6 +351,19 @@ def create_eval_corpus(
     *,
     expected_category_counts: Mapping[str, int] | None = None,
 ) -> EvalCorpus:
+    """
+    Create a validated evaluation corpus from the synthetic evaluation suite.
+    Args:
+        root: Optional path to the evaluation suite root. If not provided,
+            defaults to the current file's directory.
+        expected_category_counts: Optional mapping of expected category counts
+            for validation. If not provided, defaults to the real category 
+            counts.
+    Returns:
+        An EvalCorpus instance containing the validated evaluation data.
+    Raises:
+        ValueError: If the evaluation suite is invalid or inconsistent.
+    """
     suite_root = _suite_root(root)
     documents = load_eval_documents(suite_root)
     supports = load_eval_supports(suite_root)
@@ -394,6 +505,17 @@ def create_eval_corpus(
 def tag_chunks_with_evaluation_ids(
     chunks: Sequence[Document], corpus: EvalCorpus
 ) -> list[Document]:
+    """
+    Tag chunks with evaluation IDs based on the evaluation corpus.
+    Args:
+        chunks: A sequence of Document chunks to be tagged.
+        corpus: The evaluation corpus containing support spans.
+    Returns:
+        A list of Document chunks with updated evaluation_ids metadata.
+    Raises:
+        ValueError: If chunks are missing required metadata or if 
+        evaluation_ids metadata is not a list of strings.
+    """
     spans_by_document: dict[str, list[EvalSupportSpan]] = {}
     for span in corpus.support_spans:
         spans_by_document.setdefault(span.document_id, []).append(span)
@@ -430,6 +552,15 @@ def tag_chunks_with_evaluation_ids(
 
 
 def _document_evaluation_ids(document: Document) -> tuple[str, ...]:
+    """
+    Retrieve evaluation IDs from a document's metadata.
+    Args:
+        document: The Document object containing evaluation_ids metadata.
+    Returns:
+        A tuple of evaluation IDs.
+    Raises:
+        ValueError: If the evaluation_ids metadata is not a list of strings.
+    """
     evaluation_ids = document.metadata.get("evaluation_ids", [])
     if not isinstance(evaluation_ids, list) or not all(
         isinstance(item, str) for item in evaluation_ids
@@ -441,18 +572,53 @@ def _document_evaluation_ids(document: Document) -> tuple[str, ...]:
 
 
 def calculate_hit_rate_at_k(results: Sequence[EvalQueryResult]) -> float:
+    """
+    Calculate the Hit Rate at k (HitRate@k) for a sequence of evaluation 
+    query results.
+    Args:
+        results: A sequence of EvalQueryResult instances to calculate 
+        HitRate@k.
+    Returns:
+        The Hit Rate at k as a float.
+    Raises:
+        ValueError: If the results sequence is empty.
+    """
     if not results:
         raise ValueError("Cannot calculate HitRate@k for an empty result set")
     return sum(result.hit_at_k for result in results) / len(results)
 
 
 def calculate_mrr_at_k(results: Sequence[EvalQueryResult]) -> float:
+    """
+    Calculate the Mean Reciprocal Rank at k (MRR@k) for a sequence of 
+    evaluation query results.
+    Args:
+        results: A sequence of EvalQueryResult instances to calculate MRR@k.
+    Returns:
+        The Mean Reciprocal Rank at k as a float.
+    Raises:
+        ValueError: If the results sequence is empty.
+    """
     if not results:
         raise ValueError("Cannot calculate MRR@k for an empty result set")
     return sum(result.reciprocal_rank_at_k for result in results) / len(results)
 
 
 def run_eval_suite(corpus: EvalCorpus, runner: EvalRunner, k: int) -> EvalRunResult:
+    """
+    Run the evaluation suite using the provided EvalRunner and calculate
+    the Hit Rate at k and Mean Reciprocal Rank at k metrics.
+    Args:
+        corpus: The EvalCorpus containing the evaluation examples.
+        runner: The EvalRunner to execute the evaluation queries.
+        k: The cutoff rank for retrieval metrics.
+    Returns:
+        An EvalRunResult containing the scored query results and aggregated 
+        metrics.
+    Raises:
+        ValueError: If the results sequence is empty or if k is not a 
+        positive integer.
+    """
     if isinstance(k, bool) or not isinstance(k, int) or k < 1:
         raise ValueError("k must be at least 1")
     query_results: list[EvalQueryResult] = []

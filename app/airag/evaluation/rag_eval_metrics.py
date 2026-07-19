@@ -15,6 +15,7 @@ from app.airag.evaluation.rag_eval_engine import (
     check_cancellation,
 )
 
+# TODO: Move to a config file
 RAGAS_METRIC_NAMES = (
     "faithfulness",
     "answer_relevancy",
@@ -56,7 +57,19 @@ class ScoredPipelineEvaluationResult:
 def aggregate_scored_results(
     results: Sequence[ScoredPipelineQueryResult],
 ) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
-    """Return means and equal-weight, higher-is-better overall scores."""
+    """
+    Return means and equal-weight, higher-is-better overall scores.
+    Args:
+        results: A sequence of scored pipeline query results.
+    Returns:
+        A tuple containing:
+            - A dictionary of overall mean scores for each metric.
+            - A dictionary mapping each category to its mean scores for 
+                each metric.
+    Raises:
+        ValueError: If the results sequence is empty or if any metric is 
+        invalid.
+    """
     if not results:
         raise ValueError("Cannot aggregate an empty scored result set")
 
@@ -102,6 +115,16 @@ def aggregate_scored_results(
 
 
 def _validated_score(name: str, value: Any) -> float:
+    """
+    Validate that a score is numeric and within the range [0, 1].
+    Args:
+        name: The name of the metric.
+        value: The value of the metric.
+    Returns:
+        The validated score as a float.
+    Raises:
+        ValueError: If the score is not numeric or not in the range [0, 1].
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"Metric {name} must be numeric")
     score = float(value)
@@ -112,6 +135,11 @@ def _validated_score(name: str, value: Any) -> float:
 
 def _validated_ragas_scores(scores: Mapping[str, Any]) -> dict[str, float]:
     if set(scores) != set(RAGAS_METRIC_NAMES):
+        """
+        Validate that the Ragas scores contain exactly the required metrics.
+        Raises:
+            ValueError: If the scores do not contain exactly the required metrics.
+        """
         raise ValueError(
             "Ragas scores must contain exactly: " + ", ".join(RAGAS_METRIC_NAMES)
         )
@@ -131,6 +159,20 @@ class PipelineResultScorer:
         k: int,
         should_cancel: CancellationCallback | None = None,
     ) -> ScoredPipelineEvaluationResult:
+        """
+        Score a pipeline evaluation result.
+        Args:
+            evaluation: The pipeline evaluation result to score.
+            k: The cutoff rank for retrieval metrics.
+            should_cancel: Optional callback to check for cancellation.
+        Returns:
+            A ScoredPipelineEvaluationResult containing the scored query 
+            results and aggregated metrics.
+
+        Raises:
+            ValueError: If the evaluation result is empty or if k is not 
+            a positive integer.
+        """
         if not evaluation.results:
             raise ValueError("Cannot score an empty pipeline evaluation result")
         if isinstance(k, bool) or not isinstance(k, int) or k < 1:

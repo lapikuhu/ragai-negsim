@@ -15,7 +15,7 @@ Route modules live under `app/web/routes/` and expose the API surface. They are 
 ### Services
 Service modules under `app/services/` contain application logic. This is where orchestration happens for simulations, ingestion, chunking, retrieval, sessions, and user-adjacent workflows.
 
-RAG evaluation has a dedicated persistent coordinator in `app/services/rag_eval_coordinator.py`. It claims queued database rows in global FIFO order, runs at most one evaluation at a time, and reports stage, progress, completed-example counts, and cancellation. Queue rows survive restart. Startup recovery cleans interrupted GraphRAG scopes before failing interrupted runs; an unsuccessful cleanup leaves the run at `cleanup_pending` and blocks later queue work until cleanup succeeds. The in-process ownership model supports a single Uvicorn worker.
+RAG evaluation has a dedicated persistent coordinator in `app/services/rag_eval_coordinator.py`. It claims queued database rows in global FIFO order, runs at most one evaluation at a time, and reports stage, progress, completed-example counts, and cancellation. Queue rows survive restart. Startup recovery cleans interrupted GraphRAG scopes before failing interrupted runs; an unsuccessful cleanup leaves the run at `cleanup_pending` and blocks later queue work until cleanup succeeds. The runtime now builds the shared response pipeline through `app/airag/pipeline_factory.py`, so evaluation exercises the same canonical CRAG/GraphRAG pipeline as production. The in-process ownership model supports a single Uvicorn worker.
 
 ### Repositories
 Repository modules under `app/repositories/` isolate persistence queries and keep route/service code from reaching directly into SQLModel/SQLAlchemy query logic.

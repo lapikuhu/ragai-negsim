@@ -6,11 +6,11 @@ design and is intentionally out of scope.
 """
 
 from __future__ import annotations
-
 import asyncio
 from collections.abc import Callable, Mapping
 from typing import Any
 
+# local imports
 from app.airag.evaluation.rag_eval_engine import (
     EvaluationProgress,
     RagEvaluationCancelled,
@@ -54,6 +54,13 @@ def _safe_failure_message(stage: str) -> str:
 
 
 def _query_rows(scored: Any) -> list[RagEvalQueryResultCreate]:
+    """
+    Append the scores to the query results.
+    Args:
+        scored: The scored evaluation results.
+    Returns:
+        A list of RagEvalQueryResultCreate objects with the scores appended.
+    """
     rows: list[RagEvalQueryResultCreate] = []
     for result in scored.results:
         final_chunks = [
@@ -89,7 +96,9 @@ def _query_rows(scored: Any) -> list[RagEvalQueryResultCreate]:
 
 
 class RagEvalCoordinator:
-    """Own one persistent FIFO execution loop for this application process."""
+    """
+    Own one persistent FIFO execution loop for this application process.
+    """
 
     def __init__(
         self,
@@ -104,7 +113,7 @@ class RagEvalCoordinator:
         cleanup_retry_seconds: float = 5.0,
     ) -> None:
         self._session_factory = session_factory
-        self._repository = repository
+        self._repository = repository # Get all the repo methods from rag_eval_repo
         self._corpus_factory = corpus_factory
         self._runtime_factory = runtime_factory
         self._ragas_factory = ragas_factory or (
@@ -120,9 +129,18 @@ class RagEvalCoordinator:
 
     @property
     def is_running(self) -> bool:
+        """
+        Check if the coordinator is currently running.
+        Returns:
+            True if the coordinator is running, False otherwise.
+        """
         return self._worker is not None and not self._worker.done()
 
     async def start(self) -> asyncio.Task[None]:
+        """
+        Start the coordinator if it is not already running.
+        Returns:
+            The asyncio Task representing the coordinator's run loop."""
         if self.is_running:
             assert self._worker is not None
             return self._worker
@@ -134,6 +152,13 @@ class RagEvalCoordinator:
         return self._worker
 
     async def stop(self) -> None:
+        """
+        Stop the coordinator.
+        Args:
+            None
+        Returns:
+            None
+        """
         worker = self._worker
         if worker is None:
             return
@@ -146,6 +171,13 @@ class RagEvalCoordinator:
         self._wake_event.set()
 
     async def _run_loop(self) -> None:
+        """
+        Run the coordinator loop until it is stopped. The loop will 
+        recover interrupted runs, claim and execute queued runs, and 
+        wait for new runs to be enqueued.
+        Returns:
+            None
+        """
         while not self._stopping:
             self._wake_event.clear()
             processed = await self.process_once()
@@ -163,7 +195,11 @@ class RagEvalCoordinator:
                 await self._wake_event.wait()
 
     async def process_once(self) -> bool:
-        """Recover interrupted work, then claim and execute at most one queued run."""
+        """
+        Recover interrupted work, then claim and execute at most one queued run.
+        Returns:
+            True if a run was processed, False otherwise.
+        """
         recovered, blocked = await self._recover_interrupted()
         self._last_recovery_blocked = blocked
         if blocked:
@@ -177,6 +213,13 @@ class RagEvalCoordinator:
         return True or recovered
 
     async def _recover_interrupted(self) -> tuple[bool, bool]:
+        """
+        Recover interrupted runs, cleaning up any resources if necessary.
+        Returns:
+            A tuple (recovered, blocked) where:
+            - recovered is True if any interrupted runs were recovered.
+            - blocked is True if recovery was blocked due to a cleanup failure.
+        """
         recovered = False
         async with self._session_factory() as session:
             interrupted = await self._repository.list_interrupted_rag_eval_runs(
@@ -185,12 +228,12 @@ class RagEvalCoordinator:
             for run in interrupted:
                 recovered = True
                 strategy = (
-                    run.configuration_snapshot.get("rag", {}).get("strategy")
+                    run.configuration_snapshot.get("rag", {}).get("strategy") # Get the config strategy for the run
                 )
                 if strategy == "graphrag":
                     try:
                         await self._graph_cleanup(run.id)
-                    except Exception:
+                    except Exception: # If something happens, return blocked
                         await self._repository.update_rag_eval_run_progress(
                             run,
                             stage="cleanup_pending",
@@ -210,6 +253,13 @@ class RagEvalCoordinator:
         return recovered, False
 
     async def _is_cancel_requested(self, run_id: int) -> bool:
+        """
+        Check if a cancellation has been requested for the given run.
+        Args:
+            run_id (int): The ID of the RAG evaluation run.
+        Returns:
+            True if cancellation has been requested, False otherwise.
+            """
         async with self._session_factory() as session:
             current = await self._repository.get_rag_eval_run_by_id(
                 run_id, session
@@ -217,6 +267,14 @@ class RagEvalCoordinator:
             return bool(current is None or current.cancel_requested)
 
     async def _mark_cancelled(self, run: Any, session: Any) -> None:
+        """
+        Mark the given run as cancelled if it is currently running.
+        Args:
+            run (Any): The RAG evaluation run to mark as cancelled.
+            session (Any): The database session.
+        Returns:
+            None
+        """
         current = await self._repository.get_rag_eval_run_by_id(run.id, session)
         if current is not None and current.status == "running":
             await self._repository.mark_rag_eval_run_cancelled(current, session)
@@ -229,8 +287,9 @@ class RagEvalCoordinator:
             return await self._is_cancel_requested(run.id)
 
         async def progress_callback(update: EvaluationProgress) -> None:
-            nonlocal active_stage
+            nonlocal active_stage # Allowing active_stage to be updated within the callback
             active_stage = update.stage
+            # Persist the progress update to the database
             await self._repository.update_rag_eval_run_progress(
                 run,
                 stage=update.stage,
@@ -247,7 +306,8 @@ class RagEvalCoordinator:
                 ),
                 session=session,
             )
-
+        # Validate the configuration and check if the the eval suite has
+        # changed since the run was queued.
         try:
             configuration = RagEvalConfigurationCreateRequest.model_validate(
                 run.configuration_snapshot

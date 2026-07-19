@@ -62,6 +62,7 @@ frontend/dist/**
 AGENTS.md
 .agents/
 CLAUDE.md
+.superpowers/
 
 # gitnexus
 .gitnexus/

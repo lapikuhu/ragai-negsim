@@ -1,6 +1,5 @@
 """Registry of RAG strategies that have isolated evaluation adapters."""
 from __future__ import annotations
-
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping

@@ -186,13 +186,14 @@ class RagEvalMetricsConfiguration(_StrictSchema):
         get_embedding_model_info(normalized)
         return normalized
 
-
+# The rag-eval configuration schema
 class RagEvalConfigurationBase(_StrictSchema):
     name: str = PydanticField(min_length=3)
     chunking: ChunkingEvaluationConfiguration
     rag: RagEvaluationConfiguration
     metrics: RagEvalMetricsConfiguration
 
+    # overkill
     @field_validator("name")
     @classmethod
     def normalize_name(cls, value: str) -> str:
@@ -203,6 +204,17 @@ class RagEvalConfigurationBase(_StrictSchema):
 
     @model_validator(mode="after")
     def validate_metric_context_capacity(self) -> "RagEvalConfigurationBase":
+        """
+        Validator for ensuring that metrics.k does not exceed the retrieval 
+        capacity of the RAG configuration.
+        Args:
+            self: The instance of RagEvalConfigurationBase being validated.
+        Returns:
+            The validated instance of RagEvalConfigurationBase.
+        Raises:
+            ValueError: If metrics.k exceeds the retrieval capacity of 
+            the RAG configuration.
+        """
         if isinstance(self.rag, CragEvaluationConfiguration):
             capacity = self.rag.top_n
             capacity_field = "rag.top_n"
@@ -232,6 +244,14 @@ class RagEvalConfigurationUpdateRequest(_StrictSchema):
 
     @model_validator(mode="after")
     def require_patch_field(self) -> "RagEvalConfigurationUpdateRequest":
+        """
+        Validator to ensure that at least one field is provided in the 
+        update request.
+        Returns:
+            The validated instance of RagEvalConfigurationUpdateRequest.
+        Raises:
+            ValueError: If no fields are provided in the update request.
+        """
         if not self.model_fields_set:
             raise ValueError("Configuration patch must include at least one field")
         return self
@@ -274,7 +294,14 @@ def apply_rag_eval_configuration_patch(
 def dump_rag_eval_configuration_snapshot(
     configuration: RagEvalConfigurationBase | dict[str, Any],
 ) -> dict[str, Any]:
-    """Return a canonical JSON-compatible user-authored configuration snapshot."""
+    """
+    Return a canonical JSON-compatible user-authored configuration snapshot.
+    Args:
+        configuration: The RAG evaluation configuration to dump.
+    Returns:
+        A dictionary representing the canonical JSON-compatible snapshot of
+        the RAG evaluation configuration.
+    """
     raw_configuration = (
         configuration.model_dump(
             include={"name", "chunking", "rag", "metrics"},

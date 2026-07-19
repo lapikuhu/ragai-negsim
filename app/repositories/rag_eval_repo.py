@@ -63,6 +63,16 @@ class RagEvalFinalizationCancelled(Exception):
 def _configuration_payload(
     configuration: RagEvalConfiguration,
 ) -> RagEvalConfigurationCreateRequest:
+    """
+    Return a RagEvalConfigurationCreateRequest payload for the given 
+    configuration.
+    Args:
+        configuration (RagEvalConfiguration): The RAG evaluation 
+            configuration.
+    Returns:
+        RagEvalConfigurationCreateRequest: The payload representing the 
+        configuration.
+    """
     return RagEvalConfigurationCreateRequest.model_validate(
         {
             "name": configuration.name,
@@ -77,6 +87,15 @@ async def get_rag_eval_configuration_by_id(
     configuration_id: int,
     session: AsyncSession,
 ) -> RagEvalConfiguration | None:
+    """
+    Get a RAG evaluation configuration by its ID.
+    Args:
+        configuration_id (int): The ID of the configuration to retrieve.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalConfiguration | None: The RAG evaluation configuration 
+        with the specified ID, or None if not found.
+    """
     return await session.get(RagEvalConfiguration, configuration_id)
 
 
@@ -106,6 +125,16 @@ async def list_rag_eval_configurations(
     skip: int = 0,
     limit: int = 20,
 ) -> list[RagEvalConfiguration]:
+    """
+    List RAG evaluation configurations with pagination.
+    Args:
+        session (AsyncSession): The database session.
+        skip (int): The number of configurations to skip for pagination.
+        limit (int): The maximum number of configurations to return.
+    Returns:
+        list[RagEvalConfiguration]: A list of RAG evaluation 
+        configurations.
+    """
     result = await session.exec(
         select(RagEvalConfiguration)
         .order_by(RagEvalConfiguration.id.desc())
@@ -119,6 +148,15 @@ async def create_rag_eval_configuration(
     configuration_in: RagEvalConfigurationCreate,
     session: AsyncSession,
 ) -> RagEvalConfiguration:
+    """
+    Persist a new RAG evaluation configuration in the database.
+    Args:
+        configuration_in (RagEvalConfigurationCreate): The configuration 
+            data to create.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalConfiguration: The newly created RAG evaluation configuration.
+    """
     await ensure_rag_eval_configuration_name_available(
         configuration_in.name,
         session,
@@ -139,12 +177,27 @@ async def update_rag_eval_configuration(
     configuration_in: RagEvalConfigurationUpdate,
     session: AsyncSession,
 ) -> RagEvalConfiguration:
+    """
+    Update an existing RAG evaluation configuration in the database.
+    Args:
+        configuration (RagEvalConfiguration): The existing configuration 
+        to update.
+        configuration_in (RagEvalConfigurationUpdate): The updated 
+        configuration data.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalConfiguration: The updated RAG evaluation configuration.
+    Raises:
+        ValueError: If the RAG configuration is not found or if the name 
+        is already taken.
+    """
     if configuration.id is None:
         raise ValueError("RAG evaluation configuration must be persisted")
     normalized = apply_rag_eval_configuration_patch(
         _configuration_payload(configuration),
         configuration_in,
     )
+    # check for name availability if it was changed
     await ensure_rag_eval_configuration_name_available(
         normalized.name,
         session,
@@ -176,6 +229,16 @@ async def delete_rag_eval_configuration(
     configuration: RagEvalConfiguration,
     session: AsyncSession,
 ) -> None:
+    """
+    Delete a RAG evaluation configuration from the database.
+    Args:
+        configuration (RagEvalConfiguration): The configuration to delete.
+        session (AsyncSession): The database session.
+    Returns:
+        None
+    Raises:
+        ValueError: If the configuration is not persisted or if it has associated runs.
+    """
     if configuration.id is None:
         raise ValueError("RAG evaluation configuration must be persisted")
     if await rag_eval_configuration_has_runs(configuration.id, session):
@@ -193,6 +256,21 @@ async def enqueue_rag_eval_run(
     total_examples: int,
     session: AsyncSession,
 ) -> RagEvalRun:
+    """
+    Enqueue a new RAG evaluation run for the given configuration.
+    Args:
+        configuration (RagEvalConfiguration): The RAG evaluation configuration.
+        suite_version (str): The version of the evaluation suite.
+        suite_content_hash (str): The content hash of the evaluation suite.
+        total_examples (int): The total number of examples in the 
+            evaluation run.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalRun: The enqueued RAG evaluation run.
+    Raises:
+        ValueError: If the configuration is not persisted or if total_examples 
+        is negative.
+    """
     if configuration.id is None:
         raise ValueError("RAG evaluation configuration must be persisted")
     if total_examples < 0:
@@ -214,6 +292,14 @@ async def get_rag_eval_run_by_id(
     run_id: int,
     session: AsyncSession,
 ) -> RagEvalRun | None:
+    """
+    Get a RAG evaluation run by its ID.
+    Args:
+        run_id (int): The ID of the RAG evaluation run.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalRun | None: The RAG evaluation run if found, else None.
+    """
     return await session.get(RagEvalRun, run_id)
 
 
@@ -225,6 +311,19 @@ async def list_rag_eval_runs(
     configuration_id: int | None = None,
     status: str | None = None,
 ) -> list[RagEvalRun]:
+    """
+    List RAG evaluation runs, optionally filtered by configuration ID 
+    and status.
+    Args:
+        session (AsyncSession): The database session.
+        skip (int): The number of runs to skip for pagination.
+        limit (int): The maximum number of runs to return.
+        configuration_id (int | None, optional): Filter runs by 
+            configuration ID.
+        status (str | None, optional): Filter runs by status.
+    Returns:
+        list[RagEvalRun]: A list of RAG evaluation runs.
+    """
     statement = select(RagEvalRun)
     if configuration_id is not None:
         statement = statement.where(
@@ -297,6 +396,18 @@ async def transition_rag_eval_run(
     stage: str | None = None,
     **values: Any,
 ) -> RagEvalRun:
+    """
+    Transition a RAG evaluation run to a new status.
+    Args:
+        run (RagEvalRun): The RAG evaluation run to transition.
+        next_status (str): The next status to transition to.
+        session (AsyncSession): The database session.
+        stage (str | None): The next stage of the evaluation run.
+        **values: Additional fields to update.
+
+    Returns:
+        RagEvalRun: The updated RAG evaluation run.
+    """
     if run.id is None:
         raise ValueError("RAG evaluation run must be persisted")
     expected_status = run.status
@@ -355,6 +466,19 @@ async def update_rag_eval_run_progress(
     total_examples: int,
     session: AsyncSession,
 ) -> RagEvalRun:
+    """
+    Update the progress of a running RAG evaluation run.
+    Args:
+        run (RagEvalRun): The RAG evaluation run to update.
+        stage (str): The current stage of the evaluation.
+        progress (float): The overall progress percentage.
+        completed_examples (int): The number of completed examples.
+        total_examples (int): The total number of examples.
+        session (AsyncSession): The database session.
+
+    Returns:
+        RagEvalRun: The updated RAG evaluation run.
+    """
     if run.status != "running":
         raise ValueError("Progress can only be updated for a running evaluation")
     if stage not in RAG_EVAL_RUN_STAGES:
@@ -378,6 +502,19 @@ async def request_rag_eval_run_cancel(
     run: RagEvalRun,
     session: AsyncSession,
 ) -> RagEvalRun:
+    """
+    Request cancellation of a RAG evaluation run. If it is queued, it will
+    be immediately cancelled. If it is running, the cancel_requested flag 
+    will be set.
+    Args:
+        run (RagEvalRun): The RAG evaluation run to cancel.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalRun: The updated RAG evaluation run after the cancellation
+        request has been processed.
+    Raises:
+        ValueError: If the run is already finished or cancelled.
+    """
     if run.id is None:
         raise ValueError("RAG evaluation run must be persisted")
     now = utc_now()
@@ -394,7 +531,7 @@ async def request_rag_eval_run_cancel(
                     stage="finished",
                     completed_at=now,
                     cancellation_requested_at=now,
-                    cancel_requested=False,
+                    cancel_requested=False, # Queued runs are immediately cancelled, so the flag is cleared
                 )
                 .execution_options(synchronize_session=False)
             )
@@ -403,7 +540,7 @@ async def request_rag_eval_run_cancel(
                     update(RagEvalRun)
                     .where(
                         RagEvalRun.id == run.id,
-                        RagEvalRun.status == "running",
+                        RagEvalRun.status == "running", # Running jobs are requested to cancel to the worker
                     )
                     .values(
                         cancel_requested=True,
@@ -427,6 +564,14 @@ async def request_rag_eval_run_cancel(
 async def list_interrupted_rag_eval_runs(
     session: AsyncSession,
 ) -> list[RagEvalRun]:
+    """
+    List RAG evaluation runs that were interrupted (running or 
+    cleanup_pending).
+    Args:
+        session (AsyncSession): The database session.
+    Returns:
+        list[RagEvalRun]: A list of interrupted RAG evaluation runs.
+    """
     result = await session.exec(
         select(RagEvalRun)
         .where(
@@ -449,6 +594,29 @@ async def finalize_rag_eval_run_success(
     resolved_pipeline_snapshot: dict[str, Any],
     session: AsyncSession,
 ) -> RagEvalRun:
+    """
+    Finalize a RAG evaluation run as successful, persisting the results and
+    updating the run's status to completed.
+    Args:
+        run (RagEvalRun): The RAG evaluation run to finalize.
+        results (Iterable[RagEvalQueryResultCreate | dict[str, Any]]): 
+            The results of the evaluation run.
+        overall_metrics (dict[str, Any]): The overall metrics of the 
+            evaluation run.
+        category_metrics (dict[str, Any]): The category metrics of the 
+            evaluation run.
+        resolved_pipeline_snapshot (dict[str, Any]): The resolved pipeline 
+            snapshot.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalRun: The updated RAG evaluation run after finalization.
+    Raises:
+        ValueError: If the run is not running, if the number of results 
+            does not match the total_examples, or if there are duplicate 
+            example_ids in the results.
+        RagEvalFinalizationCancelled: If cancellation has been requested 
+            during finalization.
+    """
     buffered = [
         (
             item
@@ -471,6 +639,7 @@ async def finalize_rag_eval_run_success(
             .execution_options(populate_existing=True)
         )
         locked_run = locked_result.first()
+        # Checks
         if locked_run is None:
             raise ValueError("RAG evaluation run does not exist")
         if locked_run.status != "running":
@@ -515,6 +684,15 @@ async def list_rag_eval_query_results(
     run_id: int,
     session: AsyncSession,
 ) -> list[RagEvalQueryResult]:
+    """
+    List the query results for a specific RAG evaluation run.
+    Args:
+        run_id (int): The ID of the RAG evaluation run.
+        session (AsyncSession): The database session.
+    Returns:
+        list[RagEvalQueryResult]: A list of query results for the 
+        specified RAG evaluation run.
+    """
     result = await session.exec(
         select(RagEvalQueryResult)
         .where(RagEvalQueryResult.run_id == run_id)

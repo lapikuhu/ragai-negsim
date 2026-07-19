@@ -1,9 +1,17 @@
-from __future__ import annotations
+"""
+Response pipeline factory for CRAG and GraphRAG strategies.
+Allows for the construction of a response pipeline with a given 
+retriever and configuration. This way the evaluation runtime can be
+# generalised and tested against real pipelines used in production, and
+# not drift to different graphs or prompt templates.
+"""
 
+from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any, Literal, Mapping
 
+# local imports
 from app.airag.chains.crag.crag import CRAGState, make_crag
 from app.airag.chains.crag.helpers import make_crag_component_chains
 from app.airag.prompts.sys_prompts import (
@@ -43,7 +51,9 @@ _PROMPTS = {
 
 @dataclass(frozen=True)
 class ResponsePipelineConfig:
-    """Normalized controls for the shared CRAG-based response pipeline."""
+    """
+    Normalized controls for the shared CRAG-based response pipeline.
+    """
 
     strategy: PipelineStrategy
     reranker: str
@@ -52,6 +62,9 @@ class ResponsePipelineConfig:
     llm_components: Mapping[str, Mapping[str, str]]
 
     def __post_init__(self) -> None:
+        """ 
+        Post init validator
+        """
         if self.strategy not in {"crag", "graphrag"}:
             raise ValueError(f"Unsupported response pipeline strategy: {self.strategy}")
         if not self.reranker.strip():
@@ -75,12 +88,26 @@ class ResponsePipelineConfig:
 
 @dataclass(frozen=True)
 class ResponsePipeline:
-    """Runnable CRAG response graph plus deterministic, non-secret metadata."""
+    """
+    Runnable CRAG response graph plus deterministic, non-secret metadata.
+    """
 
     graph: Any
     resolved_metadata: Mapping[str, Any]
 
     def invoke(self, state: Any, config: Any = None, **kwargs: Any) -> Any:
+        """
+        Invoke the response pipeline with the given state and optional 
+        configuration.
+        Args:
+            state (Any): The input state for the response pipeline.
+            config (Any, optional): Optional configuration for the 
+                response pipeline.
+            **kwargs: Additional keyword arguments to pass to the graph 
+                invocation.
+        Returns:
+            Any: The output of the response pipeline invocation.
+        """
         if config is None:
             return self.graph.invoke(state, **kwargs)
         return self.graph.invoke(state, config=config, **kwargs)
@@ -95,11 +122,20 @@ def normalize_response_pipeline_config(
     strategy: str,
     config: Mapping[str, Any] | None,
 ) -> ResponsePipelineConfig:
-    """Normalize a CRAG or GraphRAG strategy dictionary for shared construction."""
+    """
+    Normalize a CRAG or GraphRAG strategy dictionary for shared construction.
+    Args:
+        strategy (str): The response pipeline strategy, either "crag" or 
+            "graphrag".
+        config (Mapping[str, Any] | None): The raw configuration dictionary.
+    Returns:
+        ResponsePipelineConfig: The normalized response pipeline configuration.
+    """
     normalized_strategy = strategy.strip().lower()
     if normalized_strategy not in {"crag", "graphrag"}:
         raise ValueError(f"Unsupported response pipeline strategy: {strategy}")
 
+    # geth the LLM component selections from the config, or use defaults
     values = dict(config or {})
     raw_components = values.get("llm_components") or {}
     components = {
@@ -143,7 +179,16 @@ def build_response_pipeline(
     retriever: Any,
     config: ResponsePipelineConfig,
 ) -> ResponsePipeline:
-    """Build the complete CRAG response graph around an existing retriever."""
+    """
+    Build the complete CRAG response graph around an existing retriever.
+    Args:
+        retriever (Any): The retriever to use for the response pipeline.
+        config (ResponsePipelineConfig): The normalized response pipeline 
+            configuration.
+    Returns:
+        ResponsePipeline: The constructed response pipeline with resolved
+            metadata.
+    """
     component_selections = {
         component: dict(selection)
         for component, selection in config.llm_components.items()
@@ -175,6 +220,14 @@ def build_response_pipeline(
 
 
 def _reranker_metadata(name: str) -> dict[str, str | None]:
+    """
+    Get metadata for the specified reranker.
+    Args:
+        name (str): The name of the reranker.
+    Returns:
+        dict[str, str | None]: A dictionary containing the reranker's 
+        implementation and model.
+    """
     normalized = name.strip().lower()
     models = {
         "cross_encoder": DEFAULT_CROSS_ENCODER_MODEL,
