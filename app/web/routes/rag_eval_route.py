@@ -10,6 +10,7 @@ from app.schemas.rag_eval_schemas import (
     RagEvalConfigurationCreateRequest,
     RagEvalConfigurationRead,
     RagEvalConfigurationUpdateRequest,
+    RagEvalRunEnqueueRequest,
     RagEvalRunDetailRead,
     RagEvalRunRead,
 )
@@ -251,12 +252,12 @@ async def delete_configuration(
 
 ### ------------------------- RAG-RUN POST ------------------------- ###
 @run_router.post(
-    "/{id}/runs",
+    "/",
     response_model=RagEvalRunRead,
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def enqueue_run(
-    id: int,
+    data: RagEvalRunEnqueueRequest, #has the config id
     session: SessionDep,
     _admin: AdminDep,
 ) -> RagEvalRunRead:
@@ -264,7 +265,7 @@ async def enqueue_run(
     Enqueue a RAG evaluation run for the specified configuration ID to the 
     RAG evaluation coordinator.
     Args:
-        id: The ID of the configuration to enqueue a run for.
+        data: The request containing the configuration ID to enqueue.
         session: The database session.
         _admin: The admin performing the action.
     Returns:
@@ -274,7 +275,10 @@ async def enqueue_run(
         validation errors in the input data.
     """
     try:
-        return await rag_eval_service.enqueue_rag_eval_run_srvc(id, session)
+        return await rag_eval_service.enqueue_rag_eval_run_srvc(
+            data.configuration_id,
+            session,
+        )
     except ValueError as exc:
         _raise_service_error(exc)
 

@@ -54,7 +54,7 @@ The API is broad, but the most important route families are:
 The RAG evaluation API is:
 - `POST/GET /rag-eval-configurations/`
 - `GET/PATCH/DELETE /rag-eval-configurations/{id}`
-- `POST /rag-eval-configurations/{id}/runs`
+- `POST /rag-eval-runs/` with `{"configuration_id": <positive integer>}`
 - `GET /rag-eval-runs/`
 - `GET /rag-eval-runs/{id}`
 - `POST /rag-eval-runs/{id}/cancel`

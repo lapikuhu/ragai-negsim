@@ -261,6 +261,10 @@ class RagEvalConfigurationUpdate(RagEvalConfigurationUpdateRequest):
     last_edit_by_user_id: int | None = None
 
 
+class RagEvalRunEnqueueRequest(_StrictSchema):
+    configuration_id: StrictPositiveInt
+
+
 class RagEvalConfigurationRead(RagEvalConfigurationBase):
     id: int
     created_by_user_id: int

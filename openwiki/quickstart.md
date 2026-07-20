@@ -31,7 +31,7 @@ Raw PDF documents are uploaded, linked to corpora, ingested, chunked, and stored
 Simulations are the core product object. They combine scenario data, counterpart personas, prompts, learner settings, retrieval context, coach feedback, and evaluator output in a LangGraph-driven negotiation workflow.
 
 ### RAG evaluation
-Admins manage complete, FK-free evaluation configurations at `/rag-eval-configurations/` and enqueue or inspect persistent runs through `/rag-eval-runs/`. A single application-owned FIFO coordinator executes one run at a time. The supported deployment for this in-process coordinator is one Uvicorn worker.
+Admins manage complete, FK-free evaluation configurations at `/rag-eval-configurations/` and create, enqueue, or inspect persistent runs through `/rag-eval-runs/`. `POST /rag-eval-runs/` accepts a `configuration_id` request body. A single application-owned FIFO coordinator executes one run at a time. The supported deployment for this in-process coordinator is one Uvicorn worker.
 
 ### Frontend application
 The React frontend mirrors backend domains with routes for simulations, documents, corpora, evaluations, knowledge graphs, indexing, and admin management.

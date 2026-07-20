@@ -99,20 +99,15 @@ def test_openapi_exposes_only_target_rag_eval_paths(api_client):
     assert {
         "/rag-eval-configurations/",
         "/rag-eval-configurations/{id}",
-        "/rag-eval-configurations/{id}/runs",
         "/rag-eval-runs/",
         "/rag-eval-runs/{id}",
         "/rag-eval-runs/{id}/cancel",
     }.issubset(paths)
     assert not any(path.startswith("/rag-eval-pair-profiles") for path in paths)
+    assert "/rag-eval-configurations/{id}/runs" not in paths
     assert paths["/rag-eval-configurations/"]["post"]["responses"]["201"]
-    assert paths["/rag-eval-configurations/{id}/runs"]["post"][
-        "responses"
-    ]["202"]
-    assert (
-        "requestBody"
-        not in paths["/rag-eval-configurations/{id}/runs"]["post"]
-    )
+    assert paths["/rag-eval-runs/"]["post"]["responses"]["202"]
+    assert "requestBody" in paths["/rag-eval-runs/"]["post"]
 
 
 def test_rag_eval_routes_require_admin(
@@ -327,7 +322,7 @@ def test_configuration_read_update_delete_and_pagination(
     ]
 
 
-def test_enqueue_has_no_body_and_returns_202(
+def test_enqueue_run_uses_typed_request_and_returns_202(
     monkeypatch,
     api_client,
     override_current_user,
@@ -349,11 +344,46 @@ def test_enqueue_has_no_body_and_returns_202(
         fake_enqueue,
     )
 
-    response = api_client.post("/rag-eval-configurations/7/runs")
+    response = api_client.post("/rag-eval-runs/", json={"configuration_id": 7})
 
     assert response.status_code == 202
     assert response.json()["status"] == "queued"
     assert calls == [7]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"configuration_id": "7"},
+        {"configuration_id": 0},
+        {"configuration_id": 7, "unexpected": True},
+    ],
+)
+def test_enqueue_run_rejects_invalid_request_before_service(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+    payload,
+):
+    from app.services import rag_eval_service
+
+    _authorize_admin(override_current_user, override_session, allow_roles)
+
+    async def fake_enqueue(*_args, **_kwargs):
+        pytest.fail("invalid enqueue request must not reach service")
+
+    monkeypatch.setattr(
+        rag_eval_service,
+        "enqueue_rag_eval_run_srvc",
+        fake_enqueue,
+    )
+
+    response = api_client.post("/rag-eval-runs/", json=payload)
+
+    assert response.status_code == 422
 
 
 def test_run_list_detail_cancel_filters_and_pagination(
