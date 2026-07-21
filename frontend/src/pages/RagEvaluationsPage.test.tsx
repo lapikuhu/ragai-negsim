@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -395,7 +395,12 @@ describe("RagEvaluationsPage", () => {
     expect(alert).toHaveTextContent("Review the configuration and try again.");
     expect(dialog).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    const retryCreate = within(dialog).getByRole("button", { name: "Create experiment" });
+    expect(retryCreate).toBeEnabled();
+    await user.click(retryCreate);
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(queryMocks.create).toHaveBeenCalledTimes(2);
+
     await user.click(screen.getByRole("button", { name: "Edit CRAG experiment" }));
     dialog = screen.getByRole("dialog", { name: "Edit CRAG experiment" });
     await user.click(within(dialog).getByRole("button", { name: "Save experiment" }));
@@ -438,6 +443,32 @@ describe("RagEvaluationsPage", () => {
     expect(queryMocks.update).toHaveBeenCalledTimes(1);
 
     updateRequest.resolve(cragConfiguration);
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  });
+
+  it("keeps the editor open when Escape follows submission in the same tick", async () => {
+    const createRequest = deferred<RagEvalConfigurationRead>();
+    queryMocks.create.mockReturnValueOnce(createRequest.promise);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Create experiment" }));
+    const dialog = screen.getByRole("dialog", { name: "Create experiment" });
+    await user.type(within(dialog).getByLabelText("Name"), "Pending experiment");
+    const form = dialog.querySelector("form");
+    if (!form) {
+      throw new Error("Expected the experiment editor form");
+    }
+
+    act(() => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+
+    expect(queryMocks.create).toHaveBeenCalledTimes(1);
+    expect(dialog).toBeInTheDocument();
+
+    createRequest.resolve(cragConfiguration);
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
   });
 

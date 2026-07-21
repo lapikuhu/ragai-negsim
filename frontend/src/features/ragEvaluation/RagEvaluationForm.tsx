@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import type { LLMSelection } from "@/api/types";
 import { LlmModelSelector } from "@/components/llm/LlmModelSelector";
@@ -59,12 +59,14 @@ export function RagEvaluationForm({
   submitLabel,
   onSubmit,
   onCancel,
+  onSubmissionStateChange,
   pending = false,
 }: {
   initialValue?: RagEvalConfigurationInput;
   submitLabel: string;
   onSubmit: (value: RagEvalConfigurationInput) => void | Promise<void>;
   onCancel?: () => void;
+  onSubmissionStateChange?: (inFlight: boolean) => void;
   pending?: boolean;
 }) {
   const [configuration, setConfiguration] = useState<RagEvalConfigurationInput>(() =>
@@ -75,6 +77,8 @@ export function RagEvaluationForm({
   }));
   const [advancedOverridesOpen, setAdvancedOverridesOpen] = useState(false);
   const [errors, setErrors] = useState<RagEvalFormErrors>({});
+  const [submissionInFlight, setSubmissionInFlight] = useState(false);
+  const submissionInFlightRef = useRef(false);
 
   const embeddingModels = useEmbeddingModelsQuery();
   const llmCatalog = useLlmModelCatalogQuery();
@@ -103,7 +107,7 @@ export function RagEvaluationForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) {
+    if (pending || submissionInFlightRef.current) {
       return;
     }
     const normalized = normalizeRagEvalConfiguration(configuration);
@@ -120,7 +124,20 @@ export function RagEvaluationForm({
       }
       return;
     }
-    void onSubmit(normalized);
+    submissionInFlightRef.current = true;
+    setSubmissionInFlight(true);
+    onSubmissionStateChange?.(true);
+    void submitConfiguration(normalized);
+  }
+
+  async function submitConfiguration(normalized: RagEvalConfigurationInput) {
+    try {
+      await onSubmit(normalized);
+    } finally {
+      submissionInFlightRef.current = false;
+      setSubmissionInFlight(false);
+      onSubmissionStateChange?.(false);
+    }
   }
 
   function changeChunkingStrategy(strategy: ChunkingStrategy) {
@@ -147,6 +164,7 @@ export function RagEvaluationForm({
   const retrievalLimit = configuration.rag.strategy === "crag"
     ? configuration.rag.top_n
     : configuration.rag.evidence_limit;
+  const controlsPending = pending || submissionInFlight;
 
   return (
     <form className="grid gap-6" noValidate onSubmit={handleSubmit}>
@@ -537,11 +555,11 @@ export function RagEvaluationForm({
 
       <div className="flex flex-wrap justify-end gap-3">
         {onCancel ? (
-          <Button type="button" variant="secondary" disabled={pending} onClick={onCancel}>
+          <Button type="button" variant="secondary" disabled={controlsPending} onClick={onCancel}>
             Cancel
           </Button>
         ) : null}
-        <Button type="submit" disabled={pending}>{submitLabel}</Button>
+        <Button type="submit" disabled={controlsPending}>{submitLabel}</Button>
       </div>
     </form>
   );

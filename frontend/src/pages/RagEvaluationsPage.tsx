@@ -439,11 +439,18 @@ function ConfigurationEditor({
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const pendingRef = useRef(pending);
+  const submissionInFlightRef = useRef(false);
   const onCancelRef = useRef(onCancel);
   const titleId = useId();
   const descriptionId = useId();
   pendingRef.current = pending;
   onCancelRef.current = onCancel;
+
+  function requestClose() {
+    if (!pendingRef.current && !submissionInFlightRef.current) {
+      onCancelRef.current();
+    }
+  }
 
   useEffect(() => {
     const overlay = overlayRef.current;
@@ -475,7 +482,7 @@ function ConfigurationEditor({
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
-        if (!pendingRef.current) {
+        if (!pendingRef.current && !submissionInFlightRef.current) {
           event.preventDefault();
           onCancelRef.current();
         }
@@ -555,7 +562,10 @@ function ConfigurationEditor({
           <RagEvaluationForm
             initialValue={initialValue}
             submitLabel={creating ? "Create experiment" : "Save experiment"}
-            onCancel={onCancel}
+            onCancel={requestClose}
+            onSubmissionStateChange={(inFlight) => {
+              submissionInFlightRef.current = inFlight;
+            }}
             pending={pending}
             onSubmit={(input) =>
               creating

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -271,5 +271,26 @@ describe("RagEvaluationForm", () => {
 
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("rejects a second same-tick submit before the async submission settles", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn(() => new Promise<void>(() => undefined));
+    const { container } = render(
+      <RagEvaluationForm submitLabel="Create experiment" onSubmit={onSubmit} />,
+    );
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Single submission");
+    const form = container.querySelector("form");
+    if (!form) {
+      throw new Error("Expected the RAG evaluation form");
+    }
+
+    act(() => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 });
