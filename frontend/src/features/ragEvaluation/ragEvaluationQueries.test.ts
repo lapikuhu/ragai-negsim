@@ -1,7 +1,7 @@
 import { createElement, type PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/api/client";
 import {
@@ -78,6 +78,20 @@ const runDetail: RagEvalRunDetailRead = {
   query_results: [],
 };
 
+const completedRun: RagEvalRunRead = {
+  ...queuedRun,
+  status: "completed",
+  stage: "finished",
+  progress: 100,
+  completed_examples: 80,
+  completed_at: "2026-07-21T08:10:00Z",
+};
+
+const completedRunDetail: RagEvalRunDetailRead = {
+  ...completedRun,
+  query_results: [],
+};
+
 function apiResult<T>(data: T, status = 200) {
   return { data, response: new Response(null, { status }) };
 }
@@ -96,6 +110,10 @@ function createHarness() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("RAG evaluation requests", () => {
@@ -169,6 +187,75 @@ describe("RAG evaluation polling", () => {
   it("does not poll terminal or absent runs", () => {
     expect(getRagEvalRunRefetchInterval({ status: "completed", stage: "finished" })).toBe(false);
     expect(getRagEvalRunRefetchInterval(null)).toBe(false);
+  });
+
+  it("schedules latest-run polling every two seconds and stops after a terminal response", async () => {
+    vi.useFakeTimers();
+    vi.mocked(apiClient.GET)
+      .mockResolvedValueOnce(apiResult([queuedRun]) as never)
+      .mockResolvedValueOnce(apiResult([completedRun]) as never);
+    const { client, wrapper } = createHarness();
+    const latest = renderHook(() => useLatestRagEvalRuns([7]), { wrapper });
+
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(apiClient.GET).toHaveBeenCalledTimes(1);
+    expect(latest.result.current[0].data?.status).toBe("queued");
+
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(apiClient.GET).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(4000));
+    expect(apiClient.GET).toHaveBeenCalledTimes(2);
+
+    latest.unmount();
+    client.clear();
+  });
+
+  it("schedules run-detail polling every two seconds and stops after a terminal response", async () => {
+    vi.useFakeTimers();
+    vi.mocked(apiClient.GET)
+      .mockResolvedValueOnce(apiResult(runDetail) as never)
+      .mockResolvedValueOnce(apiResult(completedRunDetail) as never);
+    const { client, wrapper } = createHarness();
+    const detail = renderHook(() => useRagEvalRunQuery(11), { wrapper });
+
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(apiClient.GET).toHaveBeenCalledTimes(1);
+    expect(detail.result.current.data?.status).toBe("queued");
+
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(apiClient.GET).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(4000));
+    expect(apiClient.GET).toHaveBeenCalledTimes(2);
+
+    detail.unmount();
+    client.clear();
+  });
+
+  it("polls active run history and stops when every returned row is terminal", async () => {
+    vi.useFakeTimers();
+    vi.mocked(apiClient.GET)
+      .mockResolvedValueOnce(apiResult([completedRun, queuedRun]) as never)
+      .mockResolvedValueOnce(apiResult([completedRun]) as never);
+    const { client, wrapper } = createHarness();
+    const history = renderHook(() => useRagEvalRunHistoryQuery(7, 0, 20), { wrapper });
+
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(apiClient.GET).toHaveBeenCalledTimes(1);
+    expect(history.result.current.data?.some((run) => run.status === "queued")).toBe(true);
+
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(apiClient.GET).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(4000));
+    expect(apiClient.GET).toHaveBeenCalledTimes(2);
+
+    history.unmount();
+    client.clear();
   });
 });
 

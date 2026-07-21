@@ -24,31 +24,44 @@ const queryMocks = vi.hoisted(() => ({
   historyBySkip: {} as Record<number, unknown[]>,
 }));
 
-vi.mock("@/features/ragEvaluation/ragEvaluationQueries", () => ({
-  useRagEvalConfigurationsQuery: queryMocks.configurations,
-  useLatestRagEvalRuns: queryMocks.latestRuns,
-  useRagEvalRunHistoryQuery: queryMocks.history,
-  useCreateRagEvalConfigurationMutation: () => ({
-    isPending: false,
-    mutateAsync: queryMocks.create,
-  }),
-  useUpdateRagEvalConfigurationMutation: () => ({
-    isPending: false,
-    mutateAsync: queryMocks.update,
-  }),
-  useDeleteRagEvalConfigurationMutation: () => ({
-    isPending: false,
-    mutateAsync: queryMocks.remove,
-  }),
-  useEnqueueRagEvalRunMutation: () => ({
-    isPending: false,
-    mutateAsync: queryMocks.enqueue,
-  }),
-  useCancelRagEvalRunMutation: () => ({
-    isPending: false,
-    mutateAsync: queryMocks.cancel,
-  }),
-}));
+vi.mock("@/features/ragEvaluation/ragEvaluationQueries", async () => {
+  const { useState } = await import("react");
+
+  function usePendingMutation(mutation: (...args: unknown[]) => unknown) {
+    const [isPending, setIsPending] = useState(false);
+    return {
+      isPending,
+      mutateAsync: async (...args: unknown[]) => {
+        setIsPending(true);
+        try {
+          return await mutation(...args);
+        } finally {
+          setIsPending(false);
+        }
+      },
+    };
+  }
+
+  return {
+    useRagEvalConfigurationsQuery: queryMocks.configurations,
+    useLatestRagEvalRuns: queryMocks.latestRuns,
+    useRagEvalRunHistoryQuery: queryMocks.history,
+    useCreateRagEvalConfigurationMutation: () => usePendingMutation(queryMocks.create),
+    useUpdateRagEvalConfigurationMutation: () => usePendingMutation(queryMocks.update),
+    useDeleteRagEvalConfigurationMutation: () => ({
+      isPending: false,
+      mutateAsync: queryMocks.remove,
+    }),
+    useEnqueueRagEvalRunMutation: () => ({
+      isPending: false,
+      mutateAsync: queryMocks.enqueue,
+    }),
+    useCancelRagEvalRunMutation: () => ({
+      isPending: false,
+      mutateAsync: queryMocks.cancel,
+    }),
+  };
+});
 
 vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
   useEmbeddingModelsQuery: () => ({
@@ -147,6 +160,16 @@ function renderPage() {
       <RagEvaluationsPage />
     </MemoryRouter>,
   );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 describe("RagEvaluationsPage", () => {
@@ -255,6 +278,32 @@ describe("RagEvaluationsPage", () => {
     expect(queryMocks.history).toHaveBeenLastCalledWith(7, 0, 20);
   });
 
+  it("shows a zero-configuration label without an inverted range", () => {
+    queryMocks.configurations.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    queryMocks.latestRuns.mockReturnValue([]);
+    renderPage();
+
+    expect(screen.getByText("0 configurations")).toBeInTheDocument();
+    expect(screen.queryByText("Configurations 1–0")).not.toBeInTheDocument();
+  });
+
+  it("shows a zero-run history label without an inverted range", async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "History for CRAG experiment" }));
+    const history = screen
+      .getByRole("heading", { name: "Run history: CRAG experiment" })
+      .closest("section") as HTMLElement;
+    expect(within(history).getByText("0 runs")).toBeInTheDocument();
+    expect(within(history).queryByText("Runs 1–0")).not.toBeInTheDocument();
+  });
+
   it("resets history to the first page when the selected configuration changes", async () => {
     const user = userEvent.setup();
     queryMocks.historyBySkip[0] = Array.from({ length: 20 }, (_, index) =>
@@ -324,5 +373,102 @@ describe("RagEvaluationsPage", () => {
       "Configuration is referenced by evaluation runs.",
     );
     confirm.mockRestore();
+  });
+
+  it("keeps create and update failures actionable inside the editor dialog", async () => {
+    const user = userEvent.setup();
+    queryMocks.create.mockRejectedValueOnce(
+      new ApiError("Unable to create", 409, { detail: "An experiment with this name already exists." }),
+    );
+    queryMocks.update.mockRejectedValueOnce(
+      new ApiError("Unable to update", 409, { detail: "The experiment changed on the server." }),
+    );
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Create experiment" }));
+    let dialog = screen.getByRole("dialog", { name: "Create experiment" });
+    await user.type(within(dialog).getByLabelText("Name"), "Duplicate experiment");
+    await user.click(within(dialog).getByRole("button", { name: "Create experiment" }));
+
+    let alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("An experiment with this name already exists.");
+    expect(alert).toHaveTextContent("Review the configuration and try again.");
+    expect(dialog).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Edit CRAG experiment" }));
+    dialog = screen.getByRole("dialog", { name: "Edit CRAG experiment" });
+    await user.click(within(dialog).getByRole("button", { name: "Save experiment" }));
+
+    alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("The experiment changed on the server.");
+    expect(alert).toHaveTextContent("Review the configuration and try again.");
+  });
+
+  it("disables create and update submission while each mutation is pending", async () => {
+    const createRequest = deferred<RagEvalConfigurationRead>();
+    const updateRequest = deferred<RagEvalConfigurationRead>();
+    queryMocks.create.mockReturnValueOnce(createRequest.promise);
+    queryMocks.update.mockReturnValueOnce(updateRequest.promise);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Create experiment" }));
+    let dialog = screen.getByRole("dialog", { name: "Create experiment" });
+    await user.type(within(dialog).getByLabelText("Name"), "Pending experiment");
+    await user.click(within(dialog).getByRole("button", { name: "Create experiment" }));
+    const createSubmit = within(dialog).getByRole("button", { name: "Create experiment" });
+
+    await waitFor(() => expect(createSubmit).toBeDisabled());
+    await user.click(createSubmit);
+    expect(queryMocks.create).toHaveBeenCalledTimes(1);
+    await user.keyboard("{Escape}");
+    expect(dialog).toBeInTheDocument();
+
+    createRequest.resolve(cragConfiguration);
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Edit CRAG experiment" }));
+    dialog = screen.getByRole("dialog", { name: "Edit CRAG experiment" });
+    await user.click(within(dialog).getByRole("button", { name: "Save experiment" }));
+    const updateSubmit = within(dialog).getByRole("button", { name: "Save experiment" });
+
+    await waitFor(() => expect(updateSubmit).toBeDisabled());
+    await user.click(updateSubmit);
+    expect(queryMocks.update).toHaveBeenCalledTimes(1);
+
+    updateRequest.resolve(cragConfiguration);
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  });
+
+  it("makes the editor modal focus-safe, keyboard dismissible, and restores the page", async () => {
+    const user = userEvent.setup();
+    const { container } = renderPage();
+    const opener = screen.getByRole("button", { name: "Create experiment" });
+
+    await user.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "Create experiment" });
+    const nameInput = within(dialog).getByLabelText("Name");
+    const submit = within(dialog).getByRole("button", { name: "Create experiment" });
+
+    expect(nameInput).toHaveFocus();
+    expect(dialog).toHaveAccessibleDescription(
+      "Define the chunking, retrieval, and metric settings for this experiment.",
+    );
+    expect(document.body).toHaveStyle({ overflow: "hidden" });
+    expect(container).toHaveAttribute("inert");
+    expect(container).toHaveAttribute("aria-hidden", "true");
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(submit).toHaveFocus();
+    await user.keyboard("{Tab}");
+    expect(nameInput).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Create experiment" })).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+    expect(document.body).not.toHaveStyle({ overflow: "hidden" });
+    expect(container).not.toHaveAttribute("inert");
+    expect(container).not.toHaveAttribute("aria-hidden");
   });
 });

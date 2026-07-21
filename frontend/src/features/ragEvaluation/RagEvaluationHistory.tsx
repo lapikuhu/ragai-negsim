@@ -145,7 +145,9 @@ export function RagEvaluationHistory({
           >
             Previous
           </Button>
-          <span className="text-sm text-slate-500">Runs {skip + 1}–{skip + runs.length}</span>
+          <span className="text-sm text-slate-500">
+            {runs.length === 0 ? "0 runs" : `Runs ${skip + 1}–${skip + runs.length}`}
+          </span>
           <Button
             type="button"
             variant="secondary"

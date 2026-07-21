@@ -59,11 +59,13 @@ export function RagEvaluationForm({
   submitLabel,
   onSubmit,
   onCancel,
+  pending = false,
 }: {
   initialValue?: RagEvalConfigurationInput;
   submitLabel: string;
   onSubmit: (value: RagEvalConfigurationInput) => void | Promise<void>;
   onCancel?: () => void;
+  pending?: boolean;
 }) {
   const [configuration, setConfiguration] = useState<RagEvalConfigurationInput>(() =>
     structuredClone(initialValue ?? makeCragConfiguration()),
@@ -101,6 +103,9 @@ export function RagEvaluationForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) {
+      return;
+    }
     const normalized = normalizeRagEvalConfiguration(configuration);
     const nextErrors = validateRagEvalConfiguration(normalized, {
       embeddingModelNames: embeddingModels.data
@@ -532,11 +537,11 @@ export function RagEvaluationForm({
 
       <div className="flex flex-wrap justify-end gap-3">
         {onCancel ? (
-          <Button type="button" variant="secondary" onClick={onCancel}>
+          <Button type="button" variant="secondary" disabled={pending} onClick={onCancel}>
             Cancel
           </Button>
         ) : null}
-        <Button type="submit">{submitLabel}</Button>
+        <Button type="submit" disabled={pending}>{submitLabel}</Button>
       </div>
     </form>
   );

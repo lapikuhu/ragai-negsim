@@ -12,5 +12,7 @@ describe("vite proxy config", () => {
     expect(proxy?.["/knowledge-graph-indexes"]).toBe("http://127.0.0.1:8000");
     expect(proxy?.["/knowledge-graph-build-jobs"]).toBe("http://127.0.0.1:8000");
     expect(proxy?.["/document-chunks"]).toBe("http://127.0.0.1:8000");
+    expect(proxy?.["/rag-eval-configurations"]).toBe("http://127.0.0.1:8000");
+    expect(proxy?.["/rag-eval-runs"]).toBe("http://127.0.0.1:8000");
   });
 });

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 
 import { getErrorMessage } from "@/api/client";
@@ -48,6 +49,7 @@ export function RagEvaluationsPage() {
   const [selectedHistoryConfiguration, setSelectedHistoryConfiguration] =
     useState<SelectedHistoryConfiguration | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
 
   const configurationsQuery = useRagEvalConfigurationsQuery(
     configurationSkip,
@@ -74,6 +76,7 @@ export function RagEvaluationsPage() {
     const initialValue = makeCragConfiguration();
     initialValue.name = "";
     setMessage(null);
+    setEditorError(null);
     setEditor({ mode: "create", initialValue });
   }
 
@@ -296,6 +299,7 @@ export function RagEvaluationsPage() {
                           aria-label={`Edit ${configuration.name}`}
                           onClick={() => {
                             setMessage(null);
+                            setEditorError(null);
                             setEditor({ mode: "edit", configuration });
                           }}
                         >
@@ -338,7 +342,9 @@ export function RagEvaluationsPage() {
               Previous configurations
             </Button>
             <span className="text-sm text-slate-500">
-              Configurations {configurationSkip + 1}–{configurationSkip + configurations.length}
+              {configurations.length === 0
+                ? "0 configurations"
+                : `Configurations ${configurationSkip + 1}–${configurationSkip + configurations.length}`}
             </span>
             <Button
               type="button"
@@ -367,25 +373,35 @@ export function RagEvaluationsPage() {
           editor={editor}
           createPending={createMutation.isPending}
           updatePending={updateMutation.isPending}
-          onCancel={() => setEditor(null)}
+          error={editorError}
+          onCancel={() => {
+            setEditor(null);
+            setEditorError(null);
+          }}
           onCreate={async (input) => {
             setMessage(null);
+            setEditorError(null);
             try {
               await createMutation.mutateAsync(input);
               setEditor(null);
               setMessage(`Created ${input.name}.`);
             } catch (error) {
-              setMessage(getErrorMessage(error, "Unable to create RAG evaluation configuration."));
+              setEditorError(
+                `${getErrorMessage(error, "Unable to create RAG evaluation configuration.")} Review the configuration and try again.`,
+              );
             }
           }}
           onUpdate={async (configuration, input) => {
             setMessage(null);
+            setEditorError(null);
             try {
               await updateMutation.mutateAsync({ id: configuration.id, input });
               setEditor(null);
               setMessage(`Updated ${input.name}.`);
             } catch (error) {
-              setMessage(getErrorMessage(error, "Unable to update RAG evaluation configuration."));
+              setEditorError(
+                `${getErrorMessage(error, "Unable to update RAG evaluation configuration.")} Review the configuration and try again.`,
+              );
             }
           }}
         />
@@ -398,6 +414,7 @@ function ConfigurationEditor({
   editor,
   createPending,
   updatePending,
+  error,
   onCancel,
   onCreate,
   onUpdate,
@@ -405,6 +422,7 @@ function ConfigurationEditor({
   editor: EditorState;
   createPending: boolean;
   updatePending: boolean;
+  error: string | null;
   onCancel: () => void;
   onCreate: (input: RagEvalConfigurationInput) => Promise<void>;
   onUpdate: (
@@ -417,36 +435,150 @@ function ConfigurationEditor({
   const initialValue = creating
     ? editor.initialValue
     : configurationToInput(editor.configuration);
+  const pending = createPending || updatePending;
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const pendingRef = useRef(pending);
+  const onCancelRef = useRef(onCancel);
+  const titleId = useId();
+  const descriptionId = useId();
+  pendingRef.current = pending;
+  onCancelRef.current = onCancel;
 
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/45 p-4">
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    const dialog = dialogRef.current;
+    if (!overlay || !dialog) {
+      return;
+    }
+    const dialogElement = dialog;
+
+    const opener = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.body.style.overflow;
+    const siblings = Array.from(document.body.children).filter(
+      (element): element is HTMLElement => element instanceof HTMLElement && element !== overlay,
+    );
+    const siblingStates = siblings.map((element) => ({
+      element,
+      hadInert: element.hasAttribute("inert"),
+      ariaHidden: element.getAttribute("aria-hidden"),
+    }));
+
+    document.body.style.overflow = "hidden";
+    for (const sibling of siblings) {
+      sibling.setAttribute("inert", "");
+      sibling.setAttribute("aria-hidden", "true");
+    }
+    (focusableElements(dialogElement)[0] ?? dialogElement).focus();
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        if (!pendingRef.current) {
+          event.preventDefault();
+          onCancelRef.current();
+        }
+        return;
+      }
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusable = focusableElements(dialogElement);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogElement.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || !dialogElement.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      for (const { element, hadInert, ariaHidden } of siblingStates) {
+        if (!hadInert) {
+          element.removeAttribute("inert");
+        }
+        if (ariaHidden === null) {
+          element.removeAttribute("aria-hidden");
+        } else {
+          element.setAttribute("aria-hidden", ariaHidden);
+        }
+      }
+      opener?.focus();
+    };
+  }, []);
+
+  return createPortal(
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/45 p-4"
+    >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
         className="max-h-[90vh] w-full max-w-5xl overflow-y-auto"
       >
         <Card>
           <div className="mb-5">
-            <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
+            <h2 id={titleId} className="text-xl font-semibold text-slate-950">{title}</h2>
+            <p id={descriptionId} className="mt-1 text-sm text-slate-600">
+              Define the chunking, retrieval, and metric settings for this experiment.
+            </p>
           </div>
+          {error ? (
+            <p
+              role="alert"
+              className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+            >
+              {error}
+            </p>
+          ) : null}
           <RagEvaluationForm
             initialValue={initialValue}
             submitLabel={creating ? "Create experiment" : "Save experiment"}
             onCancel={onCancel}
+            pending={pending}
             onSubmit={(input) =>
               creating
                 ? onCreate(input)
                 : onUpdate(editor.configuration, input)
             }
           />
-          {createPending || updatePending ? (
+          {pending ? (
             <p className="mt-3 text-sm text-slate-500">Saving experiment...</p>
           ) : null}
         </Card>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
+}
+
+function focusableElements(container: HTMLElement) {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
 }
 
 function configurationToInput(

@@ -35,6 +35,12 @@ export function getRagEvalRunRefetchInterval(
   return run?.status === "queued" || run?.status === "running" ? 2000 : false;
 }
 
+function getRagEvalRunHistoryRefetchInterval(runs: RagEvalRunRead[] | undefined) {
+  return runs?.some((run) => getRagEvalRunRefetchInterval(run) === 2000)
+    ? 2000
+    : false;
+}
+
 async function listConfigurations(skip: number, limit: number) {
   const result = await apiClient.GET("/rag-eval-configurations/", {
     params: { query: { skip, limit } },
@@ -165,6 +171,7 @@ export function useRagEvalRunHistoryQuery(
         : ragEvaluationKeys.history(configurationId, skip, limit),
     queryFn: () => listRuns(configurationId as number, skip, limit),
     enabled: configurationId !== null,
+    refetchInterval: (query) => getRagEvalRunHistoryRefetchInterval(query.state.data),
   });
 }
 

@@ -29,7 +29,9 @@ export default defineConfig({
       "/llm-models": "http://127.0.0.1:8000",
       "/rag-profiles": "http://127.0.0.1:8000",
       "/knowledge-graph-indexes": "http://127.0.0.1:8000",
-      "/knowledge-graph-build-jobs": "http://127.0.0.1:8000"
+      "/knowledge-graph-build-jobs": "http://127.0.0.1:8000",
+      "/rag-eval-configurations": "http://127.0.0.1:8000",
+      "/rag-eval-runs": "http://127.0.0.1:8000"
     }
   }
 });
