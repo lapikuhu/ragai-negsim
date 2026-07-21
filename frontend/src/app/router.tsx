@@ -25,6 +25,8 @@ import { IndexingPage } from "@/pages/IndexingPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { VectorStoresPage } from "@/pages/VectorStoresPage";
 import { KnowledgeGraphsPage } from "@/pages/KnowledgeGraphsPage";
+import { RagEvaluationsPage } from "@/pages/RagEvaluationsPage";
+import { RagEvaluationRunPage } from "@/pages/RagEvaluationRunPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -80,7 +82,9 @@ export const router = createBrowserRouter([
               { path: "indexing", element: <IndexingPage /> },
               { path: "vector-stores", element: <VectorStoresPage /> },
               { path: "models", element: <ModelsPage /> },
-              { path: "users", element: <UsersPage /> }
+              { path: "users", element: <UsersPage /> },
+              { path: "rag-evaluations", element: <RagEvaluationsPage /> },
+              { path: "rag-evaluations/runs/:runId", element: <RagEvaluationRunPage /> }
             ]
           }
         ]

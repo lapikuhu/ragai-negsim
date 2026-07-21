@@ -18,6 +18,12 @@ export const navigationItems: NavItem[] = [
   { label: "Document Chunks", to: "/document-chunks", description: "Persisted chunk inspection", roles: ["admin"] },
   { label: "Chunking Profiles", to: "/chunking-profiles", description: "Reusable ingestion profile management", roles: ["admin"] },
   { label: "RAG Profiles", to: "/rag-profiles", description: "Reusable retrieval strategy management", roles: ["admin"] },
+  {
+    label: "RAG Evaluation",
+    to: "/rag-evaluations",
+    description: "Configure experiments, run evaluations, and inspect metrics",
+    roles: ["admin"]
+  },
   { label: "Knowledge Graphs", to: "/knowledge-graphs", description: "Build and monitor Neo4j GraphRAG indexes", roles: ["admin"] },
   { label: "Indexing", to: "/indexing", description: "Run and monitor full corpus indexing jobs", roles: ["admin"] },
   { label: "Evaluations", to: "/evaluations", description: "Review outputs and feedback", roles: ["teacher", "admin"] },

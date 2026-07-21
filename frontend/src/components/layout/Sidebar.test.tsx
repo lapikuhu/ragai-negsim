@@ -35,6 +35,10 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /user sessions/i })).toHaveAttribute("href", "/sessions");
     expect(screen.getByRole("link", { name: /users/i })).toHaveAttribute("href", "/users");
     expect(screen.getByRole("link", { name: /prompts/i })).toHaveAttribute("href", "/prompts");
+    expect(screen.getByRole("link", { name: /rag evaluation/i })).toHaveAttribute(
+      "href",
+      "/rag-evaluations"
+    );
     expect(screen.queryByText("Role restricted")).not.toBeInTheDocument();
   });
 
@@ -51,6 +55,7 @@ describe("Sidebar", () => {
     expect(screen.queryByText("User Sessions")).not.toBeInTheDocument();
     expect(screen.queryByText("Users")).not.toBeInTheDocument();
     expect(screen.queryByText("Prompts")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /rag evaluation/i })).not.toBeInTheDocument();
     expect(screen.queryByText("Role restricted")).not.toBeInTheDocument();
   });
 
@@ -68,6 +73,7 @@ describe("Sidebar", () => {
     expect(screen.queryByText("Personas")).not.toBeInTheDocument();
     expect(screen.queryByText("Evaluations")).not.toBeInTheDocument();
     expect(screen.queryByText("User Sessions")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /rag evaluation/i })).not.toBeInTheDocument();
     expect(screen.queryByText("Role restricted")).not.toBeInTheDocument();
   });
 });
