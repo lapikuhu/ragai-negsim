@@ -168,9 +168,24 @@ describe("RagEvaluationRunPage", () => {
     expect(screen.getByText("example-11")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled();
 
-    await user.type(screen.getByLabelText("Search queries"), "example-01");
+    await user.type(screen.getByLabelText("Search queries"), "EXAMPLE-01");
     expect(screen.getByText("example-01")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+
+    await user.clear(screen.getByLabelText("Search queries"));
+    await user.type(screen.getByLabelText("Search queries"), "QUESTION 2");
+    expect(screen.getByText("example-02")).toBeInTheDocument();
+    expect(screen.queryByText("example-01")).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Search queries"));
+    await user.type(screen.getByLabelText("Search queries"), "REFERENCE ANSWER 3");
+    expect(screen.getByText("example-03")).toBeInTheDocument();
+    expect(screen.queryByText("example-02")).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Search queries"));
+    await user.type(screen.getByLabelText("Search queries"), "ACTUAL ANSWER 4");
+    expect(screen.getByText("example-04")).toBeInTheDocument();
+    expect(screen.queryByText("example-03")).not.toBeInTheDocument();
 
     await user.clear(screen.getByLabelText("Search queries"));
     await user.selectOptions(screen.getByLabelText("Category"), "unanswerable");
