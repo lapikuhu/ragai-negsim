@@ -20,6 +20,6 @@ const ast = await openapiTS(schema, {
   exportType: true
 });
 
-await fs.writeFile(outputPath, `${astToString(ast)}\n`, "utf8");
+await fs.writeFile(outputPath, `${astToString(ast).trimEnd()}\n`, "utf8");
 console.log(`OpenAPI snapshot saved to ${schemaPath}`);
 console.log(`Generated schema types saved to ${outputPath}`);
