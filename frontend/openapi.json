@@ -3588,6 +3588,506 @@
         }
       }
     },
+    "/rag-eval-configurations/": {
+      "post": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "Create Configuration",
+        "description": "Create a new RAG evaluation configuration.\nArgs:\n    data: The configuration data to create.\n    session: The database session.\n    admin: The admin performing the action.\nReturns:\n    The newly created RAG evaluation configuration.\nRaises:\n    HTTPException: If the configuration name already exists or if there are\n    validation errors in the input data.",
+        "operationId": "create_configuration_rag_eval_configurations__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagEvalConfigurationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagEvalConfigurationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "List Configurations",
+        "description": "List all RAG evaluation configurations.\nArgs:\n    session: The database session.\n    _admin: The admin performing the action.\n    page: Pagination information.\nReturns:\n    A list of RAG evaluation configurations.",
+        "operationId": "list_configurations_rag_eval_configurations__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RagEvalConfigurationRead"
+                  },
+                  "title": "Response List Configurations Rag Eval Configurations  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rag-eval-configurations/{id}": {
+      "get": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "Get Configuration",
+        "description": "Get a RAG evaluation configuration by its ID.\nArgs:\n    id: The ID of the configuration to retrieve.\n    session: The database session.\n    _admin: The admin performing the action.\nReturns:\n    The RAG evaluation configuration with the specified ID.\nRaises:\n    HTTPException: If the configuration is not found.",
+        "operationId": "get_configuration_rag_eval_configurations__id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagEvalConfigurationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "Update Configuration",
+        "description": "Update a RAG evaluation configuration by its ID.\nArgs:\n    id: The ID of the configuration to update.\n    data: The update data for the configuration.\n    session: The database session.\n    admin: The admin performing the action.\nReturns:\n    The updated RAG evaluation configuration.\nRaises:\n    HTTPException: If the configuration is not found or if there are\n    validation errors in the input data.",
+        "operationId": "update_configuration_rag_eval_configurations__id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagEvalConfigurationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagEvalConfigurationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "Delete Configuration",
+        "description": "Delete a RAG evaluation configuration by its ID.\nArgs:\n    id: The ID of the configuration to delete.\n    session: The database session.\n    _admin: The admin performing the action.\nReturns:\n    None\nRaises:\n    HTTPException: If the configuration is not found or if it cannot \n    be deleted.",
+        "operationId": "delete_configuration_rag_eval_configurations__id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rag-eval-runs/": {
+      "post": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "Enqueue Run",
+        "description": "Enqueue a RAG evaluation run for the specified configuration ID to the \nRAG evaluation coordinator.\nArgs:\n    data: The request containing the configuration ID to enqueue.\n    session: The database session.\n    _admin: The admin performing the action.\nReturns:\n    The enqueued RAG evaluation run.\nRaises:\n    HTTPException: If the configuration is not found or if there are\n    validation errors in the input data.",
+        "operationId": "enqueue_run_rag_eval_runs__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagEvalRunEnqueueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagEvalRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "List Runs",
+        "description": "List RAG evaluation runs with optional filtering by configuration \nID and status.\nArgs:\n    session: The database session.\n    _admin: The admin performing the action.\n    page: Pagination information.\n    configuration_id: Optional; filter runs by this configuration ID.\n    status: Optional; filter runs by this status.\nReturns:\n    A list of RAG evaluation runs matching the specified filters.\nRaises:\n    HTTPException: If there are validation errors in the input data.",
+        "operationId": "list_runs_rag_eval_runs__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "configuration_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Configuration Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "queued",
+                    "running",
+                    "completed",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RagEvalRunRead"
+                  },
+                  "title": "Response List Runs Rag Eval Runs  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rag-eval-runs/{id}": {
+      "get": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "Get Run",
+        "description": "Get a RAG evaluation run by its ID.\nArgs:\n    id: The ID of the run to retrieve.\n    session: The database session.\n    _admin: The admin performing the action.\nReturns:\n    The RAG evaluation run with the specified ID.\nRaises:\n    HTTPException: If the run is not found.",
+        "operationId": "get_run_rag_eval_runs__id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagEvalRunDetailRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rag-eval-runs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "rag-eval"
+        ],
+        "summary": "Cancel Run",
+        "description": "Cancel a RAG evaluation run by its ID.\nArgs:\n    id: The ID of the run to cancel.\n    session: The database session.\n    _admin: The admin performing the action.\nReturns:\n    The RAG evaluation run after the cancellation request has been\n    processed.",
+        "operationId": "cancel_run_rag_eval_runs__id__cancel_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagEvalRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/raw-documents/": {
       "post": {
         "tags": [
@@ -8168,6 +8668,78 @@
         "type": "object",
         "title": "CounterpartPersonaUpdateRequest"
       },
+      "CragEvaluationConfiguration": {
+        "properties": {
+          "document_grader": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "query_rewriter": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "answer_generator": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "hallucination_grader": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "answer_grader": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "fallback_generator": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "strategy": {
+            "type": "string",
+            "const": "crag",
+            "title": "Strategy",
+            "default": "crag"
+          },
+          "retrieval_embedding_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Retrieval Embedding Model",
+            "default": "text-embedding-3-small"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Top K",
+            "default": 4
+          },
+          "reranker": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reranker",
+            "default": "cross_encoder"
+          },
+          "top_n": {
+            "type": "integer",
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Top N",
+            "default": 3
+          },
+          "rewrite_limit": {
+            "type": "integer",
+            "maximum": 10,
+            "minimum": 0,
+            "title": "Rewrite Limit",
+            "default": 2
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_grader",
+          "query_rewriter",
+          "answer_generator",
+          "hallucination_grader",
+          "answer_grader",
+          "fallback_generator"
+        ],
+        "title": "CragEvaluationConfiguration"
+      },
       "DocumentChunkAdminRead": {
         "properties": {
           "raw_document_id": {
@@ -8346,6 +8918,93 @@
         ],
         "title": "EmbeddingModelRead"
       },
+      "GraphRagEvaluationConfiguration": {
+        "properties": {
+          "document_grader": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "query_rewriter": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "answer_generator": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "hallucination_grader": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "answer_grader": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "fallback_generator": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "strategy": {
+            "type": "string",
+            "const": "graphrag",
+            "title": "Strategy",
+            "default": "graphrag"
+          },
+          "extraction_llm": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "graph_embedding_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Graph Embedding Model",
+            "default": "text-embedding-3-small"
+          },
+          "max_paths_per_chunk": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Max Paths Per Chunk",
+            "default": 10
+          },
+          "retrieval_mode": {
+            "type": "string",
+            "enum": [
+              "semantic",
+              "cypher",
+              "hybrid"
+            ],
+            "title": "Retrieval Mode",
+            "default": "semantic"
+          },
+          "evidence_limit": {
+            "type": "integer",
+            "maximum": 30,
+            "minimum": 1,
+            "title": "Evidence Limit",
+            "default": 6
+          },
+          "traversal_depth": {
+            "type": "integer",
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Traversal Depth",
+            "default": 2
+          },
+          "rrf_constant": {
+            "type": "integer",
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Rrf Constant",
+            "default": 60
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_grader",
+          "query_rewriter",
+          "answer_generator",
+          "hallucination_grader",
+          "answer_grader",
+          "fallback_generator",
+          "extraction_llm"
+        ],
+        "title": "GraphRagEvaluationConfiguration"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -8358,6 +9017,58 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HybridChunkingConfiguration": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "const": "hybrid",
+            "title": "Strategy",
+            "default": "hybrid"
+          },
+          "breakpoint_threshold_type": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Breakpoint Threshold Type",
+            "default": "percentile"
+          },
+          "breakpoint_threshold_amount": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Breakpoint Threshold Amount",
+            "default": 90
+          },
+          "buffer_size": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Buffer Size",
+            "default": 1
+          },
+          "chunk_size": {
+            "type": "integer",
+            "maximum": 8000,
+            "minimum": 100,
+            "title": "Chunk Size",
+            "default": 1000
+          },
+          "chunk_overlap": {
+            "type": "integer",
+            "maximum": 2000,
+            "minimum": 0,
+            "title": "Chunk Overlap",
+            "default": 200
+          },
+          "separators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Separators"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "HybridChunkingConfiguration"
       },
       "IndexedChunkBuildRef": {
         "properties": {
@@ -8858,6 +9569,40 @@
             "minLength": 1,
             "title": "Candidate Generation"
           },
+          "total_documents": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Total Documents",
+            "default": 0
+          },
+          "processed_documents": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Processed Documents",
+            "default": 0
+          },
+          "current_raw_document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Raw Document Id"
+          },
+          "current_document_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Document Label"
+          },
           "status": {
             "type": "string",
             "title": "Status",
@@ -8881,6 +9626,18 @@
           "processed_chunks": {
             "type": "integer",
             "title": "Processed Chunks"
+          },
+          "node_count": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Node Count",
+            "default": 0
+          },
+          "relationship_count": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Relationship Count",
+            "default": 0
           },
           "cancel_requested": {
             "type": "boolean",
@@ -9193,6 +9950,27 @@
         ],
         "title": "LLMProviderCatalog"
       },
+      "LLMSelection": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "LLMSelection"
+      },
       "NegotiationStateSchema": {
         "properties": {
           "current_phase": {
@@ -9419,6 +10197,931 @@
           "is_system"
         ],
         "title": "PromptRead"
+      },
+      "RagEvalConfigurationCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Name"
+          },
+          "chunking": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecursiveChunkingConfiguration"
+              },
+              {
+                "$ref": "#/components/schemas/SemanticChunkingConfiguration"
+              },
+              {
+                "$ref": "#/components/schemas/HybridChunkingConfiguration"
+              }
+            ],
+            "title": "Chunking",
+            "discriminator": {
+              "propertyName": "strategy",
+              "mapping": {
+                "hybrid": "#/components/schemas/HybridChunkingConfiguration",
+                "recursive": "#/components/schemas/RecursiveChunkingConfiguration",
+                "semantic": "#/components/schemas/SemanticChunkingConfiguration"
+              }
+            }
+          },
+          "rag": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CragEvaluationConfiguration"
+              },
+              {
+                "$ref": "#/components/schemas/GraphRagEvaluationConfiguration"
+              }
+            ],
+            "title": "Rag",
+            "discriminator": {
+              "propertyName": "strategy",
+              "mapping": {
+                "crag": "#/components/schemas/CragEvaluationConfiguration",
+                "graphrag": "#/components/schemas/GraphRagEvaluationConfiguration"
+              }
+            }
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/RagEvalMetricsConfiguration"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "chunking",
+          "rag",
+          "metrics"
+        ],
+        "title": "RagEvalConfigurationCreateRequest"
+      },
+      "RagEvalConfigurationRead": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Name"
+          },
+          "chunking": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecursiveChunkingConfiguration"
+              },
+              {
+                "$ref": "#/components/schemas/SemanticChunkingConfiguration"
+              },
+              {
+                "$ref": "#/components/schemas/HybridChunkingConfiguration"
+              }
+            ],
+            "title": "Chunking",
+            "discriminator": {
+              "propertyName": "strategy",
+              "mapping": {
+                "hybrid": "#/components/schemas/HybridChunkingConfiguration",
+                "recursive": "#/components/schemas/RecursiveChunkingConfiguration",
+                "semantic": "#/components/schemas/SemanticChunkingConfiguration"
+              }
+            }
+          },
+          "rag": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CragEvaluationConfiguration"
+              },
+              {
+                "$ref": "#/components/schemas/GraphRagEvaluationConfiguration"
+              }
+            ],
+            "title": "Rag",
+            "discriminator": {
+              "propertyName": "strategy",
+              "mapping": {
+                "crag": "#/components/schemas/CragEvaluationConfiguration",
+                "graphrag": "#/components/schemas/GraphRagEvaluationConfiguration"
+              }
+            }
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/RagEvalMetricsConfiguration"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_by_user_id": {
+            "type": "integer",
+            "title": "Created By User Id"
+          },
+          "last_edit_by_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Edit By User Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Updated"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "chunking",
+          "rag",
+          "metrics",
+          "id",
+          "created_by_user_id",
+          "created_at",
+          "last_updated"
+        ],
+        "title": "RagEvalConfigurationRead"
+      },
+      "RagEvalConfigurationUpdateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "chunking": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RecursiveChunkingConfiguration"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SemanticChunkingConfiguration"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HybridChunkingConfiguration"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "strategy",
+                  "mapping": {
+                    "hybrid": "#/components/schemas/HybridChunkingConfiguration",
+                    "recursive": "#/components/schemas/RecursiveChunkingConfiguration",
+                    "semantic": "#/components/schemas/SemanticChunkingConfiguration"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunking"
+          },
+          "rag": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/CragEvaluationConfiguration"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GraphRagEvaluationConfiguration"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "strategy",
+                  "mapping": {
+                    "crag": "#/components/schemas/CragEvaluationConfiguration",
+                    "graphrag": "#/components/schemas/GraphRagEvaluationConfiguration"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rag"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RagEvalMetricsConfiguration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RagEvalConfigurationUpdateRequest"
+      },
+      "RagEvalFinalChunk": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Rank"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/RagEvalFinalChunkMetadata"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rank",
+          "content"
+        ],
+        "title": "RagEvalFinalChunk"
+      },
+      "RagEvalFinalChunkMetadata": {
+        "properties": {
+          "chunk_index": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Index"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "rerank_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Score"
+          },
+          "retrieval_strategy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Strategy"
+          },
+          "retrieval_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Mode"
+          },
+          "evidence_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RagEvalFinalChunkMetadata"
+      },
+      "RagEvalMetricsConfiguration": {
+        "properties": {
+          "k": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "K",
+            "default": 3
+          },
+          "ragas_judge": {
+            "$ref": "#/components/schemas/LLMSelection"
+          },
+          "judge_embedding_model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Judge Embedding Model",
+            "default": "text-embedding-3-small"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ragas_judge"
+        ],
+        "title": "RagEvalMetricsConfiguration"
+      },
+      "RagEvalQueryResultRead": {
+        "properties": {
+          "example_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Example Id"
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Category"
+          },
+          "answerable": {
+            "type": "boolean",
+            "title": "Answerable"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query"
+          },
+          "reference_answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Answer"
+          },
+          "actual_answer": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Actual Answer"
+          },
+          "final_chunks": {
+            "items": {
+              "$ref": "#/components/schemas/RagEvalFinalChunk"
+            },
+            "type": "array",
+            "title": "Final Chunks"
+          },
+          "first_relevant_rank": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Relevant Rank"
+          },
+          "hit_at_k": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hit At K"
+          },
+          "mrr_at_k": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mrr At K"
+          },
+          "successful_abstention": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Successful Abstention"
+          },
+          "false_positive_context": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "False Positive Context"
+          },
+          "faithfulness": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Faithfulness"
+          },
+          "answer_relevancy": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Relevancy"
+          },
+          "context_precision": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Precision"
+          },
+          "context_recall": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Recall"
+          },
+          "answer_correctness": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Correctness"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "example_id",
+          "category",
+          "answerable",
+          "query",
+          "actual_answer",
+          "id",
+          "run_id"
+        ],
+        "title": "RagEvalQueryResultRead"
+      },
+      "RagEvalRunDetailRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "configuration_id": {
+            "type": "integer",
+            "title": "Configuration Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "preparing",
+              "chunking",
+              "building_index",
+              "building_graph",
+              "evaluating",
+              "scoring",
+              "cleaning_up",
+              "persisting",
+              "finished",
+              "cleanup_pending"
+            ],
+            "title": "Stage"
+          },
+          "progress": {
+            "type": "number",
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Progress"
+          },
+          "completed_examples": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Completed Examples"
+          },
+          "total_examples": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Total Examples"
+          },
+          "queued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Queued At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "cancel_requested": {
+            "type": "boolean",
+            "title": "Cancel Requested"
+          },
+          "cancellation_requested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancellation Requested At"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "failure_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Message"
+          },
+          "configuration_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Configuration Snapshot"
+          },
+          "suite_version": {
+            "type": "string",
+            "title": "Suite Version"
+          },
+          "suite_content_hash": {
+            "type": "string",
+            "title": "Suite Content Hash"
+          },
+          "resolved_pipeline_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Resolved Pipeline Snapshot"
+          },
+          "overall_metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Overall Metrics"
+          },
+          "category_metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Category Metrics"
+          },
+          "query_results": {
+            "items": {
+              "$ref": "#/components/schemas/RagEvalQueryResultRead"
+            },
+            "type": "array",
+            "title": "Query Results"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "configuration_id",
+          "status",
+          "stage",
+          "progress",
+          "completed_examples",
+          "total_examples",
+          "queued_at",
+          "cancel_requested",
+          "configuration_snapshot",
+          "suite_version",
+          "suite_content_hash",
+          "resolved_pipeline_snapshot",
+          "overall_metrics",
+          "category_metrics"
+        ],
+        "title": "RagEvalRunDetailRead"
+      },
+      "RagEvalRunEnqueueRequest": {
+        "properties": {
+          "configuration_id": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Configuration Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "configuration_id"
+        ],
+        "title": "RagEvalRunEnqueueRequest"
+      },
+      "RagEvalRunRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "configuration_id": {
+            "type": "integer",
+            "title": "Configuration Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "preparing",
+              "chunking",
+              "building_index",
+              "building_graph",
+              "evaluating",
+              "scoring",
+              "cleaning_up",
+              "persisting",
+              "finished",
+              "cleanup_pending"
+            ],
+            "title": "Stage"
+          },
+          "progress": {
+            "type": "number",
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Progress"
+          },
+          "completed_examples": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Completed Examples"
+          },
+          "total_examples": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Total Examples"
+          },
+          "queued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Queued At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "cancel_requested": {
+            "type": "boolean",
+            "title": "Cancel Requested"
+          },
+          "cancellation_requested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancellation Requested At"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "failure_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Message"
+          },
+          "configuration_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Configuration Snapshot"
+          },
+          "suite_version": {
+            "type": "string",
+            "title": "Suite Version"
+          },
+          "suite_content_hash": {
+            "type": "string",
+            "title": "Suite Content Hash"
+          },
+          "resolved_pipeline_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Resolved Pipeline Snapshot"
+          },
+          "overall_metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Overall Metrics"
+          },
+          "category_metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Category Metrics"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "configuration_id",
+          "status",
+          "stage",
+          "progress",
+          "completed_examples",
+          "total_examples",
+          "queued_at",
+          "cancel_requested",
+          "configuration_snapshot",
+          "suite_version",
+          "suite_content_hash",
+          "resolved_pipeline_snapshot",
+          "overall_metrics",
+          "category_metrics"
+        ],
+        "title": "RagEvalRunRead"
       },
       "RagProfileCopy": {
         "properties": {
@@ -10243,6 +11946,40 @@
         "type": "object",
         "title": "RawDocumentUpdate"
       },
+      "RecursiveChunkingConfiguration": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "const": "recursive",
+            "title": "Strategy",
+            "default": "recursive"
+          },
+          "chunk_size": {
+            "type": "integer",
+            "maximum": 8000,
+            "minimum": 100,
+            "title": "Chunk Size",
+            "default": 1000
+          },
+          "chunk_overlap": {
+            "type": "integer",
+            "maximum": 2000,
+            "minimum": 0,
+            "title": "Chunk Overlap",
+            "default": 200
+          },
+          "separators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Separators"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RecursiveChunkingConfiguration"
+      },
       "RoleRead": {
         "properties": {
           "id": {
@@ -10633,6 +12370,37 @@
         },
         "type": "object",
         "title": "ScenarioUpdateRequest"
+      },
+      "SemanticChunkingConfiguration": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "const": "semantic",
+            "title": "Strategy",
+            "default": "semantic"
+          },
+          "breakpoint_threshold_type": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Breakpoint Threshold Type",
+            "default": "percentile"
+          },
+          "breakpoint_threshold_amount": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Breakpoint Threshold Amount",
+            "default": 90
+          },
+          "buffer_size": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Buffer Size",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SemanticChunkingConfiguration"
       },
       "SessionCreateRequest": {
         "properties": {

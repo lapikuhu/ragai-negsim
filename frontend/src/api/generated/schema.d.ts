@@ -1170,6 +1170,200 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/rag-eval-configurations/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Configurations
+         * @description List all RAG evaluation configurations.
+         *     Args:
+         *         session: The database session.
+         *         _admin: The admin performing the action.
+         *         page: Pagination information.
+         *     Returns:
+         *         A list of RAG evaluation configurations.
+         */
+        get: operations["list_configurations_rag_eval_configurations__get"];
+        put?: never;
+        /**
+         * Create Configuration
+         * @description Create a new RAG evaluation configuration.
+         *     Args:
+         *         data: The configuration data to create.
+         *         session: The database session.
+         *         admin: The admin performing the action.
+         *     Returns:
+         *         The newly created RAG evaluation configuration.
+         *     Raises:
+         *         HTTPException: If the configuration name already exists or if there are
+         *         validation errors in the input data.
+         */
+        post: operations["create_configuration_rag_eval_configurations__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag-eval-configurations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Configuration
+         * @description Get a RAG evaluation configuration by its ID.
+         *     Args:
+         *         id: The ID of the configuration to retrieve.
+         *         session: The database session.
+         *         _admin: The admin performing the action.
+         *     Returns:
+         *         The RAG evaluation configuration with the specified ID.
+         *     Raises:
+         *         HTTPException: If the configuration is not found.
+         */
+        get: operations["get_configuration_rag_eval_configurations__id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Configuration
+         * @description Delete a RAG evaluation configuration by its ID.
+         *     Args:
+         *         id: The ID of the configuration to delete.
+         *         session: The database session.
+         *         _admin: The admin performing the action.
+         *     Returns:
+         *         None
+         *     Raises:
+         *         HTTPException: If the configuration is not found or if it cannot
+         *         be deleted.
+         */
+        delete: operations["delete_configuration_rag_eval_configurations__id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Configuration
+         * @description Update a RAG evaluation configuration by its ID.
+         *     Args:
+         *         id: The ID of the configuration to update.
+         *         data: The update data for the configuration.
+         *         session: The database session.
+         *         admin: The admin performing the action.
+         *     Returns:
+         *         The updated RAG evaluation configuration.
+         *     Raises:
+         *         HTTPException: If the configuration is not found or if there are
+         *         validation errors in the input data.
+         */
+        patch: operations["update_configuration_rag_eval_configurations__id__patch"];
+        trace?: never;
+    };
+    "/rag-eval-runs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Runs
+         * @description List RAG evaluation runs with optional filtering by configuration
+         *     ID and status.
+         *     Args:
+         *         session: The database session.
+         *         _admin: The admin performing the action.
+         *         page: Pagination information.
+         *         configuration_id: Optional; filter runs by this configuration ID.
+         *         status: Optional; filter runs by this status.
+         *     Returns:
+         *         A list of RAG evaluation runs matching the specified filters.
+         *     Raises:
+         *         HTTPException: If there are validation errors in the input data.
+         */
+        get: operations["list_runs_rag_eval_runs__get"];
+        put?: never;
+        /**
+         * Enqueue Run
+         * @description Enqueue a RAG evaluation run for the specified configuration ID to the
+         *     RAG evaluation coordinator.
+         *     Args:
+         *         data: The request containing the configuration ID to enqueue.
+         *         session: The database session.
+         *         _admin: The admin performing the action.
+         *     Returns:
+         *         The enqueued RAG evaluation run.
+         *     Raises:
+         *         HTTPException: If the configuration is not found or if there are
+         *         validation errors in the input data.
+         */
+        post: operations["enqueue_run_rag_eval_runs__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag-eval-runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run
+         * @description Get a RAG evaluation run by its ID.
+         *     Args:
+         *         id: The ID of the run to retrieve.
+         *         session: The database session.
+         *         _admin: The admin performing the action.
+         *     Returns:
+         *         The RAG evaluation run with the specified ID.
+         *     Raises:
+         *         HTTPException: If the run is not found.
+         */
+        get: operations["get_run_rag_eval_runs__id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag-eval-runs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Run
+         * @description Cancel a RAG evaluation run by its ID.
+         *     Args:
+         *         id: The ID of the run to cancel.
+         *         session: The database session.
+         *         _admin: The admin performing the action.
+         *     Returns:
+         *         The RAG evaluation run after the cancellation request has been
+         *         processed.
+         */
+        post: operations["cancel_run_rag_eval_runs__id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rag-profiles/": {
         parameters: {
             query?: never;
@@ -2504,10 +2698,10 @@ export type components = {
             description?: string | null;
             /** Document Author */
             document_author?: string | null;
-            /** Document Year */
-            document_year?: number | null;
             /** Document Title */
             document_title?: string | null;
+            /** Document Year */
+            document_year?: number | null;
             /** File */
             file: string;
             /** Name */
@@ -2984,6 +3178,45 @@ export type components = {
             /** Counterpart persona name */
             name?: string | null;
         };
+        /** CragEvaluationConfiguration */
+        CragEvaluationConfiguration: {
+            answer_generator: components["schemas"]["LLMSelection"];
+            answer_grader: components["schemas"]["LLMSelection"];
+            document_grader: components["schemas"]["LLMSelection"];
+            fallback_generator: components["schemas"]["LLMSelection"];
+            hallucination_grader: components["schemas"]["LLMSelection"];
+            query_rewriter: components["schemas"]["LLMSelection"];
+            /**
+             * Reranker
+             * @default cross_encoder
+             */
+            reranker: string;
+            /**
+             * Retrieval Embedding Model
+             * @default text-embedding-3-small
+             */
+            retrieval_embedding_model: string;
+            /**
+             * Rewrite Limit
+             * @default 2
+             */
+            rewrite_limit: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            strategy: "crag";
+            /**
+             * Top K
+             * @default 4
+             */
+            top_k: number;
+            /**
+             * Top N
+             * @default 3
+             */
+            top_n: number;
+        };
         /** DocumentChunkAdminRead */
         DocumentChunkAdminRead: {
             /** Chunk Index */
@@ -3072,10 +3305,91 @@ export type components = {
             /** Provider */
             provider: string;
         };
+        /** GraphRagEvaluationConfiguration */
+        GraphRagEvaluationConfiguration: {
+            answer_generator: components["schemas"]["LLMSelection"];
+            answer_grader: components["schemas"]["LLMSelection"];
+            document_grader: components["schemas"]["LLMSelection"];
+            /**
+             * Evidence Limit
+             * @default 6
+             */
+            evidence_limit: number;
+            extraction_llm: components["schemas"]["LLMSelection"];
+            fallback_generator: components["schemas"]["LLMSelection"];
+            /**
+             * Graph Embedding Model
+             * @default text-embedding-3-small
+             */
+            graph_embedding_model: string;
+            hallucination_grader: components["schemas"]["LLMSelection"];
+            /**
+             * Max Paths Per Chunk
+             * @default 10
+             */
+            max_paths_per_chunk: number;
+            query_rewriter: components["schemas"]["LLMSelection"];
+            /**
+             * Retrieval Mode
+             * @default semantic
+             * @enum {string}
+             */
+            retrieval_mode: "semantic" | "cypher" | "hybrid";
+            /**
+             * Rrf Constant
+             * @default 60
+             */
+            rrf_constant: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            strategy: "graphrag";
+            /**
+             * Traversal Depth
+             * @default 2
+             */
+            traversal_depth: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HybridChunkingConfiguration */
+        HybridChunkingConfiguration: {
+            /**
+             * Breakpoint Threshold Amount
+             * @default 90
+             */
+            breakpoint_threshold_amount: number;
+            /**
+             * Breakpoint Threshold Type
+             * @default percentile
+             */
+            breakpoint_threshold_type: string;
+            /**
+             * Buffer Size
+             * @default 1
+             */
+            buffer_size: number;
+            /**
+             * Chunk Overlap
+             * @default 200
+             */
+            chunk_overlap: number;
+            /**
+             * Chunk Size
+             * @default 1000
+             */
+            chunk_size: number;
+            /** Separators */
+            separators?: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            strategy: "hybrid";
         };
         /** IndexedChunkBuildRef */
         IndexedChunkBuildRef: {
@@ -3259,15 +3573,28 @@ export type components = {
             id: number;
             /** Knowledge Graph Index Id */
             knowledge_graph_index_id: number;
+            /**
+             * Node Count
+             * @default 0
+             */
+            node_count: number;
             /** Processed Chunks */
             processed_chunks: number;
-            /** Processed Documents */
+            /**
+             * Processed Documents
+             * @default 0
+             */
             processed_documents: number;
             /**
              * Queued At
              * Format: date-time
              */
             queued_at: string;
+            /**
+             * Relationship Count
+             * @default 0
+             */
+            relationship_count: number;
             /**
              * Stage
              * @default validating
@@ -3280,10 +3607,6 @@ export type components = {
              * @default queued
              */
             status: string;
-            /** Node Count */
-            node_count?: number;
-            /** Relationship Count */
-            relationship_count?: number;
             /**
              * Total Chunks
              * @default 0
@@ -3380,6 +3703,13 @@ export type components = {
              */
             provider: "openai" | "ollama";
         };
+        /** LLMSelection */
+        LLMSelection: {
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+        };
         /** NegotiationStateSchema */
         NegotiationStateSchema: {
             /** Current Phase */
@@ -3449,6 +3779,259 @@ export type components = {
             name: string;
             /** Owner Id */
             owner_id?: number | null;
+        };
+        /** RagEvalConfigurationCreateRequest */
+        RagEvalConfigurationCreateRequest: {
+            /** Chunking */
+            chunking: components["schemas"]["RecursiveChunkingConfiguration"] | components["schemas"]["SemanticChunkingConfiguration"] | components["schemas"]["HybridChunkingConfiguration"];
+            metrics: components["schemas"]["RagEvalMetricsConfiguration"];
+            /** Name */
+            name: string;
+            /** Rag */
+            rag: components["schemas"]["CragEvaluationConfiguration"] | components["schemas"]["GraphRagEvaluationConfiguration"];
+        };
+        /** RagEvalConfigurationRead */
+        RagEvalConfigurationRead: {
+            /** Chunking */
+            chunking: components["schemas"]["RecursiveChunkingConfiguration"] | components["schemas"]["SemanticChunkingConfiguration"] | components["schemas"]["HybridChunkingConfiguration"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By User Id */
+            created_by_user_id: number;
+            /** Id */
+            id: number;
+            /** Last Edit By User Id */
+            last_edit_by_user_id?: number | null;
+            /**
+             * Last Updated
+             * Format: date-time
+             */
+            last_updated: string;
+            metrics: components["schemas"]["RagEvalMetricsConfiguration"];
+            /** Name */
+            name: string;
+            /** Rag */
+            rag: components["schemas"]["CragEvaluationConfiguration"] | components["schemas"]["GraphRagEvaluationConfiguration"];
+        };
+        /** RagEvalConfigurationUpdateRequest */
+        RagEvalConfigurationUpdateRequest: {
+            /** Chunking */
+            chunking?: (components["schemas"]["RecursiveChunkingConfiguration"] | components["schemas"]["SemanticChunkingConfiguration"] | components["schemas"]["HybridChunkingConfiguration"]) | null;
+            metrics?: components["schemas"]["RagEvalMetricsConfiguration"] | null;
+            /** Name */
+            name?: string | null;
+            /** Rag */
+            rag?: (components["schemas"]["CragEvaluationConfiguration"] | components["schemas"]["GraphRagEvaluationConfiguration"]) | null;
+        };
+        /** RagEvalFinalChunk */
+        RagEvalFinalChunk: {
+            /** Content */
+            content: string;
+            metadata?: components["schemas"]["RagEvalFinalChunkMetadata"];
+            /** Rank */
+            rank: number;
+        };
+        /** RagEvalFinalChunkMetadata */
+        RagEvalFinalChunkMetadata: {
+            /** Chunk Index */
+            chunk_index?: number | null;
+            /** Evidence Path */
+            evidence_path?: string | null;
+            /** Rerank Score */
+            rerank_score?: number | null;
+            /** Retrieval Mode */
+            retrieval_mode?: string | null;
+            /** Retrieval Strategy */
+            retrieval_strategy?: string | null;
+            /** Score */
+            score?: number | null;
+            /** Source */
+            source?: string | null;
+        };
+        /** RagEvalMetricsConfiguration */
+        RagEvalMetricsConfiguration: {
+            /**
+             * Judge Embedding Model
+             * @default text-embedding-3-small
+             */
+            judge_embedding_model: string;
+            /**
+             * K
+             * @default 3
+             */
+            k: number;
+            ragas_judge: components["schemas"]["LLMSelection"];
+        };
+        /** RagEvalQueryResultRead */
+        RagEvalQueryResultRead: {
+            /** Actual Answer */
+            actual_answer: string;
+            /** Answer Correctness */
+            answer_correctness?: number | null;
+            /** Answer Relevancy */
+            answer_relevancy?: number | null;
+            /** Answerable */
+            answerable: boolean;
+            /** Category */
+            category: string;
+            /** Context Precision */
+            context_precision?: number | null;
+            /** Context Recall */
+            context_recall?: number | null;
+            /** Example Id */
+            example_id: string;
+            /** Faithfulness */
+            faithfulness?: number | null;
+            /** False Positive Context */
+            false_positive_context?: boolean | null;
+            /** Final Chunks */
+            final_chunks?: components["schemas"]["RagEvalFinalChunk"][];
+            /** First Relevant Rank */
+            first_relevant_rank?: number | null;
+            /** Hit At K */
+            hit_at_k?: boolean | null;
+            /** Id */
+            id: number;
+            /** Mrr At K */
+            mrr_at_k?: number | null;
+            /** Query */
+            query: string;
+            /** Reference Answer */
+            reference_answer?: string | null;
+            /** Run Id */
+            run_id: number;
+            /** Successful Abstention */
+            successful_abstention?: boolean | null;
+        };
+        /** RagEvalRunDetailRead */
+        RagEvalRunDetailRead: {
+            /** Cancel Requested */
+            cancel_requested: boolean;
+            /** Cancellation Requested At */
+            cancellation_requested_at?: string | null;
+            /** Category Metrics */
+            category_metrics: {
+                [key: string]: unknown;
+            };
+            /** Completed At */
+            completed_at?: string | null;
+            /** Completed Examples */
+            completed_examples: number;
+            /** Configuration Id */
+            configuration_id: number;
+            /** Configuration Snapshot */
+            configuration_snapshot: {
+                [key: string]: unknown;
+            };
+            /** Failure Code */
+            failure_code?: string | null;
+            /** Failure Message */
+            failure_message?: string | null;
+            /** Id */
+            id: number;
+            /** Overall Metrics */
+            overall_metrics: {
+                [key: string]: unknown;
+            };
+            /** Progress */
+            progress: number;
+            /** Query Results */
+            query_results?: components["schemas"]["RagEvalQueryResultRead"][];
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /** Resolved Pipeline Snapshot */
+            resolved_pipeline_snapshot: {
+                [key: string]: unknown;
+            };
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "queued" | "preparing" | "chunking" | "building_index" | "building_graph" | "evaluating" | "scoring" | "cleaning_up" | "persisting" | "finished" | "cleanup_pending";
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed" | "cancelled";
+            /** Suite Content Hash */
+            suite_content_hash: string;
+            /** Suite Version */
+            suite_version: string;
+            /** Total Examples */
+            total_examples: number;
+        };
+        /** RagEvalRunEnqueueRequest */
+        RagEvalRunEnqueueRequest: {
+            /** Configuration Id */
+            configuration_id: number;
+        };
+        /** RagEvalRunRead */
+        RagEvalRunRead: {
+            /** Cancel Requested */
+            cancel_requested: boolean;
+            /** Cancellation Requested At */
+            cancellation_requested_at?: string | null;
+            /** Category Metrics */
+            category_metrics: {
+                [key: string]: unknown;
+            };
+            /** Completed At */
+            completed_at?: string | null;
+            /** Completed Examples */
+            completed_examples: number;
+            /** Configuration Id */
+            configuration_id: number;
+            /** Configuration Snapshot */
+            configuration_snapshot: {
+                [key: string]: unknown;
+            };
+            /** Failure Code */
+            failure_code?: string | null;
+            /** Failure Message */
+            failure_message?: string | null;
+            /** Id */
+            id: number;
+            /** Overall Metrics */
+            overall_metrics: {
+                [key: string]: unknown;
+            };
+            /** Progress */
+            progress: number;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /** Resolved Pipeline Snapshot */
+            resolved_pipeline_snapshot: {
+                [key: string]: unknown;
+            };
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "queued" | "preparing" | "chunking" | "building_index" | "building_graph" | "evaluating" | "scoring" | "cleaning_up" | "persisting" | "finished" | "cleanup_pending";
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed" | "cancelled";
+            /** Suite Content Hash */
+            suite_content_hash: string;
+            /** Suite Version */
+            suite_version: string;
+            /** Total Examples */
+            total_examples: number;
         };
         /** RagProfileCopy */
         RagProfileCopy: {
@@ -3584,10 +4167,10 @@ export type components = {
             description?: string | null;
             /** Document Author */
             document_author?: string | null;
-            /** Document Year */
-            document_year?: number | null;
             /** Document Title */
             document_title?: string | null;
+            /** Document Year */
+            document_year?: number | null;
             /** Id */
             id: number;
             /** Raw document name */
@@ -3633,10 +4216,10 @@ export type components = {
             description?: string | null;
             /** Document Author */
             document_author?: string | null;
-            /** Document Year */
-            document_year?: number | null;
             /** Document Title */
             document_title?: string | null;
+            /** Document Year */
+            document_year?: number | null;
             /** Id */
             id: number;
             /** Raw document name */
@@ -3673,10 +4256,10 @@ export type components = {
             description?: string | null;
             /** Document Author */
             document_author?: string | null;
-            /** Document Year */
-            document_year?: number | null;
             /** Document Title */
             document_title?: string | null;
+            /** Document Year */
+            document_year?: number | null;
             /** Raw document name */
             name?: string | null;
             /** Source Hash */
@@ -3689,6 +4272,26 @@ export type components = {
             source_size?: number | null;
             /** Source Status */
             source_status?: ("available" | "missing" | "changed" | "unverified" | "error") | null;
+        };
+        /** RecursiveChunkingConfiguration */
+        RecursiveChunkingConfiguration: {
+            /**
+             * Chunk Overlap
+             * @default 200
+             */
+            chunk_overlap: number;
+            /**
+             * Chunk Size
+             * @default 1000
+             */
+            chunk_size: number;
+            /** Separators */
+            separators?: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            strategy: "recursive";
         };
         /** RoleRead */
         RoleRead: {
@@ -3863,6 +4466,29 @@ export type components = {
             } | null;
             /** Side B Summary */
             side_b_summary?: string | null;
+        };
+        /** SemanticChunkingConfiguration */
+        SemanticChunkingConfiguration: {
+            /**
+             * Breakpoint Threshold Amount
+             * @default 90
+             */
+            breakpoint_threshold_amount: number;
+            /**
+             * Breakpoint Threshold Type
+             * @default percentile
+             */
+            breakpoint_threshold_type: string;
+            /**
+             * Buffer Size
+             * @default 1
+             */
+            buffer_size: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            strategy: "semantic";
         };
         /** SessionCreateRequest */
         SessionCreateRequest: {
@@ -6348,6 +6974,295 @@ export interface operations {
             };
         };
     };
+    list_configurations_rag_eval_configurations__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                skip?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagEvalConfigurationRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_configuration_rag_eval_configurations__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RagEvalConfigurationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagEvalConfigurationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_configuration_rag_eval_configurations__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagEvalConfigurationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_configuration_rag_eval_configurations__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_configuration_rag_eval_configurations__id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RagEvalConfigurationUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagEvalConfigurationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_rag_eval_runs__get: {
+        parameters: {
+            query?: {
+                configuration_id?: number | null;
+                limit?: number;
+                skip?: number;
+                status?: ("queued" | "running" | "completed" | "failed" | "cancelled") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagEvalRunRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enqueue_run_rag_eval_runs__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RagEvalRunEnqueueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagEvalRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_rag_eval_runs__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagEvalRunDetailRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_run_rag_eval_runs__id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagEvalRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_rag_profiles_rag_profiles__get: {
         parameters: {
             query?: {
@@ -8301,3 +9216,4 @@ export interface operations {
         };
     };
 }
+
