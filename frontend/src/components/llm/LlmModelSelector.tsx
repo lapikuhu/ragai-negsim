@@ -4,6 +4,13 @@ import { Field, Select } from "@/components/ui/Field";
 
 type MetadataMode = "gpu-and-error" | "error-only" | "none";
 type SelectorVariant = "panel" | "plain";
+type DataAttributes = {
+  [key: `data-${string}`]: boolean | number | string | undefined;
+};
+type ModelSelectProps = Omit<
+  React.SelectHTMLAttributes<HTMLSelectElement>,
+  "children" | "disabled" | "onChange" | "value"
+> & DataAttributes;
 
 export function getDefaultCatalogModel(
   catalog: LLMModelCatalogResponse | undefined,
@@ -22,6 +29,7 @@ export function LlmModelSelector({
   metadataMode = "gpu-and-error",
   variant = "panel",
   className,
+  modelSelectProps,
 }: {
   label: string;
   modelLabel?: string;
@@ -32,6 +40,7 @@ export function LlmModelSelector({
   metadataMode?: MetadataMode;
   variant?: SelectorVariant;
   className?: string;
+  modelSelectProps?: ModelSelectProps;
 }) {
   const providerCatalog = catalog?.providers.find((provider) => provider.provider === selection.provider);
   const models = providerCatalog?.models ?? [];
@@ -60,6 +69,7 @@ export function LlmModelSelector({
       </Field>
       <Field label={modelLabel}>
         <Select
+          {...modelSelectProps}
           value={selection.model}
           disabled={disabled || !models.length}
           onChange={(event) => onChange({ ...selection, model: event.target.value })}
