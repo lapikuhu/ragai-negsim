@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 
@@ -452,7 +452,7 @@ function ConfigurationEditor({
     }
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const overlay = overlayRef.current;
     const dialog = dialogRef.current;
     if (!overlay || !dialog) {

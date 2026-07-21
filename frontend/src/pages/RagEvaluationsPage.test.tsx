@@ -416,7 +416,7 @@ describe("RagEvaluationsPage", () => {
     queryMocks.create.mockReturnValueOnce(createRequest.promise);
     queryMocks.update.mockReturnValueOnce(updateRequest.promise);
     const user = userEvent.setup();
-    renderPage();
+    const { container } = renderPage();
 
     await user.click(screen.getByRole("button", { name: "Create experiment" }));
     let dialog = screen.getByRole("dialog", { name: "Create experiment" });
@@ -432,6 +432,9 @@ describe("RagEvaluationsPage", () => {
 
     createRequest.resolve(cragConfiguration);
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(container).not.toHaveAttribute("inert");
+    expect(container).not.toHaveAttribute("aria-hidden");
+    expect(document.body).not.toHaveStyle({ overflow: "hidden" });
 
     await user.click(screen.getByRole("button", { name: "Edit CRAG experiment" }));
     dialog = screen.getByRole("dialog", { name: "Edit CRAG experiment" });
@@ -444,6 +447,9 @@ describe("RagEvaluationsPage", () => {
 
     updateRequest.resolve(cragConfiguration);
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(container).not.toHaveAttribute("inert");
+    expect(container).not.toHaveAttribute("aria-hidden");
+    expect(document.body).not.toHaveStyle({ overflow: "hidden" });
   });
 
   it("keeps the editor open when Escape follows submission in the same tick", async () => {
