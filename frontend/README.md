@@ -11,6 +11,7 @@ This folder contains the React + Vite + TypeScript frontend for the Negotiation 
 - TanStack Query
 - `openapi-typescript`
 - `openapi-fetch`
+- RAGAS-backed RAG evaluation metrics surfaced from the backend API
 
 ## Backend URL
 
@@ -84,8 +85,15 @@ Implemented against real backend endpoints:
 - raw document upload, ingest, chunk, and detail
 - corpus list, create, ingest, chunk, and queued embedding jobs
 - prompts, personas, and scenarios management
+- admin RAG Evaluation console for CRAG/GraphRAG configurations, queued runs, progress, cancellation, history, and run-detail metrics
 - models and vector-store inspection
 - user list and registration
+
+## RAG Evaluation UI
+
+Admins can open `/rag-evaluations` to create, edit, delete, and enqueue complete CRAG or GraphRAG evaluation configurations. The page shows each visible configuration's latest run, headline metrics, queue/progress state, cleanup warnings, and paginated run history.
+
+Run detail pages under `/rag-evaluations/runs/:runId` show the stored configuration snapshot, resolved model and prompt metadata, overall/category metrics, per-query answers, scores, and rank-ordered final evidence chunks. These views reflect the backend's persistent RAG-evaluation APIs at `/rag-eval-configurations/` and `/rag-eval-runs/`; scoring includes Hit@k, MRR@k, abstention/false-positive context signals, and the backend's RAGAS metrics.
 
 ## Known backend gaps
 

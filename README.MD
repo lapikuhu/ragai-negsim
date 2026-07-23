@@ -10,6 +10,7 @@ The current codebase focuses on the backend foundation for:
 - Uploading and managing raw PDF source documents
 - Corpus creation, ingestion, chunking, and vector indexing
 - Reusable retrieval strategies with both CRAG and GraphRAG flows
+- Persistent RAG evaluation for isolated CRAG and GraphRAG experiment runs using a hard-coded synthetic evaluation corpus
 - Prompt, scenario, and counterpart persona management
 - Simulation lifecycle management
 - Agentic negotiation turns with coaching, counterpart response, learning assistant, and evaluation layers
@@ -29,10 +30,11 @@ At a high level, the backend supports a workflow like this:
 
 The system is designed around educational negotiation practice rather than a generic chat product. The RAG and agent graph layers are there to ground simulations in real course or domain material and to keep the negotiation flow structured.
 
-The generative-AI layer is built from three cooperating parts:
+The generative-AI layer is built from four cooperating parts:
 
 - Retrieval profiles define how course or domain material is selected for a simulation.
 - LangGraph-based agent graphs coordinate negotiation turns, coaching, counterpart responses, and evaluation.
+- RAG evaluation configurations run the shared CRAG or GraphRAG response pipeline against isolated test resources and persist immutable run snapshots, final contexts, answers, and metrics.
 - Prompt templates keep each model call role-specific and aligned with the simulation context.
 
 Two retrieval strategies are currently available through reusable RAG profiles:
@@ -57,6 +59,14 @@ Retrieval is injected into the coaching and evaluation paths so feedback can be 
 All agent and graph node prompts follow the Persona, Task, Context, Format (PTCF) framework. This keeps prompts explicit about role, job, grounding context, and output shape, which makes prompt changes easier to review and reduces accidental drift between counterpart, coach, evaluator, and classifier behavior.
 
 LangSmith tracing and the internal evidence ledger are used around the RAG and negotiation graphs so generated outputs can be inspected with the retrieval context, graph metadata, and evidence used during a turn.
+
+### RAG Evaluation
+
+Admins can use the persistent RAG-evaluation workflow to compare CRAG and GraphRAG configurations without borrowing a production corpus index or live knowledge graph. Each configuration captures chunking, retrieval, response-pipeline model selections, and judging settings. Enqueueing a run copies those settings into an immutable snapshot so later configuration edits do not change historical results.
+
+The backend exposes admin-only configuration and run APIs under `/rag-eval-configurations/` and `/rag-eval-runs/`. A single application-owned FIFO coordinator executes one run at a time, reports stage/progress metadata, supports cancellation, and recovers interrupted GraphRAG cleanup before later queue work continues. The supported deployment model for this in-process coordinator is one Uvicorn worker.
+
+Runs score the pipeline's final ranked answer-context documents rather than only the initial retrieval candidates. Answerable examples receive Hit@k and MRR@k, unanswerable examples track abstention and false-positive final context, and generated answers/final contexts are scored with five RAGAS metrics: faithfulness, answer relevancy, context precision, context recall, and answer correctness.
 
 ## Folder Structure
 
@@ -92,6 +102,7 @@ ragai-negsim/
 - LangChain
 - LangGraph
 - LangSmith for tracing
+- RAGAS for RAG-evaluation scoring
 - Chroma, FAISS, and PGVector integration points for vector storage
 - Docling and PyPDF-based PDF ingestion/parsing
 - Neo4j integration hooks for graph-store work
@@ -108,6 +119,7 @@ ragai-negsim/
 - Uploaded raw documents are stored on disk under `RAW_DOCS_DIR`, configured in `.env`.
 - Local frontend development is expected to run from `localhost` or `127.0.0.1` on ports `3000`, `4173`, `5173`, or `8000`; those origins are enabled in CORS.
 - Corpus embedding builds can run synchronously or be queued as FastAPI background tasks.
+- RAG evaluation runs are coordinated in-process with a single application-owned FIFO worker; runs one Uvicorn worker for that coordinator model.
 - FastAPI startup currently seeds fixed roles and an admin user after the database schema already exists.
 
 ## Installation
