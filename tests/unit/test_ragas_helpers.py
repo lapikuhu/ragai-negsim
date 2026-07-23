@@ -284,7 +284,7 @@ def test_evaluator_factory_accepts_normalized_configuration(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_evaluator_prints_safe_metric_diagnostics_and_retries_once(capsys):
+async def test_evaluator_retries_a_failed_metric_once():
     retrying_metric = FakeMetric(0.1, failures=1)
     evaluator = RagasEvaluator(
         llm=object(),
@@ -301,14 +301,6 @@ async def test_evaluator_prints_safe_metric_diagnostics_and_retries_once(capsys)
     await evaluator.evaluate(_eval_run())
 
     assert len(retrying_metric.calls) == 2
-    output = capsys.readouterr().out
-    assert "[rag-eval] scoring evaluation=sample:1 metric=faithfulness attempt=1" in output
-    assert "[rag-eval] scoring failed evaluation=sample:1 metric=faithfulness attempt=1 error=RuntimeError: temporary failure" in output
-    assert "[rag-eval] scored evaluation=sample:1 metric=faithfulness attempt=2 score=0.1" in output
-    assert "What is it?" not in output
-    assert "Generated answer" not in output
-    assert "Reference answer" not in output
-    assert "First context" not in output
 
 
 @pytest.mark.asyncio

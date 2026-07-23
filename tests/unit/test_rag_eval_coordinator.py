@@ -221,9 +221,7 @@ async def test_coordinator_runs_rich_pipeline_scores_and_finalizes_once_atomical
 
 
 @pytest.mark.asyncio
-async def test_progress_and_running_cancellation_are_cooperative_and_never_finalize(
-    capsys,
-):
+async def test_progress_and_running_cancellation_are_cooperative_and_never_finalize():
     from app.services.rag_eval_coordinator import RagEvalCoordinator
 
     run = _run()
@@ -282,7 +280,6 @@ async def test_progress_and_running_cancellation_are_cooperative_and_never_final
     assert progress == [("chunking", 0)]
     assert cancelled == [run.id]
     assert finalized is False
-    assert "coordinator scoring failed" not in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
@@ -334,7 +331,7 @@ async def test_failure_is_sanitized_and_has_no_partial_finalization():
 
 
 @pytest.mark.asyncio
-async def test_scoring_failure_prints_exception_and_persists_generic_message(capsys):
+async def test_scoring_failure_persists_generic_message():
     from app.services.rag_eval_coordinator import RagEvalCoordinator
 
     run = _run()
@@ -381,10 +378,6 @@ async def test_scoring_failure_prints_exception_and_persists_generic_message(cap
 
     await coordinator.process_once()
 
-    assert capsys.readouterr().out.splitlines() == [
-        "[rag-eval] coordinator scoring failed error=ValueError: "
-        "Metric faithfulness must be finite in [0, 1]"
-    ]
     assert failures == ["RAG evaluation failed during scoring."]
 
 

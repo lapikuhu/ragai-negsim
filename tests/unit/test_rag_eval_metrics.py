@@ -176,57 +176,6 @@ async def test_scorer_buffers_complete_rows_and_aggregates_means_and_scores():
 
 
 @pytest.mark.asyncio
-async def test_scorer_prints_query_boundaries_and_raw_metrics(capsys):
-    queries = (_query("first"), _query("second"))
-
-    await PipelineResultScorer(_Ragas()).score(
-        PipelineEvaluationResult(queries, {}), k=1
-    )
-
-    assert capsys.readouterr().out.splitlines() == [
-        "[rag-eval] query start evaluation=first ordinal=1/2",
-        "[rag-eval] raw metric evaluation=first ordinal=1/2 metric=faithfulness score=0.9",
-        "[rag-eval] raw metric evaluation=first ordinal=1/2 metric=answer_relevancy score=0.8",
-        "[rag-eval] raw metric evaluation=first ordinal=1/2 metric=context_precision score=0.7",
-        "[rag-eval] raw metric evaluation=first ordinal=1/2 metric=context_recall score=0.6",
-        "[rag-eval] raw metric evaluation=first ordinal=1/2 metric=answer_correctness score=0.5",
-        "[rag-eval] query completed evaluation=first ordinal=1/2",
-        "[rag-eval] query start evaluation=second ordinal=2/2",
-        "[rag-eval] raw metric evaluation=second ordinal=2/2 metric=faithfulness score=0.9",
-        "[rag-eval] raw metric evaluation=second ordinal=2/2 metric=answer_relevancy score=0.8",
-        "[rag-eval] raw metric evaluation=second ordinal=2/2 metric=context_precision score=0.7",
-        "[rag-eval] raw metric evaluation=second ordinal=2/2 metric=context_recall score=0.6",
-        "[rag-eval] raw metric evaluation=second ordinal=2/2 metric=answer_correctness score=0.5",
-        "[rag-eval] query completed evaluation=second ordinal=2/2",
-    ]
-
-
-@pytest.mark.asyncio
-async def test_scorer_prints_raw_nan_before_validation_without_completion(capsys):
-    scores = {**METRIC_SCORES, "faithfulness": math.nan}
-
-    with pytest.raises(ValueError, match="faithfulness.*finite"):
-        await PipelineResultScorer(_Ragas(scores)).score(
-            PipelineEvaluationResult(
-                (_query("invalid-score", documents=(_document(1),)),), {}
-            ),
-            k=1,
-        )
-
-    output = capsys.readouterr().out
-    assert "[rag-eval] query start evaluation=invalid-score ordinal=1/1" in output
-    assert (
-        "[rag-eval] raw metric evaluation=invalid-score ordinal=1/1 "
-        "metric=faithfulness score=nan"
-    ) in output
-    assert "query completed evaluation=invalid-score" not in output
-    assert "Question?" not in output
-    assert "Actual" not in output
-    assert "Reference" not in output
-    assert "context 1" not in output
-
-
-@pytest.mark.asyncio
 async def test_scorer_clamps_tiny_floating_point_noise_at_score_boundaries():
     scores = {
         **METRIC_SCORES,
