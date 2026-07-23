@@ -53,13 +53,16 @@ def get_openai_llm(model_name: str = "gpt-4o-mini",
             config: RunnableConfig | None = None,
             tags: list[str] | None = None,
             metadata: dict[str, object] | None = None,
-            run_name: str | None = None,) -> ChatOpenAI:
+            run_name: str | None = None,
+            do_not_bind_runnable_config: bool = False,) -> ChatOpenAI:
     """
     Wrapper function to initialize and return an OpenAI LLM instance.
     Args:
         model_name: The name of the OpenAI model to use 
             (default: "gpt-4o-mini").
         temperature: The temperature setting for the LLM (default: 0.0).
+        do_not_bind_runnable_config: Return the raw provider model without
+            applying config, tags, metadata, or run name when True.
     Returns:
         An instance of ChatOpenAI initialized with the specified model and 
         temperature.
@@ -72,6 +75,8 @@ def get_openai_llm(model_name: str = "gpt-4o-mini",
             temperature=temperature,
             api_key=_require_openai_api_key(),
         )
+        if do_not_bind_runnable_config:
+            return open_ai_llm
         return bind_runnable_config(
             open_ai_llm,
             config,
@@ -94,6 +99,7 @@ def get_ollama_llm(
     tags: list[str] | None = None,
     metadata: dict[str, object] | None = None,
     run_name: str | None = None,
+    do_not_bind_runnable_config: bool = False,
 ) -> ChatOllama | None:
     """
     Wrapper function to initialize and return an Ollama LLM instance.
@@ -103,6 +109,8 @@ def get_ollama_llm(
         temperature: The temperature setting for the LLM (default: 0.0).
         base_url: The base URL for the Ollama API 
             (default: OLLAMA_BASE_URL).
+        do_not_bind_runnable_config: Return the raw provider model without
+            applying config, tags, metadata, or run name when True.
     Returns:
         An instance of ChatOllama initialized with the specified model, 
         temperature, and base URL.
@@ -113,6 +121,8 @@ def get_ollama_llm(
             temperature=temperature,
             base_url=base_url,
         )
+        if do_not_bind_runnable_config:
+            return ollama_llm
         return bind_runnable_config(
             ollama_llm,
             config,
@@ -134,13 +144,16 @@ def get_llm(model_name: str = "gpt-4o-mini",
             config: RunnableConfig | None = None,
             tags: list[str] | None = None,
             metadata: dict[str, object] | None = None,
-            run_name: str | None = None) -> ChatOpenAI | ChatOllama | None:
+            run_name: str | None = None,
+            do_not_bind_runnable_config: bool = False) -> ChatOpenAI | ChatOllama | None:
     """
     Factory function to get an LLM instance based on the specified provider.
     Args:
         model_name: The name of the model to use (default: "gpt-4o-mini").
         temperature: The temperature setting for the LLM (default: 0.0).
         provider: The LLM provider to use ("openai" or "ollama", default: "openai").
+        do_not_bind_runnable_config: Return the raw provider model without
+            applying config, tags, metadata, or run name when True.
     Returns:
         An instance of the specified LLM.
     Raises:
@@ -154,6 +167,7 @@ def get_llm(model_name: str = "gpt-4o-mini",
             tags=tags,
             metadata=metadata,
             run_name=run_name,
+            do_not_bind_runnable_config=do_not_bind_runnable_config,
         )
     elif provider == "ollama":
         return get_ollama_llm(
@@ -163,6 +177,7 @@ def get_llm(model_name: str = "gpt-4o-mini",
             tags=tags,
             metadata=metadata,
             run_name=run_name,
+            do_not_bind_runnable_config=do_not_bind_runnable_config,
         )
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")

@@ -24,14 +24,14 @@ This mirrors the backend's authorization model and makes the UI a useful map of 
 - `CorporaPage.tsx` and `CorpusDetailPage.tsx` cover corpus management.
 - `ScenariosPage.tsx`, `PersonasPage.tsx`, and `PromptsPage.tsx` support authoring and review.
 - `EvaluationsPage.tsx` and `EvaluationReviewPage.tsx` are used for teacher/admin review.
-- `RagEvaluationsPage.tsx` is the admin-only experiment console at `/rag-evaluations`. Admins can create, edit, delete, and enqueue complete CRAG or GraphRAG configurations, inspect each configuration's latest run and headline metrics, cancel active work, and open paginated run history.
-- `RagEvaluationRunPage.tsx` is the admin-only run detail at `/rag-evaluations/runs/:runId`. It shows configuration and resolved snapshots, overall and category metrics, and filterable per-query results with answers, scores, and rank-ordered final evidence chunks.
+- `RagEvaluationsPage.tsx` is the admin-only experiment console at `/rag-evaluations`. Admins can create, edit, delete, and enqueue complete CRAG or GraphRAG configurations, inspect each configuration's latest run and headline metrics, cancel active work, and open paginated run history. The page now keeps latest-run polling independent per visible configuration and surfaces a queue-blocked warning when any running run is stuck in `cleanup_pending`.
+- `RagEvaluationRunPage.tsx` is the admin-only run detail at `/rag-evaluations/runs/:runId`. It shows configuration and resolved snapshots, overall and category metrics, and filterable per-query results with answers, scores, and rank-ordered final evidence chunks. The run detail also has a dedicated cleanup-pending warning and a failure banner when a run ends in `failed`.
 - `KnowledgeGraphsPage.tsx`, `IndexingPage.tsx`, and `VectorStoresPage.tsx` support the retrieval infrastructure.
 
 ## Data and API wiring
 The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows.
 
-The RAG Evaluation query layer requests the latest run independently for each visible configuration with a filtered `limit=1` request. Queued and running runs poll every two seconds, while terminal runs stop polling. History is filtered by configuration and paginated in pages of 20. A run whose latest state is `running` with stage `cleanup_pending` produces a distinct warning that queue execution is blocked until automatic GraphRAG cleanup retries succeed.
+The RAG Evaluation query layer requests the latest run independently for each visible configuration with a filtered `limit=1` request. Queued and running runs poll every two seconds, while terminal runs stop polling. History is filtered by configuration and paginated in pages of 20. A run whose latest state is `running` with stage `cleanup_pending` produces a distinct warning that queue execution is blocked until automatic GraphRAG cleanup retries succeed, and the form submission path now blocks duplicate in-flight submissions.
 
 The experiment form validates the complete typed configuration before submission. GraphRAG exposes eight LLM selections: six response-pipeline roles, the RAGAS judge, and the extraction model. For CRAG, selecting reranker `none` synchronizes Top N with Top K and disables Top N.
 

@@ -38,6 +38,24 @@ class ContractMetric:
         return self.value
 
 
+class InitializableMetric(FakeMetric):
+    def __init__(self, value: float = 0.0):
+        super().__init__(value)
+        self.init_calls: list[object] = []
+
+    def init(self, run_config: object) -> None:
+        self.init_calls.append(run_config)
+
+
+class ConfigurableWrapper:
+    def __init__(self, value: object):
+        self.value = value
+        self.run_configs: list[object] = []
+
+    def set_run_config(self, run_config: object) -> None:
+        self.run_configs.append(run_config)
+
+
 def _eval_run(answer: str | None = "Generated answer") -> EvalRunResult:
     return EvalRunResult(
         k=2,
@@ -57,6 +75,53 @@ def _eval_run(answer: str | None = "Generated answer") -> EvalRunResult:
         hit_rate_at_k=1.0,
         mrr_at_k=1.0,
     )
+
+
+def test_evaluator_initializes_default_metrics_with_one_shared_run_config(monkeypatch):
+    import app.airag.evaluation.ragas_helpers as helpers
+
+    run_config = object()
+    created_metrics = {
+        "faithfulness": InitializableMetric(),
+        "answer_relevancy": InitializableMetric(),
+        "context_precision": InitializableMetric(),
+        "context_recall": InitializableMetric(),
+        "answer_correctness": InitializableMetric(),
+    }
+    constructors = {
+        "Faithfulness": "faithfulness",
+        "AnswerRelevancy": "answer_relevancy",
+        "ContextPrecision": "context_precision",
+        "ContextRecall": "context_recall",
+        "AnswerCorrectness": "answer_correctness",
+    }
+    for constructor_name, metric_name in constructors.items():
+        monkeypatch.setattr(
+            helpers,
+            constructor_name,
+            lambda *args, _metric_name=metric_name, **kwargs: created_metrics[_metric_name],
+        )
+    monkeypatch.setattr(helpers, "RunConfig", lambda: run_config, raising=False)
+
+    evaluator = RagasEvaluator(llm=object(), embeddings=object())
+
+    assert evaluator.metrics == created_metrics
+    assert all(metric.init_calls == [run_config] for metric in created_metrics.values())
+
+
+def test_evaluator_leaves_injected_metrics_uninitialized():
+    metrics = {
+        "faithfulness": InitializableMetric(),
+        "answer_relevancy": InitializableMetric(),
+        "context_precision": InitializableMetric(),
+        "context_recall": InitializableMetric(),
+        "answer_correctness": InitializableMetric(),
+    }
+
+    evaluator = RagasEvaluator(llm=object(), embeddings=object(), metrics=metrics)
+
+    assert evaluator.metrics == metrics
+    assert all(metric.init_calls == [] for metric in metrics.values())
 
 
 @pytest.mark.asyncio
@@ -219,7 +284,7 @@ def test_evaluator_factory_accepts_normalized_configuration(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_evaluator_retries_a_failed_metric_once():
+async def test_evaluator_prints_safe_metric_diagnostics_and_retries_once(capsys):
     retrying_metric = FakeMetric(0.1, failures=1)
     evaluator = RagasEvaluator(
         llm=object(),
@@ -236,6 +301,14 @@ async def test_evaluator_retries_a_failed_metric_once():
     await evaluator.evaluate(_eval_run())
 
     assert len(retrying_metric.calls) == 2
+    output = capsys.readouterr().out
+    assert "[rag-eval] scoring evaluation=sample:1 metric=faithfulness attempt=1" in output
+    assert "[rag-eval] scoring failed evaluation=sample:1 metric=faithfulness attempt=1 error=RuntimeError: temporary failure" in output
+    assert "[rag-eval] scored evaluation=sample:1 metric=faithfulness attempt=2 score=0.1" in output
+    assert "What is it?" not in output
+    assert "Generated answer" not in output
+    assert "Reference answer" not in output
+    assert "First context" not in output
 
 
 @pytest.mark.asyncio
@@ -279,24 +352,38 @@ async def test_evaluator_rejects_missing_generated_answer_before_scoring():
 def test_evaluator_factory_uses_project_model_and_embedding_factories(monkeypatch):
     import app.airag.evaluation.ragas_helpers as helpers
 
+    llm_calls = []
+
     monkeypatch.setattr(
         helpers,
         "normalize_llm_selection",
         lambda provider, model: {"provider": "ollama", "model": "qwen"},
     )
-    monkeypatch.setattr(helpers, "get_llm", lambda **kwargs: "project-llm")
-    monkeypatch.setattr(helpers, "choose_embedding_model", lambda model: ("project-embeddings", {}))
-    monkeypatch.setattr(helpers, "LangchainLLMWrapper", lambda value: ("wrapped-llm", value))
     monkeypatch.setattr(
-        helpers, "LangchainEmbeddingsWrapper", lambda value: ("wrapped-embeddings", value)
+        helpers,
+        "get_llm",
+        lambda **kwargs: llm_calls.append(kwargs) or "project-llm",
+    )
+    monkeypatch.setattr(helpers, "choose_embedding_model", lambda model: ("project-embeddings", {}))
+    monkeypatch.setattr(helpers, "LangchainLLMWrapper", ConfigurableWrapper)
+    monkeypatch.setattr(
+        helpers, "LangchainEmbeddingsWrapper", ConfigurableWrapper
     )
 
     evaluator = RagasEvaluator.from_model_selection(
         provider="ollama", model="qwen", embedding_model="mini-l6-v2"
     )
 
-    assert evaluator.llm == ("wrapped-llm", "project-llm")
-    assert evaluator.embeddings == ("wrapped-embeddings", "project-embeddings")
+    assert evaluator.llm.value == "project-llm"
+    assert evaluator.embeddings.value == "project-embeddings"
+    assert llm_calls == [
+        {
+            "provider": "ollama",
+            "model_name": "qwen",
+            "temperature": 0,
+            "do_not_bind_runnable_config": True,
+        }
+    ]
     assert set(evaluator.metrics) == {
         "faithfulness",
         "answer_relevancy",
@@ -304,3 +391,4 @@ def test_evaluator_factory_uses_project_model_and_embedding_factories(monkeypatc
         "context_recall",
         "answer_correctness",
     }
+    assert evaluator.metrics["answer_correctness"].answer_similarity is not None

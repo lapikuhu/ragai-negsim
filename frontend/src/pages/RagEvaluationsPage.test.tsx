@@ -234,6 +234,38 @@ describe("RagEvaluationsPage", () => {
     );
   });
 
+  it("shows scoring progress in the latest status and run history", async () => {
+    const scoringRun = makeRun(103, 7, {
+      status: "running",
+      stage: "scoring",
+      progress: 85,
+      completed_at: null,
+    });
+    queryMocks.latestRuns.mockImplementation((ids: number[]) =>
+      ids.map((id) => ({
+        data: id === 7 ? scoringRun : cleanupPendingRun,
+        isLoading: false,
+        isError: false,
+        error: null,
+      })),
+    );
+    queryMocks.historyBySkip[0] = [scoringRun];
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(
+      screen.getByText("80/80 pipeline queries completed; scoring in progress."),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "History for CRAG experiment" }));
+    const history = screen
+      .getByRole("heading", { name: "Run history: CRAG experiment" })
+      .closest("section") as HTMLElement;
+    expect(
+      within(history).getByText("80/80 pipeline queries completed; scoring in progress."),
+    ).toBeInTheDocument();
+  });
+
   it("filters history by configuration, sorts newest first, and links each result", async () => {
     const user = userEvent.setup();
     const olderRun = makeRun(111, 7, { queued_at: "2026-07-20T08:00:00Z" });

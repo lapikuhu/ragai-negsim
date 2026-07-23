@@ -22,6 +22,7 @@ import {
   useRagEvalConfigurationsQuery,
   useUpdateRagEvalConfigurationMutation,
 } from "@/features/ragEvaluation/ragEvaluationQueries";
+import { formatRagEvalProgress } from "@/features/ragEvaluation/ragEvaluationProgress";
 import {
   makeCragConfiguration,
   type RagEvalConfigurationInput,
@@ -220,7 +221,7 @@ export function RagEvaluationsPage() {
                           {toSentenceCase(run.stage)} · {Math.round(run.progress)}%
                         </div>
                         <div className="text-xs text-slate-500">
-                          {run.completed_examples}/{run.total_examples} examples
+                          {formatRagEvalProgress(run)}
                         </div>
                       </div>
                     );

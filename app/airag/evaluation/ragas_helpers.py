@@ -15,6 +15,7 @@ from ragas.metrics import (
     ContextRecall,
     Faithfulness,
 )
+from ragas.run_config import RunConfig
 
 from app.airag.embeddings.embeddings import choose_embedding_model
 from app.airag.evaluation.eval_models import (
@@ -51,15 +52,23 @@ class RagasEvaluator:
     ) -> None:
         self.llm = llm
         self.embeddings = embeddings
-        self.metrics = dict(metrics) if metrics is not None else {
-            "faithfulness": Faithfulness(llm=llm),
-            "answer_relevancy": AnswerRelevancy(llm=llm, embeddings=embeddings),
-            "context_precision": ContextPrecision(llm=llm),
-            "context_recall": ContextRecall(llm=llm),
-            "answer_correctness": AnswerCorrectness(llm=llm, embeddings=embeddings),
-        }
+        # RAGAS requires the metrics initialized
+        if metrics is None:
+            self.metrics = {
+                "faithfulness": Faithfulness(llm=llm),
+                "answer_relevancy": AnswerRelevancy(llm=llm, embeddings=embeddings),
+                "context_precision": ContextPrecision(llm=llm),
+                "context_recall": ContextRecall(llm=llm),
+                "answer_correctness": AnswerCorrectness(llm=llm, embeddings=embeddings),
+            }
+        else:
+            self.metrics = dict(metrics)
         if set(self.metrics) != set(_METRIC_NAMES):
             raise ValueError(f"Ragas metrics must be exactly: {', '.join(_METRIC_NAMES)}")
+        if metrics is None:
+            run_config = RunConfig()
+            for metric in self.metrics.values():
+                metric.init(run_config)
 
     @classmethod
     def from_model_selection(
@@ -87,6 +96,7 @@ class RagasEvaluator:
             provider=selection["provider"],
             model_name=selection["model"],
             temperature=0,
+            do_not_bind_runnable_config=True,
         )
         if project_llm is None:
             raise ValueError("Unable to initialize the selected evaluation LLM")
@@ -195,8 +205,10 @@ class RagasEvaluator:
         """
         metric = self.metrics[metric_name]
         sample = SingleTurnSample(**self._metric_payload(metric_name, result))
+        # TODO: Incorporate exponential backoff or jitter for retries if needed
         for attempt in range(2):
             await check_cancellation(should_cancel)
+            attempt_number = attempt + 1
             try:
                 scored = await metric.single_turn_ascore(sample)
             except Exception as exc:
@@ -207,7 +219,8 @@ class RagasEvaluator:
                     ) from exc
             else:
                 await check_cancellation(should_cancel)
-                return float(scored)
+                score = float(scored)
+                return score
         raise AssertionError("unreachable")
 
     async def score_query(

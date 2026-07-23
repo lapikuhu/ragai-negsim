@@ -376,7 +376,12 @@ class RagEvalCoordinator:
             await self._mark_cancelled(run, session)
         except RagEvaluationCancelled:
             await self._mark_cancelled(run, session)
-        except Exception:
+        except Exception as exc:
+            if active_stage == "scoring":
+                print(
+                    "[rag-eval] coordinator scoring failed "
+                    f"error={type(exc).__name__}: {exc}"
+                )
             if strategy == "graphrag" and active_stage == "cleaning_up":
                 self._last_recovery_blocked = True
                 await self._repository.update_rag_eval_run_progress(

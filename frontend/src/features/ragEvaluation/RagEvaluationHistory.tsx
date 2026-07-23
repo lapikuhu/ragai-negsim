@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { formatDateTime, toSentenceCase } from "@/utils/format";
 
 import { useRagEvalRunHistoryQuery } from "./ragEvaluationQueries";
+import { formatRagEvalProgress } from "./ragEvaluationProgress";
 import type { RagEvalRunRead } from "./ragEvaluationTypes";
 
 const historyLimit = 20;
@@ -93,7 +94,7 @@ export function RagEvaluationHistory({
                   <div>
                     <div className="capitalize">{toSentenceCase(run.stage)}</div>
                     <div className="mt-1 text-xs text-slate-500">
-                      {formatProgress(run)}
+                      {formatRagEvalProgress(run)}
                     </div>
                   </div>
                 ),
@@ -160,11 +161,6 @@ export function RagEvaluationHistory({
       ) : null}
     </Card>
   );
-}
-
-function formatProgress(run: RagEvalRunRead) {
-  const progress = Number.isFinite(run.progress) ? Math.round(run.progress) : 0;
-  return `${progress}% · ${run.completed_examples}/${run.total_examples} examples`;
 }
 
 function formatMetric(run: RagEvalRunRead, key: string) {

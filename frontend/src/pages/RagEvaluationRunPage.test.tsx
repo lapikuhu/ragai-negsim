@@ -243,6 +243,11 @@ describe("RagEvaluationRunPage", () => {
   it.each([
     ["queued", "queued", "Waiting for execution to start."],
     ["running", "evaluating", "Evaluation is in progress."],
+    [
+      "running",
+      "scoring",
+      "12/12 pipeline queries completed; scoring in progress.",
+    ],
     ["cancelled", "finished", "This run was cancelled."],
   ] as const)("renders an empty %s state", (status, stage, message) => {
     setRun({

@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useRagEvalRunQuery } from "@/features/ragEvaluation/ragEvaluationQueries";
+import { formatRagEvalProgress } from "@/features/ragEvaluation/ragEvaluationProgress";
 import type {
   RagEvalQueryResultRead,
   RagEvalRunDetailRead,
@@ -164,6 +165,8 @@ function RunStateMessage({ run }: { run: RagEvalRunDetailRead }) {
   let message: string | null = null;
   if (run.status === "queued") {
     message = "Waiting for execution to start.";
+  } else if (run.status === "running" && run.stage === "scoring") {
+    message = formatRagEvalProgress(run);
   } else if (run.status === "running" && run.stage !== "cleanup_pending") {
     message = "Evaluation is in progress.";
   } else if (run.status === "cancelled") {

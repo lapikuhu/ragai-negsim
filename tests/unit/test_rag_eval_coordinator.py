@@ -221,7 +221,9 @@ async def test_coordinator_runs_rich_pipeline_scores_and_finalizes_once_atomical
 
 
 @pytest.mark.asyncio
-async def test_progress_and_running_cancellation_are_cooperative_and_never_finalize():
+async def test_progress_and_running_cancellation_are_cooperative_and_never_finalize(
+    capsys,
+):
     from app.services.rag_eval_coordinator import RagEvalCoordinator
 
     run = _run()
@@ -280,6 +282,7 @@ async def test_progress_and_running_cancellation_are_cooperative_and_never_final
     assert progress == [("chunking", 0)]
     assert cancelled == [run.id]
     assert finalized is False
+    assert "coordinator scoring failed" not in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
@@ -328,6 +331,61 @@ async def test_failure_is_sanitized_and_has_no_partial_finalization():
 
     assert failures == ["RAG evaluation failed during preparing."]
     assert "secret" not in failures[0]
+
+
+@pytest.mark.asyncio
+async def test_scoring_failure_prints_exception_and_persists_generic_message(capsys):
+    from app.services.rag_eval_coordinator import RagEvalCoordinator
+
+    run = _run()
+    failures = []
+
+    class Repository:
+        async def list_interrupted_rag_eval_runs(self, _session):
+            return []
+
+        async def claim_next_rag_eval_run(self, _session):
+            return run
+
+        async def update_rag_eval_run_progress(self, active, **values):
+            active.stage = values["stage"]
+            return active
+
+        async def get_rag_eval_run_by_id(self, _run_id, _session):
+            return run
+
+        async def mark_rag_eval_run_failed(self, active, detail, _session):
+            failures.append(detail)
+            active.status = "failed"
+            return active
+
+        async def finalize_rag_eval_run_success(self, *_args, **_kwargs):
+            raise AssertionError("failed runs must not persist partial results")
+
+    class Runtime:
+        async def run(self, **_values):
+            return _pipeline_result()
+
+    class Scorer:
+        async def score(self, _evaluation, **_values):
+            raise ValueError("Metric faithfulness must be finite in [0, 1]")
+
+    coordinator = RagEvalCoordinator(
+        session_factory=_session_factory,
+        repository=Repository(),
+        corpus_factory=_corpus,
+        runtime_factory=lambda: Runtime(),
+        ragas_factory=lambda _configuration: object(),
+        scorer_factory=lambda _ragas: Scorer(),
+    )
+
+    await coordinator.process_once()
+
+    assert capsys.readouterr().out.splitlines() == [
+        "[rag-eval] coordinator scoring failed error=ValueError: "
+        "Metric faithfulness must be finite in [0, 1]"
+    ]
+    assert failures == ["RAG evaluation failed during scoring."]
 
 
 @pytest.mark.asyncio

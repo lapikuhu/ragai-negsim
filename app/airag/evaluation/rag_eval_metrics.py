@@ -23,6 +23,8 @@ RAGAS_METRIC_NAMES = (
     "context_recall",
     "answer_correctness",
 )
+# Fixes floating-point errors
+_SCORE_BOUND_TOLERANCE = 1e-12
 
 
 @dataclass(frozen=True)
@@ -128,9 +130,14 @@ def _validated_score(name: str, value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"Metric {name} must be numeric")
     score = float(value)
-    if not math.isfinite(score) or not 0.0 <= score <= 1.0:
+    # Hot-fix for floating-point errors: allow a small tolerance outside [0, 1]
+    if (
+        not math.isfinite(score)
+        or score < -_SCORE_BOUND_TOLERANCE
+        or score > 1.0 + _SCORE_BOUND_TOLERANCE
+    ):
         raise ValueError(f"Metric {name} must be finite and in [0, 1]")
-    return score
+    return min(1.0, max(0.0, score))
 
 
 def _validated_ragas_scores(scores: Mapping[str, Any]) -> dict[str, float]:
@@ -179,14 +186,14 @@ class PipelineResultScorer:
             raise ValueError("Metric k must be a positive integer")
 
         scored_rows: list[ScoredPipelineQueryResult] = []
-        for result in evaluation.results:
+        total_queries = len(evaluation.results)
+        for ordinal, result in enumerate(evaluation.results, start=1):
             await check_cancellation(should_cancel)
-            ragas_scores = _validated_ragas_scores(
-                await self._ragas_evaluator.score_query(
-                    result,
-                    should_cancel=should_cancel,
-                )
+            raw_ragas_scores = await self._ragas_evaluator.score_query(
+                result,
+                should_cancel=should_cancel,
             )
+            ragas_scores = _validated_ragas_scores(raw_ragas_scores)
             await check_cancellation(should_cancel)
 
             if result.answerable:
@@ -237,6 +244,10 @@ class PipelineResultScorer:
                     false_positive_context=false_positive_context,
                     **ragas_scores,
                 )
+            )
+            print(
+                f"[rag-eval] query completed evaluation={result.evaluation_id} "
+                f"ordinal={ordinal}/{total_queries}"
             )
 
         overall, categories = aggregate_scored_results(scored_rows)
