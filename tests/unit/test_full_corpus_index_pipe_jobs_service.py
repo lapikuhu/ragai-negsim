@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.schemas.indexing_jobs_schemas import IndexingJobCreate
-from app.services import indexing_jobs_service
+from app.schemas.full_corpus_index_pipe_jobs_schemas import FullCorpusIndexPipeJobCreate
+from app.services import full_corpus_index_pipe_job
 
 
 def _job(**overrides):
@@ -66,7 +66,7 @@ async def test_queue_job_allows_same_configuration_with_different_name(monkeypat
     async def fake_has_knowledge_graphs(index_id, session):
         raise AssertionError("knowledge graph guards should not run for parallel index creation")
 
-    async def fake_create_indexing_job(job_in, session):
+    async def fake_create_full_corpus_index_pipe_job(job_in, session):
         return _job(
             corpus_id=job_in.corpus_id,
             chunking_profile_id=job_in.chunking_profile_id,
@@ -81,20 +81,20 @@ async def test_queue_job_allows_same_configuration_with_different_name(monkeypat
             setattr(job, key, value)
         return job
 
-    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
-    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
-    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
-    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_vector_namespace", fake_get_corpus_index_by_vector_namespace)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_replaceable_built_index", fake_get_replaceable_built_index)
-    monkeypatch.setattr(indexing_jobs_service, "_has_non_terminal_simulations_for_index", fake_has_non_terminal)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "has_knowledge_graphs", fake_has_knowledge_graphs)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "create_indexing_job", fake_create_indexing_job)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "update_indexing_job_progress", fake_update_progress)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(full_corpus_index_pipe_job.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "get_corpus_index_by_vector_namespace", fake_get_corpus_index_by_vector_namespace)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "get_replaceable_built_index", fake_get_replaceable_built_index)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_has_non_terminal_simulations_for_index", fake_has_non_terminal)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "has_knowledge_graphs", fake_has_knowledge_graphs)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "create_full_corpus_index_pipe_job", fake_create_full_corpus_index_pipe_job)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "update_full_corpus_index_pipe_job_progress", fake_update_progress)
 
-    queued = await indexing_jobs_service.queue_indexing_job_srvc(
-        IndexingJobCreate(
+    queued = await full_corpus_index_pipe_job.queue_full_corpus_index_pipe_job_srvc(
+        FullCorpusIndexPipeJobCreate(
             corpus_id=1,
             chunking_profile_id=2,
             vector_store_id=3,
@@ -126,19 +126,19 @@ async def test_queue_job_rejects_duplicate_index_name(monkeypatch):
     async def fake_get_corpus_index_by_name(name, session):
         return SimpleNamespace(id=77)
 
-    async def fake_create_indexing_job(job_in, session):
+    async def fake_create_full_corpus_index_pipe_job(job_in, session):
         raise AssertionError("duplicate index names should fail before job creation")
 
-    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
-    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
-    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
-    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "create_indexing_job", fake_create_indexing_job)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(full_corpus_index_pipe_job.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "create_full_corpus_index_pipe_job", fake_create_full_corpus_index_pipe_job)
 
     with pytest.raises(ValueError, match="Corpus index name already exists"):
-        await indexing_jobs_service.queue_indexing_job_srvc(
-            IndexingJobCreate(
+        await full_corpus_index_pipe_job.queue_full_corpus_index_pipe_job_srvc(
+            FullCorpusIndexPipeJobCreate(
                 corpus_id=1,
                 chunking_profile_id=2,
                 vector_store_id=3,
@@ -169,20 +169,20 @@ async def test_queue_job_rejects_duplicate_vector_namespace(monkeypatch):
     async def fake_get_corpus_index_by_vector_namespace(**kwargs):
         return SimpleNamespace(id=77, vector_store_id=kwargs["vector_store_id"])
 
-    async def fake_create_indexing_job(job_in, session):
+    async def fake_create_full_corpus_index_pipe_job(job_in, session):
         raise AssertionError("duplicate vector namespaces should fail before job creation")
 
-    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
-    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
-    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
-    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_vector_namespace", fake_get_corpus_index_by_vector_namespace)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "create_indexing_job", fake_create_indexing_job)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(full_corpus_index_pipe_job.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_repo, "get_corpus_raw_document_ids", fake_get_corpus_raw_document_ids)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "get_corpus_index_by_name", fake_get_corpus_index_by_name)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "get_corpus_index_by_vector_namespace", fake_get_corpus_index_by_vector_namespace)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "create_full_corpus_index_pipe_job", fake_create_full_corpus_index_pipe_job)
 
     with pytest.raises(ValueError, match="Vector namespace already exists for this vector store"):
-        await indexing_jobs_service.queue_indexing_job_srvc(
-            IndexingJobCreate(
+        await full_corpus_index_pipe_job.queue_full_corpus_index_pipe_job_srvc(
+            FullCorpusIndexPipeJobCreate(
                 corpus_id=1,
                 chunking_profile_id=2,
                 vector_store_id=3,
@@ -207,10 +207,10 @@ async def test_activate_candidate_index_does_not_infer_replacement(monkeypatch):
         kwargs["candidate_index"].name = kwargs["requested_name"]
         return kwargs["candidate_index"], None
 
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_replaceable_built_index", fake_get_replaceable_built_index)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "activate_candidate_index", fake_activate_candidate_index)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "get_replaceable_built_index", fake_get_replaceable_built_index)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "activate_candidate_index", fake_activate_candidate_index)
 
-    result = await indexing_jobs_service._activate_candidate_index(job, candidate_index, object())
+    result = await full_corpus_index_pipe_job._activate_candidate_index(job, candidate_index, object())
 
     assert result.candidate_corpus_index_id == 88
     assert result.replaced_corpus_index_id is None
@@ -228,13 +228,13 @@ async def test_queue_job_rejects_when_vector_store_dimensions_are_unset(monkeypa
     async def fake_get_store(store_id, session):
         return SimpleNamespace(id=store_id, embedding_dimensions=None)
 
-    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
-    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
-    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(full_corpus_index_pipe_job.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
 
     with pytest.raises(ValueError, match="Vector store dimensions are not set"):
-        await indexing_jobs_service.queue_indexing_job_srvc(
-            IndexingJobCreate(
+        await full_corpus_index_pipe_job.queue_full_corpus_index_pipe_job_srvc(
+            FullCorpusIndexPipeJobCreate(
                 corpus_id=1,
                 chunking_profile_id=2,
                 vector_store_id=3,
@@ -256,13 +256,13 @@ async def test_queue_job_rejects_when_vector_store_dimensions_mismatch(monkeypat
     async def fake_get_store(store_id, session):
         return SimpleNamespace(id=store_id, embedding_dimensions=1536)
 
-    monkeypatch.setattr(indexing_jobs_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
-    monkeypatch.setattr(indexing_jobs_service.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
-    monkeypatch.setattr(indexing_jobs_service.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.chunking_profiles_repo, "get_chunking_profile_by_id", fake_get_profile)
+    monkeypatch.setattr(full_corpus_index_pipe_job.vector_stores_repo, "get_vector_store_by_id", fake_get_store)
 
     with pytest.raises(ValueError, match=r"Embedding model dimensions \(384\) do not match vector store dimensions \(1536\)"):
-        await indexing_jobs_service.queue_indexing_job_srvc(
-            IndexingJobCreate(
+        await full_corpus_index_pipe_job.queue_full_corpus_index_pipe_job_srvc(
+            FullCorpusIndexPipeJobCreate(
                 corpus_id=1,
                 chunking_profile_id=2,
                 vector_store_id=3,
@@ -311,21 +311,21 @@ async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypat
         job.candidate_corpus_index_id = kwargs["candidate_corpus_index_id"]
         return job
 
-    async def fake_list_warnings(indexing_job_id, session):
+    async def fake_list_warnings(full_corpus_index_pipe_job_id, session):
         return captured_warnings
 
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_running", fake_mark_running)
-    monkeypatch.setattr(indexing_jobs_service, "_create_candidate_index", fake_create_candidate)
-    monkeypatch.setattr(indexing_jobs_service, "_process_documents", fake_process_documents)
-    monkeypatch.setattr(indexing_jobs_service, "_embed_candidate", fake_embed_candidate)
-    monkeypatch.setattr(indexing_jobs_service, "_activate_candidate_index", fake_activate)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_completed", fake_complete)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "list_indexing_job_warnings", fake_list_warnings)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "get_full_corpus_index_pipe_job_by_id", fake_get_job_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "mark_full_corpus_index_pipe_job_running", fake_mark_running)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_create_candidate_index", fake_create_candidate)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_process_documents", fake_process_documents)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_embed_candidate", fake_embed_candidate)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_activate_candidate_index", fake_activate)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "mark_full_corpus_index_pipe_job_completed", fake_complete)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "list_full_corpus_index_pipe_job_warnings", fake_list_warnings)
 
-    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", recording_async_session_factory)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "AsyncSessionLocal", recording_async_session_factory)
 
-    result = await indexing_jobs_service.run_indexing_job_srvc(job_id=9)
+    result = await full_corpus_index_pipe_job.run_full_corpus_index_pipe_job_srvc(job_id=9)
 
     assert result.status == "completed_with_warnings"
     assert result.candidate_corpus_index_id == 88
@@ -333,7 +333,7 @@ async def test_run_job_completes_with_warnings_when_one_pdf_is_skipped(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_cancel_queued_indexing_job_requests_cancel_and_marks_job_cancelled(monkeypatch):
+async def test_cancel_queued_full_corpus_index_pipe_job_requests_cancel_and_marks_job_cancelled(monkeypatch):
     job = _job(status="queued", stage="validating", candidate_corpus_index_id=88)
     candidate_index = SimpleNamespace(id=88, status="building")
     captured = []
@@ -362,19 +362,19 @@ async def test_cancel_queued_indexing_job_requests_cancel_and_marks_job_cancelle
     async def fake_read_job_detail(current_job, session):
         return current_job
 
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "request_indexing_job_cancel", fake_request_cancel)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "get_corpus_index_by_id", fake_get_candidate_index_by_id)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_cancelled", fake_mark_cancelled)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "mark_corpus_index_cancelled", fake_mark_index_cancelled)
-    monkeypatch.setattr(indexing_jobs_service, "_read_job_detail", fake_read_job_detail)
-    monkeypatch.setattr(indexing_jobs_service, "_cancel_live_indexing_task", lambda job_id: False)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "get_full_corpus_index_pipe_job_by_id", fake_get_job_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "request_full_corpus_index_pipe_job_cancel", fake_request_cancel)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "get_corpus_index_by_id", fake_get_candidate_index_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "mark_full_corpus_index_pipe_job_cancelled", fake_mark_cancelled)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "mark_corpus_index_cancelled", fake_mark_index_cancelled)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_read_job_detail", fake_read_job_detail)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_cancel_live_full_corpus_index_pipe_task", lambda job_id: False)
 
-    result = await indexing_jobs_service.cancel_indexing_job_srvc(9, object())
+    result = await full_corpus_index_pipe_job.cancel_full_corpus_index_pipe_job_srvc(9, object())
 
     assert result.status == "cancelled"
     assert result.cancel_requested is True
-    assert captured == [(88, "Indexing job cancelled by user")]
+    assert captured == [(88, "Full corpus index pipe job cancelled by user")]
 
 
 @pytest.mark.asyncio
@@ -411,17 +411,17 @@ async def test_run_job_marks_cancelled_when_task_is_cancelled(monkeypatch, recor
     async def fake_read_job_detail(current_job, session):
         return current_job
 
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_running", fake_mark_running)
-    monkeypatch.setattr(indexing_jobs_service, "_create_candidate_index", fake_create_candidate)
-    monkeypatch.setattr(indexing_jobs_service, "_process_documents", fake_process_documents)
-    monkeypatch.setattr(indexing_jobs_service, "_fail_job_and_candidate", fake_fail)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_cancelled", fake_cancel_job)
-    monkeypatch.setattr(indexing_jobs_service.corpus_indices_repo, "mark_corpus_index_cancelled", fake_cancel_index)
-    monkeypatch.setattr(indexing_jobs_service, "_read_job_detail", fake_read_job_detail)
-    monkeypatch.setattr(indexing_jobs_service, "AsyncSessionLocal", recording_async_session_factory)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "get_full_corpus_index_pipe_job_by_id", fake_get_job_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "mark_full_corpus_index_pipe_job_running", fake_mark_running)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_create_candidate_index", fake_create_candidate)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_process_documents", fake_process_documents)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_fail_job_and_candidate", fake_fail)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "mark_full_corpus_index_pipe_job_cancelled", fake_cancel_job)
+    monkeypatch.setattr(full_corpus_index_pipe_job.corpus_indices_repo, "mark_corpus_index_cancelled", fake_cancel_index)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_read_job_detail", fake_read_job_detail)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "AsyncSessionLocal", recording_async_session_factory)
 
-    result = await indexing_jobs_service.run_indexing_job_srvc(job_id=9)
+    result = await full_corpus_index_pipe_job.run_full_corpus_index_pipe_job_srvc(job_id=9)
 
     assert result.status == "cancelled"
 
@@ -445,13 +445,13 @@ async def test_cancel_running_job_returns_cancellation_requested_state(monkeypat
 
     cancel_calls = []
 
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "get_indexing_job_by_id", fake_get_job_by_id)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "request_indexing_job_cancel", fake_request_cancel)
-    monkeypatch.setattr(indexing_jobs_service.indexing_jobs_repo, "mark_indexing_job_cancelled", fake_mark_cancelled)
-    monkeypatch.setattr(indexing_jobs_service, "_read_job_detail", fake_read_job_detail)
-    monkeypatch.setattr(indexing_jobs_service, "_cancel_live_indexing_task", lambda job_id: cancel_calls.append(job_id) or True)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "get_full_corpus_index_pipe_job_by_id", fake_get_job_by_id)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "request_full_corpus_index_pipe_job_cancel", fake_request_cancel)
+    monkeypatch.setattr(full_corpus_index_pipe_job.full_corpus_index_pipe_jobs_repo, "mark_full_corpus_index_pipe_job_cancelled", fake_mark_cancelled)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_read_job_detail", fake_read_job_detail)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_cancel_live_full_corpus_index_pipe_task", lambda job_id: cancel_calls.append(job_id) or True)
 
-    result = await indexing_jobs_service.cancel_indexing_job_srvc(9, object())
+    result = await full_corpus_index_pipe_job.cancel_full_corpus_index_pipe_job_srvc(9, object())
 
     assert result.status == "running"
     assert result.cancel_requested is True

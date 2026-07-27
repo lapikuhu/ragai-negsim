@@ -48,7 +48,7 @@ describe("DocumentChunksPage", () => {
             chunking_profile_name: "Recursive 1k",
             chunking_strategy: "recursive",
             chunk_index: 2,
-            indexing_job_id: 77,
+            full_corpus_index_pipe_job_id: 77,
             content,
             chunk_metadata: { page: 4 },
             corpus_index_ids: [9, 10],

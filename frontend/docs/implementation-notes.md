@@ -25,7 +25,7 @@ OpenAPI-backed route groups discovered from `frontend/openapi.json` and current 
 - `corpora`
 - `corpus-indices`
 - `document-chunks`
-- `indexing-jobs`
+- `full-corpus-index-pipe-jobs`
 - `prompts`
 - `counterpart-personas`
 - `embeddings`
@@ -74,7 +74,7 @@ Implemented admin pages:
 - `/chunking-profiles`
 - `/rag-profiles`
 - `/knowledge-graphs`
-- `/indexing`
+- `/full-corpus-index-pipe-jobs`
 - `/vector-stores`
 - `/models`
 - `/users`
@@ -134,7 +134,7 @@ Implemented directly against real endpoints:
 - document chunk inspection with filters
 - corpus list, create, ingest, chunk, and legacy queued embed jobs
 - corpus index list, detail, status, copy, update, and indexed-chunk inspection
-- central indexing job queue, active-job polling, job detail polling, and cancellation
+- central full corpus index pipe job queue, active-job polling, job detail polling, and cancellation
 - prompt list/create/update/copy/delete
 - scenario list/create/generate/update/copy/delete
 - persona list/create/update/generate/delete
@@ -149,7 +149,7 @@ Composed or derived frontend views:
 - dashboard composes simulations, raw documents, and sessions from existing list endpoints while tolerating role-based `401`/`403` responses
 - corpus detail resolves display data from the corpus list and related corpus indices
 - evaluations page uses simulation review and completed-simulation resources
-- legacy corpus embed-job queueing returns a corpus-index polling URL, while the richer job monitor exists under the newer `/indexing-jobs` workflow
+- legacy corpus embed-job queueing returns a corpus-index polling URL, while the richer job monitor exists under the newer `/full-corpus-index-pipe-jobs` workflow
 
 ## 7. Role-gated routes and UI actions
 
@@ -162,7 +162,7 @@ Observed backend dependency behavior and current UI routing:
 - `chunking-profiles`: admin
 - `rag-profiles`: admin for mutations, authenticated users for readable profiles where the backend allows it
 - `document-chunks`: admin
-- `indexing-jobs`: admin
+- `full-corpus-index-pipe-jobs`: admin
 - `knowledge-graph-indexes` and `knowledge-graph-build-jobs`: admin
 - `corpora`: teacher or admin for writes
 - `raw-documents`: teacher or admin for create and write actions
@@ -182,7 +182,7 @@ UI label mapping:
 - `counterpart-personas` -> `Personas`
 - `corpus-indices` -> `Corpus Indices`
 - `document-chunks` -> `Document Chunks`
-- `indexing-jobs` -> `Indexing`
+- `full-corpus-index-pipe-jobs` -> `Full Corpus Index Pipe`
 - `vector-stores` -> `Vector Stores`
 - `chunking-profiles` -> `Chunking Profiles`
 - `rag-profiles` -> `RAG Profiles`

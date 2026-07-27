@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IndexingPage } from "./IndexingPage";
+import { FullCorpusIndexPipeJobsPage } from "./FullCorpusIndexPipeJobsPage";
 
 const queryState = vi.hoisted(() => ({
   activeJob: null as any,
@@ -45,36 +45,36 @@ vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
   }),
 }));
 
-vi.mock("@/features/indexing/indexingQueries", () => ({
-  useActiveIndexingJobQuery: () => ({
+vi.mock("@/features/fullCorpusIndexPipeJobs/fullCorpusIndexPipeJobQueries", () => ({
+  useActiveFullCorpusIndexPipeJobQuery: () => ({
     isLoading: false,
     isError: false,
     data: queryState.activeJob,
     refetch: vi.fn()
   }),
-  useIndexingJobsQuery: () => ({
+  useFullCorpusIndexPipeJobsQuery: () => ({
     isLoading: false,
     isError: false,
     data: queryState.jobs,
     refetch: vi.fn()
   }),
-  useIndexingJobDetailQuery: () => ({
+  useFullCorpusIndexPipeJobDetailQuery: () => ({
     isLoading: false,
     isError: false,
     data: queryState.selectedJobDetail,
     refetch: vi.fn()
   }),
-  useCreateIndexingJobMutation: () => ({
+  useCreateFullCorpusIndexPipeJobMutation: () => ({
     isPending: false,
     mutateAsync: vi.fn()
   }),
-  useCancelIndexingJobMutation: () => ({
+  useCancelFullCorpusIndexPipeJobMutation: () => ({
     isPending: false,
     mutateAsync: vi.fn()
   }),
 }));
 
-describe("IndexingPage", () => {
+describe("FullCorpusIndexPipeJobsPage", () => {
   beforeEach(() => {
     queryState.activeJob = null;
     queryState.selectedJobDetail = null;
@@ -111,7 +111,7 @@ describe("IndexingPage", () => {
       warnings: []
     };
 
-    render(<IndexingPage />);
+    render(<FullCorpusIndexPipeJobsPage />);
 
     expect(screen.getByText("active-index")).toBeInTheDocument();
     expect(screen.queryByText("historical-index")).not.toBeInTheDocument();
@@ -134,13 +134,13 @@ describe("IndexingPage", () => {
       warnings: []
     };
 
-    render(<IndexingPage />);
+    render(<FullCorpusIndexPipeJobsPage />);
 
     expect(screen.getByText("All documents ingested. Embedding chunks now.")).toBeInTheDocument();
   });
 
   it("keeps the Corpus dropdown aligned with the Chunking profile dropdown", () => {
-    render(<IndexingPage />);
+    render(<FullCorpusIndexPipeJobsPage />);
 
     const corpusField = screen.getByLabelText("Corpus").closest("label");
     const chunkingProfileField = screen.getByLabelText(/Chunking profile/).closest("label");

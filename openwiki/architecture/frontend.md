@@ -13,7 +13,7 @@ The router is organized into three main access tiers:
 - public login route
 - protected routes available to authenticated users
 - teacher/admin routes for review and scenario management
-- admin-only routes for sessions, prompts, chunking, retrieval, indexing, models, users, and graph management
+- admin-only routes for sessions, prompts, chunking, retrieval, full corpus index pipe jobs, models, users, and graph management
 
 This mirrors the backend's authorization model and makes the UI a useful map of the product surface.
 
@@ -26,7 +26,7 @@ This mirrors the backend's authorization model and makes the UI a useful map of 
 - `EvaluationsPage.tsx` and `EvaluationReviewPage.tsx` are used for teacher/admin review.
 - `RagEvaluationsPage.tsx` is the admin-only experiment console at `/rag-evaluations`. Admins can create, edit, delete, and enqueue complete CRAG or GraphRAG configurations, inspect each configuration's latest run and headline metrics, cancel active work, and open paginated run history. The page now keeps latest-run polling independent per visible configuration, uses the shared `formatRagEvalProgress()` helper for status text, and surfaces a queue-blocked warning when any running run is stuck in `cleanup_pending`.
 - `RagEvaluationRunPage.tsx` is the admin-only run detail at `/rag-evaluations/runs/:runId`. It shows configuration and resolved snapshots, overall and category metrics, and filterable per-query results with answers, scores, and rank-ordered final evidence chunks. The run detail also has a dedicated cleanup-pending warning and a failure banner when a run ends in `failed`, and it reuses the same progress formatter for scoring-stage messaging.
-- `KnowledgeGraphsPage.tsx`, `IndexingPage.tsx`, and `VectorStoresPage.tsx` support the retrieval infrastructure.
+- `KnowledgeGraphsPage.tsx`, `FullCorpusIndexPipeJobsPage.tsx`, and `VectorStoresPage.tsx` support the retrieval infrastructure.
 
 ## Data and API wiring
 The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows.

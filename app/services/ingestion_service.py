@@ -142,7 +142,7 @@ async def ingest_raw_document_srvc(
     chunking_profile: ChunkingProfile,
     session: AsyncSession,
     options: IngestionExecutionOptionsLike,
-    indexing_job_id: int | None = None,
+    full_corpus_index_pipe_job_id: int | None = None,
     embeddings: "Embeddings | None" = None,
     progress_callback: Callable[[str], Any] | None = None,
 ) -> RawDocumentIngestResult:
@@ -212,7 +212,7 @@ async def ingest_raw_document_srvc(
             DocumentChunkCreate(
                 raw_document_id=raw_document_id,
                 chunking_profile_id=chunking_profile_id,
-                indexing_job_id=indexing_job_id,
+                full_corpus_index_pipe_job_id=full_corpus_index_pipe_job_id,
                 chunk_index=chunk_index,
                 content=chunk.page_content,
                 chunk_metadata=chunk_metadata,

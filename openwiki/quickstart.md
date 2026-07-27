@@ -34,7 +34,7 @@ Simulations are the core product object. They combine scenario data, counterpart
 Admins manage complete, FK-free evaluation configurations at `/rag-eval-configurations/` and create, enqueue, or inspect persistent runs through `/rag-eval-runs/`. `POST /rag-eval-runs/` accepts a `configuration_id` request body. A single application-owned FIFO coordinator executes one run at a time. The supported deployment for this in-process coordinator is one Uvicorn worker.
 
 ### Frontend application
-The React frontend mirrors backend domains with routes for simulations, documents, corpora, evaluations, knowledge graphs, indexing, and admin management.
+The React frontend mirrors backend domains with routes for simulations, documents, corpora, evaluations, knowledge graphs, the full corpus index pipe jobs workflow, and admin management.
 
 ## Repository layout
 - `app/` — backend application code

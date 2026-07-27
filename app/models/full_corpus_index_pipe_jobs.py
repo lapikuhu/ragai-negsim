@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from sqlalchemy import Column, DateTime as SQLAlchemyDateTime
 from sqlmodel import Field, Relationship, SQLModel
@@ -7,13 +7,15 @@ from sqlmodel import Field, Relationship, SQLModel
 if TYPE_CHECKING:
     from .corpus_indices import CorpusIndex
     from .document_chunks import DocumentChunk
-    from .indexing_job_warnings import IndexingJobWarning
+    from .full_corpus_index_pipe_job_warnings import FullCorpusIndexPipeJobWarning
     from .raw_documents import RawDocument
 
-# Model for tracking the progress and details of an indexing job.
-# Indexing jobs can take time, so we need to track them.
+# Model for tracking the progress and details of a full corpus index pipe job.
+# These jobs can take time, so we need to track them.
 
-class IndexingJob(SQLModel, table=True):
+class FullCorpusIndexPipeJob(SQLModel, table=True):
+    __tablename__: ClassVar[str] = "fullcorpusindexpipejob"
+
     id: int | None = Field(default=None, primary_key=True)
     corpus_id: int = Field(foreign_key="corpus.id", index=True)
     chunking_profile_id: int = Field(foreign_key="chunkingprofile.id")
@@ -47,10 +49,10 @@ class IndexingJob(SQLModel, table=True):
     failure_detail: str | None = None
     current_raw_document: "RawDocument" = Relationship()
     candidate_corpus_index: "CorpusIndex" = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[IndexingJob.candidate_corpus_index_id]"}
+        sa_relationship_kwargs={"foreign_keys": "[FullCorpusIndexPipeJob.candidate_corpus_index_id]"}
     )
     replaced_corpus_index: "CorpusIndex" = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[IndexingJob.replaced_corpus_index_id]"}
+        sa_relationship_kwargs={"foreign_keys": "[FullCorpusIndexPipeJob.replaced_corpus_index_id]"}
     )
-    document_chunks: list["DocumentChunk"] = Relationship(back_populates="indexing_job")
-    warnings: list["IndexingJobWarning"] = Relationship(back_populates="indexing_job")
+    document_chunks: list["DocumentChunk"] = Relationship(back_populates="full_corpus_index_pipe_job")
+    warnings: list["FullCorpusIndexPipeJobWarning"] = Relationship(back_populates="full_corpus_index_pipe_job")

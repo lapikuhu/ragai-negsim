@@ -13,7 +13,7 @@ def _chunk(chunk_id=5):
         raw_document=SimpleNamespace(id=11, name="Negotiation PDF"),
         chunking_profile_id=3,
         chunking_profile=SimpleNamespace(id=3, name="Recursive 1k", strategy="recursive"),
-        indexing_job_id=77,
+        full_corpus_index_pipe_job_id=77,
         chunk_index=2,
         content="secret chunk body",
         chunk_metadata={"page": 4},

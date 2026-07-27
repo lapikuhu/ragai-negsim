@@ -2,7 +2,7 @@ import pytest
 
 from app import main
 from app.services import (
-    indexing_jobs_service,
+    full_corpus_index_pipe_job,
     knowledge_graph_builds_service,
     rag_eval_service,
 )
@@ -29,8 +29,8 @@ async def test_lifespan_recovers_indexing_and_knowledge_graph_jobs(monkeypatch):
 
     monkeypatch.setattr(main, "startup_seed", fake_startup_seed)
     monkeypatch.setattr(
-        indexing_jobs_service,
-        "fail_interrupted_indexing_jobs_srvc",
+        full_corpus_index_pipe_job,
+        "fail_interrupted_full_corpus_index_pipe_jobs_srvc",
         fake_recover_indexing,
     )
     monkeypatch.setattr(

@@ -10,7 +10,7 @@ from app.web.routes.corpus_indices_route import router as corpus_indices_router
 from app.web.routes.corpus_route import router as corpus_router
 from app.web.routes.document_chunks_route import router as document_chunks_router
 from app.web.routes.embeddings_route import router as embeddings_router
-from app.web.routes.indexing_jobs_route import router as indexing_jobs_router
+from app.web.routes.full_corpus_index_pipe_jobs_route import router as full_corpus_index_pipe_jobs_router
 from app.web.routes.knowledge_graph_build_jobs_route import router as knowledge_graph_build_jobs_router
 from app.web.routes.knowledge_graph_indices_route import router as knowledge_graph_indices_router
 from app.web.routes.llm_models_route import router as llm_models_router
@@ -34,13 +34,13 @@ from app.middleware.logging import RequestLoggingMiddleware
 # async context manager for lifespan allows us to run async code during startup and shutdown
 async def lifespan(app: FastAPI):
     await startup_seed() # setup: seed startup data after Alembic migrations
-    from app.services.indexing_jobs_service import fail_interrupted_indexing_jobs_srvc
+    from app.services.full_corpus_index_pipe_job import fail_interrupted_full_corpus_index_pipe_jobs_srvc
     from app.services.knowledge_graph_builds_service import (
         fail_interrupted_knowledge_graph_builds_srvc,
     )
-    # Fail any stalled indexing jobs and knowledge graph builds left 
+    # Fail any stalled full corpus index pipe jobs and knowledge graph builds left 
     # active by an application shutdown or restart
-    await fail_interrupted_indexing_jobs_srvc()
+    await fail_interrupted_full_corpus_index_pipe_jobs_srvc()
     await fail_interrupted_knowledge_graph_builds_srvc()
     from app.services.rag_eval_service import (
         shutdown_rag_eval_coordinator_srvc,
@@ -84,7 +84,7 @@ app.include_router(document_chunks_router)
 app.include_router(corpus_indices_router)
 app.include_router(corpus_router)
 app.include_router(embeddings_router)
-app.include_router(indexing_jobs_router)
+app.include_router(full_corpus_index_pipe_jobs_router)
 app.include_router(knowledge_graph_indices_router)
 app.include_router(knowledge_graph_build_jobs_router)
 app.include_router(llm_models_router)

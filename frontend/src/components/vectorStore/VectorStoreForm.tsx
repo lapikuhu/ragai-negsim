@@ -66,7 +66,7 @@ export function VectorStoreForm({
     : "Select the embedding model used to size this vector store.";
   const storedDimensionsHint = initialValue?.embedding_dimensions
     ? `Dimensions: ${initialValue.embedding_dimensions}`
-    : "Dimensions not set. This store cannot be used for new indexing jobs until dimensions are set.";
+    : "Dimensions not set. This store cannot be used for new full corpus index pipe jobs until dimensions are set.";
 
   return (
     <form

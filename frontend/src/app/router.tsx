@@ -21,7 +21,7 @@ import { RagProfilesPage } from "@/pages/RagProfilesPage";
 import { EvaluationsPage } from "@/pages/EvaluationsPage";
 import { EvaluationReviewPage } from "@/pages/EvaluationReviewPage";
 import { ModelsPage } from "@/pages/ModelsPage";
-import { IndexingPage } from "@/pages/IndexingPage";
+import { FullCorpusIndexPipeJobsPage } from "@/pages/FullCorpusIndexPipeJobsPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { VectorStoresPage } from "@/pages/VectorStoresPage";
 import { KnowledgeGraphsPage } from "@/pages/KnowledgeGraphsPage";
@@ -79,7 +79,7 @@ export const router = createBrowserRouter([
               { path: "chunking-profiles", element: <ChunkingProfilesPage /> },
               { path: "rag-profiles", element: <RagProfilesPage /> },
               { path: "knowledge-graphs", element: <KnowledgeGraphsPage /> },
-              { path: "indexing", element: <IndexingPage /> },
+              { path: "full-corpus-index-pipe-jobs", element: <FullCorpusIndexPipeJobsPage /> },
               { path: "vector-stores", element: <VectorStoresPage /> },
               { path: "models", element: <ModelsPage /> },
               { path: "users", element: <UsersPage /> },

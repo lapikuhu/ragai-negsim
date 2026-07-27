@@ -4,8 +4,8 @@ from . import corpus_indices
 from . import counterpart_personas
 from . import document_chunks
 from . import indexed_chunks
-from . import indexing_job_warnings
-from . import indexing_jobs
+from . import full_corpus_index_pipe_job_warnings
+from . import full_corpus_index_pipe_jobs
 from . import knowledge_graph_build_jobs
 from . import knowledge_graph_indices
 from . import prompts
@@ -27,8 +27,8 @@ __all__ = [
     "counterpart_personas",
     "document_chunks",
     "indexed_chunks",
-    "indexing_job_warnings",
-    "indexing_jobs",
+    "full_corpus_index_pipe_job_warnings",
+    "full_corpus_index_pipe_jobs",
     "knowledge_graph_build_jobs",
     "knowledge_graph_indices",
     "prompts",

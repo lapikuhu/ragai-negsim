@@ -100,11 +100,11 @@ async def test_ingest_raw_document_persists_parsed_chunks(monkeypatch):
     assert captured_chunks[0].chunking_profile_id == 3
     assert captured_chunks[0].chunk_metadata["section"] == "intro"
     assert captured_chunks[0].chunk_metadata["source"] == "sample.pdf"
-    assert captured_chunks[0].indexing_job_id is None
+    assert captured_chunks[0].full_corpus_index_pipe_job_id is None
 
 
 @pytest.mark.asyncio
-async def test_ingest_raw_document_sets_indexing_job_id_on_created_chunks(monkeypatch):
+async def test_ingest_raw_document_sets_full_corpus_index_pipe_job_id_on_created_chunks(monkeypatch):
     raw_document = SimpleNamespace(
         id=7,
         name="sample",
@@ -159,10 +159,10 @@ async def test_ingest_raw_document_sets_indexing_job_id_on_created_chunks(monkey
         chunking_profile=chunking_profile,
         session=object(),
         options=SimpleNamespace(header_depth=2, dynamic_header_depth=False),
-        indexing_job_id=44,
+        full_corpus_index_pipe_job_id=44,
     )
 
-    assert captured_chunks[0].indexing_job_id == 44
+    assert captured_chunks[0].full_corpus_index_pipe_job_id == 44
 
 
 @pytest.mark.asyncio

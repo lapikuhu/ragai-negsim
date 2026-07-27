@@ -606,15 +606,19 @@ docker compose down
 - Move developing to WSL.
 - Refactor god files.
 - For completeness implement the BM25 retriever, even though it is not appropriate for the nature of the project.
+- Add a deduplication layer in retrievers.
 - Decouple chunking from indexing, keep complete pipeline as a feature.
 - Expand prompt guard module.
-- Expand LLM provides coverage, only OpenAI and Ollama supported at the moment.
+- Expand LLM providers coverage, only OpenAI and Ollama supported at the moment.
 - Implement HippoRAG2 knowledge graphs (Unix-Linux only support).
 - Abstract RAG strategies: CRAG and GraphRAG cohabitate in a disjointed manner, a 3rd RAG option would further complicate things. Need abstraction for isolation and reusability.
 - Refactor project folder architecture to vertical slicing.
-- Move FastAPI background intensive indexing jobs to dedicated worker queues (Celerey, Dramatiq).
-- Improve performance of indexing jobs.
-- Manage short and long term memory concerns.
+- Move FastAPI background intensive full corpus index pipe jobs to dedicated worker queues (Celerey, Dramatiq).
+- Improve performance of full corpus index pipe jobs.
+- Manage short and long term memory concerns during negotiations.
+- Manage user-profile memory.
+- Release development locks for db artifacts (indices, RAG profiles, etc.) and add warnings on delete operations, and failures for missing objects during ops.
+- Include basic db management tools
 
 ## License
 MIT. See [LICENSE.md](LICENSE.md) for more info.

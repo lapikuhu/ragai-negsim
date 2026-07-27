@@ -16,12 +16,12 @@ import {
 } from "@/features/corpusIndices/corpusIndexQueries";
 import { useCorporaQuery } from "@/features/corpora/corpusQueries";
 import {
-  useActiveIndexingJobQuery,
-  useCancelIndexingJobMutation,
-  useCreateIndexingJobMutation,
-  useIndexingJobDetailQuery,
-  useIndexingJobsQuery
-} from "@/features/indexing/indexingQueries";
+  useActiveFullCorpusIndexPipeJobQuery,
+  useCancelFullCorpusIndexPipeJobMutation,
+  useCreateFullCorpusIndexPipeJobMutation,
+  useFullCorpusIndexPipeJobDetailQuery,
+  useFullCorpusIndexPipeJobsQuery
+} from "@/features/fullCorpusIndexPipeJobs/fullCorpusIndexPipeJobQueries";
 
 function formatElapsed(queuedAt?: string, completedAt?: string | null) {
   if (!queuedAt) {
@@ -35,17 +35,17 @@ function formatElapsed(queuedAt?: string, completedAt?: string | null) {
   return `${minutes}m ${seconds}s`;
 }
 
-export function IndexingPage() {
+export function FullCorpusIndexPipeJobsPage() {
   const corpora = useCorporaQuery();
   const profiles = useChunkingProfilesQuery();
   const vectorStores = useVectorStoresQuery();
   const models = useEmbeddingModelsQuery();
   const indices = useCorpusIndicesQuery();
-  const activeJob = useActiveIndexingJobQuery();
+  const activeJob = useActiveFullCorpusIndexPipeJobQuery();
   const hasActiveJob = activeJob.data?.status === "queued" || activeJob.data?.status === "running";
-  const jobs = useIndexingJobsQuery(hasActiveJob);
-  const createMutation = useCreateIndexingJobMutation();
-  const cancelMutation = useCancelIndexingJobMutation();
+  const jobs = useFullCorpusIndexPipeJobsQuery(hasActiveJob);
+  const createMutation = useCreateFullCorpusIndexPipeJobMutation();
+  const cancelMutation = useCancelFullCorpusIndexPipeJobMutation();
 
   const [corpusId, setCorpusId] = useState("");
   const [profileId, setProfileId] = useState("");
@@ -57,7 +57,7 @@ export function IndexingPage() {
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
   const selectedDetailId = activeJob.data?.id ?? selectedJobId ?? null;
-  const jobDetail = useIndexingJobDetailQuery(selectedDetailId);
+  const jobDetail = useFullCorpusIndexPipeJobDetailQuery(selectedDetailId);
 
   useEffect(() => {
     if (activeJob.data?.id) {
@@ -89,7 +89,7 @@ export function IndexingPage() {
     jobs.isLoading ||
     indices.isLoading
   ) {
-    return <LoadingState label="Loading indexing management..." />;
+    return <LoadingState label="Loading full corpus index pipe jobs..." />;
   }
 
   if (
@@ -109,7 +109,7 @@ export function IndexingPage() {
           models.error?.message ??
           jobs.error?.message ??
           indices.error?.message ??
-          "Unable to load indexing management."
+          "Unable to load full corpus index pipe jobs."
         }
         onRetry={() => {
           void corpora.refetch();
@@ -133,18 +133,18 @@ export function IndexingPage() {
   return (
     <div className="grid gap-6">
       <PageHeader
-        title="Indexing"
+        title="Full Corpus Index Pipe"
         description="Run the full PDF-to-index pipeline for a corpus and monitor the resulting background job from one place."
       />
 
       <Card className="border-amber-200 bg-amber-50/80">
         <h2 className="text-lg font-semibold text-amber-950">Important</h2>
         <p className="mt-2 text-sm text-amber-900">
-          Only one indexing job can run at a time. Do not shut down or restart the app while a job is queued or running,
+          Only one full corpus index pipe job can run at a time. Do not shut down or restart the app while a job is queued or running,
           because FastAPI background tasks do not survive application shutdown.
         </p>
         <p className="mt-2 text-sm text-amber-900">
-          Cancelling an indexing job stops future work and leaves any partial build artifacts in place, but cancelled candidate
+          Cancelling a full corpus index pipe job stops future work and leaves any partial build artifacts in place, but cancelled candidate
           indexes are not activated for normal use.
         </p>
         <p className="mt-2 text-sm text-amber-900">
@@ -156,7 +156,7 @@ export function IndexingPage() {
       <Card>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">Queue indexing job</h2>
+            <h2 className="text-lg font-semibold text-slate-950">Queue full corpus index pipe job</h2>
             <p className="mt-1 text-sm text-slate-600">
               Select a corpus, chunking profile, embedding model, vector store, and the human-readable name for the resulting index.
             </p>
@@ -257,7 +257,7 @@ export function IndexingPage() {
                   status: "queued",
                   stage: "validating"
                 });
-                setMessage(`Queued indexing job #${queued.id}. Keep this application running until the job finishes.`);
+                setMessage(`Queued full corpus index pipe job #${queued.id}. Keep this application running until the job finishes.`);
                 setSelectedJobId(queued.id);
               } catch (error) {
                 setMessage(getErrorMessage(error));
@@ -284,16 +284,16 @@ export function IndexingPage() {
                   try {
                     const cancelled = await cancelMutation.mutateAsync(detail.id);
                     if (cancelled.status === "cancelled") {
-                      setMessage(`Cancelled indexing job #${detail.id}. You can queue a new job now.`);
+                      setMessage(`Cancelled full corpus index pipe job #${detail.id}. You can queue a new job now.`);
                     } else {
-                      setMessage(`Cancellation requested for indexing job #${detail.id}. The current step will finish before the job stops.`);
+                      setMessage(`Cancellation requested for full corpus index pipe job #${detail.id}. The current step will finish before the job stops.`);
                     }
                   } catch (error) {
                     setMessage(getErrorMessage(error));
                   }
                 }}
               >
-                {cancelMutation.isPending ? "Cancelling..." : "Cancel indexing job"}
+                {cancelMutation.isPending ? "Cancelling..." : "Cancel full corpus index pipe job"}
               </Button>
             ) : null}
           </div>
@@ -378,7 +378,7 @@ export function IndexingPage() {
               </div>
             </div>
           ) : (
-            <p className="mt-4 text-sm text-slate-600">No indexing job is selected. Queue a job or pick one from the history panel.</p>
+            <p className="mt-4 text-sm text-slate-600">No full corpus index pipe job is selected. Queue a job or pick one from the history panel.</p>
           )}
         </Card>
 
@@ -405,7 +405,7 @@ export function IndexingPage() {
                 </button>
               ))
             ) : (
-              <p className="text-sm text-slate-600">No indexing jobs have been recorded yet.</p>
+              <p className="text-sm text-slate-600">No full corpus index pipe jobs have been recorded yet.</p>
             )}
           </div>
         </Card>

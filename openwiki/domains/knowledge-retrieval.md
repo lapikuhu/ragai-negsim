@@ -20,7 +20,10 @@ This is a central business domain because the simulator is meant to be grounded 
 - `app/web/routes/rag_profiles_route.py`
 - `app/web/routes/knowledge_graph_indices_route.py`
 - `app/web/routes/knowledge_graph_build_jobs_route.py`
+- `app/web/routes/full_corpus_index_pipe_jobs_route.py`
 - `app/web/routes/vector_stores_route.py`
+
+`full_corpus_index_pipe_jobs` is the current canonical name for the background indexing pipeline that used to live under the indexing-jobs model/service names. The rename is reflected in the migration history and the admin UI route, so future changes should use the new terminology consistently.
 
 ## Document flow
 1. A raw document is uploaded through the raw-documents API.

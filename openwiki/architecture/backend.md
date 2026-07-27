@@ -4,7 +4,7 @@ The backend is a FastAPI application organized around a conventional route → s
 
 ## Core application wiring
 - `app/main.py` creates the FastAPI app, configures CORS, registers request logging middleware, and includes the route modules.
-- Startup uses a lifespan handler to seed base data and mark interrupted indexing jobs as failed.
+- Startup uses a lifespan handler to seed base data and mark interrupted full corpus index pipe jobs as failed.
 - `app/core/config.py` loads settings from `.env` and also configures LangSmith environment variables when tracing is enabled.
 - `app/core/dependencies.py` centralizes session, authentication, role checks, pagination, and resource-loading dependencies.
 

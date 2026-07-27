@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from app.schemas.indexing_jobs_schemas import IndexingJobDetail, IndexingJobQueued
-from app.web.routes import indexing_jobs_route
+from app.schemas.full_corpus_index_pipe_jobs_schemas import FullCorpusIndexPipeJobDetail, FullCorpusIndexPipeJobQueued
+from app.web.routes import full_corpus_index_pipe_jobs_route
 
 
 def _queued_job(**overrides):
@@ -30,16 +30,16 @@ def _queued_job(**overrides):
         "failure_detail": None,
     }
     values.update(overrides)
-    return IndexingJobQueued(**values)
+    return FullCorpusIndexPipeJobQueued(**values)
 
 
 def _job_detail(**overrides):
     values = _queued_job(**overrides).model_dump()
     values.setdefault("warnings", [])
-    return IndexingJobDetail(**values)
+    return FullCorpusIndexPipeJobDetail(**values)
 
 
-def test_post_indexing_jobs_returns_202_and_starts_managed_task(
+def test_post_full_corpus_index_pipe_jobs_returns_202_and_starts_managed_task(
     monkeypatch,
     api_client,
     override_current_user,
@@ -64,15 +64,15 @@ def test_post_indexing_jobs_returns_202_and_starts_managed_task(
         started_jobs.append(job_id)
         return f"task-{job_id}"
 
-    monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "queue_indexing_job_srvc", fake_queue)
-    monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "start_indexing_job_task", fake_start)
+    monkeypatch.setattr(full_corpus_index_pipe_jobs_route.full_corpus_index_pipe_job, "queue_full_corpus_index_pipe_job_srvc", fake_queue)
+    monkeypatch.setattr(full_corpus_index_pipe_jobs_route.full_corpus_index_pipe_job, "start_full_corpus_index_pipe_job_task", fake_start)
 
     override_current_user(username="admin", roles=["admin"])
     session = override_session()
     allow_roles("admin")
 
     response = api_client.post(
-        "/indexing-jobs/",
+        "/full-corpus-index-pipe-jobs/",
         json={
             "corpus_id": 1,
             "chunking_profile_id": 2,
@@ -89,7 +89,7 @@ def test_post_indexing_jobs_returns_202_and_starts_managed_task(
     assert started_jobs == [77]
 
 
-def test_get_active_indexing_job_returns_204_when_none_running(
+def test_get_active_full_corpus_index_pipe_job_returns_204_when_none_running(
     monkeypatch,
     api_client,
     override_current_user,
@@ -102,20 +102,20 @@ def test_get_active_indexing_job_returns_204_when_none_running(
         captured["session"] = session
         return None
 
-    monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "get_active_indexing_job_srvc", fake_get_active)
+    monkeypatch.setattr(full_corpus_index_pipe_jobs_route.full_corpus_index_pipe_job, "get_active_full_corpus_index_pipe_job_srvc", fake_get_active)
 
     override_current_user(username="admin", roles=["admin"])
     session = override_session()
     allow_roles("admin")
 
-    response = api_client.get("/indexing-jobs/active")
+    response = api_client.get("/full-corpus-index-pipe-jobs/active")
 
     assert response.status_code == 204
     assert response.content == b""
     assert captured["session"] is session
 
 
-def test_cancel_indexing_job_returns_updated_job(
+def test_cancel_full_corpus_index_pipe_job_returns_updated_job(
     monkeypatch,
     api_client,
     override_current_user,
@@ -129,13 +129,13 @@ def test_cancel_indexing_job_returns_updated_job(
         captured["session"] = session
         return _job_detail(id=job_id, status="cancelled", stage="finished")
 
-    monkeypatch.setattr(indexing_jobs_route.indexing_jobs_service, "cancel_indexing_job_srvc", fake_cancel)
+    monkeypatch.setattr(full_corpus_index_pipe_jobs_route.full_corpus_index_pipe_job, "cancel_full_corpus_index_pipe_job_srvc", fake_cancel)
 
     override_current_user(username="admin", roles=["admin"])
     session = override_session()
     allow_roles("admin")
 
-    response = api_client.post("/indexing-jobs/44/cancel")
+    response = api_client.post("/full-corpus-index-pipe-jobs/44/cancel")
 
     assert response.status_code == 200
     assert response.json() == _job_detail(id=44, status="cancelled", stage="finished").model_dump(mode="json")

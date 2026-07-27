@@ -130,10 +130,10 @@ export type ScenarioContextGenerateRequest = components["schemas"]["ScenarioCont
 export type ScenarioContextGenerateResponse = components["schemas"]["ScenarioContextGenerateResponse"];
 export type CounterpartPersonaRead = components["schemas"]["CounterpartPersonaReadWithIds"];
 export type EmbeddingModelRead = components["schemas"]["EmbeddingModelRead"];
-export type IndexingJobCreate = components["schemas"]["IndexingJobCreate"];
-export type IndexingJobQueued = components["schemas"]["IndexingJobQueued"];
-export type IndexingJobDetail = components["schemas"]["IndexingJobDetail"];
-export type IndexingJobWarningRead = components["schemas"]["IndexingJobWarningRead"];
+export type FullCorpusIndexPipeJobCreate = components["schemas"]["FullCorpusIndexPipeJobCreate"];
+export type FullCorpusIndexPipeJobQueued = components["schemas"]["FullCorpusIndexPipeJobQueued"];
+export type FullCorpusIndexPipeJobDetail = components["schemas"]["FullCorpusIndexPipeJobDetail"];
+export type FullCorpusIndexPipeJobWarningRead = components["schemas"]["FullCorpusIndexPipeJobWarningRead"];
 
 export type ChunkerFieldDefinitionRead = {
   name: string;

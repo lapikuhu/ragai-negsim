@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-23T09:14:44.229Z",
+  "updatedAt": "2026-07-27T18:40:24.410Z",
   "command": "update",
-  "gitHead": "4c32f27d2c926f5f8bdd19541020113ac09d576c",
+  "gitHead": "eb85b249c4705cc0450238460359744200565c19",
   "model": "gpt-5.4-mini"
 }

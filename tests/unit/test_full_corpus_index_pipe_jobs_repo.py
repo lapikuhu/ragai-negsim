@@ -7,8 +7,8 @@ from app.models import counterpart_personas  # noqa: F401
 from app.models import corpus  # noqa: F401
 from app.models import corpus_indices  # noqa: F401
 from app.models.document_chunks import DocumentChunk
-from app.models import indexing_job_warnings  # noqa: F401
-from app.models.indexing_jobs import IndexingJob
+from app.models import full_corpus_index_pipe_job_warnings  # noqa: F401
+from app.models.full_corpus_index_pipe_jobs import FullCorpusIndexPipeJob
 from app.models import indexed_chunks  # noqa: F401
 from app.models import prompts  # noqa: F401
 from app.models import raw_documents  # noqa: F401
@@ -18,12 +18,12 @@ from app.models import simulations  # noqa: F401
 from app.models import user_roles  # noqa: F401
 from app.models import users  # noqa: F401
 from app.models import vector_stores  # noqa: F401
-from app.repositories import corpus_indices_repo, document_chunks_repo, indexing_jobs_repo
-from app.schemas.indexing_jobs_schemas import IndexingJobCreate
+from app.repositories import corpus_indices_repo, document_chunks_repo, full_corpus_index_pipe_jobs_repo
+from app.schemas.full_corpus_index_pipe_jobs_schemas import FullCorpusIndexPipeJobCreate
 
 
-def test_indexing_job_schema_tracks_candidate_and_replaced_index_ids():
-    job = IndexingJob(
+def test_full_corpus_index_pipe_job_schema_tracks_candidate_and_replaced_index_ids():
+    job = FullCorpusIndexPipeJob(
         corpus_id=1,
         chunking_profile_id=2,
         vector_store_id=3,
@@ -40,28 +40,28 @@ def test_indexing_job_schema_tracks_candidate_and_replaced_index_ids():
     assert job.processed_documents == 0
 
 
-def test_document_chunk_allows_nullable_indexing_job_id():
+def test_document_chunk_allows_nullable_full_corpus_index_pipe_job_id():
     chunk = DocumentChunk(
         raw_document_id=1,
         chunking_profile_id=2,
         chunk_index=0,
         content="hello",
-        indexing_job_id=None,
+        full_corpus_index_pipe_job_id=None,
     )
 
-    assert chunk.indexing_job_id is None
+    assert chunk.full_corpus_index_pipe_job_id is None
 
 
 @pytest.mark.asyncio
 async def test_create_active_job_conflicts_when_another_job_is_running(monkeypatch):
-    async def fake_get_active_indexing_job(session):
+    async def fake_get_active_full_corpus_index_pipe_job(session):
         return SimpleNamespace(id=7, status="running")
 
-    monkeypatch.setattr(indexing_jobs_repo, "get_active_indexing_job", fake_get_active_indexing_job)
+    monkeypatch.setattr(full_corpus_index_pipe_jobs_repo, "get_active_full_corpus_index_pipe_job", fake_get_active_full_corpus_index_pipe_job)
 
-    with pytest.raises(ValueError, match="Another indexing job is already active"):
-        await indexing_jobs_repo.create_indexing_job(
-            IndexingJobCreate(
+    with pytest.raises(ValueError, match="Another full corpus index pipe job is already active"):
+        await full_corpus_index_pipe_jobs_repo.create_full_corpus_index_pipe_job(
+            FullCorpusIndexPipeJobCreate(
                 corpus_id=1,
                 chunking_profile_id=2,
                 vector_store_id=3,
@@ -96,7 +96,7 @@ async def test_find_replaceable_index_matches_configuration_tuple():
 
 
 @pytest.mark.asyncio
-async def test_list_document_chunks_for_job_filters_by_indexing_job():
+async def test_list_document_chunks_for_job_filters_by_full_corpus_index_pipe_job():
     chunks = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
 
     class FakeResult:
@@ -113,7 +113,7 @@ async def test_list_document_chunks_for_job_filters_by_indexing_job():
 
 
 @pytest.mark.asyncio
-async def test_update_indexing_job_progress_can_clear_current_document_fields(monkeypatch):
+async def test_update_full_corpus_index_pipe_job_progress_can_clear_current_document_fields(monkeypatch):
     job = SimpleNamespace(
         stage="chunking",
         current_raw_document_id=7,
@@ -127,9 +127,9 @@ async def test_update_indexing_job_progress_can_clear_current_document_fields(mo
     async def fake_commit_and_refresh(session, updated_job):
         return updated_job
 
-    monkeypatch.setattr(indexing_jobs_repo, "commit_and_refresh", fake_commit_and_refresh)
+    monkeypatch.setattr(full_corpus_index_pipe_jobs_repo, "commit_and_refresh", fake_commit_and_refresh)
 
-    result = await indexing_jobs_repo.update_indexing_job_progress(
+    result = await full_corpus_index_pipe_jobs_repo.update_full_corpus_index_pipe_job_progress(
         job,
         object(),
         stage="embedding",

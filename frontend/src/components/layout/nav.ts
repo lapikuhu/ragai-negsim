@@ -25,7 +25,7 @@ export const navigationItems: NavItem[] = [
     roles: ["admin"]
   },
   { label: "Knowledge Graphs", to: "/knowledge-graphs", description: "Build and monitor Neo4j GraphRAG indexes", roles: ["admin"] },
-  { label: "Indexing", to: "/indexing", description: "Run and monitor full corpus indexing jobs", roles: ["admin"] },
+  { label: "Full Corpus Index Pipe", to: "/full-corpus-index-pipe-jobs", description: "Run and monitor full corpus index pipe jobs", roles: ["admin"] },
   { label: "Evaluations", to: "/evaluations", description: "Review outputs and feedback", roles: ["teacher", "admin"] },
   { label: "Vector Stores", to: "/vector-stores", description: "Admin vector store lifecycle management", roles: ["admin"] },
   { label: "Models", to: "/models", description: "Embedding models and supporting store overview", roles: ["admin"] },

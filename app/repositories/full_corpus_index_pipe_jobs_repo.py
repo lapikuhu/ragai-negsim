@@ -3,139 +3,139 @@ from datetime import datetime
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.indexing_job_warnings import IndexingJobWarning
-from app.models.indexing_jobs import IndexingJob
+from app.models.full_corpus_index_pipe_job_warnings import FullCorpusIndexPipeJobWarning
+from app.models.full_corpus_index_pipe_jobs import FullCorpusIndexPipeJob
 from app.repositories.helpers import commit_and_refresh, utc_now
-from app.schemas.indexing_jobs_schemas import IndexingJobCreate
+from app.schemas.full_corpus_index_pipe_jobs_schemas import FullCorpusIndexPipeJobCreate
 
 
-ACTIVE_INDEXING_JOB_STATUSES = {"queued", "running"}
-TERMINAL_INDEXING_JOB_STATUSES = {"completed", "completed_with_warnings", "failed", "cancelled"}
+ACTIVE_FULL_CORPUS_INDEX_PIPE_JOB_STATUSES = {"queued", "running"}
+TERMINAL_FULL_CORPUS_INDEX_PIPE_JOB_STATUSES = {"completed", "completed_with_warnings", "failed", "cancelled"}
 _UNSET = object()
 
 
-async def get_indexing_job_by_id(
+async def get_full_corpus_index_pipe_job_by_id(
     job_id: int,
     session: AsyncSession,
-) -> IndexingJob | None:
+) -> FullCorpusIndexPipeJob | None:
     """
-    Get an indexing job by its ID.
+    Get an full corpus index pipe job by its ID.
     Args:
-        job_id: The ID of the indexing job to retrieve.
+        job_id: The ID of the full corpus index pipe job to retrieve.
         session: The database session to use for the query.
     Returns:
-        The indexing job if found, otherwise None.
+        The full corpus index pipe job if found, otherwise None.
     """
-    return await session.get(IndexingJob, job_id)
+    return await session.get(FullCorpusIndexPipeJob, job_id)
 
 
-async def get_active_indexing_job(session: AsyncSession) -> IndexingJob | None:
+async def get_active_full_corpus_index_pipe_job(session: AsyncSession) -> FullCorpusIndexPipeJob | None:
     """
-    Get the currently active indexing job, if any.
+    Get the currently active full corpus index pipe job, if any.
     Args:
         session: The database session to use for the query.
     Returns:
-        The active indexing job if found, otherwise None.
+        The active full corpus index pipe job if found, otherwise None.
     """
     result = await session.exec(
-        select(IndexingJob)
-        .where(IndexingJob.status.in_(ACTIVE_INDEXING_JOB_STATUSES))
-        .order_by(IndexingJob.id.desc())
+        select(FullCorpusIndexPipeJob)
+        .where(FullCorpusIndexPipeJob.status.in_(ACTIVE_FULL_CORPUS_INDEX_PIPE_JOB_STATUSES))
+        .order_by(FullCorpusIndexPipeJob.id.desc())
     )
     return result.first()
 
 
-async def create_indexing_job(
-    job_in: IndexingJobCreate,
+async def create_full_corpus_index_pipe_job(
+    job_in: FullCorpusIndexPipeJobCreate,
     session: AsyncSession,
-) -> IndexingJob:
+) -> FullCorpusIndexPipeJob:
     """
-    Create a new indexing job.
+    Create a new full corpus index pipe job.
     Args:
-        job_in: The indexing job data to create.
+        job_in: The full corpus index pipe job data to create.
         session: The database session to use for the query.
     Returns:
-        The created indexing job.
+        The created full corpus index pipe job.
     Raises:
-        ValueError: If another indexing job is already active.
+        ValueError: If another full corpus index pipe job is already active.
     """
-    if await get_active_indexing_job(session) is not None:
-        raise ValueError("Another indexing job is already active")
+    if await get_active_full_corpus_index_pipe_job(session) is not None:
+        raise ValueError("Another full corpus index pipe job is already active")
 
-    job = IndexingJob(**job_in.model_dump())
+    job = FullCorpusIndexPipeJob(**job_in.model_dump())
     return await commit_and_refresh(session, job)
 
 
-async def list_indexing_jobs(
+async def list_full_corpus_index_pipe_jobs(
     session: AsyncSession,
     skip: int = 0,
     limit: int = 20,
     status: str | None = None,
     corpus_id: int | None = None,
-) -> list[IndexingJob]:
+) -> list[FullCorpusIndexPipeJob]:
     """
-    List indexing jobs with optional filtering by status and corpus ID.
+    List full corpus index pipe jobs with optional filtering by status and corpus ID.
     Args:
         session: The database session to use for the query.
         skip: The number of records to skip for pagination.
         limit: The maximum number of records to return for pagination.
-        status: Optional status to filter indexing jobs by.
-        corpus_id: Optional corpus ID to filter indexing jobs by.
+        status: Optional status to filter full corpus index pipe jobs by.
+        corpus_id: Optional corpus ID to filter full corpus index pipe jobs by.
     Returns:
-        A list of indexing jobs matching the specified criteria.
+        A list of full corpus index pipe jobs matching the specified criteria.
     """
-    statement = select(IndexingJob)
+    statement = select(FullCorpusIndexPipeJob)
     if status is not None:
-        statement = statement.where(IndexingJob.status == status)
+        statement = statement.where(FullCorpusIndexPipeJob.status == status)
     if corpus_id is not None:
-        statement = statement.where(IndexingJob.corpus_id == corpus_id)
-    statement = statement.order_by(IndexingJob.id.desc()).offset(skip).limit(limit)
+        statement = statement.where(FullCorpusIndexPipeJob.corpus_id == corpus_id)
+    statement = statement.order_by(FullCorpusIndexPipeJob.id.desc()).offset(skip).limit(limit)
     result = await session.exec(statement)
     return list(result.all())
 
 
-async def list_interrupted_indexing_jobs(
+async def list_interrupted_full_corpus_index_pipe_jobs(
     session: AsyncSession,
-) -> list[IndexingJob]:
+) -> list[FullCorpusIndexPipeJob]:
     """
-    List indexing jobs that were interrupted (i.e. have an active status 
+    List full corpus index pipe jobs that were interrupted (i.e. have an active status 
     but were started a while ago).
     Args:
         session: The database session to use for the query.
     Returns:
-        A list of interrupted indexing jobs.
+        A list of interrupted full corpus index pipe jobs.
     """
     result = await session.exec(
-        select(IndexingJob)
-        .where(IndexingJob.status.in_(ACTIVE_INDEXING_JOB_STATUSES))
-        .order_by(IndexingJob.id.asc())
+        select(FullCorpusIndexPipeJob)
+        .where(FullCorpusIndexPipeJob.status.in_(ACTIVE_FULL_CORPUS_INDEX_PIPE_JOB_STATUSES))
+        .order_by(FullCorpusIndexPipeJob.id.asc())
     )
     return list(result.all())
 
 
-async def create_indexing_job_warning(
+async def create_full_corpus_index_pipe_job_warning(
     *,
-    indexing_job_id: int,
+    full_corpus_index_pipe_job_id: int,
     stage: str,
     message: str,
     session: AsyncSession,
     raw_document_id: int | None = None,
     document_name: str | None = None,
-) -> IndexingJobWarning:
+) -> FullCorpusIndexPipeJobWarning:
     """
-    Create a new indexing job warning.
+    Create a new full corpus index pipe job warning.
     Args:
-        indexing_job_id: The ID of the indexing job.
-        stage: The stage of the indexing job.
+        full_corpus_index_pipe_job_id: The ID of the full corpus index pipe job.
+        stage: The stage of the full corpus index pipe job.
         message: The warning message.
         session: The database session to use for the query.
         raw_document_id: Optional ID of the raw document associated with the warning.
         document_name: Optional name of the document associated with the warning.
     Returns:
-        The created indexing job warning.
+        The created full corpus index pipe job warning.
     """
-    warning = IndexingJobWarning(
-        indexing_job_id=indexing_job_id,
+    warning = FullCorpusIndexPipeJobWarning(
+        full_corpus_index_pipe_job_id=full_corpus_index_pipe_job_id,
         raw_document_id=raw_document_id,
         document_name=document_name,
         stage=stage,
@@ -144,28 +144,28 @@ async def create_indexing_job_warning(
     return await commit_and_refresh(session, warning)
 
 
-async def list_indexing_job_warnings(
-    indexing_job_id: int,
+async def list_full_corpus_index_pipe_job_warnings(
+    full_corpus_index_pipe_job_id: int,
     session: AsyncSession,
-) -> list[IndexingJobWarning]:
+) -> list[FullCorpusIndexPipeJobWarning]:
     """
-    List warnings for a specific indexing job.
+    List warnings for a specific full corpus index pipe job.
     Args:
-        indexing_job_id: The ID of the indexing job.
+        full_corpus_index_pipe_job_id: The ID of the full corpus index pipe job.
         session: The database session to use for the query.
     Returns:
-        A list of indexing job warnings.
+        A list of full corpus index pipe job warnings.
     """
     result = await session.exec(
-        select(IndexingJobWarning)
-        .where(IndexingJobWarning.indexing_job_id == indexing_job_id)
-        .order_by(IndexingJobWarning.id.asc())
+        select(FullCorpusIndexPipeJobWarning)
+        .where(FullCorpusIndexPipeJobWarning.full_corpus_index_pipe_job_id == full_corpus_index_pipe_job_id)
+        .order_by(FullCorpusIndexPipeJobWarning.id.asc())
     )
     return list(result.all())
 
 
-async def update_indexing_job_progress(
-    job: IndexingJob,
+async def update_full_corpus_index_pipe_job_progress(
+    job: FullCorpusIndexPipeJob,
     session: AsyncSession,
     *,
     stage: str | None = None,
@@ -175,13 +175,13 @@ async def update_indexing_job_progress(
     processed_documents: int | None = None,
     chunks_created: int | None = None,
     chunks_indexed: int | None = None,
-) -> IndexingJob:
+) -> FullCorpusIndexPipeJob:
     """
-    Update the progress of an indexing job.
+    Update the progress of an full corpus index pipe job.
     Args:        
-        job: The indexing job to update.
+        job: The full corpus index pipe job to update.
         session: The database session to use for the query.
-        stage: Optional new stage of the indexing job.
+        stage: Optional new stage of the full corpus index pipe job.
         current_raw_document_id: Optional ID of the current raw document 
             being processed.
         current_document_name: Optional name of the current document being 
@@ -191,7 +191,7 @@ async def update_indexing_job_progress(
         chunks_created: Optional number of chunks created so far.
         chunks_indexed: Optional number of chunks indexed so far.
     Returns:
-        The updated indexing job.
+        The updated full corpus index pipe job.
     """
     if stage is not None:
         job.stage = stage
@@ -210,33 +210,33 @@ async def update_indexing_job_progress(
     return await commit_and_refresh(session, job)
 
 
-async def request_indexing_job_cancel(
-    job: IndexingJob,
+async def request_full_corpus_index_pipe_job_cancel(
+    job: FullCorpusIndexPipeJob,
     session: AsyncSession,
-) -> IndexingJob:
+) -> FullCorpusIndexPipeJob:
     """
-    Request cancellation of an indexing job.
+    Request cancellation of an full corpus index pipe job.
     Args:
-        job: The indexing job to cancel.
+        job: The full corpus index pipe job to cancel.
         session: The database session to use for the query.
     Returns:
-        The updated indexing job with cancellation requested.
+        The updated full corpus index pipe job with cancellation requested.
     """
     job.cancel_requested = True
     return await commit_and_refresh(session, job)
 
 
-async def mark_indexing_job_running(
-    job: IndexingJob,
+async def mark_full_corpus_index_pipe_job_running(
+    job: FullCorpusIndexPipeJob,
     session: AsyncSession,
-) -> IndexingJob:
+) -> FullCorpusIndexPipeJob:
     """
-    Mark an indexing job as running.
+    Mark an full corpus index pipe job as running.
     Args:
-        job: The indexing job to update.
+        job: The full corpus index pipe job to update.
         session: The database session to use for the query.
     Returns:
-        The updated indexing job.
+        The updated full corpus index pipe job.
     """
     job.status = "running"
     job.cancel_requested = False
@@ -244,8 +244,8 @@ async def mark_indexing_job_running(
     return await commit_and_refresh(session, job)
 
 
-async def mark_indexing_job_completed(
-    job: IndexingJob,
+async def mark_full_corpus_index_pipe_job_completed(
+    job: FullCorpusIndexPipeJob,
     session: AsyncSession,
     *,
     status: str,
@@ -253,19 +253,19 @@ async def mark_indexing_job_completed(
     completed_at: datetime | None = None,
     candidate_corpus_index_id: int | None = None,
     replaced_corpus_index_id: int | None = None,
-) -> IndexingJob:
+) -> FullCorpusIndexPipeJob:
     """
-    Mark an indexing job as completed.
+    Mark an full corpus index pipe job as completed.
     Args:
-        job: The indexing job to update.
+        job: The full corpus index pipe job to update.
         session: The database session to use for the query.
-        status: The new status of the indexing job.
-        stage: The new stage of the indexing job.
-        completed_at: The completion time of the indexing job.
+        status: The new status of the full corpus index pipe job.
+        stage: The new stage of the full corpus index pipe job.
+        completed_at: The completion time of the full corpus index pipe job.
         candidate_corpus_index_id: The ID of the candidate corpus index.
         replaced_corpus_index_id: The ID of the replaced corpus index.
     Returns:
-        The updated indexing job.
+        The updated full corpus index pipe job.
     """
     job.status = status
     job.stage = stage
@@ -276,19 +276,19 @@ async def mark_indexing_job_completed(
     return await commit_and_refresh(session, job)
 
 
-async def mark_indexing_job_failed(
-    job: IndexingJob,
+async def mark_full_corpus_index_pipe_job_failed(
+    job: FullCorpusIndexPipeJob,
     failure_detail: str,
     session: AsyncSession,
-) -> IndexingJob:
+) -> FullCorpusIndexPipeJob:
     """
-    Mark an indexing job as failed.
+    Mark an full corpus index pipe job as failed.
     Args:
-        job: The indexing job to update.
+        job: The full corpus index pipe job to update.
         failure_detail: The detail of the failure.
         session: The database session to use for the query.
     Returns:
-        The updated indexing job.
+        The updated full corpus index pipe job.
     """
     job.status = "failed"
     job.stage = "finished"
@@ -298,20 +298,20 @@ async def mark_indexing_job_failed(
     return await commit_and_refresh(session, job)
 
 
-async def mark_indexing_job_cancelled(
-    job: IndexingJob,
+async def mark_full_corpus_index_pipe_job_cancelled(
+    job: FullCorpusIndexPipeJob,
     session: AsyncSession,
     *,
     detail: str | None = None,
-) -> IndexingJob:
+) -> FullCorpusIndexPipeJob:
     """
-    Mark an indexing job as cancelled.
+    Mark an full corpus index pipe job as cancelled.
     Args:
-        job: The indexing job to update.
+        job: The full corpus index pipe job to update.
         session: The database session to use for the query.
         detail: The detail of the cancellation.
     Returns:
-        The updated indexing job.
+        The updated full corpus index pipe job.
     """
     job.status = "cancelled"
     job.stage = "finished"

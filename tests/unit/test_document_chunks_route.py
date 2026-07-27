@@ -21,7 +21,7 @@ def test_list_document_chunks_route_delegates_filters(
                 chunking_profile_id=3,
                 chunking_profile_name="Recursive 1k",
                 chunking_strategy="recursive",
-                indexing_job_id=77,
+                full_corpus_index_pipe_job_id=77,
                 chunk_index=2,
                 content="secret chunk body",
                 chunk_metadata={"page": 4},

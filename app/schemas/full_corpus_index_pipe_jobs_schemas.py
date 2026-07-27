@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlmodel import Field, SQLModel
 
 
-class IndexingJobBase(SQLModel):
+class FullCorpusIndexPipeJobBase(SQLModel):
     corpus_id: int
     chunking_profile_id: int
     vector_store_id: int
@@ -12,12 +12,12 @@ class IndexingJobBase(SQLModel):
     requested_vector_namespace: str | None = None
 
 
-class IndexingJobCreate(IndexingJobBase):
+class FullCorpusIndexPipeJobCreate(FullCorpusIndexPipeJobBase):
     status: str = Field(default="queued", min_length=1)
     stage: str = Field(default="validating", min_length=1)
 
 
-class IndexingJobWarningRead(SQLModel):
+class FullCorpusIndexPipeJobWarningRead(SQLModel):
     id: int
     raw_document_id: int | None = None
     document_name: str | None = None
@@ -26,7 +26,7 @@ class IndexingJobWarningRead(SQLModel):
     created_at: datetime
 
 
-class IndexingJobRead(IndexingJobBase):
+class FullCorpusIndexPipeJobRead(FullCorpusIndexPipeJobBase):
     id: int
     status: str
     stage: str
@@ -45,9 +45,9 @@ class IndexingJobRead(IndexingJobBase):
     failure_detail: str | None = None
 
 
-class IndexingJobQueued(IndexingJobRead):
+class FullCorpusIndexPipeJobQueued(FullCorpusIndexPipeJobRead):
     pass
 
 
-class IndexingJobDetail(IndexingJobRead):
-    warnings: list[IndexingJobWarningRead] = Field(default_factory=list)
+class FullCorpusIndexPipeJobDetail(FullCorpusIndexPipeJobRead):
+    warnings: list[FullCorpusIndexPipeJobWarningRead] = Field(default_factory=list)

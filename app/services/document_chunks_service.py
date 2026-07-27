@@ -33,7 +33,7 @@ def _chunk_payload(chunk: DocumentChunk) -> dict:
         "id": chunk.id,
         "raw_document_id": chunk.raw_document_id,
         "chunking_profile_id": chunk.chunking_profile_id,
-        "indexing_job_id": chunk.indexing_job_id,
+        "full_corpus_index_pipe_job_id": chunk.full_corpus_index_pipe_job_id,
         "chunk_index": chunk.chunk_index,
         "content": chunk.content,
         "chunk_metadata": chunk.chunk_metadata,

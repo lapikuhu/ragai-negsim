@@ -262,7 +262,7 @@ export function DocumentChunksPage() {
             {
               key: "job",
               header: "Job",
-              render: (chunk) => chunk.indexing_job_id ?? "Manual"
+              render: (chunk) => chunk.full_corpus_index_pipe_job_id ?? "Manual"
             },
             {
               key: "metadata",

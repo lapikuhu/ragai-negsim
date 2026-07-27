@@ -18,7 +18,7 @@ export type DocumentChunkAdminRead = {
   chunking_profile_id: number;
   chunking_profile_name?: string | null;
   chunking_strategy?: string | null;
-  indexing_job_id?: number | null;
+  full_corpus_index_pipe_job_id?: number | null;
   chunk_index: number;
   content: string;
   chunk_metadata: Record<string, unknown>;
