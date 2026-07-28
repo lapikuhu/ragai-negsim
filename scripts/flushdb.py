@@ -11,6 +11,7 @@ from sqlmodel import SQLModel
 from app.models import (  # noqa: F401
     chunking_profiles,
     corpus,
+    corpus_bm25_indices,
     corpus_indices,
     counterpart_personas,
     document_chunks,
