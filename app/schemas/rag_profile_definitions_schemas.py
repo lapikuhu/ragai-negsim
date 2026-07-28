@@ -5,12 +5,12 @@ from sqlmodel import Field, SQLModel
 
 class RagProfileFieldDefinitionRead(SQLModel):
     name: str
-    kind: Literal["int", "enum"]
+    kind: Literal["int", "float", "enum"]
     label: str
     required: bool
-    default: int | str
-    minimum: int | None = None
-    maximum: int | None = None
+    default: int | float | str
+    minimum: int | float | None = None
+    maximum: int | float | None = None
     help_text: str | None = None
     options: list[str] = Field(default_factory=list)
 

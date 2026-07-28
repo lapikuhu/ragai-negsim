@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Any, Literal
 
 from app.services.llm_models_service import normalize_rag_llm_components
 from app.airag.reranking.reranking import list_available_reranker_names
 
 RagStrategy = Literal["crag", "graphrag"]
-RagFieldKind = Literal["int", "enum"]
+RagFieldKind = Literal["int", "float", "enum"]
+CragRetrievalMode = Literal["dense", "bm25", "hybrid"]
 
 
 @dataclass(frozen=True)
@@ -17,8 +19,8 @@ class RagProfileFieldDefinition:
     label: str
     required: bool
     default: Any
-    minimum: int | None = None
-    maximum: int | None = None
+    minimum: int | float | None = None
+    maximum: int | float | None = None
     help_text: str | None = None
     options: tuple[str, ...] = ()
 
@@ -41,14 +43,50 @@ def _crag_definition() -> RagProfileDefinition:
         label="Corrective RAG",
         fields=(
             RagProfileFieldDefinition(
-                name="top_k",
+                name="bm25_weight",
+                kind="float",
+                label="BM25 weight",
+                required=True,
+                default=0.0,
+                minimum=0.0,
+                maximum=1.0,
+                help_text=(
+                    "Use 0 for dense-only retrieval, 1 for BM25-only "
+                    "retrieval, or an intermediate value for hybrid retrieval."
+                ),
+            ),
+            RagProfileFieldDefinition(
+                name="dense_k",
                 kind="int",
-                label="Retrieved documents",
+                label="Dense candidates",
                 required=True,
                 default=4,
                 minimum=1,
                 maximum=20,
-                help_text="How many documents to retrieve before reranking.",
+                help_text="How many dense candidates to retrieve.",
+            ),
+            RagProfileFieldDefinition(
+                name="bm25_k",
+                kind="int",
+                label="BM25 candidates",
+                required=True,
+                default=4,
+                minimum=1,
+                maximum=20,
+                help_text="How many BM25 candidates to retrieve.",
+            ),
+            RagProfileFieldDefinition(
+                name="final_top_k",
+                kind="int",
+                label="Final retrieval results",
+                required=True,
+                default=4,
+                minimum=1,
+                maximum=20,
+                help_text=(
+                    "How many fused retrieval results to keep before reranking; "
+                    "cannot exceed the larger candidate limit."
+                ),
             ),
             RagProfileFieldDefinition(
                 name="reranker",
@@ -160,6 +198,19 @@ def get_rag_profile_definition(strategy: str) -> RagProfileDefinition:
     raise ValueError(f"Unsupported RAG strategy: {strategy}")
 
 
+def get_crag_retrieval_mode(bm25_weight: float) -> CragRetrievalMode:
+    """Return the retrieval mode implied by a validated BM25 weight."""
+    if isinstance(bm25_weight, bool) or not isinstance(bm25_weight, (int, float)):
+        raise ValueError("bm25_weight must be a number")
+    if not math.isfinite(bm25_weight) or not 0.0 <= bm25_weight <= 1.0:
+        raise ValueError("bm25_weight must be between 0.0 and 1.0")
+    if bm25_weight == 0.0:
+        return "dense"
+    if bm25_weight == 1.0:
+        return "bm25"
+    return "hybrid"
+
+
 def normalize_rag_profile_config(
     strategy: str,
     config: dict[str, Any] | None,
@@ -198,6 +249,16 @@ def normalize_rag_profile_config(
                 raise ValueError(f"{field.name} must be >= {field.minimum}")
             if field.maximum is not None and value > field.maximum:
                 raise ValueError(f"{field.name} must be <= {field.maximum}")
+        elif field.kind == "float":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{field.name} must be a number")
+            value = float(value)
+            if not math.isfinite(value):
+                raise ValueError(f"{field.name} must be finite")
+            if field.minimum is not None and value < field.minimum:
+                raise ValueError(f"{field.name} must be >= {field.minimum}")
+            if field.maximum is not None and value > field.maximum:
+                raise ValueError(f"{field.name} must be <= {field.maximum}")
         elif field.kind == "enum":
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field.name} must be a non-empty string")
@@ -208,11 +269,17 @@ def normalize_rag_profile_config(
         normalized[field.name] = value
 
     if definition.strategy == "crag":
-        if normalized["top_n"] > normalized["top_k"]:
-            raise ValueError("top_n must be <= top_k")
+        if normalized["final_top_k"] > max(
+            normalized["dense_k"],
+            normalized["bm25_k"],
+        ):
+            raise ValueError("final_top_k must be <= max(dense_k, bm25_k)")
+
+        if normalized["top_n"] > normalized["final_top_k"]:
+            raise ValueError("top_n must be <= final_top_k")
 
         if normalized["reranker"] == "none":
-            normalized["top_n"] = normalized["top_k"]
+            normalized["top_n"] = normalized["final_top_k"]
 
     normalized["llm_components"] = normalize_rag_llm_components(
         config.get("llm_components")
