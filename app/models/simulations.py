@@ -52,8 +52,12 @@ class Simulation(SQLModel, table=True):
     scenario: Optional["Scenario"] = Relationship(back_populates="simulations")
     corpus_id: int = Field(foreign_key="corpus.id")
     corpus: "Corpus" = Relationship(back_populates="simulations")
-    corpus_index_id: int = Field(foreign_key="corpusindex.id")
-    corpus_index: "CorpusIndex" = Relationship(back_populates="simulations")
+    corpus_index_id: int | None = Field(default=None, foreign_key="corpusindex.id")
+    corpus_index: Optional["CorpusIndex"] = Relationship(back_populates="simulations")
+    bm25_index_id: int | None = Field(
+        default=None,
+        foreign_key="corpusbm25index.id",
+    )
     rag_profile_id: int = Field(foreign_key="ragprofile.id")
     rag_profile: "RagProfile" = Relationship(back_populates="simulations")
     coach_prompt_id: int | None = Field(default=None, foreign_key="prompt.id")

@@ -391,6 +391,7 @@ def _patch_runtime_context_repositories(
     scenario=None,
     persona=None,
     app_session=None,
+    rag_profile=None,
 ):
     if corpus is None:
         corpus = SimpleNamespace(id=200, name="Negotiation corpus", description="Corpus context")
@@ -419,6 +420,12 @@ def _patch_runtime_context_repositories(
         persona = SimpleNamespace(id=300, name="Firm seller", description="Persona context")
     if prompts is None:
         prompts = {}
+    if rag_profile is None:
+        rag_profile = SimpleNamespace(
+            id=500,
+            strategy="crag",
+            config={"bm25_weight": 0.0, "dense_k": 4, "final_top_k": 4},
+        )
 
     async def fake_get_corpus_by_id(corpus_id, session):
         return corpus
@@ -438,6 +445,9 @@ def _patch_runtime_context_repositories(
     async def fake_get_prompt_by_id(prompt_id, session):
         return prompts.get(prompt_id)
 
+    async def fake_get_rag_profile_by_id(profile_id, session):
+        return rag_profile
+
     monkeypatch.setattr(simulations_service.corpus_repo, "get_corpus_by_id", fake_get_corpus_by_id)
     monkeypatch.setattr(
         simulations_service.corpus_indices_repo,
@@ -452,6 +462,11 @@ def _patch_runtime_context_repositories(
     )
     monkeypatch.setattr(simulations_service.sessions_repo, "get_session_by_id", fake_get_session_by_id)
     monkeypatch.setattr(simulations_service.prompts_repo, "get_prompt_by_id", fake_get_prompt_by_id)
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
+    )
 
 
 @pytest.mark.asyncio
@@ -718,10 +733,22 @@ async def test_create_simulation_requires_matching_built_corpus_index(monkeypatc
     async def fake_get_corpus_index_by_id(corpus_index_id, session):
         return SimpleNamespace(id=corpus_index_id, corpus_id=999, status="built")
 
+    async def fake_get_rag_profile_by_id(profile_id, session):
+        return SimpleNamespace(
+            id=profile_id,
+            strategy="crag",
+            config={"bm25_weight": 0.0},
+        )
+
     monkeypatch.setattr(
         simulations_service.corpus_indices_repo,
         "get_corpus_index_by_id",
         fake_get_corpus_index_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
     )
 
     with pytest.raises(ValueError, match="Corpus index does not belong"):
@@ -2602,6 +2629,11 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         assert metadata_filter == {"corpus_index_id": 77}
         return ("dense", metadata_filter)
 
+    def fake_make_hybrid_retriever(**kwargs):
+        assert kwargs["bm25_retriever"] is None
+        assert kwargs["bm25_weight"] == 0.0
+        return ("hybrid", kwargs["dense_retriever"])
+
     normalized_configs = []
 
     def fake_normalize_response_pipeline_config(strategy, config):
@@ -2664,6 +2696,11 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
     monkeypatch.setattr(simulations_service, "make_dense_retriever", fake_make_dense_retriever)
     monkeypatch.setattr(
         simulations_service,
+        "make_hybrid_retriever",
+        fake_make_hybrid_retriever,
+    )
+    monkeypatch.setattr(
+        simulations_service,
         "normalize_response_pipeline_config",
         fake_normalize_response_pipeline_config,
     )
@@ -2685,7 +2722,7 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
     assert len(build_calls) == 1
     assert build_calls[0][0] == (
         "pipeline",
-        ("dense", {"corpus_index_id": 77}),
+        ("hybrid", ("dense", {"corpus_index_id": 77})),
         (
             "normalized",
             "crag",
@@ -2844,6 +2881,8 @@ async def test_graphrag_negotiation_graph_cache_tracks_active_generation(monkeyp
         rag_profile,
         knowledge_graph,
         session,
+        bm25_index=None,
+        bm25_artifact=None,
     ):
         return "graphrag", ("graphrag", knowledge_graph.active_generation)
 
@@ -2864,6 +2903,11 @@ async def test_graphrag_negotiation_graph_cache_tracks_active_generation(monkeyp
         simulations_service.corpus_indices_repo,
         "get_corpus_index_by_id",
         fake_get_corpus_index_by_id,
+    )
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        fake_get_rag_profile_by_id,
     )
     monkeypatch.setattr(
         simulations_service.vector_stores_repo,

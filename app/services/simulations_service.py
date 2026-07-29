@@ -31,7 +31,12 @@ from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import 
     is_terminal_acceptance_message,
 )
 from app.airag.embeddings.embeddings import choose_embedding_model
-from app.airag.retrieval.retrievers import make_dense_retriever
+from app.airag.rag_profiles.definitions import get_crag_retrieval_mode
+from app.airag.retrieval.retrievers import (
+    aload_validated_bm25_artifact,
+    make_dense_retriever,
+    make_hybrid_retriever,
+)
 from app.airag.vector_stores.vector_stores import (
     instantiate_chroma_vector_store,
     instantiate_pgvector_store,
@@ -41,12 +46,14 @@ from app.models.simulations import Simulation
 from app.models.users import User
 from app.repositories import (
     counterpart_personas_repo,
+    corpus_bm25_indices_repo,
     corpus_indices_repo,
     corpus_repo,
     prompts_repo,
     rag_profiles_repo,
     knowledge_graph_indices_repo,
     document_chunks_repo,
+    indexed_chunks_repo,
     scenarios_repo,
     sessions_repo,
     simulation_evidence_ledgers_repo,
@@ -148,6 +155,16 @@ class SimulationRuntimeContext:
     scenario: Any | None = None
     counterpart_persona: Any | None = None
     app_session: Any | None = None
+
+
+@dataclass(frozen=True)
+class RetrievalRuntime:
+    rag_profile: Any
+    corpus_index: Any | None = None
+    vector_store: Any | None = None
+    bm25_index: Any | None = None
+    bm25_artifact: bytes | None = None
+    knowledge_graph: Any | None = None
 
 
 def _learner_config_from_create_request(
@@ -296,6 +313,7 @@ def _read_simulation(simulation: Simulation) -> SimulationRead:
         scenario_id=simulation.scenario_id,
         corpus_id=simulation.corpus_id,
         corpus_index_id=simulation.corpus_index_id,
+        bm25_index_id=getattr(simulation, "bm25_index_id", None),
         rag_profile_id=simulation.rag_profile_id,
         coach_prompt_id=simulation.coach_prompt_id,
         counterpart_prompt_id=simulation.counterpart_prompt_id,
@@ -634,6 +652,101 @@ async def _get_valid_built_corpus_index(
     return corpus_index
 
 
+async def _get_valid_built_bm25_index(
+    corpus_id: int,
+    bm25_index_id: int,
+    session: AsyncSession,
+) -> Any:
+    """Validate and return one explicitly selected built BM25 artifact."""
+    bm25_index = (
+        await corpus_bm25_indices_repo.get_corpus_bm25_index_metadata_by_id(
+            bm25_index_id,
+            session,
+        )
+    )
+    if bm25_index is None:
+        raise ValueError("BM25 index not found")
+    if bm25_index.status != "built":
+        raise ValueError("BM25 index must be built before simulation use")
+    if bm25_index.corpus_id != corpus_id:
+        raise ValueError(
+            "BM25 index does not belong to simulation corpus; "
+            "selected indexes must use the same corpus"
+        )
+    if bm25_index.compressed_artifact_checksum is None:
+        raise ValueError("Built BM25 index is missing its artifact checksum")
+    return bm25_index
+
+
+def _crag_retrieval_settings(rag_profile: Any) -> tuple[str, float, int, int, int]:
+    config = getattr(rag_profile, "config", {}) or {}
+    weight = float(config.get("bm25_weight", 0.0))
+    mode = get_crag_retrieval_mode(weight)
+    legacy_k = int(config.get("top_k", 4))
+    return (
+        mode,
+        weight,
+        int(config.get("dense_k", legacy_k)),
+        int(config.get("bm25_k", legacy_k)),
+        int(config.get("final_top_k", legacy_k)),
+    )
+
+
+async def _validate_crag_retrieval_bindings(
+    *,
+    corpus_id: int,
+    corpus_index_id: int | None,
+    bm25_index_id: int | None,
+    rag_profile: Any,
+    session: AsyncSession,
+) -> tuple[Any | None, Any | None]:
+    """Validate explicit CRAG artifact selections before runtime construction."""
+    mode, _weight, _dense_k, _bm25_k, _final_top_k = _crag_retrieval_settings(
+        rag_profile
+    )
+    corpus_index = None
+    bm25_index = None
+
+    if mode in {"dense", "hybrid"}:
+        if corpus_index_id is None:
+            raise ValueError("CRAG mode requires a dense corpus index selection")
+        corpus_index = await _get_valid_built_corpus_index(
+            corpus_id,
+            corpus_index_id,
+            session,
+        )
+    if mode in {"bm25", "hybrid"}:
+        if bm25_index_id is None:
+            raise ValueError("CRAG mode requires an explicit BM25 index selection")
+        bm25_index = await _get_valid_built_bm25_index(
+            corpus_id,
+            bm25_index_id,
+            session,
+        )
+
+    if mode != "hybrid":
+        return corpus_index, bm25_index
+
+    if corpus_index.corpus_id != bm25_index.corpus_id:
+        raise ValueError("Hybrid indexes must use the same corpus")
+    if corpus_index.chunking_profile_id != bm25_index.chunking_profile_id:
+        raise ValueError("Hybrid indexes must use the same chunking profile")
+    dense_chunk_ids = (
+        await indexed_chunks_repo.get_document_chunk_ids_by_corpus_index_id(
+            corpus_index.id,
+            session,
+        )
+    )
+    if len(dense_chunk_ids) != bm25_index.document_count:
+        raise ValueError("Hybrid indexes must have the same document count")
+    dense_checksum = corpus_bm25_indices_repo.document_chunk_ids_checksum(
+        dense_chunk_ids
+    )
+    if dense_checksum != bm25_index.document_chunk_ids_checksum:
+        raise ValueError("Hybrid indexes must contain the same chunk set")
+    return corpus_index, bm25_index
+
+
 async def _validate_graphrag_profile_for_index(
     rag_profile: Any,
     *,
@@ -673,6 +786,39 @@ async def _validate_graphrag_profile_for_index(
             "GraphRAG profile and simulation must use the same corpus index"
         )
     return graph
+
+
+async def _validate_retrieval_bindings_for_profile(
+    *,
+    corpus_id: int,
+    corpus_index_id: int | None,
+    bm25_index_id: int | None,
+    rag_profile: Any,
+    session: AsyncSession,
+) -> Any | None:
+    """Validate simulation artifact IDs according to the selected strategy."""
+    if rag_profile.strategy == "graphrag":
+        if corpus_index_id is None:
+            raise ValueError("GraphRAG requires a dense corpus index selection")
+        corpus_index = await _get_valid_built_corpus_index(
+            corpus_id,
+            corpus_index_id,
+            session,
+        )
+        return await _validate_graphrag_profile_for_index(
+            rag_profile,
+            corpus_index_id=corpus_index.id,
+            session=session,
+        )
+
+    await _validate_crag_retrieval_bindings(
+        corpus_id=corpus_id,
+        corpus_index_id=corpus_index_id,
+        bm25_index_id=bm25_index_id,
+        rag_profile=rag_profile,
+        session=session,
+    )
+    return None
 
 
 def _prompt_template(prompt: Any, prompt_role: str) -> str:
@@ -780,6 +926,7 @@ def _graph_cache_key(
     rag_profile: Any,
     llm_selection: dict[str, Any] | None = None,
     knowledge_graph: Any | None = None,
+    bm25_index: Any | None = None,
 ) -> tuple[Any, ...]:
     """
     Generate a cache key for the negotiation graph based on the corpus index,
@@ -811,6 +958,9 @@ def _graph_cache_key(
         prompt_templates.get("counterpart"),
         prompt_templates.get("evaluator"),
         json.dumps(llm_selection or {}, sort_keys=True),
+        getattr(bm25_index, "id", None),
+        getattr(bm25_index, "compressed_artifact_checksum", None),
+        getattr(bm25_index, "document_chunk_ids_checksum", None),
     )
 
 
@@ -1059,7 +1209,7 @@ async def _make_scoped_graph_retriever(
 async def _get_retrieval_runtime_for_simulation(
     simulation: Simulation,
     session: AsyncSession,
-) -> tuple[Any, Any, Any, Any | None]:
+) -> RetrievalRuntime:
     """
     Get the validated retrieval dependencies for a simulation.
     Args:
@@ -1069,39 +1219,84 @@ async def _get_retrieval_runtime_for_simulation(
         A tuple containing the corpus index, vector store, RAG profile, and
         knowledge graph (if applicable).
     """
-    corpus_index = await _get_valid_built_corpus_index(
-        simulation.corpus_id,
-        simulation.corpus_index_id,
-        session,
-    )
-    vector_store = await vector_stores_repo.get_vector_store_by_id(
-        corpus_index.vector_store_id,
-        session,
-    )
-    if vector_store is None:
-        raise ValueError("Vector store not found")
-
     rag_profile = await rag_profiles_repo.get_rag_profile_by_id(
         simulation.rag_profile_id,
         session,
     )
     if rag_profile is None:
         raise ValueError("RAG profile not found")
-    knowledge_graph = await _validate_graphrag_profile_for_index(
-        rag_profile,
-        corpus_index_id=corpus_index.id,
+
+    if rag_profile.strategy == "graphrag":
+        if simulation.corpus_index_id is None:
+            raise ValueError("GraphRAG requires a dense corpus index selection")
+        corpus_index = await _get_valid_built_corpus_index(
+            simulation.corpus_id,
+            simulation.corpus_index_id,
+            session,
+        )
+        vector_store = await vector_stores_repo.get_vector_store_by_id(
+            corpus_index.vector_store_id,
+            session,
+        )
+        if vector_store is None:
+            raise ValueError("Vector store not found")
+        knowledge_graph = await _validate_graphrag_profile_for_index(
+            rag_profile,
+            corpus_index_id=corpus_index.id,
+            session=session,
+        )
+        return RetrievalRuntime(
+            rag_profile=rag_profile,
+            corpus_index=corpus_index,
+            vector_store=vector_store,
+            knowledge_graph=knowledge_graph,
+        )
+
+    corpus_index, bm25_index = await _validate_crag_retrieval_bindings(
+        corpus_id=simulation.corpus_id,
+        corpus_index_id=simulation.corpus_index_id,
+        bm25_index_id=getattr(simulation, "bm25_index_id", None),
+        rag_profile=rag_profile,
         session=session,
     )
-    return corpus_index, vector_store, rag_profile, knowledge_graph
+    vector_store = None
+    if corpus_index is not None:
+        vector_store = await vector_stores_repo.get_vector_store_by_id(
+            corpus_index.vector_store_id,
+            session,
+        )
+        if vector_store is None:
+            raise ValueError("Vector store not found")
+
+    bm25_artifact = None
+    if bm25_index is not None:
+        bm25_artifact = (
+            await corpus_bm25_indices_repo.get_corpus_bm25_index_artifact_by_id(
+                bm25_index.id,
+                session,
+            )
+        )
+        if bm25_artifact is None:
+            raise ValueError("Built BM25 index artifact is missing")
+
+    return RetrievalRuntime(
+        rag_profile=rag_profile,
+        corpus_index=corpus_index,
+        vector_store=vector_store,
+        bm25_index=bm25_index,
+        bm25_artifact=bm25_artifact,
+    )
 
 
 async def _build_retrieval_graph(
     *,
-    corpus_index: Any,
-    vector_store: Any,
+    corpus_index: Any | None,
+    vector_store: Any | None,
     rag_profile: Any,
     knowledge_graph: Any | None,
     session: AsyncSession,
+    bm25_index: Any | None = None,
+    bm25_artifact: bytes | None = None,
 ) -> tuple[str, Any]:
     """
     Build the local retrieval graph for the configured RAG profile.
@@ -1127,14 +1322,40 @@ async def _build_retrieval_graph(
         )
         return "graphrag", build_response_pipeline(retriever, pipeline_config)
 
-    vector_store_runtime = await _instantiate_vector_store_for_index(
-        corpus_index,
-        vector_store,
-    )
-    retriever = make_dense_retriever(
-        vector_store_runtime,
-        k=rag_profile.config.get("top_k", 4),
-        metadata_filter={"corpus_index_id": corpus_index.id},
+    (
+        _mode,
+        bm25_weight,
+        dense_k,
+        bm25_k,
+        final_top_k,
+    ) = _crag_retrieval_settings(rag_profile)
+    dense_retriever = None
+    if corpus_index is not None:
+        vector_store_runtime = await _instantiate_vector_store_for_index(
+            corpus_index,
+            vector_store,
+        )
+        dense_retriever = make_dense_retriever(
+            vector_store_runtime,
+            k=dense_k,
+            metadata_filter={"corpus_index_id": corpus_index.id},
+        )
+    bm25_retriever = None
+    if bm25_index is not None:
+        bm25_retriever = await aload_validated_bm25_artifact(
+            bm25_artifact,
+            expected_checksum=bm25_index.compressed_artifact_checksum,
+            format_version=bm25_index.format_version,
+            expected_document_count=bm25_index.document_count,
+            k=bm25_k,
+        )
+    retriever = make_hybrid_retriever(
+        dense_retriever=dense_retriever,
+        bm25_retriever=bm25_retriever,
+        bm25_weight=bm25_weight,
+        dense_k=dense_k,
+        bm25_k=bm25_k,
+        final_top_k=final_top_k,
     )
     pipeline_config = normalize_response_pipeline_config(
         "crag",
@@ -1156,15 +1377,15 @@ async def _get_retrieval_graph_for_simulation(
         A tuple containing the strategy name and the constructed 
         retrieval graph.
     """
-    corpus_index, vector_store, rag_profile, knowledge_graph = (
-        await _get_retrieval_runtime_for_simulation(simulation, session)
-    )
+    runtime = await _get_retrieval_runtime_for_simulation(simulation, session)
     return await _build_retrieval_graph(
-        corpus_index=corpus_index,
-        vector_store=vector_store,
-        rag_profile=rag_profile,
-        knowledge_graph=knowledge_graph,
+        corpus_index=runtime.corpus_index,
+        vector_store=runtime.vector_store,
+        rag_profile=runtime.rag_profile,
+        knowledge_graph=runtime.knowledge_graph,
         session=session,
+        bm25_index=runtime.bm25_index,
+        bm25_artifact=runtime.bm25_artifact,
     )
 
 
@@ -1180,32 +1401,33 @@ async def _get_negotiation_graph_for_simulation(
     Returns:
         The negotiation graph.
     """
-    corpus_index, vector_store, rag_profile, knowledge_graph = (
-        await _get_retrieval_runtime_for_simulation(simulation, session)
-    )
+    runtime = await _get_retrieval_runtime_for_simulation(simulation, session)
     llm_selection = _llm_selection_from_simulation(simulation)
     _prompt_records, prompt_templates = await _get_simulation_prompt_templates(
         simulation,
         session,
     )
     cache_key = _graph_cache_key(
-        corpus_index,
-        vector_store,
+        runtime.corpus_index,
+        runtime.vector_store,
         prompt_templates,
-        rag_profile,
+        runtime.rag_profile,
         llm_selection,
-        knowledge_graph,
+        runtime.knowledge_graph,
+        runtime.bm25_index,
     )
     cached_graph = NEGOTIATION_GRAPH_CACHE.get(cache_key)
     if cached_graph is not None:
         return cached_graph
 
     retrieval_strategy, rag_graph = await _build_retrieval_graph(
-        corpus_index=corpus_index,
-        vector_store=vector_store,
-        rag_profile=rag_profile,
-        knowledge_graph=knowledge_graph,
+        corpus_index=runtime.corpus_index,
+        vector_store=runtime.vector_store,
+        rag_profile=runtime.rag_profile,
+        knowledge_graph=runtime.knowledge_graph,
         session=session,
+        bm25_index=runtime.bm25_index,
+        bm25_artifact=runtime.bm25_artifact,
     )
     graph = make_negotiation_graph(
         rag_graph=rag_graph,
@@ -1358,11 +1580,33 @@ async def _load_simulation_runtime_context(
     if corpus is None:
         raise ValueError("Corpus not found")
 
-    corpus_index = await _get_valid_built_corpus_index(
-        simulation.corpus_id,
-        simulation.corpus_index_id,
+    rag_profile = await rag_profiles_repo.get_rag_profile_by_id(
+        simulation.rag_profile_id,
         session,
     )
+    if rag_profile is None:
+        raise ValueError("RAG profile not found")
+    if rag_profile.strategy == "graphrag":
+        if simulation.corpus_index_id is None:
+            raise ValueError("GraphRAG requires a dense corpus index selection")
+        corpus_index = await _get_valid_built_corpus_index(
+            simulation.corpus_id,
+            simulation.corpus_index_id,
+            session,
+        )
+        await _validate_graphrag_profile_for_index(
+            rag_profile,
+            corpus_index_id=corpus_index.id,
+            session=session,
+        )
+    else:
+        corpus_index, _bm25_index = await _validate_crag_retrieval_bindings(
+            corpus_id=simulation.corpus_id,
+            corpus_index_id=simulation.corpus_index_id,
+            bm25_index_id=getattr(simulation, "bm25_index_id", None),
+            rag_profile=rag_profile,
+            session=session,
+        )
 
     scenario = None
     if simulation.scenario_id is not None:
@@ -2011,20 +2255,17 @@ async def create_simulation_srvc(
     Returns:
         The created simulation.
     """
-    await _get_valid_built_corpus_index(
-        simulation_data.corpus_id,
-        simulation_data.corpus_index_id,
-        session,
-    )
     rag_profile = await rag_profiles_repo.get_rag_profile_by_id(
         simulation_data.rag_profile_id,
         session,
     )
     if rag_profile is None:
         raise ValueError("RAG profile not found")
-    knowledge_graph = await _validate_graphrag_profile_for_index(
-        rag_profile,
+    knowledge_graph = await _validate_retrieval_bindings_for_profile(
+        corpus_id=simulation_data.corpus_id,
         corpus_index_id=simulation_data.corpus_index_id,
+        bm25_index_id=simulation_data.bm25_index_id,
+        rag_profile=rag_profile,
         session=session,
     )
     await _get_prompt_template(simulation_data.coach_prompt_id, "coach", session)
@@ -2222,11 +2463,30 @@ async def update_simulation_srvc(
     Returns:
         The updated simulation.
     """
-    if simulation_data.corpus_index_id is not None:
-        await _get_valid_built_corpus_index(
-            simulation.corpus_id,
-            simulation_data.corpus_index_id,
+    binding_fields = {"corpus_index_id", "bm25_index_id"}
+    if simulation_data.model_fields_set & binding_fields:
+        rag_profile = await rag_profiles_repo.get_rag_profile_by_id(
+            simulation.rag_profile_id,
             session,
+        )
+        if rag_profile is None:
+            raise ValueError("RAG profile not found")
+        corpus_index_id = (
+            simulation_data.corpus_index_id
+            if "corpus_index_id" in simulation_data.model_fields_set
+            else simulation.corpus_index_id
+        )
+        bm25_index_id = (
+            simulation_data.bm25_index_id
+            if "bm25_index_id" in simulation_data.model_fields_set
+            else getattr(simulation, "bm25_index_id", None)
+        )
+        await _validate_retrieval_bindings_for_profile(
+            corpus_id=simulation.corpus_id,
+            corpus_index_id=corpus_index_id,
+            bm25_index_id=bm25_index_id,
+            rag_profile=rag_profile,
+            session=session,
         )
     if simulation_data.coach_prompt_id is not None:
         await _get_prompt_template(simulation_data.coach_prompt_id, "coach", session)

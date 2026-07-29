@@ -64,6 +64,19 @@ async def get_indexed_chunks_by_corpus_index_id(
     return list(result.all())
 
 
+async def get_document_chunk_ids_by_corpus_index_id(
+    corpus_index_id: int,
+    session: AsyncSession,
+) -> list[int]:
+    """Return the complete canonical chunk-ID snapshot for a dense index."""
+    result = await session.exec(
+        select(IndexedChunk.document_chunk_id)
+        .where(IndexedChunk.corpus_index_id == corpus_index_id)
+        .order_by(IndexedChunk.document_chunk_id)
+    )
+    return list(result.all())
+
+
 async def delete_indexed_chunks_by_corpus_index_id_force(
     corpus_index_id: int,
     session: AsyncSession,

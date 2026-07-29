@@ -30,7 +30,8 @@ class SimulationBase(SQLModel):
 
 class SimulationCreateRequest(SimulationBase):
     corpus_id: int
-    corpus_index_id: int
+    corpus_index_id: int | None = None
+    bm25_index_id: int | None = None
     rag_profile_id: int
     coach_prompt_id: int | None = None
     counterpart_prompt_id: int | None = None
@@ -55,7 +56,8 @@ class SimulationCreateRequest(SimulationBase):
 class SimulationCreate(SimulationBase):
     user_id_owner: int
     corpus_id: int
-    corpus_index_id: int
+    corpus_index_id: int | None = None
+    bm25_index_id: int | None = None
     rag_profile_id: int
     coach_prompt_id: int | None = None
     counterpart_prompt_id: int | None = None
@@ -76,7 +78,8 @@ class SimulationRead(SimulationBase):
     user_id_participant: int | None = None
     scenario_id: int | None = None
     corpus_id: int
-    corpus_index_id: int
+    corpus_index_id: int | None = None
+    bm25_index_id: int | None = None
     rag_profile_id: int
     coach_prompt_id: int | None = None
     counterpart_prompt_id: int | None = None
@@ -106,6 +109,7 @@ class SimulationUpdate(SQLModel):
     user_id_participant: int | None = None
     scenario_id: int | None = None
     corpus_index_id: int | None = None
+    bm25_index_id: int | None = None
     coach_prompt_id: int | None = None
     counterpart_prompt_id: int | None = None
     evaluator_prompt_id: int | None = None
@@ -123,6 +127,7 @@ class SimulationUpdateRequest(SQLModel):
     user_id_participant: int | None = None
     scenario_id: int | None = None
     corpus_index_id: int | None = None
+    bm25_index_id: int | None = None
     coach_prompt_id: int | None = None
     counterpart_prompt_id: int | None = None
     evaluator_prompt_id: int | None = None

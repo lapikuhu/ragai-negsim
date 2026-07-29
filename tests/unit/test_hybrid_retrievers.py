@@ -49,6 +49,23 @@ def test_bm25_artifact_round_trip_validates_checksum_format_count_and_ids():
     ]
 
 
+def test_bm25_artifact_load_applies_runtime_candidate_limit():
+    artifact = retrievers.build_serialized_bm25_artifact(
+        [_document(10, "alpha beta")],
+        k=2,
+    )
+
+    loaded = retrievers.load_validated_bm25_artifact(
+        artifact,
+        expected_checksum=sha256(artifact).hexdigest(),
+        format_version="pickle-zlib-v1",
+        expected_document_count=1,
+        k=9,
+    )
+
+    assert loaded.k == 9
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [

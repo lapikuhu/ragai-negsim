@@ -130,6 +130,7 @@ def load_validated_bm25_artifact(
     expected_checksum: str,
     format_version: str,
     expected_document_count: int,
+    k: int | None = None,
 ) -> BM25Retriever:
     """Load trusted artifact bytes after validating persistence metadata."""
     if len(artifact) > MAX_BM25_ARTIFACT_BYTES:
@@ -168,6 +169,8 @@ def load_validated_bm25_artifact(
         )
     for document in retriever.docs:
         _document_chunk_id(document)
+    if k is not None:
+        retriever.k = _require_positive_k(k, "k")
     return retriever
 
 
@@ -187,6 +190,7 @@ async def aload_validated_bm25_artifact(
     expected_checksum: str,
     format_version: str,
     expected_document_count: int,
+    k: int | None = None,
     run_in_thread: Callable[..., Awaitable[BM25Retriever]] = asyncio.to_thread,
 ) -> BM25Retriever:
     """Load and validate BM25 outside the event-loop thread."""
@@ -196,6 +200,7 @@ async def aload_validated_bm25_artifact(
         expected_checksum=expected_checksum,
         format_version=format_version,
         expected_document_count=expected_document_count,
+        k=k,
     )
 
 
