@@ -185,6 +185,13 @@ class RuntimeHarness:
         )
 
 
+def test_runtime_crag_settings_reject_removed_legacy_top_k():
+    with pytest.raises(ValueError, match="top_k"):
+        simulations_service._crag_retrieval_settings(
+            SimpleNamespace(config={"top_k": 9})
+        )
+
+
 @pytest.mark.asyncio
 async def test_dense_only_uses_dense_k_without_fetching_bm25(monkeypatch):
     harness = RuntimeHarness(monkeypatch, weight=0.0)

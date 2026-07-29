@@ -31,7 +31,10 @@ from app.airag.chains.agents.intent_classifier.intent_classifier_helpers import 
     is_terminal_acceptance_message,
 )
 from app.airag.embeddings.embeddings import choose_embedding_model
-from app.airag.rag_profiles.definitions import get_crag_retrieval_mode
+from app.airag.rag_profiles.definitions import (
+    get_crag_retrieval_mode,
+    normalize_rag_profile_config,
+)
 from app.airag.retrieval.retrievers import (
     aload_validated_bm25_artifact,
     make_dense_retriever,
@@ -680,15 +683,15 @@ async def _get_valid_built_bm25_index(
 
 def _crag_retrieval_settings(rag_profile: Any) -> tuple[str, float, int, int, int]:
     config = getattr(rag_profile, "config", {}) or {}
-    weight = float(config.get("bm25_weight", 0.0))
+    normalized = normalize_rag_profile_config("crag", config)
+    weight = normalized["bm25_weight"]
     mode = get_crag_retrieval_mode(weight)
-    legacy_k = int(config.get("top_k", 4))
     return (
         mode,
         weight,
-        int(config.get("dense_k", legacy_k)),
-        int(config.get("bm25_k", legacy_k)),
-        int(config.get("final_top_k", legacy_k)),
+        normalized["dense_k"],
+        normalized["bm25_k"],
+        normalized["final_top_k"],
     )
 
 
@@ -798,6 +801,10 @@ async def _validate_retrieval_bindings_for_profile(
 ) -> Any | None:
     """Validate simulation artifact IDs according to the selected strategy."""
     if rag_profile.strategy == "graphrag":
+        if bm25_index_id is not None:
+            raise ValueError(
+                "BM25 index selection is not allowed for GraphRAG profiles"
+            )
         if corpus_index_id is None:
             raise ValueError("GraphRAG requires a dense corpus index selection")
         corpus_index = await _get_valid_built_corpus_index(
@@ -809,6 +816,18 @@ async def _validate_retrieval_bindings_for_profile(
             rag_profile,
             corpus_index_id=corpus_index.id,
             session=session,
+        )
+
+    mode, _weight, _dense_k, _bm25_k, _final_top_k = _crag_retrieval_settings(
+        rag_profile
+    )
+    if mode == "dense" and bm25_index_id is not None:
+        raise ValueError(
+            "BM25 index selection is not allowed in dense-only CRAG mode"
+        )
+    if mode == "bm25" and corpus_index_id is not None:
+        raise ValueError(
+            "A dense corpus index selection is not allowed in BM25-only CRAG mode"
         )
 
     await _validate_crag_retrieval_bindings(

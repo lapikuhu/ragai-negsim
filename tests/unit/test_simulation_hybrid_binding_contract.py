@@ -105,6 +105,32 @@ def test_simulation_api_schemas_expose_only_nullable_binding_ids():
         assert "bm25_index_id" in fields
         assert not any("artifact" in name.lower() for name in fields)
 
+    nullable_payloads = (
+        SimulationCreateRequest(
+            name="Nullable create request",
+            corpus_id=44,
+            corpus_index_id=None,
+            bm25_index_id=None,
+            rag_profile_id=7,
+        ),
+        SimulationCreate(
+            name="Nullable create model",
+            user_id_owner=1,
+            corpus_id=44,
+            corpus_index_id=None,
+            bm25_index_id=None,
+            rag_profile_id=7,
+        ),
+        SimulationUpdateRequest(corpus_index_id=None, bm25_index_id=None),
+        SimulationUpdate(corpus_index_id=None, bm25_index_id=None),
+        simulations_service._read_simulation(
+            _simulation(corpus_index_id=None, bm25_index_id=None)
+        ),
+    )
+    for payload in nullable_payloads:
+        assert payload.corpus_index_id is None
+        assert payload.bm25_index_id is None
+
     app = FastAPI()
     app.include_router(simulations_router)
     components = app.openapi()["components"]["schemas"]
@@ -117,6 +143,9 @@ def test_simulation_api_schemas_expose_only_nullable_binding_ids():
         properties = components[schema_name]["properties"]
         assert {"corpus_index_id", "bm25_index_id"} <= set(properties)
         assert not any("artifact" in name.lower() for name in properties)
+        for field_name in ("corpus_index_id", "bm25_index_id"):
+            assert {"type": "integer"} in properties[field_name]["anyOf"]
+            assert {"type": "null"} in properties[field_name]["anyOf"]
 
 
 def test_read_schema_preserves_selected_ids_without_artifact_payloads():
@@ -234,6 +263,85 @@ async def test_create_persists_only_explicit_weight_compatible_bindings(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
+    ("profile", "corpus_index_id", "bm25_index_id", "inactive_message"),
+    [
+        (_crag_profile(0.0), 101, 202, "BM25 index selection is not allowed"),
+        (_crag_profile(1.0), 101, 202, "dense corpus index selection is not allowed"),
+        (
+            SimpleNamespace(id=7, strategy="graphrag", config={}),
+            101,
+            202,
+            "BM25 index selection is not allowed",
+        ),
+    ],
+)
+async def test_create_rejects_an_inactive_binding(
+    monkeypatch,
+    explicit_binding_dependencies,
+    profile,
+    corpus_index_id,
+    bm25_index_id,
+    inactive_message,
+):
+    persisted = []
+
+    async def get_profile(profile_id, session):
+        return profile
+
+    async def validate_graph_profile(rag_profile, *, corpus_index_id, session):
+        return SimpleNamespace(id=91)
+
+    async def get_prompt_template(prompt_id, role, session):
+        return None
+
+    async def create_simulation(simulation_in, session):
+        persisted.append(simulation_in)
+        return simulation_in
+
+    async def lock_knowledge_graph(knowledge_graph, session):
+        return None
+
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        get_profile,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_validate_graphrag_profile_for_index",
+        validate_graph_profile,
+    )
+    monkeypatch.setattr(simulations_service, "_get_prompt_template", get_prompt_template)
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "create_simulation",
+        create_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service.knowledge_graph_indices_repo,
+        "lock_knowledge_graph",
+        lock_knowledge_graph,
+    )
+    monkeypatch.setattr(simulations_service, "_read_simulation", lambda value: value)
+
+    with pytest.raises(ValueError, match=inactive_message):
+        await simulations_service.create_simulation_srvc(
+            SimulationCreateRequest(
+                name="Inactive create binding",
+                corpus_id=44,
+                corpus_index_id=corpus_index_id,
+                bm25_index_id=bm25_index_id,
+                rag_profile_id=7,
+            ),
+            object(),
+            SimpleNamespace(id=1),
+        )
+
+    assert persisted == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
     ("weight", "existing_dense", "existing_bm25", "update", "required_message"),
     [
         (0.0, 101, None, SimulationUpdateRequest(corpus_index_id=None), "dense corpus index selection"),
@@ -307,6 +415,84 @@ async def test_update_uses_the_explicit_change_and_the_persisted_other_binding(
     assert persisted[0].model_dump(exclude_unset=True) == {"bm25_index_id": 203}
     assert explicit_binding_dependencies["dense"] == [(44, 101)]
     assert explicit_binding_dependencies["bm25"] == [(44, 203)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("profile", "existing_dense", "existing_bm25", "update", "inactive_message"),
+    [
+        (
+            _crag_profile(0.0),
+            101,
+            None,
+            SimulationUpdateRequest(bm25_index_id=202),
+            "BM25 index selection is not allowed",
+        ),
+        (
+            _crag_profile(1.0),
+            None,
+            202,
+            SimulationUpdateRequest(corpus_index_id=101),
+            "dense corpus index selection is not allowed",
+        ),
+        (
+            SimpleNamespace(id=7, strategy="graphrag", config={}),
+            101,
+            None,
+            SimulationUpdateRequest(bm25_index_id=202),
+            "BM25 index selection is not allowed",
+        ),
+    ],
+)
+async def test_update_rejects_an_inactive_binding(
+    monkeypatch,
+    explicit_binding_dependencies,
+    profile,
+    existing_dense,
+    existing_bm25,
+    update,
+    inactive_message,
+):
+    persisted = []
+
+    async def get_profile(profile_id, session):
+        return profile
+
+    async def validate_graph_profile(rag_profile, *, corpus_index_id, session):
+        return SimpleNamespace(id=91)
+
+    async def update_simulation(simulation, simulation_in, session):
+        persisted.append(simulation_in)
+        return simulation
+
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        get_profile,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_validate_graphrag_profile_for_index",
+        validate_graph_profile,
+    )
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "update_simulation",
+        update_simulation,
+    )
+    monkeypatch.setattr(simulations_service, "_read_simulation", lambda value: value)
+
+    with pytest.raises(ValueError, match=inactive_message):
+        await simulations_service.update_simulation_srvc(
+            _simulation(
+                corpus_index_id=existing_dense,
+                bm25_index_id=existing_bm25,
+            ),
+            update,
+            object(),
+        )
+
+    assert persisted == []
 
 
 @pytest.mark.asyncio

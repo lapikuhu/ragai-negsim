@@ -277,9 +277,15 @@ def normalize_rag_profile_config(
 
         retrieval_mode = get_crag_retrieval_mode(normalized["bm25_weight"])
         if retrieval_mode == "dense":
-            effective_capacity = normalized["dense_k"]
+            effective_capacity = min(
+                normalized["dense_k"],
+                normalized["final_top_k"],
+            )
         elif retrieval_mode == "bm25":
-            effective_capacity = normalized["bm25_k"]
+            effective_capacity = min(
+                normalized["bm25_k"],
+                normalized["final_top_k"],
+            )
         else:
             effective_capacity = normalized["final_top_k"]
 

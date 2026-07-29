@@ -126,7 +126,9 @@ def test_crag_retrieval_contract_rejects_removed_top_k_field():
     ("bm25_weight", "dense_k", "bm25_k", "final_top_k", "effective_capacity"),
     [
         (0.0, 2, 5, 4, 2),
+        (0.0, 5, 2, 3, 3),
         (1.0, 5, 2, 4, 2),
+        (1.0, 2, 5, 3, 3),
         (0.5, 2, 5, 4, 4),
     ],
 )
@@ -167,7 +169,9 @@ def test_crag_retrieval_contract_uses_mode_specific_capacity_with_reranker(
     ("bm25_weight", "dense_k", "bm25_k", "final_top_k", "effective_capacity"),
     [
         (0.0, 2, 5, 4, 2),
+        (0.0, 5, 2, 3, 3),
         (1.0, 5, 2, 4, 2),
+        (1.0, 2, 5, 3, 3),
         (0.5, 2, 5, 4, 4),
     ],
 )

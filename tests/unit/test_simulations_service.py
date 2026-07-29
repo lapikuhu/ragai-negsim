@@ -495,7 +495,10 @@ async def test_create_simulation_stamps_current_user(monkeypatch, fake_user_fact
             id=profile_id,
             strategy="crag",
             config={
-                "top_k": 4,
+                "bm25_weight": 0.0,
+                "dense_k": 4,
+                "bm25_k": 4,
+                "final_top_k": 4,
                 "reranker": "cross_encoder",
                 "top_n": 3,
                 "max_rewrite_attempts": 2,
@@ -587,7 +590,10 @@ async def test_create_simulation_stores_enabled_learner_config(monkeypatch, fake
             id=profile_id,
             strategy="crag",
             config={
-                "top_k": 4,
+                "bm25_weight": 0.0,
+                "dense_k": 4,
+                "bm25_k": 4,
+                "final_top_k": 4,
                 "reranker": "cross_encoder",
                 "top_n": 3,
                 "max_rewrite_attempts": 2,
@@ -777,7 +783,10 @@ async def test_create_simulation_requires_existing_prompt(monkeypatch, fake_user
             id=profile_id,
             strategy="crag",
             config={
-                "top_k": 4,
+                "bm25_weight": 0.0,
+                "dense_k": 4,
+                "bm25_k": 4,
+                "final_top_k": 4,
                 "reranker": "cross_encoder",
                 "top_n": 3,
                 "max_rewrite_attempts": 2,
@@ -2527,7 +2536,12 @@ def test_clear_negotiation_graph_cache_for_knowledge_graph_removes_target_only()
     crag_profile = SimpleNamespace(
         id=501,
         strategy="crag",
-        config={"top_k": 4},
+        config={
+            "bm25_weight": 0.0,
+            "dense_k": 4,
+            "bm25_k": 4,
+            "final_top_k": 4,
+        },
         knowledge_graph_index_id=None,
     )
     target_key = simulations_service._graph_cache_key(
@@ -2617,7 +2631,10 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
             id=profile_id,
             strategy="crag",
             config={
-                "top_k": 6,
+                "bm25_weight": 0.0,
+                "dense_k": 6,
+                "bm25_k": 6,
+                "final_top_k": 6,
                 "reranker": "none",
                 "top_n": 6,
                 "max_rewrite_attempts": 0,
@@ -2727,7 +2744,10 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
             "normalized",
             "crag",
             {
-                "top_k": 6,
+                "bm25_weight": 0.0,
+                "dense_k": 6,
+                "bm25_k": 6,
+                "final_top_k": 6,
                 "reranker": "none",
                 "top_n": 6,
                 "max_rewrite_attempts": 0,
@@ -2738,7 +2758,10 @@ async def test_negotiation_graph_is_cached_per_corpus_index(monkeypatch):
         (
             "crag",
             {
-                "top_k": 6,
+                "bm25_weight": 0.0,
+                "dense_k": 6,
+                "bm25_k": 6,
+                "final_top_k": 6,
                 "reranker": "none",
                 "top_n": 6,
                 "max_rewrite_attempts": 0,
