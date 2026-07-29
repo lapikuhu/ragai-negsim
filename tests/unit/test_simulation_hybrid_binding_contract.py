@@ -337,3 +337,72 @@ async def test_graphrag_keeps_its_dense_only_binding_contract(
     assert result is graph
     assert explicit_binding_dependencies["dense"] == [(44, 101)]
     assert explicit_binding_dependencies["bm25"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_preserves_graphrag_dense_only_binding_behavior(
+    monkeypatch,
+    explicit_binding_dependencies,
+):
+    graph = SimpleNamespace(id=91)
+    persisted = []
+    locked_graphs = []
+
+    async def get_profile(profile_id, session):
+        return SimpleNamespace(id=7, strategy="graphrag", config={})
+
+    async def validate_graph_profile(rag_profile, *, corpus_index_id, session):
+        assert corpus_index_id == 101
+        return graph
+
+    async def get_prompt_template(prompt_id, role, session):
+        return None
+
+    async def create_simulation(simulation_in, session):
+        persisted.append(simulation_in)
+        return simulation_in
+
+    async def lock_knowledge_graph(knowledge_graph, session):
+        locked_graphs.append(knowledge_graph)
+
+    monkeypatch.setattr(
+        simulations_service.rag_profiles_repo,
+        "get_rag_profile_by_id",
+        get_profile,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_validate_graphrag_profile_for_index",
+        validate_graph_profile,
+    )
+    monkeypatch.setattr(simulations_service, "_get_prompt_template", get_prompt_template)
+    monkeypatch.setattr(
+        simulations_service.simulations_repo,
+        "create_simulation",
+        create_simulation,
+    )
+    monkeypatch.setattr(
+        simulations_service.knowledge_graph_indices_repo,
+        "lock_knowledge_graph",
+        lock_knowledge_graph,
+    )
+    monkeypatch.setattr(simulations_service, "_read_simulation", lambda value: value)
+
+    result = await simulations_service.create_simulation_srvc(
+        SimulationCreateRequest(
+            name="GraphRAG create binding",
+            corpus_id=44,
+            corpus_index_id=101,
+            bm25_index_id=None,
+            rag_profile_id=7,
+        ),
+        object(),
+        SimpleNamespace(id=1),
+    )
+
+    assert result is persisted[0]
+    assert persisted[0].corpus_index_id == 101
+    assert persisted[0].bm25_index_id is None
+    assert locked_graphs == [graph]
+    assert explicit_binding_dependencies["dense"] == [(44, 101)]
+    assert explicit_binding_dependencies["bm25"] == []
