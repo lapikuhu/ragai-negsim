@@ -37,7 +37,7 @@ from app.schemas.full_corpus_index_pipe_jobs_schemas import (
     FullCorpusIndexPipeJobWarningRead,
 )
 from app.services.chunking_profile_runtime import resolve_ingestion_profile_options
-from app.services.embeddings_service import _to_vector_documents
+from app.services.corpus_index_build_service import to_vector_documents
 from app.services.ingestion_service import ingest_raw_document_srvc
 from app.repositories.indexed_chunks_repo import bulk_create_indexed_chunks
 
@@ -614,7 +614,7 @@ async def _embed_candidate(
         raise ValueError("No documents produced chunks")
 
     embedding_model, embedding_metadata = choose_embedding_model(job.embedding_model)
-    documents, vector_refs = _to_vector_documents(
+    documents, vector_refs = to_vector_documents(
         chunks=chunks,
         corpus_id=job.corpus_id,
         corpus_index_id=candidate_index_id,

@@ -144,18 +144,26 @@ async def get_corpus_bm25_index_artifact_by_id(
     return result.first()
 
 
-async def create_corpus_bm25_index(
+def prepare_corpus_bm25_index(
     index_in: CorpusBm25IndexCreate,
-    session: AsyncSession,
 ) -> CorpusBm25Index:
     index_data = index_in.model_dump(exclude={"document_chunk_ids"})
-    index = CorpusBm25Index(
+    return CorpusBm25Index(
         **index_data,
         document_count=len(index_in.document_chunk_ids),
         document_chunk_ids_checksum=document_chunk_ids_checksum(
             index_in.document_chunk_ids
         ),
     )
+
+
+async def create_corpus_bm25_index(
+    index_in: CorpusBm25IndexCreate,
+    session: AsyncSession,
+    *,
+    prepared_index: CorpusBm25Index | None = None,
+) -> CorpusBm25Index:
+    index = prepared_index or prepare_corpus_bm25_index(index_in)
     return await commit_and_refresh(session, index)
 
 
@@ -317,6 +325,96 @@ async def mark_corpus_bm25_index_cancelled(
         "cancelled",
         {"build_error": build_error, "last_updated": utc_now()},
         session,
+    )
+
+
+async def _compensate_corpus_bm25_index_build(
+    index_id: int,
+    build_error: str,
+    *,
+    status: str,
+    allowed_current_statuses: tuple[str, ...],
+    session: AsyncSession,
+) -> CorpusBm25IndexMetadata:
+    persisted_id = _corpus_bm25_index_id(index_id)
+    await session.rollback()
+    now = utc_now()
+    statement = (
+        update(CorpusBm25Index)
+        .where(
+            CorpusBm25Index.id == persisted_id,
+            CorpusBm25Index.status.in_(allowed_current_statuses),
+        )
+        .values(
+            status=status,
+            artifact=None,
+            compressed_artifact_checksum=None,
+            built_at=None,
+            build_error=build_error,
+            last_updated=now,
+        )
+        .returning(*_corpus_bm25_index_metadata_columns())
+    )
+    try:
+        result = await session.exec(statement)
+        row = result.one_or_none()
+    except Exception:
+        await session.rollback()
+        raise
+    if row is None:
+        await session.rollback()
+        metadata = await get_corpus_bm25_index_metadata_by_id(
+            persisted_id,
+            session,
+        )
+        await session.rollback()
+        if metadata is None:
+            raise ValueError("Corpus BM25 index not found")
+        raise ValueError(f"Corpus BM25 index build cannot be marked {status}")
+    try:
+        metadata = _to_metadata(row)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return metadata
+
+
+async def cancel_corpus_bm25_index_build(
+    index_id: int,
+    build_error: str,
+    session: AsyncSession,
+) -> CorpusBm25IndexMetadata:
+    """Compensate task cancellation and atomically remove any built artifact.
+
+    This build-only recovery does not make built-to-cancelled an ordinary
+    lifecycle transition.
+    """
+    return await _compensate_corpus_bm25_index_build(
+        index_id,
+        build_error,
+        status="cancelled",
+        allowed_current_statuses=("created", "building", "built", "cancelled"),
+        session=session,
+    )
+
+
+async def fail_corpus_bm25_index_build(
+    index_id: int,
+    build_error: str,
+    session: AsyncSession,
+) -> CorpusBm25IndexMetadata:
+    """Compensate an ambiguous build failure and clear any durable artifact.
+
+    This build-only recovery does not make built-to-failed an ordinary
+    lifecycle transition.
+    """
+    return await _compensate_corpus_bm25_index_build(
+        index_id,
+        build_error,
+        status="failed",
+        allowed_current_statuses=("created", "building", "built", "failed"),
+        session=session,
     )
 
 

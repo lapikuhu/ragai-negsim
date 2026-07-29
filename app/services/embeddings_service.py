@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 
 from app.db.db import AsyncSessionLocal
 from app.services.helpers import _persisted_id
-from langchain_core.documents import Document
 from app.models.chunking_profiles import ChunkingProfile
 from app.models.corpus import Corpus
 from app.models.corpus_indices import CorpusIndex
@@ -23,9 +22,9 @@ from app.schemas.embeddings_schemas import (
     CorpusEmbeddingBuildQueued,
     CorpusEmbeddingBuildRequest,
     CorpusEmbeddingBuildResult,
-    IndexedChunkBuildRef,
 )
 from app.schemas.indexed_chunks_schemas import IndexedChunkCreate
+from app.services.corpus_index_build_service import to_vector_documents
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 def _vector_namespace(index_id: int, requested_namespace: str | None) -> str:
@@ -41,62 +40,6 @@ def _vector_namespace(index_id: int, requested_namespace: str | None) -> str:
     if requested_namespace is not None and requested_namespace.strip():
         return requested_namespace
     return f"corpus-index-{index_id}"
-
-
-def _external_vector_id(corpus_index_id: int, document_chunk_id: int) -> str:
-    """
-    Generate an external vector ID based on the corpus index ID and document chunk ID.
-    Args:
-        corpus_index_id (int): The ID of the corpus index.
-        document_chunk_id (int): The ID of the document chunk.
-    Returns:
-        str: The external vector ID.
-    """
-    return f"corpus-index-{corpus_index_id}-chunk-{document_chunk_id}"
-
-
-def _to_vector_documents( # CHECK
-    chunks,
-    corpus_id: int,
-    corpus_index_id: int,
-    chunking_profile_id: int,
-) -> tuple[list[Document], list[IndexedChunkBuildRef]]:
-    """
-    Convert document chunks into vector store documents and build references.
-    Args:
-        chunks: The list of document chunks.
-        corpus_id (int): The ID of the corpus.
-        corpus_index_id (int): The ID of the corpus index.
-        chunking_profile_id (int): The ID of the chunking profile.
-    Returns:
-        tuple[list[Document], list[IndexedChunkBuildRef]]: A tuple containing the list of
-        vector store documents and the list of indexed chunk build references.
-    """
-    documents: list[Document] = []
-    vector_refs: list[IndexedChunkBuildRef] = []
-
-    for chunk in chunks:
-        document_chunk_id = _persisted_id(chunk.id, "Document chunk")
-        external_vector_id = _external_vector_id(corpus_index_id, document_chunk_id)
-        metadata = dict(chunk.chunk_metadata or {})
-        metadata.update(
-            {
-                "corpus_id": corpus_id,
-                "corpus_index_id": corpus_index_id,
-                "raw_document_id": chunk.raw_document_id,
-                "chunking_profile_id": chunking_profile_id,
-                "document_chunk_id": document_chunk_id,
-            }
-        )
-        documents.append(Document(page_content=chunk.content, metadata=metadata))
-        vector_refs.append(
-            IndexedChunkBuildRef(
-                document_chunk_id=document_chunk_id,
-                external_vector_id=external_vector_id,
-            )
-        )
-
-    return documents, vector_refs
 
 
 async def _mark_index_failed(
@@ -176,7 +119,7 @@ async def _build_existing_corpus_index(
     if not chunks:
         raise ValueError("No document chunks found for this corpus and chunking profile. Chunk the corpus first.")
 
-    documents, vector_refs = _to_vector_documents(
+    documents, vector_refs = to_vector_documents(
         chunks=chunks,
         corpus_id=corpus_id,
         corpus_index_id=corpus_index_id,

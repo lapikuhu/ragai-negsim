@@ -7,6 +7,19 @@ from app.schemas.embeddings_schemas import CorpusEmbeddingBuildRequest
 from app.services import embeddings_service
 
 
+def _forbid_bm25_creation(monkeypatch):
+    from app.repositories import corpus_bm25_indices_repo
+
+    async def fail_if_dense_build_creates_bm25(*_args, **_kwargs):
+        raise AssertionError("Dense embedding builds must not create BM25 artifacts")
+
+    monkeypatch.setattr(
+        corpus_bm25_indices_repo,
+        "create_corpus_bm25_index",
+        fail_if_dense_build_creates_bm25,
+    )
+
+
 def _corpus(corpus_id=11):
     return SimpleNamespace(id=corpus_id, name="corpus", created_by_user_id=1)
 
@@ -109,6 +122,7 @@ def test_queued_embedding_build_response_contains_poll_links():
 
 @pytest.mark.asyncio
 async def test_build_corpus_embeddings_creates_index_and_vector_refs(monkeypatch):
+    _forbid_bm25_creation(monkeypatch)
     captured_docs = []
     captured_indexed_chunks = []
     captured_metadata = []
@@ -211,6 +225,7 @@ async def test_build_corpus_embeddings_creates_index_and_vector_refs(monkeypatch
     assert captured_docs[0].metadata["corpus_id"] == 11
     assert captured_docs[0].metadata["document_chunk_id"] == 101
     assert captured_indexed_chunks[0].external_vector_id == "corpus-index-77-chunk-101"
+    assert not any("bm25" in field.lower() for field in result.model_dump())
 
 
 @pytest.mark.asyncio

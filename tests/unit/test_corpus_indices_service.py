@@ -15,6 +15,19 @@ from app.schemas.corpus_indices_schemas import (
 from app.services import corpus_indices_service
 
 
+def _forbid_bm25_creation(monkeypatch):
+    from app.repositories import corpus_bm25_indices_repo
+
+    async def fail_if_dense_transition_creates_bm25(*_args, **_kwargs):
+        raise AssertionError("Dense index transitions must not create BM25 artifacts")
+
+    monkeypatch.setattr(
+        corpus_bm25_indices_repo,
+        "create_corpus_bm25_index",
+        fail_if_dense_transition_creates_bm25,
+    )
+
+
 def _index(
     index_id=10,
     name="Corpus index",
@@ -240,6 +253,7 @@ async def test_update_corpus_index_uses_metadata_update(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_update_corpus_index_status_delegates(monkeypatch):
+    _forbid_bm25_creation(monkeypatch)
     target = _index(index_id=10)
     captured = []
 
@@ -262,6 +276,7 @@ async def test_update_corpus_index_status_delegates(monkeypatch):
 
     assert result.status == "building"
     assert captured == [CorpusIndexStatusUpdate(status="building")]
+    assert not any("bm25" in field.lower() for field in result.model_dump())
 
 
 @pytest.mark.asyncio
@@ -292,6 +307,7 @@ async def test_update_corpus_index_status_exposes_build_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_mark_corpus_index_built_delegates(monkeypatch):
+    _forbid_bm25_creation(monkeypatch)
     target = _index(index_id=11, status="building")
     target.build_error = "previous failure"
     built_at = datetime.now(timezone.utc)
@@ -329,10 +345,12 @@ async def test_mark_corpus_index_built_delegates(monkeypatch):
             vector_namespace=None,
         )
     ]
+    assert not any("bm25" in field.lower() for field in result.model_dump())
 
 
 @pytest.mark.asyncio
 async def test_copy_corpus_index_validates_override_refs_and_delegates(monkeypatch):
+    _forbid_bm25_creation(monkeypatch)
     source = _index(index_id=12)
     captured = []
 
@@ -382,6 +400,7 @@ async def test_copy_corpus_index_validates_override_refs_and_delegates(monkeypat
     assert result.id == 13
     assert result.indexed_document_chunk_ids == [55]
     assert captured == [(source, copy_in)]
+    assert not any("bm25" in field.lower() for field in result.model_dump())
 
 
 @pytest.mark.asyncio
