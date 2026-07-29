@@ -80,15 +80,117 @@ def test_crag_retrieval_contract_rejects_final_k_above_both_candidate_limits():
         )
 
 
-def test_crag_retrieval_contract_keeps_reranking_below_final_retrieval_limit():
-    with pytest.raises(ValueError, match="top_n must be <= final_top_k"):
+def test_crag_retrieval_contract_keeps_reranking_below_effective_retrieval_limit():
+    with pytest.raises(ValueError, match="top_n must be <= effective retrieval capacity"):
         normalize_rag_profile_config(
             "crag",
             {
+                "bm25_weight": 0.5,
                 "final_top_k": 2,
                 "top_n": 3,
             },
         )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("bm25_weight", True),
+        ("bm25_weight", "0.5"),
+        ("bm25_weight", None),
+        ("dense_k", True),
+        ("dense_k", 1.5),
+        ("dense_k", "4"),
+        ("bm25_k", False),
+        ("bm25_k", 2.5),
+        ("bm25_k", "4"),
+        ("final_top_k", True),
+        ("final_top_k", 3.5),
+        ("final_top_k", "4"),
+    ],
+)
+def test_crag_retrieval_contract_rejects_non_numeric_or_non_integer_values(
+    field_name,
+    invalid_value,
+):
+    with pytest.raises(ValueError, match=field_name):
+        normalize_rag_profile_config("crag", {field_name: invalid_value})
+
+
+def test_crag_retrieval_contract_rejects_removed_top_k_field():
+    with pytest.raises(ValueError, match="top_k"):
+        normalize_rag_profile_config("crag", {"top_k": 4})
+
+
+@pytest.mark.parametrize(
+    ("bm25_weight", "dense_k", "bm25_k", "final_top_k", "effective_capacity"),
+    [
+        (0.0, 2, 5, 4, 2),
+        (1.0, 5, 2, 4, 2),
+        (0.5, 2, 5, 4, 4),
+    ],
+)
+def test_crag_retrieval_contract_uses_mode_specific_capacity_with_reranker(
+    bm25_weight,
+    dense_k,
+    bm25_k,
+    final_top_k,
+    effective_capacity,
+):
+    config = normalize_rag_profile_config(
+        "crag",
+        {
+            "bm25_weight": bm25_weight,
+            "dense_k": dense_k,
+            "bm25_k": bm25_k,
+            "final_top_k": final_top_k,
+            "top_n": effective_capacity,
+        },
+    )
+
+    assert config["top_n"] == effective_capacity
+
+    with pytest.raises(ValueError, match="top_n must be <= effective retrieval capacity"):
+        normalize_rag_profile_config(
+            "crag",
+            {
+                "bm25_weight": bm25_weight,
+                "dense_k": dense_k,
+                "bm25_k": bm25_k,
+                "final_top_k": final_top_k,
+                "top_n": effective_capacity + 1,
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    ("bm25_weight", "dense_k", "bm25_k", "final_top_k", "effective_capacity"),
+    [
+        (0.0, 2, 5, 4, 2),
+        (1.0, 5, 2, 4, 2),
+        (0.5, 2, 5, 4, 4),
+    ],
+)
+def test_crag_retrieval_contract_none_reranker_normalizes_to_mode_capacity(
+    bm25_weight,
+    dense_k,
+    bm25_k,
+    final_top_k,
+    effective_capacity,
+):
+    config = normalize_rag_profile_config(
+        "crag",
+        {
+            "bm25_weight": bm25_weight,
+            "dense_k": dense_k,
+            "bm25_k": bm25_k,
+            "final_top_k": final_top_k,
+            "reranker": "none",
+            "top_n": 1,
+        },
+    )
+
+    assert config["top_n"] == effective_capacity
 
 
 def test_crag_retrieval_contract_rejects_concrete_artifact_identity():

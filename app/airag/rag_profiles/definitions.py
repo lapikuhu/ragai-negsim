@@ -275,11 +275,19 @@ def normalize_rag_profile_config(
         ):
             raise ValueError("final_top_k must be <= max(dense_k, bm25_k)")
 
-        if normalized["top_n"] > normalized["final_top_k"]:
-            raise ValueError("top_n must be <= final_top_k")
+        retrieval_mode = get_crag_retrieval_mode(normalized["bm25_weight"])
+        if retrieval_mode == "dense":
+            effective_capacity = normalized["dense_k"]
+        elif retrieval_mode == "bm25":
+            effective_capacity = normalized["bm25_k"]
+        else:
+            effective_capacity = normalized["final_top_k"]
+
+        if normalized["top_n"] > effective_capacity:
+            raise ValueError("top_n must be <= effective retrieval capacity")
 
         if normalized["reranker"] == "none":
-            normalized["top_n"] = normalized["final_top_k"]
+            normalized["top_n"] = effective_capacity
 
     normalized["llm_components"] = normalize_rag_llm_components(
         config.get("llm_components")
