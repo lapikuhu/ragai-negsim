@@ -12,9 +12,19 @@ from app.airag.prompts.neg_prompts.md_loader import COACH_PROMPT, COUNTERPART_PR
 agent_model = get_openai_llm("gpt-4o", temperature=0.)
 
 # Get the retriever object that will be used in the CRAG graph
-retriever = make_hybrid_retriever(vector_store=None, 
-                                  documents=[], 
-                                  k=4) 
+class _EmptyScratchRetriever:
+    def invoke(self, _query, config=None, **_kwargs):
+        return []
+
+
+retriever = make_hybrid_retriever(
+    dense_retriever=_EmptyScratchRetriever(),
+    bm25_retriever=None,
+    bm25_weight=0.0,
+    dense_k=4,
+    bm25_k=4,
+    final_top_k=4,
+)
 # Create the CRAG instance
 crag = make_crag(retriever_obj=retriever,
                  state_schema=CRAGState)

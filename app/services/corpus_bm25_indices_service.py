@@ -1,14 +1,17 @@
 """Build persisted BM25 artifacts independently from dense corpus indexes."""
 
 import asyncio
-import pickle
-import zlib
 from collections.abc import Awaitable, Callable
+from hashlib import sha256
 from typing import TypeVar
 
-from langchain_community.retrievers import BM25Retriever
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.airag.retrieval.retrievers import (
+    BM25_ARTIFACT_FORMAT_VERSION,
+    build_serialized_bm25_artifact,
+    load_validated_bm25_artifact,
+)
 from app.repositories import corpus_bm25_indices_repo
 from app.repositories.document_chunks_repo import list_corpus_document_chunks_for_profile
 from app.schemas.corpus_bm25_indices_schemas import (
@@ -18,8 +21,6 @@ from app.schemas.corpus_bm25_indices_schemas import (
 from app.services.corpus_index_build_service import documents_from_persisted_chunks
 from app.services.helpers import _persisted_id
 
-
-BM25_ARTIFACT_FORMAT_VERSION = "pickle-zlib-v1"
 _T = TypeVar("_T")
 
 
@@ -30,44 +31,13 @@ def _short_error(exc: BaseException, max_length: int = 500) -> str:
     return f"{message[: max_length - 3]}..."
 
 
-def load_validated_bm25_artifact(
-    artifact: bytes,
-    *,
-    expected_document_count: int,
-) -> BM25Retriever:
-    """Load trusted bytes and verify the persisted BM25 runtime shape."""
-    try:
-        retriever = pickle.loads(zlib.decompress(artifact))
-    except (
-        pickle.PickleError,
-        AttributeError,
-        EOFError,
-        ImportError,
-        IndexError,
-        TypeError,
-        ValueError,
-        zlib.error,
-    ) as exc:
-        raise ValueError("BM25 artifact cannot be loaded") from exc
-
-    if not isinstance(retriever, BM25Retriever):
-        raise ValueError("BM25 artifact has an unexpected retriever type")
-    if len(retriever.docs) != expected_document_count:
-        raise ValueError("BM25 artifact document count does not match the chunk snapshot")
-    if any(
-        type(document.metadata.get("document_chunk_id")) is not int
-        for document in retriever.docs
-    ):
-        raise ValueError("BM25 artifact documents require integer document_chunk_id metadata")
-    return retriever
-
-
 def _build_serialize_and_validate_bm25(documents) -> bytes:
-    """Keep the Plan 4 serialization/load-validation boundary isolated here."""
-    retriever = BM25Retriever.from_documents(documents=documents)
-    artifact = zlib.compress(pickle.dumps(retriever, protocol=5))
+    """Compose shared retrieval primitives for the build executor."""
+    artifact = build_serialized_bm25_artifact(documents)
     load_validated_bm25_artifact(
         artifact,
+        expected_checksum=sha256(artifact).hexdigest(),
+        format_version=BM25_ARTIFACT_FORMAT_VERSION,
         expected_document_count=len(documents),
     )
     return artifact

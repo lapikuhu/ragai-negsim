@@ -194,6 +194,8 @@ async def test_builds_validated_bm25_artifact_for_selected_chunk_snapshot(monkey
 
     retriever = service.load_validated_bm25_artifact(
         repository.artifact,
+        expected_checksum=sha256(repository.artifact).hexdigest(),
+        format_version="pickle-zlib-v1",
         expected_document_count=2,
     )
     assert len(retriever.docs) == 2
@@ -668,5 +670,7 @@ def test_load_validation_normalizes_truncated_pickle_errors():
     with pytest.raises(ValueError, match="BM25 artifact cannot be loaded"):
         service.load_validated_bm25_artifact(
             truncated_protocol_five_pickle,
+            expected_checksum=sha256(truncated_protocol_five_pickle).hexdigest(),
+            format_version="pickle-zlib-v1",
             expected_document_count=2,
         )

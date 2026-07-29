@@ -86,6 +86,8 @@ async def test_database_build_atomically_persists_safe_validated_artifact(
     assert not hasattr(metadata, "artifact")
     retriever = service.load_validated_bm25_artifact(
         artifact,
+        expected_checksum=metadata.compressed_artifact_checksum,
+        format_version=metadata.format_version,
         expected_document_count=2,
     )
     assert [document.metadata["document_chunk_id"] for document in retriever.docs] == [20, 3]
