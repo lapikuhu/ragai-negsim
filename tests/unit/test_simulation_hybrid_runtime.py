@@ -201,6 +201,84 @@ def test_runtime_crag_settings_reject_removed_legacy_top_k():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("backend", "expected_call"),
+    [
+        (
+            "chroma",
+            {
+                "embedding_model": "embedding",
+                "collection_name": "dense-collection",
+                "persist_directory": "./dense-store",
+            },
+        ),
+        (
+            "faiss",
+            {
+                "embeddings": "embedding",
+                "path": "./dense-store",
+            },
+        ),
+        (
+            "pgvector",
+            {
+                "vector_table_name": "dense_table",
+                "embedding_model": "embedding",
+                "embedding_model_name": "dense-model",
+            },
+        ),
+    ],
+)
+async def test_dense_factory_dispatch_preserves_chroma_faiss_and_pgvector_paths(
+    monkeypatch,
+    backend,
+    expected_call,
+):
+    calls = []
+    expected_runtime = object()
+    corpus_index = SimpleNamespace(embedding_model="dense-model")
+    vector_store = SimpleNamespace(
+        backend=backend,
+        collection_name="dense-collection",
+        path="./dense-store",
+        table_name="dense_table",
+    )
+
+    monkeypatch.setattr(
+        simulations_service,
+        "choose_embedding_model",
+        lambda model_name: ("embedding", {"model": model_name}),
+    )
+
+    if backend == "pgvector":
+        async def factory(**kwargs):
+            calls.append(kwargs)
+            return expected_runtime
+
+        monkeypatch.setattr(simulations_service, "instantiate_pgvector_store", factory)
+    elif backend == "chroma":
+        def factory(**kwargs):
+            calls.append(kwargs)
+            return expected_runtime
+
+        monkeypatch.setattr(simulations_service, "instantiate_chroma_vector_store", factory)
+    else:
+        def factory(**kwargs):
+            calls.append(kwargs)
+            return expected_runtime
+
+        monkeypatch.setattr(simulations_service, "load_faiss_vector_store", factory)
+
+    result = await simulations_service._instantiate_vector_store_for_index(
+        corpus_index,
+        vector_store,
+    )
+
+    assert result is expected_runtime
+    assert calls == [expected_call]
+
+
+@pytest.mark.asyncio
 async def test_dense_only_uses_dense_k_without_fetching_bm25(monkeypatch):
     harness = RuntimeHarness(monkeypatch, weight=0.0)
 
