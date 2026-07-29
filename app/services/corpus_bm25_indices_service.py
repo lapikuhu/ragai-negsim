@@ -20,6 +20,7 @@ from app.schemas.corpus_bm25_indices_schemas import (
 )
 from app.services.corpus_index_build_service import documents_from_persisted_chunks
 from app.services.helpers import _persisted_id
+from app.services import simulations_service
 
 _T = TypeVar("_T")
 
@@ -78,13 +79,17 @@ async def _mark_build_failed(
     build_error: str,
     session: AsyncSession,
 ) -> None:
-    await _await_durable(
-        corpus_bm25_indices_repo.fail_corpus_bm25_index_build(
-            index_id,
-            build_error,
-            session,
+    metadata: CorpusBm25IndexMetadata | None = None
+    try:
+        metadata = await _await_durable(
+            corpus_bm25_indices_repo.fail_corpus_bm25_index_build(
+                index_id,
+                build_error,
+                session,
+            )
         )
-    )
+    finally:
+        _clear_bm25_graph_cache(index_id, metadata)
 
 
 async def _mark_build_cancelled(
@@ -92,13 +97,54 @@ async def _mark_build_cancelled(
     build_error: str,
     session: AsyncSession,
 ) -> None:
-    await _await_durable(
-        corpus_bm25_indices_repo.cancel_corpus_bm25_index_build(
-            index_id,
-            build_error,
-            session,
+    metadata: CorpusBm25IndexMetadata | None = None
+    try:
+        metadata = await _await_durable(
+            corpus_bm25_indices_repo.cancel_corpus_bm25_index_build(
+                index_id,
+                build_error,
+                session,
+            )
         )
+    finally:
+        _clear_bm25_graph_cache(index_id, metadata)
+
+
+def _clear_bm25_graph_cache(
+    index_id: int,
+    metadata: CorpusBm25IndexMetadata | None = None,
+) -> int:
+    return simulations_service.clear_negotiation_graph_cache_for_bm25_index(
+        index_id,
+        **(
+            {
+                "artifact_checksum": metadata.compressed_artifact_checksum,
+                "document_chunk_ids_checksum": metadata.document_chunk_ids_checksum,
+            }
+            if metadata is not None
+            else {}
+        ),
     )
+
+
+async def retire_corpus_bm25_index_srvc(
+    index: CorpusBm25IndexMetadata,
+    session: AsyncSession,
+) -> CorpusBm25IndexMetadata:
+    retired = await corpus_bm25_indices_repo.mark_corpus_bm25_index_retired(
+        index.id,
+        session,
+    )
+    _clear_bm25_graph_cache(index.id, index)
+    return retired
+
+
+async def delete_corpus_bm25_index_srvc(
+    index: CorpusBm25IndexMetadata,
+    session: AsyncSession,
+) -> None:
+    await corpus_bm25_indices_repo.delete_corpus_bm25_index(index.id, session)
+    _clear_bm25_graph_cache(index.id, index)
 
 
 async def build_corpus_bm25_index_srvc(

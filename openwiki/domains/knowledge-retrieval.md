@@ -45,6 +45,48 @@ The README and recent git history show two retrieval strategies:
 ### CRAG
 CRAG is corrective retrieval over the configured vector store. It retrieves candidate chunks, reranks them, grades relevance, can rewrite the query if evidence is weak, and produces a grounded answer.
 
+#### Dense and BM25 artifact model
+
+Dense corpus indexes and BM25 indexes are separate persisted artifacts. A
+`CorpusIndex` owns dense vector-store identity and `IndexedChunk` references.
+A `CorpusBm25Index` owns a compressed lexical artifact, its artifact checksum,
+and the checksum of the document-chunk ID snapshot used to build it. The
+presence, status, copy, or cleanup of either record never implies that the
+other artifact exists or is available.
+
+The Hybrid compatibility contract is selected explicitly by the CRAG
+profile's `bm25_weight`:
+
+- Weight `0` is dense-only and requires only a built dense corpus index.
+- Weight `1` is BM25-only and requires only a built BM25 index.
+- An intermediate weight requires both explicit bindings. They must refer to
+  the same corpus and chunking profile and must have the same document count
+  and document-chunk ID checksum.
+
+Runtime selection never infers a BM25 artifact from a dense index. Dense
+cleanup deletes only dense vectors, `IndexedChunk` references, and negotiation
+graph cache entries identified by dense corpus-index ID. BM25 cleanup deletes
+only its artifact row/compressed bytes and graph-cache entries identified by
+BM25 ID, artifact checksum, or chunk-set checksum. Failure, cancellation,
+interrupted-job recovery, retirement, and deletion preserve this boundary.
+
+BM25 artifact build, validation, and load run outside the event-loop thread,
+but there is no standalone BM25 runtime cache. A loaded BM25 runtime can be
+retained only indirectly by the existing negotiation graph cache. Therefore
+memory is not bounded by the hybrid migration: large corpora can create memory
+pressure or apparent hangs while graphs remain cached. Resource-specific
+cleanup clears identifiable entries; otherwise an operator may need an
+explicit negotiation-graph cache clear or a process restart. A restart clears
+the process-local graph cache and forces the persisted artifact to be loaded
+again when next used.
+
+Frontend parity is deferred; the current frontend does not yet provide the
+complete dense/BM25/hybrid binding controls. RAG evaluation remains dense-only,
+and evaluation parity is deferred. If a future full-corpus-index-pipe job
+materializes BM25, its API must make that choice explicit with
+`build_bm25: bool` or `artifact_mode: "dense" | "bm25" | "both"`; neither
+option is added by the current backend migration.
+
 ### GraphRAG
 GraphRAG uses a knowledge graph backed by Neo4j. It can retrieve evidence through semantic graph search, validated text-to-Cypher, or a hybrid ranking strategy.
 
@@ -62,6 +104,7 @@ Scoring uses the pipeline's final ranked answer-context documents, not the retri
 ## Evidence ledger and source cards
 `app/airag/observability/evidence_ledger.py` defines how source cards are built and stored. Important details:
 - Only a safe subset of metadata is copied into source cards.
+- Hybrid source cards retain `dense_rank`, `bm25_rank`, and `fused_score` after reranking.
 - Source cards can be built from `Document` objects.
 - The ledger can extract sources from nested CRAG/GraphRAG structures.
 - Ledger records include pipeline steps, quality checks, model metadata, token usage, and output summaries.

@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import asyncio
 
 import pytest
 
@@ -8,6 +9,13 @@ from app.schemas.simulations_schemas import (
     SimulationUpdateRequest,
 )
 from app.services import simulations_service
+
+
+@pytest.fixture(autouse=True)
+def isolate_negotiation_graph_cache():
+    simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
+    yield
+    simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
 
 
 def _simulation(*, corpus_index_id=77, bm25_index_id=88):
@@ -412,7 +420,7 @@ async def test_compatible_hybrid_validates_before_constructing_both_retrievers(
     }
 
 
-def test_graph_cache_key_tracks_bm25_artifact_and_chunk_snapshot():
+def test_graph_cache_key_tracks_dense_bm25_artifact_and_chunk_snapshot():
     common = (
         SimpleNamespace(id=77),
         SimpleNamespace(id=12),
@@ -435,8 +443,164 @@ def test_graph_cache_key_tracks_bm25_artifact_and_chunk_snapshot():
             document_chunk_ids_checksum="b" * 64,
         ),
     )
+    different_dense = simulations_service._graph_cache_key(
+        SimpleNamespace(id=78),
+        *common[1:],
+        bm25_index=SimpleNamespace(
+            id=88,
+            compressed_artifact_checksum="a" * 64,
+            document_chunk_ids_checksum="b" * 64,
+        ),
+    )
+    different_chunk_snapshot = simulations_service._graph_cache_key(
+        *common,
+        bm25_index=SimpleNamespace(
+            id=88,
+            compressed_artifact_checksum="a" * 64,
+            document_chunk_ids_checksum="d" * 64,
+        ),
+    )
 
     assert first != second
+    assert first != different_dense
+    assert first != different_chunk_snapshot
+
+
+def test_resource_specific_cache_clearing_uses_only_matching_identity():
+    simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
+    common = (
+        SimpleNamespace(id=77),
+        SimpleNamespace(id=12),
+        {"coach": None, "counterpart": None, "evaluator": None},
+        SimpleNamespace(id=500, strategy="crag", config={"bm25_weight": 0.5}),
+    )
+    target = simulations_service._graph_cache_key(
+        *common,
+        bm25_index=SimpleNamespace(
+            id=88,
+            compressed_artifact_checksum="a" * 64,
+            document_chunk_ids_checksum="b" * 64,
+        ),
+    )
+    other_dense = simulations_service._graph_cache_key(
+        SimpleNamespace(id=78),
+        *common[1:],
+        bm25_index=SimpleNamespace(
+            id=89,
+            compressed_artifact_checksum="c" * 64,
+            document_chunk_ids_checksum="d" * 64,
+        ),
+    )
+    simulations_service.NEGOTIATION_GRAPH_CACHE.update(
+        {target: "target", other_dense: "other"}
+    )
+
+    assert (
+        simulations_service.clear_negotiation_graph_cache_for_corpus_index(77)
+        == 1
+    )
+    assert target not in simulations_service.NEGOTIATION_GRAPH_CACHE
+    assert simulations_service.NEGOTIATION_GRAPH_CACHE[other_dense] == "other"
+
+    simulations_service.NEGOTIATION_GRAPH_CACHE[target] = "target"
+    assert (
+        simulations_service.clear_negotiation_graph_cache_for_bm25_index(
+            88,
+            artifact_checksum="a" * 64,
+            document_chunk_ids_checksum="b" * 64,
+        )
+        == 1
+    )
+    assert target not in simulations_service.NEGOTIATION_GRAPH_CACHE
+    assert simulations_service.NEGOTIATION_GRAPH_CACHE[other_dense] == "other"
+
+
+def test_cache_eviction_prevents_in_flight_graph_from_repopulating_cache():
+    simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
+    cache_key = ("in-flight",)
+    construction_epoch = simulations_service.NEGOTIATION_GRAPH_CACHE_EPOCH
+
+    simulations_service.clear_negotiation_graph_cache_for_corpus_index(77)
+    cached = simulations_service._cache_negotiation_graph_if_current(
+        cache_key,
+        "stale graph",
+        construction_epoch,
+    )
+
+    assert cached is False
+    assert cache_key not in simulations_service.NEGOTIATION_GRAPH_CACHE
+
+
+@pytest.mark.asyncio
+async def test_graph_started_before_eviction_is_returned_but_not_cached(monkeypatch):
+    simulations_service.NEGOTIATION_GRAPH_CACHE.clear()
+    runtime_started = asyncio.Event()
+    allow_runtime = asyncio.Event()
+    runtime = SimpleNamespace(
+        corpus_index=SimpleNamespace(id=77),
+        vector_store=SimpleNamespace(id=12),
+        rag_profile=SimpleNamespace(id=500, strategy="crag", config={}),
+        knowledge_graph=None,
+        bm25_index=None,
+        bm25_artifact=None,
+    )
+
+    async def get_runtime(simulation, session):
+        runtime_started.set()
+        await allow_runtime.wait()
+        return runtime
+
+    async def get_prompts(simulation, session):
+        return {}, {"coach": None, "counterpart": None, "evaluator": None}
+
+    async def build_retrieval(**kwargs):
+        return "crag", "rag graph"
+
+    monkeypatch.setattr(
+        simulations_service,
+        "_get_retrieval_runtime_for_simulation",
+        get_runtime,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_llm_selection_from_simulation",
+        lambda simulation: {"counterpart": {}, "evaluator": {}},
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_get_simulation_prompt_templates",
+        get_prompts,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_build_retrieval_graph",
+        build_retrieval,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "_build_selected_llm",
+        lambda selection, operation: operation,
+    )
+    monkeypatch.setattr(
+        simulations_service,
+        "make_negotiation_graph",
+        lambda **kwargs: ("negotiation graph", kwargs),
+    )
+
+    task = asyncio.create_task(
+        simulations_service._get_negotiation_graph_for_simulation(
+            object(),
+            object(),
+        )
+    )
+    await runtime_started.wait()
+    simulations_service.clear_negotiation_graph_cache_for_corpus_index(77)
+    allow_runtime.set()
+
+    graph = await task
+
+    assert graph[0] == "negotiation graph"
+    assert simulations_service.NEGOTIATION_GRAPH_CACHE == {}
 
 
 @pytest.mark.asyncio

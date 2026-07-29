@@ -39,6 +39,7 @@ from app.schemas.full_corpus_index_pipe_jobs_schemas import (
 from app.services.chunking_profile_runtime import resolve_ingestion_profile_options
 from app.services.corpus_index_build_service import to_vector_documents
 from app.services.ingestion_service import ingest_raw_document_srvc
+from app.services import simulations_service
 from app.repositories.indexed_chunks_repo import bulk_create_indexed_chunks
 
 
@@ -200,7 +201,12 @@ async def _mark_job_cancelled(
     detail: str = CANCELLED_FAILURE_DETAIL,
 ) -> FullCorpusIndexPipeJobDetail:
     if candidate_index is not None and candidate_index.status == "building":
-        await corpus_indices_repo.mark_corpus_index_cancelled(candidate_index, detail, session)
+        try:
+            await corpus_indices_repo.mark_corpus_index_cancelled(candidate_index, detail, session)
+        finally:
+            simulations_service.clear_negotiation_graph_cache_for_corpus_index(
+                candidate_index.id
+            )
     cancelled_job = await full_corpus_index_pipe_jobs_repo.mark_full_corpus_index_pipe_job_cancelled(
         job,
         session,
@@ -717,43 +723,48 @@ async def _cleanup_retired_index(
     if replaced_corpus_index_id is None:
         return
 
-    replaced_index = await corpus_indices_repo.get_corpus_index_by_id(
-        replaced_corpus_index_id,
-        session,
-    )
-    if replaced_index is None:
-        return
-
-    vector_store = await vector_stores_repo.get_vector_store_by_id(
-        replaced_index.vector_store_id,
-        session,
-    )
-    if vector_store is None:
-        raise ValueError("Vector store not found")
-
-    indexed_chunks = await indexed_chunks_repo.get_indexed_chunks_by_corpus_index_id(
-        replaced_corpus_index_id,
-        session,
-        skip=0,
-        limit=100000,
-    )
-    vector_ids = [
-        indexed_chunk.external_vector_id
-        for indexed_chunk in indexed_chunks
-        if indexed_chunk.external_vector_id is not None
-    ]
-    if vector_ids:
-        await delete_vectors_from_vector_store(
-            backend=vector_store.backend,
-            vector_ids=vector_ids,
-            collection_name=vector_store.collection_name,
-            path=vector_store.path,
-            table_name=vector_store.table_name,
+    try:
+        replaced_index = await corpus_indices_repo.get_corpus_index_by_id(
+            replaced_corpus_index_id,
+            session,
         )
-    await indexed_chunks_repo.delete_indexed_chunks_by_corpus_index_id_force(
-        replaced_corpus_index_id,
-        session,
-    )
+        if replaced_index is None:
+            return
+
+        vector_store = await vector_stores_repo.get_vector_store_by_id(
+            replaced_index.vector_store_id,
+            session,
+        )
+        if vector_store is None:
+            raise ValueError("Vector store not found")
+
+        indexed_chunks = await indexed_chunks_repo.get_indexed_chunks_by_corpus_index_id(
+            replaced_corpus_index_id,
+            session,
+            skip=0,
+            limit=100000,
+        )
+        vector_ids = [
+            indexed_chunk.external_vector_id
+            for indexed_chunk in indexed_chunks
+            if indexed_chunk.external_vector_id is not None
+        ]
+        if vector_ids:
+            await delete_vectors_from_vector_store(
+                backend=vector_store.backend,
+                vector_ids=vector_ids,
+                collection_name=vector_store.collection_name,
+                path=vector_store.path,
+                table_name=vector_store.table_name,
+            )
+        await indexed_chunks_repo.delete_indexed_chunks_by_corpus_index_id_force(
+            replaced_corpus_index_id,
+            session,
+        )
+    finally:
+        simulations_service.clear_negotiation_graph_cache_for_corpus_index(
+            replaced_corpus_index_id
+        )
 
 
 async def _fail_job_and_candidate(
@@ -776,7 +787,12 @@ async def _fail_job_and_candidate(
             index status is not "building".
     """
     if candidate_index is not None and candidate_index.status == "building":
-        await corpus_indices_repo.mark_corpus_index_failed(candidate_index, detail, session)
+        try:
+            await corpus_indices_repo.mark_corpus_index_failed(candidate_index, detail, session)
+        finally:
+            simulations_service.clear_negotiation_graph_cache_for_corpus_index(
+                candidate_index.id
+            )
     failed_job = await full_corpus_index_pipe_jobs_repo.mark_full_corpus_index_pipe_job_failed(job, detail, session)
     return await _read_job_detail(failed_job, session)
 

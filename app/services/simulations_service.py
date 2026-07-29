@@ -110,7 +110,12 @@ from app.schemas.evidence_ledger_schemas import SimulationEvidenceLedgerRead
 TERMINAL_STATUSES = {"completed", "cancelled", "failed"}
 RUNNABLE_STATUSES = {"active", "paused"}
 NEGOTIATION_GRAPH_CACHE: dict[tuple[Any, ...], Any] = {}
+NEGOTIATION_GRAPH_CACHE_EPOCH = 0
+GRAPH_CACHE_CORPUS_INDEX_ID_INDEX = 0
 GRAPH_CACHE_KNOWLEDGE_GRAPH_ID_INDEX = 13
+GRAPH_CACHE_BM25_INDEX_ID_INDEX = 19
+GRAPH_CACHE_BM25_ARTIFACT_CHECKSUM_INDEX = 20
+GRAPH_CACHE_BM25_CHUNK_SET_CHECKSUM_INDEX = 21
 PUBLIC_GRAPH_STATE_FIELDS = (
     "simulation_id",
     "user_side",
@@ -992,6 +997,8 @@ def clear_negotiation_graph_cache_for_knowledge_graph(graph_id: int) -> int:
     Returns:
         The number of cache entries removed.
     """
+    global NEGOTIATION_GRAPH_CACHE_EPOCH
+    NEGOTIATION_GRAPH_CACHE_EPOCH += 1
     keys_to_remove = [
         key
         for key in NEGOTIATION_GRAPH_CACHE
@@ -1003,6 +1010,63 @@ def clear_negotiation_graph_cache_for_knowledge_graph(graph_id: int) -> int:
     for key in keys_to_remove:
         NEGOTIATION_GRAPH_CACHE.pop(key, None)
     return len(keys_to_remove)
+
+
+def _clear_negotiation_graph_cache_matching(
+    identities: tuple[tuple[int, Any], ...],
+) -> int:
+    global NEGOTIATION_GRAPH_CACHE_EPOCH
+    NEGOTIATION_GRAPH_CACHE_EPOCH += 1
+    keys_to_remove = [
+        key
+        for key in NEGOTIATION_GRAPH_CACHE
+        if any(
+            identity is not None
+            and len(key) > identity_index
+            and key[identity_index] == identity
+            for identity_index, identity in identities
+        )
+    ]
+    for key in keys_to_remove:
+        NEGOTIATION_GRAPH_CACHE.pop(key, None)
+    return len(keys_to_remove)
+
+
+def _cache_negotiation_graph_if_current(
+    cache_key: tuple[Any, ...],
+    graph: Any,
+    construction_epoch: int,
+) -> bool:
+    if construction_epoch != NEGOTIATION_GRAPH_CACHE_EPOCH:
+        return False
+    NEGOTIATION_GRAPH_CACHE[cache_key] = graph
+    return True
+
+
+def clear_negotiation_graph_cache_for_corpus_index(corpus_index_id: int) -> int:
+    """Remove graphs retaining the specified dense corpus-index runtime."""
+    return _clear_negotiation_graph_cache_matching(
+        ((GRAPH_CACHE_CORPUS_INDEX_ID_INDEX, corpus_index_id),)
+    )
+
+
+def clear_negotiation_graph_cache_for_bm25_index(
+    bm25_index_id: int,
+    *,
+    artifact_checksum: str | None = None,
+    document_chunk_ids_checksum: str | None = None,
+) -> int:
+    """Remove graphs retaining the specified BM25 artifact snapshot."""
+    return _clear_negotiation_graph_cache_matching(
+        (
+            (GRAPH_CACHE_BM25_INDEX_ID_INDEX, bm25_index_id),
+            (GRAPH_CACHE_BM25_ARTIFACT_CHECKSUM_INDEX, artifact_checksum),
+            (
+                GRAPH_CACHE_BM25_CHUNK_SET_CHECKSUM_INDEX,
+                document_chunk_ids_checksum,
+            ),
+        )
+    )
 
 
 def _llm_selection_from_start_data(start_data: SimulationStartRequest) -> dict[str, dict[str, str]]:
@@ -1420,6 +1484,7 @@ async def _get_negotiation_graph_for_simulation(
     Returns:
         The negotiation graph.
     """
+    construction_epoch = NEGOTIATION_GRAPH_CACHE_EPOCH
     runtime = await _get_retrieval_runtime_for_simulation(simulation, session)
     llm_selection = _llm_selection_from_simulation(simulation)
     _prompt_records, prompt_templates = await _get_simulation_prompt_templates(
@@ -1463,7 +1528,7 @@ async def _get_negotiation_graph_for_simulation(
             "negotiation.evaluator",
         ),
     )
-    NEGOTIATION_GRAPH_CACHE[cache_key] = graph
+    _cache_negotiation_graph_if_current(cache_key, graph, construction_epoch)
     return graph
 
 

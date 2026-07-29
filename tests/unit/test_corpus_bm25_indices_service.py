@@ -601,6 +601,7 @@ async def test_repeated_task_cancellation_cannot_interrupt_cancellation_cleanup(
     runner_started = asyncio.Event()
     cleanup_started = asyncio.Event()
     allow_cleanup = asyncio.Event()
+    cache_clears = []
 
     async def fake_list_chunks(*_args, **_kwargs):
         return [_chunk(20, "payment terms"), _chunk(3, "delivery schedule")]
@@ -623,6 +624,11 @@ async def test_repeated_task_cancellation_cannot_interrupt_cancellation_cleanup(
         service.corpus_bm25_indices_repo,
         "cancel_corpus_bm25_index_build",
         cleanup_then_pause,
+    )
+    monkeypatch.setattr(
+        service.simulations_service,
+        "clear_negotiation_graph_cache_for_bm25_index",
+        lambda index_id, **kwargs: cache_clears.append((index_id, kwargs)) or 1,
     )
 
     task = asyncio.create_task(
@@ -648,6 +654,7 @@ async def test_repeated_task_cancellation_cannot_interrupt_cancellation_cleanup(
 
     assert repository.status == "cancelled"
     assert repository.artifact is None
+    assert cache_clears == [(71, {})]
 
 
 def test_bm25_reuse_todo_is_adjacent_to_row_creation():

@@ -35,6 +35,9 @@ def test_document_source_card_keeps_safe_metadata_and_excerpt():
             "source": "negotiation-notes.md",
             "score": 0.83,
             "rerank_score": 0.72,
+            "dense_rank": 2,
+            "bm25_rank": 1,
+            "fused_score": 0.75,
             "private": "do not expose",
         },
     )
@@ -48,6 +51,9 @@ def test_document_source_card_keeps_safe_metadata_and_excerpt():
     assert card["source"] == "negotiation-notes.md"
     assert card["score"] == 0.83
     assert card["rerank_score"] == 0.72
+    assert card["dense_rank"] == 2
+    assert card["bm25_rank"] == 1
+    assert card["fused_score"] == 0.75
     assert "counteroffer" in card["excerpt"]
     assert "private" not in card
 

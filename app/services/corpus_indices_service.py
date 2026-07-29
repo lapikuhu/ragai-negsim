@@ -7,6 +7,7 @@ from app.repositories import (
     corpus_repo,
     vector_stores_repo,
 )
+from app.services import simulations_service
 from app.schemas.corpus_indices_schemas import (
     CorpusIndexBuildComplete,
     CorpusIndexCopy,
@@ -324,4 +325,7 @@ async def delete_corpus_index_srvc(
     Returns:
         None
     """
-    await corpus_indices_repo.delete_corpus_index(index, session)
+    try:
+        await corpus_indices_repo.delete_corpus_index(index, session)
+    finally:
+        simulations_service.clear_negotiation_graph_cache_for_corpus_index(index.id)
