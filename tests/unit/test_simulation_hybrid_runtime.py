@@ -235,6 +235,7 @@ async def test_dense_factory_dispatch_preserves_chroma_faiss_and_pgvector_paths(
     expected_call,
 ):
     calls = []
+    selector_calls = []
     expected_runtime = object()
     corpus_index = SimpleNamespace(embedding_model="dense-model")
     vector_store = SimpleNamespace(
@@ -244,11 +245,11 @@ async def test_dense_factory_dispatch_preserves_chroma_faiss_and_pgvector_paths(
         table_name="dense_table",
     )
 
-    monkeypatch.setattr(
-        simulations_service,
-        "choose_embedding_model",
-        lambda model_name: ("embedding", {"model": model_name}),
-    )
+    def choose_embedding_model(model_name):
+        selector_calls.append(model_name)
+        return "embedding", {"model": model_name}
+
+    monkeypatch.setattr(simulations_service, "choose_embedding_model", choose_embedding_model)
 
     if backend == "pgvector":
         async def factory(**kwargs):
@@ -276,6 +277,7 @@ async def test_dense_factory_dispatch_preserves_chroma_faiss_and_pgvector_paths(
 
     assert result is expected_runtime
     assert calls == [expected_call]
+    assert selector_calls == ["dense-model"]
 
 
 @pytest.mark.asyncio
