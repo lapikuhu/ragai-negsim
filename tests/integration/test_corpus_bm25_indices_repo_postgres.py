@@ -38,16 +38,16 @@ async def corpus_bm25_parent_rows(corpus_bm25_async_engine):
             user_id = (await session.exec(text(
                 "INSERT INTO \"user\" (username, hashed_password) VALUES "
                 "(:username, :password) RETURNING id"
-            ), {"username": f"bm25-{suffix}", "password": "test"})).scalar_one()
+            ), params={"username": f"bm25-{suffix}", "password": "test"})).scalar_one()
             corpus_id = (await session.exec(text(
                 "INSERT INTO corpus (name, created_by_user_id, created_at) VALUES "
                 "(:name, :user_id, CURRENT_TIMESTAMP) RETURNING id"
-            ), {"name": f"bm25 corpus {suffix}", "user_id": user_id})).scalar_one()
+            ), params={"name": f"bm25 corpus {suffix}", "user_id": user_id})).scalar_one()
             chunking_profile_id = (await session.exec(text(
                 "INSERT INTO chunkingprofile (name, strategy, config, created_at, last_updated) "
                 "VALUES (:name, 'recursive', '{}'::json, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
                 "RETURNING id"
-            ), {"name": f"bm25 profile {suffix}"})).scalar_one()
+            ), params={"name": f"bm25 profile {suffix}"})).scalar_one()
             await session.commit()
             yield {
                 "suffix": suffix,
@@ -60,21 +60,21 @@ async def corpus_bm25_parent_rows(corpus_bm25_async_engine):
             if corpus_id is not None:
                 await session.exec(
                     text("DELETE FROM corpusbm25index WHERE corpus_id = :id"),
-                    {"id": corpus_id},
+                    params={"id": corpus_id},
                 )
                 await session.exec(
                     text("DELETE FROM corpus WHERE id = :id"),
-                    {"id": corpus_id},
+                    params={"id": corpus_id},
                 )
             if chunking_profile_id is not None:
                 await session.exec(
                     text("DELETE FROM chunkingprofile WHERE id = :id"),
-                    {"id": chunking_profile_id},
+                    params={"id": chunking_profile_id},
                 )
             if user_id is not None:
                 await session.exec(
                     text('DELETE FROM "user" WHERE id = :id'),
-                    {"id": user_id},
+                    params={"id": user_id},
                 )
             await session.commit()
 
