@@ -36,10 +36,23 @@ from app.airag.knowledge_graph.scoped_schema_store import (
     ScopedSchemaNeo4jPropertyGraphStore,
 )
 from app.airag.pipeline_factory import build_response_pipeline
+from app.airag.rag_profiles import (
+    get_crag_retrieval_mode,
+    normalize_rag_profile_config,
+)
 from app.core.config import settings
 
 
 HIDDEN_CHUNKING_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+CRAG_RETRIEVAL_CONTROL_NAMES = (
+    "bm25_weight",
+    "dense_k",
+    "bm25_k",
+    "final_top_k",
+    "reranker",
+    "top_n",
+    "max_rewrite_attempts",
+)
 
 
 def _package_version(distribution: str) -> str:
@@ -50,7 +63,14 @@ def _package_version(distribution: str) -> str:
 
 
 def normalize_evaluation_specification(configuration: Any) -> EvaluationSpecification:
-    """Map validated user-facing schema names onto internal runtime controls."""
+    """
+    Map validated user-facing schema names onto internal runtime controls.
+    Args:
+        configuration: A validated user-facing evaluation configuration object.
+    Returns:
+        An EvaluationSpecification with internal names and controls for 
+        runtime evaluation.
+    """
     chunking = configuration.chunking.model_dump(mode="python")
     rag = configuration.rag.model_dump(mode="python")
     strategy = rag.pop("strategy")
@@ -67,10 +87,35 @@ def normalize_evaluation_specification(configuration: Any) -> EvaluationSpecific
         for external, internal in component_names.items()
     }
     if strategy == "crag":
+        retrieval_controls = {
+            name: rag.pop(name)
+            for name in CRAG_RETRIEVAL_CONTROL_NAMES
+        }
+        normalized_retrieval = normalize_rag_profile_config(
+            "crag",
+            retrieval_controls,
+        )
+        retrieval = {
+            name: normalized_retrieval[name]
+            for name in CRAG_RETRIEVAL_CONTROL_NAMES
+        }
+        retrieval_mode = get_crag_retrieval_mode(retrieval["bm25_weight"])
+        retrieval_embedding_model = rag.pop("retrieval_embedding_model", None)
+        if retrieval_mode == "bm25":
+            if retrieval_embedding_model is not None:
+                raise ValueError(
+                    "retrieval_embedding_model is not allowed for BM25-only CRAG"
+                )
+        elif retrieval_embedding_model is None:
+            raise ValueError(
+                "retrieval_embedding_model is required for dense and hybrid CRAG"
+            )
+        else:
+            retrieval["retrieval_embedding_model"] = retrieval_embedding_model
         response_pipeline = {
-            "reranker": rag.pop("reranker"),
-            "top_n": rag.pop("top_n"),
-            "max_rewrite_attempts": rag.pop("rewrite_limit"),
+            "reranker": normalized_retrieval["reranker"],
+            "top_n": normalized_retrieval["top_n"],
+            "max_rewrite_attempts": normalized_retrieval["max_rewrite_attempts"],
             "llm_components": llm_components,
         }
     else:
@@ -86,7 +131,7 @@ def normalize_evaluation_specification(configuration: Any) -> EvaluationSpecific
         strategy=strategy,
         chunking={"strategy": chunking_strategy, "config": chunking},
         response_pipeline=response_pipeline,
-        retrieval=rag,
+        retrieval=retrieval if strategy == "crag" else rag,
         k=configuration.metrics.k,
     )
 
@@ -209,7 +254,7 @@ class CragEvaluationAdapter:
 
         store = await asyncio.to_thread(FAISS.from_documents, chunks, embeddings)
         await check_cancellation(should_cancel)
-        top_k = int(specification.retrieval["top_k"])
+        top_k = int(specification.retrieval["dense_k"])
         retriever = store.as_retriever(search_kwargs={"k": top_k})
         await report_progress(progress_callback, "building_index", 1.0)
         return EvaluationResources(

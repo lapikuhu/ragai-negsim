@@ -7,11 +7,15 @@ from pydantic import (
     Field as PydanticField,
     field_validator,
     model_validator,
+    model_serializer,
 )
 from sqlmodel import SQLModel
 
 from app.airag.embeddings.embeddings import get_embedding_model_info
-from app.airag.reranking.reranking import is_reranker_available
+from app.airag.rag_profiles import (
+    get_crag_retrieval_mode,
+    normalize_rag_profile_config,
+)
 from app.services.llm_models_service import normalize_llm_selection
 
 
@@ -109,37 +113,73 @@ class _ResponseLLMSelections(_StrictSchema):
 
 class CragEvaluationConfiguration(_ResponseLLMSelections):
     strategy: Literal["crag"] = "crag"
-    retrieval_embedding_model: str = PydanticField(
-        default="text-embedding-3-small",
+    retrieval_embedding_model: str | None = PydanticField(
+        default=None,
         min_length=1,
     )
-    top_k: Annotated[int, PydanticField(strict=True, ge=1, le=20)] = 4
-    reranker: str = PydanticField(default="cross_encoder", min_length=1)
-    top_n: Annotated[int, PydanticField(strict=True, ge=1, le=20)] = 3
-    rewrite_limit: Annotated[int, PydanticField(strict=True, ge=0, le=10)] = 2
+    bm25_weight: Any = 0.0
+    dense_k: Any = 4
+    bm25_k: Any = 4
+    final_top_k: Any = 4
+    reranker: Any = "cross_encoder"
+    top_n: Any = 3
+    max_rewrite_attempts: Any = 2
+
+    @model_validator(mode="before")
+    @classmethod
+    def default_dense_or_hybrid_embedding_model(cls, values: Any) -> Any:
+        if not isinstance(values, dict) or "retrieval_embedding_model" in values:
+            return values
+        if values.get("bm25_weight") != 1.0:
+            return {**values, "retrieval_embedding_model": "text-embedding-3-small"}
+        return values
 
     @field_validator("retrieval_embedding_model")
     @classmethod
-    def validate_retrieval_embedding_model(cls, value: str) -> str:
+    def validate_retrieval_embedding_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip()
         get_embedding_model_info(normalized)
         return normalized
 
-    @field_validator("reranker")
-    @classmethod
-    def validate_reranker(cls, value: str) -> str:
-        normalized = value.strip().lower()
-        if not is_reranker_available(normalized):
-            raise ValueError(f"Unavailable reranker: {normalized}")
-        return normalized
-
     @model_validator(mode="after")
-    def validate_reranking_capacity(self) -> "CragEvaluationConfiguration":
-        if self.top_n > self.top_k:
-            raise ValueError("top_n must be less than or equal to top_k")
-        if self.reranker == "none":
-            self.top_n = self.top_k
+    def normalize_production_retrieval_controls(self) -> "CragEvaluationConfiguration":
+        retrieval_controls = {
+            "bm25_weight": self.bm25_weight,
+            "dense_k": self.dense_k,
+            "bm25_k": self.bm25_k,
+            "final_top_k": self.final_top_k,
+            "reranker": self.reranker,
+            "top_n": self.top_n,
+            "max_rewrite_attempts": self.max_rewrite_attempts,
+        }
+        try:
+            normalized = normalize_rag_profile_config("crag", retrieval_controls)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        for name in retrieval_controls:
+            setattr(self, name, normalized[name])
+
+        retrieval_mode = get_crag_retrieval_mode(normalized["bm25_weight"])
+        if retrieval_mode == "bm25":
+            if self.retrieval_embedding_model is not None:
+                raise ValueError(
+                    "retrieval_embedding_model is not allowed for BM25-only CRAG"
+                )
+        elif self.retrieval_embedding_model is None:
+            raise ValueError(
+                "retrieval_embedding_model is required for dense and hybrid CRAG"
+            )
         return self
+
+    @model_serializer(mode="wrap")
+    def omit_bm25_embedding_model(self, handler):
+        data = handler(self)
+        if get_crag_retrieval_mode(self.bm25_weight) == "bm25":
+            data.pop("retrieval_embedding_model", None)
+        return data
 
 
 class GraphRagEvaluationConfiguration(_ResponseLLMSelections):
@@ -325,6 +365,9 @@ class RagEvalFinalChunkMetadata(BaseModel):
     source: str | None = None
     score: float | None = None
     rerank_score: float | None = None
+    dense_rank: int | None = PydanticField(default=None, ge=1)
+    bm25_rank: int | None = PydanticField(default=None, ge=1)
+    fused_score: float | None = None
     retrieval_strategy: str | None = None
     retrieval_mode: str | None = None
     evidence_path: str | None = None

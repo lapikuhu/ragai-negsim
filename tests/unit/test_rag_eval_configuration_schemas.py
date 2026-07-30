@@ -14,6 +14,7 @@ from app.schemas.rag_eval_schemas import (
     HybridChunkingConfiguration,
     RagEvalConfigurationCreateRequest,
     RagEvalConfigurationRead,
+    RagEvalFinalChunkMetadata,
     RagEvalConfigurationUpdate,
     RagEvalConfigurationUpdateRequest,
     RecursiveChunkingConfiguration,
@@ -21,6 +22,7 @@ from app.schemas.rag_eval_schemas import (
     apply_rag_eval_configuration_patch,
     dump_rag_eval_configuration_snapshot,
 )
+from app.airag.evaluation.rag_eval_runtime import normalize_evaluation_specification
 from app.services import llm_models_service
 
 
@@ -55,10 +57,13 @@ def crag_payload(**overrides):
     value = {
         "strategy": "crag",
         "retrieval_embedding_model": "text-embedding-3-small",
-        "top_k": 4,
+        "bm25_weight": 0.0,
+        "dense_k": 4,
+        "bm25_k": 4,
+        "final_top_k": 4,
         "reranker": "cross_encoder",
         "top_n": 3,
-        "rewrite_limit": 2,
+        "max_rewrite_attempts": 2,
         **COMPONENT_SELECTIONS,
     }
     value.update(overrides)
@@ -175,13 +180,28 @@ def test_rag_discriminator_normalizes_each_supported_variant(rag, expected_type)
 
 def test_default_crag_and_metric_controls_form_a_valid_configuration():
     rag = crag_payload()
-    rag.pop("top_n")
+    for control in (
+        "bm25_weight",
+        "dense_k",
+        "bm25_k",
+        "final_top_k",
+        "reranker",
+        "top_n",
+        "max_rewrite_attempts",
+    ):
+        rag.pop(control)
     payload = configuration_payload(rag=rag)
     payload["metrics"].pop("k")
 
     config = RagEvalConfigurationCreateRequest.model_validate(payload)
 
+    assert config.rag.bm25_weight == 0.0
+    assert config.rag.dense_k == 4
+    assert config.rag.bm25_k == 4
+    assert config.rag.final_top_k == 4
+    assert config.rag.reranker == "cross_encoder"
     assert config.rag.top_n == 3
+    assert config.rag.max_rewrite_attempts == 2
     assert config.metrics.k == 3
 
 
@@ -211,22 +231,118 @@ def test_crag_requires_all_six_explicit_component_selections():
     assert "fallback_generator" in str(exc.value)
 
 
-def test_crag_enforces_top_n_not_greater_than_top_k():
-    with pytest.raises(ValidationError, match="top_n must be less than or equal to top_k"):
+def test_crag_normalizes_dense_controls_with_production_defaults_and_runtime_projection():
+    rag = crag_payload(
+        dense_k=6,
+        bm25_k=2,
+        final_top_k=5,
+        reranker="none",
+        top_n=1,
+        max_rewrite_attempts=4,
+    )
+    config = RagEvalConfigurationCreateRequest.model_validate(
+        configuration_payload(rag=rag, metric_k=5)
+    )
+
+    assert config.rag.bm25_weight == 0.0
+    assert config.rag.dense_k == 6
+    assert config.rag.bm25_k == 2
+    assert config.rag.final_top_k == 5
+    assert config.rag.reranker == "none"
+    assert config.rag.top_n == 5
+    assert config.rag.max_rewrite_attempts == 4
+
+    specification = normalize_evaluation_specification(config)
+
+    assert specification.retrieval == {
+        "bm25_weight": 0.0,
+        "dense_k": 6,
+        "bm25_k": 2,
+        "final_top_k": 5,
+        "reranker": "none",
+        "top_n": 5,
+        "max_rewrite_attempts": 4,
+        "retrieval_embedding_model": "text-embedding-3-small",
+    }
+    assert specification.response_pipeline["llm_components"]["generate"] == {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+    }
+
+
+def test_crag_bm25_only_rejects_embeddings_and_omits_them_from_snapshots():
+    config = RagEvalConfigurationCreateRequest.model_validate(
+        configuration_payload(
+            rag=crag_payload(
+                bm25_weight=1.0,
+                retrieval_embedding_model=None,
+                dense_k=2,
+                bm25_k=5,
+                final_top_k=5,
+                top_n=5,
+            ),
+            metric_k=5,
+        )
+    )
+
+    assert config.rag.retrieval_embedding_model is None
+    assert "retrieval_embedding_model" not in config.rag.model_dump()
+    assert "retrieval_embedding_model" not in dump_rag_eval_configuration_snapshot(config)["rag"]
+    assert "retrieval_embedding_model" not in normalize_evaluation_specification(
+        config
+    ).retrieval
+
+    with pytest.raises(ValidationError, match="BM25-only"):
         RagEvalConfigurationCreateRequest.model_validate(
-            configuration_payload(rag=crag_payload(top_k=2, top_n=3), metric_k=2)
+            configuration_payload(rag=crag_payload(bm25_weight=1.0))
         )
 
 
-def test_crag_none_reranker_normalizes_final_context_capacity_to_top_k():
+def test_crag_hybrid_requires_an_embedding_model():
+    with pytest.raises(ValidationError, match="dense and hybrid"):
+        RagEvalConfigurationCreateRequest.model_validate(
+            configuration_payload(
+                rag=crag_payload(bm25_weight=0.5, retrieval_embedding_model=None)
+            )
+        )
+
+
+def test_crag_hybrid_preserves_both_candidate_limits():
     config = RagEvalConfigurationCreateRequest.model_validate(
         configuration_payload(
-            rag=crag_payload(reranker="none", top_k=4, top_n=1),
+            rag=crag_payload(
+                bm25_weight=0.5,
+                dense_k=3,
+                bm25_k=5,
+                final_top_k=5,
+                top_n=4,
+            ),
             metric_k=4,
         )
     )
 
-    assert config.rag.top_n == 4
+    assert config.rag.retrieval_embedding_model == "text-embedding-3-small"
+    assert config.rag.dense_k == 3
+    assert config.rag.bm25_k == 5
+    assert normalize_evaluation_specification(config).retrieval["final_top_k"] == 5
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"bm25_weight": 1.1},
+        {"dense_k": 21},
+        {"bm25_k": 0},
+        {"final_top_k": 5, "dense_k": 4, "bm25_k": 4},
+        {"top_n": 5, "dense_k": 4, "bm25_k": 4, "final_top_k": 4},
+        {"max_rewrite_attempts": 11},
+    ],
+)
+def test_crag_uses_production_bounds_and_effective_capacity(overrides):
+    with pytest.raises(ValidationError):
+        RagEvalConfigurationCreateRequest.model_validate(
+            configuration_payload(rag=crag_payload(**overrides))
+        )
 
 
 @pytest.mark.parametrize(
@@ -294,8 +410,8 @@ def test_metric_k_cannot_exceed_final_context_capacity(rag, metric_k, message):
     ("path", "value"),
     [
         (("chunking", "chunk_size"), True),
-        (("rag", "top_k"), True),
-        (("rag", "rewrite_limit"), False),
+        (("rag", "dense_k"), True),
+        (("rag", "max_rewrite_attempts"), False),
         (("metrics", "k"), True),
     ],
 )
@@ -360,12 +476,12 @@ def test_llm_provider_and_model_availability_is_enforced(selection):
 def test_patch_replaces_nested_objects_then_revalidates_complete_configuration():
     current = RagEvalConfigurationCreateRequest.model_validate(configuration_payload())
     patch = RagEvalConfigurationUpdateRequest.model_validate(
-        {"rag": crag_payload(top_k=3, top_n=3)}
+        {"rag": crag_payload(dense_k=3, bm25_k=3, final_top_k=3, top_n=3)}
     )
 
     updated = apply_rag_eval_configuration_patch(current, patch)
 
-    assert updated.rag.top_k == 3
+    assert updated.rag.dense_k == 3
     assert updated.rag.top_n == 3
     assert updated.chunking == current.chunking
 
@@ -422,3 +538,13 @@ def test_snapshot_dump_revalidates_an_existing_mutated_configuration_instance():
 
     with pytest.raises(ValidationError, match="metrics.k"):
         dump_rag_eval_configuration_snapshot(config)
+
+
+def test_final_chunk_metadata_keeps_dense_bm25_and_fused_provenance():
+    metadata = RagEvalFinalChunkMetadata.model_validate(
+        {"dense_rank": 2, "bm25_rank": 1, "fused_score": 0.75}
+    )
+
+    assert metadata.dense_rank == 2
+    assert metadata.bm25_rank == 1
+    assert metadata.fused_score == 0.75
