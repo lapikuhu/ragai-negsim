@@ -87,6 +87,9 @@ async def test_evaluator_invokes_complete_graph_and_keeps_only_final_documents()
             "evaluation_ids": ["example-1"],
             "source": "suite.md",
             "score": 0.9,
+            "dense_rank": 1,
+            "bm25_rank": 2,
+            "fused_score": 0.75,
             "secret": "drop",
         },
     )
@@ -133,6 +136,9 @@ async def test_evaluator_invokes_complete_graph_and_keeps_only_final_documents()
     assert result.results[0].ranked_documents[0].metadata == {
         "source": "suite.md",
         "score": 0.9,
+        "dense_rank": 1,
+        "bm25_rank": 2,
+        "fused_score": 0.75,
     }
     assert result.results[0].ranked_documents[0].evaluation_ids == ("example-1",)
     assert result.resolved_pipeline_snapshot["suite_version"] == "suite-v2"
@@ -333,9 +339,10 @@ async def test_cancellation_between_examples_reports_progress_and_cleans_up():
         for item in progress
     )
     assert progress[-1].stage == "cleaning_up"
-    assert [
-        item.progress for item in progress if item.stage == "cleaning_up"
-    ] == [0.0, 1.0]
+    assert [item.progress for item in progress if item.stage == "cleaning_up"] == [
+        0.0,
+        1.0,
+    ]
     assert cleaned == [True]
 
 
@@ -382,7 +389,13 @@ def test_core_evaluator_has_no_web_database_or_service_imports():
     from pathlib import Path
 
     source = Path("app/airag/evaluation/rag_eval_engine.py").read_text()
-    forbidden = ("fastapi", "sqlalchemy", "app.services", "app.repositories", "app.models")
+    forbidden = (
+        "fastapi",
+        "sqlalchemy",
+        "app.services",
+        "app.repositories",
+        "app.models",
+    )
 
     assert not any(name in source for name in forbidden)
 
@@ -420,9 +433,7 @@ async def test_crag_runtime_exercises_rewrite_generation_quality_and_fallback(
             "grade",
             lambda payload: SimpleNamespace(
                 relevance=(
-                    "not_relevant"
-                    if payload["question"] == "Question?"
-                    else "relevant"
+                    "not_relevant" if payload["question"] == "Question?" else "relevant"
                 ),
                 reasoning="test",
             ),

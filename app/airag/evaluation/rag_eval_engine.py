@@ -23,7 +23,11 @@ EVALUATION_SAFE_METADATA = (
     "retrieval_strategy",
     "retrieval_mode",
     "evidence_path",
+    "dense_rank",
+    "bm25_rank",
+    "fused_score",
 )
+
 
 # check
 class RagEvaluationCancelled(Exception):
@@ -63,6 +67,7 @@ class RankedEvaluationDocument:
     metadata: Mapping[str, Any]
     evaluation_ids: tuple[str, ...]
 
+
 # check
 @dataclass(frozen=True)
 class PipelineQueryResult:
@@ -95,13 +100,15 @@ class EvaluationResourceAdapter(Protocol):
         run_id: int,
         progress_callback: ProgressCallback | None,
         should_cancel: CancellationCallback | None,
-    ) -> EvaluationResources: ...
+    ) -> EvaluationResources:
+        ...
 
 
 class ResponsePipeline(Protocol):
     resolved_metadata: Mapping[str, Any]
 
-    async def ainvoke(self, state: Mapping[str, Any]) -> Mapping[str, Any]: ...
+    async def ainvoke(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
+        ...
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -124,13 +131,13 @@ async def report_progress(
         callback (ProgressCallback | None): The callback to report progress to.
         stage (str): The current stage of the evaluation.
         progress (float): The progress value between 0.0 and 1.0.
-        completed_examples (int | None): The number of completed examples, 
+        completed_examples (int | None): The number of completed examples,
             if applicable.
-        total_examples (int | None): The total number of examples, if 
+        total_examples (int | None): The total number of examples, if
             applicable.
     Returns:
         None
-    
+
     """
     if callback is not None:
         await _maybe_await(
@@ -157,18 +164,20 @@ async def check_cancellation(callback: CancellationCallback | None) -> None:
         raise RagEvaluationCancelled()
 
 
-def _ranked_documents(final_state: Mapping[str, Any]) -> tuple[RankedEvaluationDocument, ...]:
+def _ranked_documents(
+    final_state: Mapping[str, Any]
+) -> tuple[RankedEvaluationDocument, ...]:
     """
-    Retrieve ranked evaluation documents from the final state of the 
+    Retrieve ranked evaluation documents from the final state of the
     response pipeline.
     Args:
-        final_state (Mapping[str, Any]): The final state returned by the 
+        final_state (Mapping[str, Any]): The final state returned by the
             response pipeline.
     Returns:
-        tuple[RankedEvaluationDocument, ...]: A tuple of ranked evaluation 
+        tuple[RankedEvaluationDocument, ...]: A tuple of ranked evaluation
             documents.
     Raises:
-        ValueError: If the final state is invalid or contains improperly 
+        ValueError: If the final state is invalid or contains improperly
         formatted documents.
     """
     context = final_state.get("context")
@@ -207,6 +216,7 @@ class FullPipelineEvaluator:
     """
     Evaluate each suite example through an independently invoked response graph.
     """
+
     def __init__(
         self,
         *,
@@ -235,7 +245,7 @@ class FullPipelineEvaluator:
             progress_callback: Optional callback to report progress.
             should_cancel: Optional callback to check for cancellation.
         Returns:
-            A PipelineEvaluationResult containing the results of the 
+            A PipelineEvaluationResult containing the results of the
             evaluation.
         Raises:
             ValueError: If the evaluation corpus contains no examples or if
@@ -251,7 +261,7 @@ class FullPipelineEvaluator:
             should_cancel=should_cancel,
         )
         try:
-            await check_cancellation(should_cancel) # why again?
+            await check_cancellation(should_cancel)  # why again?
             pipeline_config = normalize_response_pipeline_config(
                 specification.strategy,
                 specification.response_pipeline,
@@ -267,14 +277,16 @@ class FullPipelineEvaluator:
                 completed_examples=0,
                 total_examples=total,
             )
-            await check_cancellation(should_cancel) # why again?
+            await check_cancellation(should_cancel)  # why again?
             results: list[PipelineQueryResult] = []
             for completed, example in enumerate(corpus.examples):
-                await check_cancellation(should_cancel) # why again?
+                await check_cancellation(should_cancel)  # why again?
                 # Invoke the response pipeline with the example query
                 final_state = await pipeline.ainvoke({"question": example.query})
                 if not isinstance(final_state, Mapping):
-                    raise ValueError("Response pipeline must return a final state mapping")
+                    raise ValueError(
+                        "Response pipeline must return a final state mapping"
+                    )
                 answer = final_state.get("answer")
                 if not isinstance(answer, str) or not answer.strip():
                     raise ValueError("Response pipeline final answer must be non-empty")
@@ -308,10 +320,7 @@ class FullPipelineEvaluator:
             }
             snapshot.setdefault(
                 "prompt_versions",
-                {
-                    component: "v1"
-                    for component in pipeline_config.llm_components
-                },
+                {component: "v1" for component in pipeline_config.llm_components},
             )
             return PipelineEvaluationResult(
                 results=tuple(results),

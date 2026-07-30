@@ -23,7 +23,10 @@ from app.airag.evaluation.rag_eval_engine import (
     report_progress,
 )
 from app.airag.evaluation.rag_eval_helpers import tag_chunks_with_evaluation_ids
-from app.airag.knowledge_graph.connection import resolve_neo4j_database, resolve_neo4j_uri
+from app.airag.knowledge_graph.connection import (
+    resolve_neo4j_database,
+    resolve_neo4j_uri,
+)
 from app.airag.knowledge_graph.k_graph import (
     build_graph_text_nodes,
     build_property_graph_index,
@@ -39,6 +42,11 @@ from app.airag.pipeline_factory import build_response_pipeline
 from app.airag.rag_profiles import (
     get_crag_retrieval_mode,
     normalize_rag_profile_config,
+)
+from app.airag.retrieval.retrievers import (
+    make_bm25_retriever,
+    make_dense_retriever,
+    make_hybrid_retriever,
 )
 from app.core.config import settings
 
@@ -68,7 +76,7 @@ def normalize_evaluation_specification(configuration: Any) -> EvaluationSpecific
     Args:
         configuration: A validated user-facing evaluation configuration object.
     Returns:
-        An EvaluationSpecification with internal names and controls for 
+        An EvaluationSpecification with internal names and controls for
         runtime evaluation.
     """
     chunking = configuration.chunking.model_dump(mode="python")
@@ -88,16 +96,14 @@ def normalize_evaluation_specification(configuration: Any) -> EvaluationSpecific
     }
     if strategy == "crag":
         retrieval_controls = {
-            name: rag.pop(name)
-            for name in CRAG_RETRIEVAL_CONTROL_NAMES
+            name: rag.pop(name) for name in CRAG_RETRIEVAL_CONTROL_NAMES
         }
         normalized_retrieval = normalize_rag_profile_config(
             "crag",
             retrieval_controls,
         )
         retrieval = {
-            name: normalized_retrieval[name]
-            for name in CRAG_RETRIEVAL_CONTROL_NAMES
+            name: normalized_retrieval[name] for name in CRAG_RETRIEVAL_CONTROL_NAMES
         }
         retrieval_mode = get_crag_retrieval_mode(retrieval["bm25_weight"])
         retrieval_embedding_model = rag.pop("retrieval_embedding_model", None)
@@ -136,7 +142,9 @@ def normalize_evaluation_specification(configuration: Any) -> EvaluationSpecific
     )
 
 
-def resolve_chunking_embedding(strategy: str) -> tuple[Any | None, dict[str, Any] | None]:
+def resolve_chunking_embedding(
+    strategy: str
+) -> tuple[Any | None, dict[str, Any] | None]:
     """Resolve the hidden semantic boundary model and its non-secret identity."""
     if strategy not in {"semantic", "hybrid"}:
         return None, None
@@ -189,7 +197,9 @@ def _make_eval_graph_chunks(chunks: list[Document]) -> list[EvalGraphChunk]:
     if not all(
         isinstance(document_id, str) and document_id for document_id in document_ids
     ):
-        raise ValueError("Evaluation graph chunks must include eval_document_id metadata")
+        raise ValueError(
+            "Evaluation graph chunks must include eval_document_id metadata"
+        )
     raw_document_ids = {
         document_id: index
         for index, document_id in enumerate(sorted(document_ids), start=1)
@@ -204,6 +214,17 @@ def _make_eval_graph_chunks(chunks: list[Document]) -> list[EvalGraphChunk]:
             chunk_index=int(chunk.metadata.get("chunk_index", index - 1)),
         )
         for index, chunk in enumerate(chunks, start=1)
+    ]
+
+
+def _assign_evaluation_document_chunk_ids(chunks: list[Document]) -> list[Document]:
+    """Copy tagged chunks with deterministic IDs shared by CRAG retrievers."""
+    return [
+        Document(
+            page_content=chunk.page_content,
+            metadata={**chunk.metadata, "document_chunk_id": chunk_id},
+        )
+        for chunk_id, chunk in enumerate(chunks, start=1)
     ]
 
 
@@ -223,14 +244,16 @@ async def _prepare_tagged_chunks(
         dict(specification.chunking),
         embeddings=embeddings,
     )
-    tagged = tag_chunks_with_evaluation_ids(chunks, corpus)
+    tagged = _assign_evaluation_document_chunk_ids(
+        tag_chunks_with_evaluation_ids(chunks, corpus)
+    )
     await report_progress(progress_callback, "chunking", 1.0)
     await check_cancellation(should_cancel)
     return tagged, embedding_metadata
 
 
 class CragEvaluationAdapter:
-    """Build an in-memory FAISS retriever for one evaluation run."""
+    """Build isolated dense, BM25, or hybrid resources for one evaluation run."""
 
     async def prepare(
         self,
@@ -247,25 +270,59 @@ class CragEvaluationAdapter:
         )
         await report_progress(progress_callback, "building_index", 0.0)
         await check_cancellation(should_cancel)
-        model = str(specification.retrieval["retrieval_embedding_model"])
-        embeddings, metadata = choose_embedding_model(model)
-        await check_cancellation(should_cancel)
-        from langchain_community.vectorstores import FAISS
+        retrieval = specification.retrieval
+        retrieval_mode = get_crag_retrieval_mode(retrieval["bm25_weight"])
+        dense_k = int(retrieval["dense_k"])
+        bm25_k = int(retrieval["bm25_k"])
+        final_top_k = int(retrieval["final_top_k"])
+        dense_retriever = None
+        bm25_retriever = None
+        retrieval_embedding = None
+        dependency_versions = {
+            "langchain-community": _package_version("langchain-community"),
+        }
 
-        store = await asyncio.to_thread(FAISS.from_documents, chunks, embeddings)
-        await check_cancellation(should_cancel)
-        top_k = int(specification.retrieval["dense_k"])
-        retriever = store.as_retriever(search_kwargs={"k": top_k})
+        if retrieval_mode in {"dense", "hybrid"}:
+            model = str(retrieval["retrieval_embedding_model"])
+            embeddings, metadata = choose_embedding_model(model)
+            retrieval_embedding = {"model": model, **dict(metadata or {})}
+            await check_cancellation(should_cancel)
+            from langchain_community.vectorstores import FAISS
+
+            store = await asyncio.to_thread(FAISS.from_documents, chunks, embeddings)
+            dense_retriever = await asyncio.to_thread(
+                make_dense_retriever,
+                store,
+                k=dense_k,
+            )
+            dependency_versions["faiss-cpu"] = _package_version("faiss-cpu")
+            await check_cancellation(should_cancel)
+
+        if retrieval_mode in {"bm25", "hybrid"}:
+            bm25_retriever = await asyncio.to_thread(
+                make_bm25_retriever,
+                chunks,
+                k=bm25_k,
+            )
+            dependency_versions["rank-bm25"] = _package_version("rank-bm25")
+            await check_cancellation(should_cancel)
+
+        retriever = make_hybrid_retriever(
+            dense_retriever=dense_retriever,
+            bm25_retriever=bm25_retriever,
+            bm25_weight=retrieval["bm25_weight"],
+            dense_k=dense_k,
+            bm25_k=bm25_k,
+            final_top_k=final_top_k,
+        )
         await report_progress(progress_callback, "building_index", 1.0)
         return EvaluationResources(
             retriever=retriever,
             resolved_metadata={
-                "retrieval_embedding": {"model": model, **dict(metadata or {})},
+                "retrieval_mode": retrieval_mode,
+                "retrieval_embedding": retrieval_embedding,
                 "chunking_embedding": chunking_embedding,
-                "fixed_dependency_versions": {
-                    "faiss-cpu": _package_version("faiss-cpu"),
-                    "langchain-community": _package_version("langchain-community"),
-                },
+                "fixed_dependency_versions": dependency_versions,
             },
             cleanup=lambda: None,
         )

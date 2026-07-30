@@ -36,11 +36,18 @@ def _corpus() -> EvalCorpus:
     )
 
 
-def _spec(strategy: str) -> EvaluationSpecification:
+def _spec(
+    strategy: str,
+    *,
+    bm25_weight: float = 0.0,
+) -> EvaluationSpecification:
     retrieval = (
         {
             "retrieval_embedding_model": "retrieval-embedding",
-            "top_k": 4,
+            "bm25_weight": bm25_weight,
+            "dense_k": 4,
+            "bm25_k": 5,
+            "final_top_k": 3,
         }
         if strategy == "crag"
         else {
@@ -81,10 +88,13 @@ def test_configuration_boundary_maps_user_facing_component_names():
             model_dump=lambda **_kwargs: {
                 "strategy": "crag",
                 "retrieval_embedding_model": "text-embedding-3-small",
-                "top_k": 4,
+                "bm25_weight": 0.25,
+                "dense_k": 5,
+                "bm25_k": 6,
+                "final_top_k": 4,
                 "reranker": "none",
                 "top_n": 4,
-                "rewrite_limit": 3,
+                "max_rewrite_attempts": 3,
                 "document_grader": {"provider": "openai", "model": "doc"},
                 "query_rewriter": {"provider": "openai", "model": "rewrite"},
                 "answer_generator": {"provider": "openai", "model": "generate"},
@@ -103,36 +113,62 @@ def test_configuration_boundary_maps_user_facing_component_names():
     assert specification.retrieval["retrieval_embedding_model"] == (
         "text-embedding-3-small"
     )
+    assert specification.retrieval == {
+        "bm25_weight": 0.25,
+        "dense_k": 5,
+        "bm25_k": 6,
+        "final_top_k": 4,
+        "reranker": "none",
+        "top_n": 4,
+        "max_rewrite_attempts": 3,
+        "retrieval_embedding_model": "text-embedding-3-small",
+    }
 
 
 @pytest.mark.asyncio
-async def test_crag_adapter_builds_isolated_faiss_with_selected_models_and_top_k(
+@pytest.mark.parametrize(
+    ("bm25_weight", "expected_mode", "expects_dense", "expects_bm25"),
+    [
+        (0.0, "dense", True, False),
+        (1.0, "bm25", False, True),
+        (0.4, "hybrid", True, True),
+    ],
+)
+async def test_crag_adapter_builds_only_mode_resources_with_stable_chunk_ids(
     monkeypatch,
+    bm25_weight,
+    expected_mode,
+    expects_dense,
+    expects_bm25,
 ):
-    captured = {}
-    tagged = Document(
-        page_content="support",
-        metadata={
-            "eval_document_id": "synth_doc_1",
-            "start_index": 0,
-            "evaluation_ids": ["example-1"],
-        },
-    )
+    captured = {"thread_calls": []}
+    tagged = [
+        Document(
+            page_content="first support",
+            metadata={
+                "eval_document_id": "synth_doc_1",
+                "evaluation_ids": ["example-1"],
+            },
+        ),
+        Document(
+            page_content="second support",
+            metadata={
+                "eval_document_id": "synth_doc_1",
+                "evaluation_ids": ["example-1"],
+            },
+        ),
+    ]
 
     class Store:
         @classmethod
         def from_documents(cls, chunks, embeddings):
-            captured["chunks"] = chunks
+            captured["faiss_chunks"] = chunks
             captured["embeddings"] = embeddings
             return cls()
 
-        def as_retriever(self, *, search_kwargs):
-            captured["search_kwargs"] = search_kwargs
-            return "isolated-retriever"
-
     def prepare_chunks(_documents, _config, **kwargs):
         captured["chunk_kwargs"] = kwargs
-        return [tagged]
+        return tagged
 
     monkeypatch.setattr(
         rag_eval_runtime,
@@ -142,7 +178,7 @@ async def test_crag_adapter_builds_isolated_faiss_with_selected_models_and_top_k
     monkeypatch.setattr(
         rag_eval_runtime,
         "tag_chunks_with_evaluation_ids",
-        lambda _chunks, _corpus: [tagged],
+        lambda _chunks, _corpus: tagged,
     )
     monkeypatch.setattr(
         rag_eval_runtime,
@@ -154,6 +190,34 @@ async def test_crag_adapter_builds_isolated_faiss_with_selected_models_and_top_k
         "choose_embedding_model",
         lambda model: ("retrieval-embeddings", {"model": model, "provider": "fake"}),
     )
+
+    def make_dense(store, *, k):
+        captured["dense"] = (store, k)
+        return "dense"
+
+    def make_bm25(documents, *, k):
+        captured["bm25"] = (documents, k)
+        return "bm25"
+
+    def make_hybrid(**kwargs):
+        captured["hybrid"] = kwargs
+        return "hybrid"
+
+    monkeypatch.setattr(
+        rag_eval_runtime, "make_dense_retriever", make_dense, raising=False
+    )
+    monkeypatch.setattr(
+        rag_eval_runtime, "make_bm25_retriever", make_bm25, raising=False
+    )
+    monkeypatch.setattr(
+        rag_eval_runtime, "make_hybrid_retriever", make_hybrid, raising=False
+    )
+
+    async def run_in_thread(function, *args, **kwargs):
+        captured["thread_calls"].append(function)
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr(rag_eval_runtime.asyncio, "to_thread", run_in_thread)
     monkeypatch.setitem(
         __import__("sys").modules,
         "langchain_community.vectorstores",
@@ -162,23 +226,53 @@ async def test_crag_adapter_builds_isolated_faiss_with_selected_models_and_top_k
 
     progress = []
     resources = await rag_eval_runtime.CragEvaluationAdapter().prepare(
-        specification=_spec("crag"),
+        specification=_spec("crag", bm25_weight=bm25_weight),
         corpus=_corpus(),
         run_id=11,
         progress_callback=progress.append,
         should_cancel=None,
     )
 
-    assert resources.retriever == "isolated-retriever"
+    assert resources.retriever == "hybrid"
     assert captured["chunk_kwargs"]["embeddings"] == "chunk-embeddings"
-    assert captured["embeddings"] == "retrieval-embeddings"
-    assert captured["search_kwargs"] == {"k": 4}
-    assert resources.resolved_metadata["retrieval_embedding"]["model"] == (
-        "retrieval-embedding"
-    )
+    assert ("dense" in captured) is expects_dense
+    assert ("bm25" in captured) is expects_bm25
+    assert ("faiss_chunks" in captured) is expects_dense
+    if expects_dense:
+        assert captured["embeddings"] == "retrieval-embeddings"
+        assert [
+            chunk.metadata["document_chunk_id"] for chunk in captured["faiss_chunks"]
+        ] == [1, 2]
+        assert captured["dense"][1] == 4
+        assert resources.resolved_metadata["retrieval_embedding"]["model"] == (
+            "retrieval-embedding"
+        )
+    else:
+        assert "embeddings" not in captured
+        assert resources.resolved_metadata["retrieval_embedding"] is None
+    if expects_bm25:
+        assert [
+            chunk.metadata["document_chunk_id"] for chunk in captured["bm25"][0]
+        ] == [
+            1,
+            2,
+        ]
+        assert captured["bm25"][1] == 5
+    assert captured["hybrid"] == {
+        "dense_retriever": "dense" if expects_dense else None,
+        "bm25_retriever": "bm25" if expects_bm25 else None,
+        "bm25_weight": bm25_weight,
+        "dense_k": 4,
+        "bm25_k": 5,
+        "final_top_k": 3,
+    }
+    assert resources.resolved_metadata["retrieval_mode"] == expected_mode
     assert resources.resolved_metadata["chunking_embedding"] == {
         "model": "hidden-semantic"
     }
+    dependency_versions = resources.resolved_metadata["fixed_dependency_versions"]
+    assert ("faiss-cpu" in dependency_versions) is expects_dense
+    assert ("rank-bm25" in dependency_versions) is expects_bm25
     assert [(item.stage, item.progress) for item in progress] == [
         ("chunking", 0.0),
         ("chunking", 1.0),
@@ -242,9 +336,8 @@ async def test_graphrag_adapter_forces_simple_scope_controls_and_cleanup(monkeyp
     monkeypatch.setattr(
         rag_eval_runtime,
         "create_kg_extractors",
-        lambda config, *, llm: captured.setdefault("extractor_config", config) and [
-            "simple"
-        ],
+        lambda config, *, llm: captured.setdefault("extractor_config", config)
+        and ["simple"],
     )
     monkeypatch.setattr(
         rag_eval_runtime,
@@ -332,7 +425,9 @@ async def test_graphrag_adapter_cleans_scope_on_build_failure_or_cancellation(
         checks += 1
         return failure == "cancel" and checks >= 3
 
-    expected = RuntimeError if failure == "build" else rag_eval_runtime.RagEvaluationCancelled
+    expected = (
+        RuntimeError if failure == "build" else rag_eval_runtime.RagEvaluationCancelled
+    )
     with pytest.raises(expected):
         await rag_eval_runtime.GraphRagEvaluationAdapter().prepare(
             specification=_spec("graphrag"),
@@ -358,6 +453,7 @@ async def test_default_runtime_uses_typed_configuration_and_returns_rich_result(
     from app.services import llm_models_service
 
     models = [
+        "gpt-4o-mini",
         "doc-model",
         "rewrite-model",
         "generate-model",
@@ -389,10 +485,13 @@ async def test_default_runtime_uses_typed_configuration_and_returns_rich_result(
             "rag": {
                 "strategy": "crag",
                 "retrieval_embedding_model": "text-embedding-3-small",
-                "top_k": 2,
+                "bm25_weight": 0.0,
+                "dense_k": 2,
+                "bm25_k": 2,
+                "final_top_k": 2,
                 "reranker": "none",
                 "top_n": 2,
-                "rewrite_limit": 3,
+                "max_rewrite_attempts": 3,
                 "document_grader": {"provider": "openai", "model": "doc-model"},
                 "query_rewriter": {
                     "provider": "openai",
