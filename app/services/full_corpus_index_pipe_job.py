@@ -78,11 +78,12 @@ def _short_error(exc: Exception, max_length: int = 500) -> str:
 def _vector_namespace(corpus_index_id: int, requested_namespace: str | None) -> str:
     """
     Determine the vector namespace for a given corpus index.
-        Args:
-            corpus_index_id: The ID of the corpus index.
-            requested_namespace: The requested namespace, if any.
-        Returns:
-            The determined vector namespace.
+
+    Args:
+        corpus_index_id: The ID of the corpus index.
+        requested_namespace: The requested namespace, if any.
+    Returns:
+        The determined vector namespace.
     """
     if requested_namespace is not None and requested_namespace.strip():
         return requested_namespace.strip()
@@ -92,10 +93,11 @@ def _vector_namespace(corpus_index_id: int, requested_namespace: str | None) -> 
 def _candidate_index_name(job: FullCorpusIndexPipeJob) -> str:
     """
     Determine the candidate index name for a given full corpus index pipe job.
-        Args:
-            job: The full corpus index pipe job.
-        Returns:
-            The candidate index name.
+
+    Args:
+        job: The full corpus index pipe job.
+    Returns:
+        The candidate index name.
     """
     return f"{job.requested_index_name} [candidate job {job.id}]"
 
@@ -103,10 +105,11 @@ def _candidate_index_name(job: FullCorpusIndexPipeJob) -> str:
 def _warning_read(warning: Any) -> FullCorpusIndexPipeJobWarningRead:
     """
     Convert a warning object into an FullCorpusIndexPipeJobWarningRead schema.
-        Args:
-            warning: The warning object to convert.
-        Returns:
-            An FullCorpusIndexPipeJobWarningRead object containing the warning data.
+
+    Args:
+        warning: The warning object to convert.
+    Returns:
+        An FullCorpusIndexPipeJobWarningRead object containing the warning data.
     """
     return FullCorpusIndexPipeJobWarningRead(
         id=getattr(warning, "id"),
@@ -121,10 +124,11 @@ def _warning_read(warning: Any) -> FullCorpusIndexPipeJobWarningRead:
 def _job_read(job: Any) -> FullCorpusIndexPipeJobRead:
     """
     Convert a job object into an FullCorpusIndexPipeJobRead schema.
-        Args:
-            job: The job object to convert.
-        Returns:
-            An FullCorpusIndexPipeJobRead object containing the job data.
+
+    Args:
+        job: The job object to convert.
+    Returns:
+        An FullCorpusIndexPipeJobRead object containing the job data.
     """
     return FullCorpusIndexPipeJobRead(
         id=getattr(job, "id"),
@@ -155,11 +159,12 @@ def _job_read(job: Any) -> FullCorpusIndexPipeJobRead:
 async def _read_job_detail(job: Any, session: AsyncSession) -> FullCorpusIndexPipeJobDetail:
     """
     Read detailed information about an full corpus index pipe job, including warnings.
-        Args:
-            job: The job object to read details from.
-            session: The database session.
-        Returns:
-            An FullCorpusIndexPipeJobDetail object containing the job details and warnings.
+    
+    Args:
+        job: The job object to read details from.
+        session: The database session.
+    Returns:
+        An FullCorpusIndexPipeJobDetail object containing the job details and warnings.
     """
     warnings = await full_corpus_index_pipe_jobs_repo.list_full_corpus_index_pipe_job_warnings(getattr(job, "id"), session)
     return FullCorpusIndexPipeJobDetail(
@@ -169,6 +174,14 @@ async def _read_job_detail(job: Any, session: AsyncSession) -> FullCorpusIndexPi
 
 
 def _cancel_live_full_corpus_index_pipe_task(job_id: int) -> bool:
+    """
+    Cancel a live full corpus index pipeline task if it exists and is running.
+        
+    Args:
+        job_id: The ID of the full corpus index pipe job to cancel.
+    Returns:
+        True if the task was cancelled, False otherwise.
+    """
     task = _FULL_CORPUS_INDEX_PIPE_TASKS.get(job_id)
     if task is None or task.done():
         return False
@@ -176,12 +189,31 @@ def _cancel_live_full_corpus_index_pipe_task(job_id: int) -> bool:
     return True
 
 
-def _unregister_full_corpus_index_pipe_task(job_id: int, task: asyncio.Task[FullCorpusIndexPipeJobDetail]) -> None:
+def _unregister_full_corpus_index_pipe_task(job_id: int, 
+                                            task: asyncio.Task[FullCorpusIndexPipeJobDetail]) -> None:
+    """
+    Unregister a full corpus index pipe task.
+
+    Args:
+        job_id: The ID of the full corpus index pipe job.
+        task: The asyncio task associated with the job.
+    Returns:
+        None
+    """
     if _FULL_CORPUS_INDEX_PIPE_TASKS.get(job_id) is task:
         _FULL_CORPUS_INDEX_PIPE_TASKS.pop(job_id, None)
 
 
 def start_full_corpus_index_pipe_job_task(job_id: int) -> asyncio.Task[FullCorpusIndexPipeJobDetail]:
+    """
+    Start a full corpus index pipeline job task and register it in the global 
+    task registry.
+    
+    Args:
+        job_id: The ID of the full corpus index pipe job to start.
+    Returns:
+        The asyncio task handling the job.
+    """
     task = asyncio.create_task(run_full_corpus_index_pipe_job_srvc(job_id))
     _FULL_CORPUS_INDEX_PIPE_TASKS[job_id] = task
     task.add_done_callback(lambda current_task, current_job_id=job_id: _unregister_full_corpus_index_pipe_task(current_job_id, current_task))
@@ -189,6 +221,15 @@ def start_full_corpus_index_pipe_job_task(job_id: int) -> asyncio.Task[FullCorpu
 
 
 async def _raise_if_cancel_requested(job: FullCorpusIndexPipeJob, session: AsyncSession) -> None:
+    """
+    Raise an asyncio.CancelledError if the job has a cancellation requested.
+
+    Args:
+        job: The full corpus index pipe job to check for cancellation.
+        session: The database session.
+    Raises:
+        asyncio.CancelledError: If the job has a cancellation requested.
+    """
     await session.refresh(job)
     if job.cancel_requested:
         raise asyncio.CancelledError(CANCELLED_FAILURE_DETAIL)
@@ -200,6 +241,17 @@ async def _mark_job_cancelled(
     session: AsyncSession,
     detail: str = CANCELLED_FAILURE_DETAIL,
 ) -> FullCorpusIndexPipeJobDetail:
+    """
+    Mark the full corpus index pipe job as cancelled.
+
+    Args:
+        job: The full corpus index pipe job to mark as cancelled.
+        candidate_index: The candidate corpus index associated with the job, if any.
+        session: The database session.
+        detail: The cancellation detail message.
+    Returns:
+        The detailed information of the cancelled job.
+    """
     if candidate_index is not None and candidate_index.status == "building":
         try:
             await corpus_indices_repo.mark_corpus_index_cancelled(candidate_index, detail, session)
@@ -218,11 +270,14 @@ async def _mark_job_cancelled(
 async def _ensure_resources_exist(job_in: FullCorpusIndexPipeJobCreate, session: AsyncSession) -> None:
     """
     Ensure that the resources required for an full corpus index pipe job exist.
-        Args:
-            job_in: The full corpus index pipe job creation data.
-            session: The database session.
-        Raises:
-            ValueError: If any of the required resources do not exist.
+
+    Args:
+        job_in: The full corpus index pipe job creation data.
+        session: The database session.
+    Returns:
+        None
+    Raises:
+        ValueError: If any of the required resources do not exist.
     """
     if await corpus_repo.get_corpus_by_id(job_in.corpus_id, session) is None:
         raise ValueError("Corpus not found")
@@ -250,11 +305,12 @@ async def _ensure_resources_exist(job_in: FullCorpusIndexPipeJobCreate, session:
 async def _ensure_corpus_has_raw_documents(corpus_id: int, session: AsyncSession) -> None:
     """
     Ensure that the corpus contains raw documents.
-        Args:
-            corpus_id: The ID of the corpus to check.
-            session: The database session.
-        Raises:
-            ValueError: If the corpus does not contain any raw documents.
+
+    Args:
+        corpus_id: The ID of the corpus to check.
+        session: The database session.
+    Raises:
+        ValueError: If the corpus does not contain any raw documents.
     """
     raw_document_ids = await corpus_repo.get_corpus_raw_document_ids(corpus_id, session)
     if not raw_document_ids:
@@ -266,12 +322,14 @@ async def _ensure_index_name_is_available_for_request(
     session: AsyncSession,
 ) -> None:
     """
-    Ensure that the requested index name is available for the full corpus index pipe job.
-        Args:
-            job_in: The full corpus index pipe job creation data.
-            session: The database session.
-        Raises:
-            ValueError: If the index name is already in use.
+    Ensure that the requested index name is available for the full corpus index 
+    pipeline job.
+
+    Args:
+        job_in: The full corpus index pipe job creation data.
+        session: The database session.
+    Raises:
+        ValueError: If the index name is already in use.
     """
     existing_index = await corpus_indices_repo.get_corpus_index_by_name(
         job_in.requested_index_name,
@@ -287,10 +345,21 @@ async def _ensure_vector_namespace_is_available_for_request(
     job_in: FullCorpusIndexPipeJobCreate,
     session: AsyncSession,
 ) -> None:
+    """
+    Ensure that the requested vector namespace is available for the full 
+    corpus index pipeline job.
+
+        Args:
+            job_in: The full corpus index pipe job creation data.
+            session: The database session.
+        Raises:
+            ValueError: If the vector namespace is already in use for the 
+            specified vector store.
+    """
     vector_namespace = job_in.requested_vector_namespace
     if vector_namespace is None or not vector_namespace.strip():
         return
-
+    # Get corpus index by namespace and vector store ID
     existing_index = await corpus_indices_repo.get_corpus_index_by_vector_namespace(
         vector_store_id=job_in.vector_store_id,
         vector_namespace=vector_namespace.strip(),
@@ -305,11 +374,13 @@ async def _ensure_vector_namespace_is_available_for_request(
 async def _has_non_terminal_simulations_for_index(index_id: int, session: AsyncSession) -> bool:
     """
     Check if there are any non-terminal simulations for a given index.
-        Args:
-            index_id: The ID of the corpus index to check.
-            session: The database session.
-        Returns:
-            True if there are non-terminal simulations for the index, False otherwise.
+
+    Args:
+        index_id: The ID of the corpus index to check.
+        session: The database session.
+    Returns:
+        True if there are non-terminal simulations for the index, False 
+        otherwise.
     """
     result = await session.exec(
         select(Simulation.id)
@@ -327,15 +398,17 @@ async def queue_full_corpus_index_pipe_job_srvc(
     session: AsyncSession,
 ) -> FullCorpusIndexPipeJobQueued:
     """
-    Queue an full corpus index pipe job service function.
-        Args:
-            job_in: The full corpus index pipe job creation data.
-            session: The database session.
-        Returns:
-            An FullCorpusIndexPipeJobQueued object containing the queued job data.
-        Raises:
-            ValueError: If any of the required resources do not exist or if 
-            the index name is already in use.
+    Queue an full corpus index pipeline job service function.
+
+    Args:
+        job_in: The full corpus index pipe job creation data.
+        session: The database session.
+    Returns:
+        An FullCorpusIndexPipeJobQueued object containing the queued job 
+        data.
+    Raises:
+        ValueError: If any of the required resources do not exist or if 
+        the index name is already in use.
     """
     await _ensure_resources_exist(job_in, session)
     await _ensure_corpus_has_raw_documents(job_in.corpus_id, session)
@@ -362,15 +435,18 @@ async def list_full_corpus_index_pipe_jobs_srvc(
     corpus_id: int | None = None,
 ) -> list[FullCorpusIndexPipeJobRead]:
     """
-    List full corpus index pipe jobs with optional filtering by status and corpus ID.
-        Args:
-            session: The database session.
-            skip: The number of records to skip for pagination.
-            limit: The maximum number of records to return.
-            status: Optional status to filter the full corpus index pipe jobs.
-            corpus_id: Optional corpus ID to filter the full corpus index pipe jobs.
-        Returns:
-            A list of FullCorpusIndexPipeJobRead objects matching the filters.
+    List full corpus index pipe jobs with optional filtering by status and 
+    corpus ID.
+
+    Args:
+        session: The database session.
+        skip: The number of records to skip for pagination.
+        limit: The maximum number of records to return.
+        status: Optional status to filter the full corpus index pipe jobs.
+        corpus_id: Optional corpus ID to filter the full corpus index 
+            pipe jobs.
+    Returns:
+        A list of FullCorpusIndexPipeJobRead objects matching the filters.
     """
     jobs = await full_corpus_index_pipe_jobs_repo.list_full_corpus_index_pipe_jobs(
         session,
@@ -384,12 +460,13 @@ async def list_full_corpus_index_pipe_jobs_srvc(
 
 async def get_active_full_corpus_index_pipe_job_srvc(session: AsyncSession) -> FullCorpusIndexPipeJobDetail | None:
     """
-    Get the active full corpus index pipe job, if any.
-        Args:
-            session: The database session.
-        Returns:
-            An FullCorpusIndexPipeJobDetail object for the active job, or None if no 
-            active job exists.
+    Get the active full corpus index pipeline job, if any.
+
+    Args:
+        session: The database session.
+    Returns:
+        An FullCorpusIndexPipeJobDetail object for the active job, or None if no 
+        active job exists.
     """
     job = await full_corpus_index_pipe_jobs_repo.get_active_full_corpus_index_pipe_job(session)
     if job is None:
@@ -397,16 +474,18 @@ async def get_active_full_corpus_index_pipe_job_srvc(session: AsyncSession) -> F
     return await _read_job_detail(job, session)
 
 
-async def get_full_corpus_index_pipe_job_detail_srvc(job_id: int, session: AsyncSession) -> FullCorpusIndexPipeJobDetail:
+async def get_full_corpus_index_pipe_job_detail_srvc(job_id: int, 
+                                                     session: AsyncSession) -> FullCorpusIndexPipeJobDetail:
     """
-    Get the details of a specific full corpus index pipe job by its ID.
-        Args:
-            job_id: The ID of the full corpus index pipe job.
-            session: The database session.
-        Returns:
-            An FullCorpusIndexPipeJobDetail object for the specified job.
-        Raises:
-            ValueError: If the full corpus index pipe job is not found.
+    Get the details of a specific full corpus index pipeline job by its ID.
+
+    Args:
+        job_id: The ID of the full corpus index pipeline job.
+        session: The database session.
+    Returns:
+        An FullCorpusIndexPipeJobDetail object for the specified job.
+    Raises:
+        ValueError: If the full corpus index pipeline job is not found.
     """
     job = await full_corpus_index_pipe_jobs_repo.get_full_corpus_index_pipe_job_by_id(job_id, session)
     if job is None:
@@ -414,7 +493,20 @@ async def get_full_corpus_index_pipe_job_detail_srvc(job_id: int, session: Async
     return await _read_job_detail(job, session)
 
 
-async def cancel_full_corpus_index_pipe_job_srvc(job_id: int, session: AsyncSession) -> FullCorpusIndexPipeJobDetail:
+async def cancel_full_corpus_index_pipe_job_srvc(job_id: int, 
+                                                 session: AsyncSession) -> FullCorpusIndexPipeJobDetail:
+    """
+    Cancel a full corpus index pipeline job by its ID.
+
+    Args:
+        job_id: The ID of the full corpus index pipeline job to cancel.
+        session: The database session.
+    Returns:
+        An FullCorpusIndexPipeJobDetail object for the cancelled job.
+    Raises:
+        ValueError: If the full corpus index pipeline job is not found or if
+        the job is not in a cancellable state (queued or running).
+    """
     job = await full_corpus_index_pipe_jobs_repo.get_full_corpus_index_pipe_job_by_id(job_id, session)
     if job is None:
         raise ValueError("Full corpus index pipe job not found")
@@ -486,17 +578,19 @@ async def _process_documents(
     session: AsyncSession,
 ) -> DocumentBuildResult:
     """
-    Process the documents for the given full corpus index pipe job and candidate index.
-        Args:
-            job: The full corpus index pipe job for which to process documents.
-            candidate_index: The candidate corpus index.
-            session: The database session.
-        Returns:
-            A DocumentBuildResult object containing the results of the 
-            document processing.
-        Raises:
-            ValueError: If the chunking profile is not found or if any raw 
-            document is not found during processing.
+    Process the documents for the given full corpus index pipe job and 
+    candidate index.
+
+    Args:
+        job: The full corpus index pipeline job for which to process documents.
+        candidate_index: The candidate corpus index.
+        session: The database session.
+    Returns:
+        A DocumentBuildResult object containing the results of the 
+        document processing.
+    Raises:
+        ValueError: If the chunking profile is not found or if any raw 
+        document is not found during processing.
     """
     raw_document_ids = await corpus_repo.get_corpus_raw_document_ids(job.corpus_id, session)
     chunking_profile = await chunking_profiles_repo.get_chunking_profile_by_id(
@@ -526,6 +620,14 @@ async def _process_documents(
             continue
 
         async def progress_callback(stage: str) -> None:
+            """
+            Progress callback for the document processing stage.
+
+            Args:
+                stage (str): The current stage of document processing.
+            Returns:
+                None
+            """
             await _raise_if_cancel_requested(job, session)
             await full_corpus_index_pipe_jobs_repo.update_full_corpus_index_pipe_job_progress(
                 job,
@@ -596,16 +698,18 @@ async def _embed_candidate(
     session: AsyncSession,
 ) -> int:
     """
-    Embed the candidate corpus index for the given full corpus index pipe job.
-        Args:
-            job: The full corpus index pipe job for which to embed the candidate index.
-            candidate_index: The candidate corpus index.
-            session: The database session.
-        Returns:
-            The number of chunks indexed.
-        Raises:
-            ValueError: If the candidate index ID is not generated or if 
-            the vector store is not found.
+    Embed the candidate corpus index for the given full corpus index pipeline 
+    job.
+
+    Args:
+        job: The full corpus index pipe job for which to embed the candidate index.
+        candidate_index: The candidate corpus index.
+        session: The database session.
+    Returns:
+        The number of chunks indexed.
+    Raises:
+        ValueError: If the candidate index ID is not generated or if 
+        the vector store is not found.
     """
     candidate_index_id = candidate_index.id
     if candidate_index_id is None:
@@ -686,14 +790,16 @@ async def _activate_candidate_index(
     session: AsyncSession,
 ) -> ActivationResult:
     """
-    Activate the candidate corpus index for the given full corpus index pipe job.
-        Args:
-            job: The full corpus index pipe job for which to activate the candidate index.
-            candidate_index: The candidate corpus index.
-            session: The database session.
-        Returns:
-            An ActivationResult object containing the IDs of the activated 
-            and replaced corpus indices.
+    Activate the candidate corpus index for the given full corpus index 
+    pipeline job.
+
+    Args:
+        job: The full corpus index pipe job for which to activate the candidate index.
+        candidate_index: The candidate corpus index.
+        session: The database session.
+    Returns:
+        An ActivationResult object containing the IDs of the activated 
+        and replaced corpus indices.
     """
     candidate_index, replaced_index = await corpus_indices_repo.activate_candidate_index(
         candidate_index=candidate_index,
@@ -712,13 +818,14 @@ async def _cleanup_retired_index(
 ) -> None:
     """
     Cleanup the retired corpus index by deleting its indexed chunks and vectors.
-        Args:
-            replaced_corpus_index_id: The ID of the replaced corpus index.
-            session: The database session.
-        Returns:
-            None
-        Raises:
-            ValueError: If the vector store is not found.
+
+    Args:
+        replaced_corpus_index_id: The ID of the replaced corpus index.
+        session: The database session.
+    Returns:
+        None
+    Raises:
+        ValueError: If the vector store is not found.
     """
     if replaced_corpus_index_id is None:
         return
@@ -775,16 +882,17 @@ async def _fail_job_and_candidate(
 ) -> FullCorpusIndexPipeJobDetail:
     """
     Fail the full corpus index pipe job and the candidate corpus index, if it exists.
-        Args:
-            job: The full corpus index pipe job to fail.
-            candidate_index: The candidate corpus index to fail, if it exists.
-            session: The database session.
-            detail: The detail of the failure.
-        Returns:
-            An FullCorpusIndexPipeJobDetail object containing the failed job details.
-        Raises:
-            ValueError: If the candidate index is not None and the candidate
-            index status is not "building".
+
+    Args:
+        job: The full corpus index pipe job to fail.
+        candidate_index: The candidate corpus index to fail, if it exists.
+        session: The database session.
+        detail: The detail of the failure.
+    Returns:
+        An FullCorpusIndexPipeJobDetail object containing the failed job details.
+    Raises:
+        ValueError: If the candidate index is not None and the candidate
+        index status is not "building".
     """
     if candidate_index is not None and candidate_index.status == "building":
         try:
@@ -798,19 +906,20 @@ async def _fail_job_and_candidate(
 
 
 async def run_full_corpus_index_pipe_job_srvc(job_id: int) -> FullCorpusIndexPipeJobDetail:
+    """
+    Run the full corpus index pipe job with the given ID, processing its documents, 
+    embedding them, and updating the job status accordingly.
+    
+    Args:
+        job_id: The ID of the full corpus index pipe job to run.
+    Returns:
+        An FullCorpusIndexPipeJobDetail object containing the details of the
+        completed or failed full corpus index pipe job.
+    Raises:
+        ValueError: If the full corpus index pipe job is not found or if any step of
+        the indexing process fails.
+    """
     async with AsyncSessionLocal() as session:
-        """
-        Run the full corpus index pipe job with the given ID, processing its documents, 
-        embedding them, and updating the job status accordingly.
-            Args:
-                job_id: The ID of the full corpus index pipe job to run.
-            Returns:
-                An FullCorpusIndexPipeJobDetail object containing the details of the
-                completed or failed full corpus index pipe job.
-            Raises:
-                ValueError: If the full corpus index pipe job is not found or if any step of
-                the indexing process fails.
-        """
         job = await full_corpus_index_pipe_jobs_repo.get_full_corpus_index_pipe_job_by_id(job_id, session)
         if job is None:
             raise ValueError("Full corpus index pipe job not found")
@@ -877,15 +986,16 @@ async def run_full_corpus_index_pipe_job_srvc(job_id: int) -> FullCorpusIndexPip
 
 
 async def fail_interrupted_full_corpus_index_pipe_jobs_srvc() -> None:
+    """
+    Fail any full corpus index pipe jobs that were interrupted, marking 
+    them as failed and cleaning up any associated candidate indices.
+    
+    Args:    
+        None
+    Returns: 
+        None
+    """
     async with AsyncSessionLocal() as session:
-        """
-        Fail any full corpus index pipe jobs that were interrupted, marking them as failed
-        and cleaning up any associated candidate indices.
-        Args:    
-            None
-        Returns: 
-            None
-        """
         try:
             interrupted_jobs = await full_corpus_index_pipe_jobs_repo.list_interrupted_full_corpus_index_pipe_jobs(session)
         except Exception:

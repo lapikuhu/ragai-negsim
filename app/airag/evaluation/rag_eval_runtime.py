@@ -145,7 +145,13 @@ def normalize_evaluation_specification(configuration: Any) -> EvaluationSpecific
 def resolve_chunking_embedding(
     strategy: str
 ) -> tuple[Any | None, dict[str, Any] | None]:
-    """Resolve the hidden semantic boundary model and its non-secret identity."""
+    """
+    Resolve the hidden semantic boundary model and its non-secret identity.
+    Args:
+        strategy: The chunking strategy, either "semantic" or "hybrid".
+    Returns:
+        A tuple containing the hidden semantic boundary model (or None) and its non-secret identity (or None).
+    """
     if strategy not in {"semantic", "hybrid"}:
         return None, None
     return get_default_embeddings(), {
@@ -171,6 +177,15 @@ def _evaluation_graph_scope(run_id: int) -> tuple[int, str]:
 
 
 def _create_evaluation_graph_store(run_id: int) -> ScopedSchemaNeo4jPropertyGraphStore:
+    """
+    Create a scoped Neo4j property graph store for a deterministic 
+    evaluation run.
+    Args:
+        run_id: The unique identifier for the evaluation run.
+    Returns:
+        An instance of ScopedSchemaNeo4jPropertyGraphStore configured for 
+        the evaluation run.
+    """
     graph_id, generation = _evaluation_graph_scope(run_id)
     return ScopedSchemaNeo4jPropertyGraphStore(
         graph_id=graph_id,
@@ -184,7 +199,13 @@ def _create_evaluation_graph_store(run_id: int) -> ScopedSchemaNeo4jPropertyGrap
 
 
 async def cleanup_rag_eval_graph_scope(run_id: int) -> None:
-    """Delete and close a deterministic graph generation for restart recovery."""
+    """
+    Delete and close a deterministic graph generation for restart recovery.
+    Args:
+        run_id: The unique identifier for the evaluation run.
+    Returns:
+        None
+    """
     store = _create_evaluation_graph_store(run_id)
     try:
         await asyncio.to_thread(store.delete_generation)
@@ -193,6 +214,17 @@ async def cleanup_rag_eval_graph_scope(run_id: int) -> None:
 
 
 def _make_eval_graph_chunks(chunks: list[Document]) -> list[EvalGraphChunk]:
+    """
+    Create evaluation graph chunks from documents.
+    Args:
+        chunks: A list of Document objects to be converted into 
+            EvalGraphChunk instances.
+    Returns:
+        A list of EvalGraphChunk instances.
+    Raises:
+        ValueError: If any document does not have a valid eval_document_id 
+        in its metadata.
+    """
     document_ids = {chunk.metadata.get("eval_document_id") for chunk in chunks}
     if not all(
         isinstance(document_id, str) and document_id for document_id in document_ids
@@ -218,7 +250,15 @@ def _make_eval_graph_chunks(chunks: list[Document]) -> list[EvalGraphChunk]:
 
 
 def _assign_evaluation_document_chunk_ids(chunks: list[Document]) -> list[Document]:
-    """Copy tagged chunks with deterministic IDs shared by CRAG retrievers."""
+    """
+    Copy tagged chunks with deterministic IDs shared by CRAG retrievers.
+    Args:
+        chunks: A list of Document objects to be assigned deterministic 
+            chunk IDs.
+    Returns:
+        A list of Document objects with updated metadata containing 
+        deterministic chunk IDs.
+    """
     return [
         Document(
             page_content=chunk.page_content,
@@ -234,6 +274,19 @@ async def _prepare_tagged_chunks(
     progress_callback: ProgressCallback | None,
     should_cancel: CancellationCallback | None,
 ) -> tuple[list[Document], dict[str, Any] | None]:
+    """
+    Prepare evaluation chunks with deterministic IDs and embedding metadata.
+    Args:
+        specification: The evaluation specification containing chunking 
+            strategy.
+        corpus: The evaluation corpus containing documents.
+        progress_callback: Optional callback for reporting progress.
+        should_cancel: Optional callback for checking cancellation.
+
+    Returns:
+        A tuple containing a list of tagged Document objects and optional 
+        embedding metadata.
+    """
     await check_cancellation(should_cancel)
     await report_progress(progress_callback, "chunking", 0.0)
     strategy = str(specification.chunking["strategy"])
@@ -254,7 +307,6 @@ async def _prepare_tagged_chunks(
 
 class CragEvaluationAdapter:
     """Build isolated dense, BM25, or hybrid resources for one evaluation run."""
-
     async def prepare(
         self,
         *,
@@ -264,6 +316,18 @@ class CragEvaluationAdapter:
         progress_callback: ProgressCallback | None,
         should_cancel: CancellationCallback | None,
     ) -> EvaluationResources:
+        """
+        Prepare evaluation resources for the given evaluation run.
+        Args:
+            specification: The evaluation specification containing 
+                retrieval and chunking settings.
+            corpus: The evaluation corpus containing documents.
+            run_id: The unique identifier for this evaluation run.
+            progress_callback: Optional callback for reporting progress.
+            should_cancel: Optional callback for checking cancellation.
+        Returns:
+            An EvaluationResources object containing the prepared retrievers and embeddings.
+        """
         del run_id
         chunks, chunking_embedding = await _prepare_tagged_chunks(
             specification, corpus, progress_callback, should_cancel
@@ -330,7 +394,6 @@ class CragEvaluationAdapter:
 
 class GraphRagEvaluationAdapter:
     """Build and own one deterministic run-scoped temporary property graph."""
-
     async def prepare(
         self,
         *,
@@ -426,6 +489,15 @@ class GraphRagEvaluationAdapter:
 
 
 def adapter_for_strategy(strategy: str):
+    """
+    Select the appropriate evaluation adapter based on the specified strategy.
+    Args:
+        strategy: The evaluation strategy, either "crag" or "graphrag".
+    Returns:
+        An instance of the corresponding evaluation adapter.
+    Raises:
+        ValueError: If the specified strategy is unsupported.
+    """
     normalized = strategy.strip().lower()
     if normalized == "crag":
         return CragEvaluationAdapter()
@@ -438,7 +510,6 @@ class DefaultRagEvalRuntime:
     """
     Production entry point for a validated typed evaluation configuration.
     """
-
     def __init__(self, *, pipeline_builder=None, adapter_selector=None) -> None:
         self._evaluator = FullPipelineEvaluator(
             pipeline_builder=pipeline_builder or build_response_pipeline
@@ -454,6 +525,17 @@ class DefaultRagEvalRuntime:
         progress_callback: ProgressCallback | None = None,
         should_cancel: CancellationCallback | None = None,
     ):
+        """
+        Run the evaluation using the specified configuration and corpus.
+        Args:
+            run_id: The unique identifier for this evaluation run.
+            configuration: The evaluation configuration.
+            corpus: The evaluation corpus containing documents.
+            progress_callback: Optional callback for reporting progress.
+            should_cancel: Optional callback for checking cancellation.
+        Returns:
+            The result of the evaluation.
+        """
         specification = normalize_evaluation_specification(configuration)
         return await self._evaluator.evaluate(
             specification=specification,

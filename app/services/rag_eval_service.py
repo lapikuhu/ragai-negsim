@@ -196,12 +196,16 @@ async def enqueue_rag_eval_run_srvc(
 ) -> RagEvalRunRead:
     """
     Queue a new RAG evaluation run for the given configuration.
-    The run will be processed asynchronously by the RAG evaluation coordinator.
+    The run will be processed asynchronously by the RAG evaluation 
+    coordinator.
+
     Args:
         configuration_id (int): The ID of the RAG evaluation configuration.
         session (AsyncSession): The database session.
-        coordinator (RagEvalCoordinator, optional): The RAG evaluation coordinator.
-        corpus_factory (Callable[[], Any], optional): A factory function to create the evaluation corpus.
+        coordinator (RagEvalCoordinator, optional): The RAG evaluation 
+            coordinator.
+        corpus_factory (Callable[[], Any], optional): A factory function 
+            to create the evaluation corpus.
     Returns:
         RagEvalRunRead: The details of the enqueued RAG evaluation run.
     Raises:
@@ -236,11 +240,13 @@ async def list_rag_eval_runs_srvc(
     """
     List RAG evaluation runs, optionally filtered by configuration ID 
     and status.
+
     Args:
         session (AsyncSession): The database session.
         skip (int): The number of runs to skip for pagination.
         limit (int): The maximum number of runs to return.
-        configuration_id (int | None, optional): Filter runs by configuration ID.
+        configuration_id (int | None, optional): Filter runs by 
+            configuration ID.
         status (str | None, optional): Filter runs by status.
     Returns:
         list[RagEvalRunRead]: A list of RAG evaluation runs.
@@ -261,6 +267,7 @@ async def get_rag_eval_run_srvc(
 ) -> RagEvalRunDetailRead:
     """
     Get a RAG evaluation run results by its ID.
+
     Args:
         run_id (int): The ID of the RAG evaluation run.
         session (AsyncSession): The database session.
@@ -290,6 +297,7 @@ async def cancel_rag_eval_run_srvc(
 ) -> RagEvalRunRead:
     """
     Cancel a RAG evaluation run service function.
+
     Args:
         run_id (int): The ID of the RAG evaluation run.
         session (AsyncSession): The database session.
@@ -313,6 +321,7 @@ async def startup_rag_eval_coordinator_srvc(
 ) -> None:
     """
     Start the RAG evaluation coordinator.
+
     Args:
         coordinator (RagEvalCoordinator, optional): The RAG evaluation coordinator.
     Returns:
@@ -326,6 +335,7 @@ async def shutdown_rag_eval_coordinator_srvc(
 ) -> None:
     """
     Stop the RAG evaluation coordinator.
+
     Args:
         coordinator (RagEvalCoordinator, optional): The RAG evaluation coordinator.
     Returns:

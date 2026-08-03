@@ -116,7 +116,18 @@ def build_serialized_bm25_artifact(
     *,
     k: int = 4,
 ) -> bytes:
-    """Build and serialize a trusted BM25 runtime using protocol 5 and zlib."""
+    """
+    Build and serialize a trusted BM25 runtime using protocol 5 and zlib.
+    Args:
+        documents (list[Document]): The list of documents to create the
+            BM25 retriever from.
+        k (int, optional): The number of top documents to retrieve.
+            Defaults to 4.
+    Returns:
+        bytes: The serialized BM25 artifact.
+    Raises:
+        ValueError: If the serialized artifact exceeds the 150 MiB size limit.
+    """
     retriever = make_bm25_retriever(documents, k=k)
     artifact = zlib.compress(pickle.dumps(retriever, protocol=5))
     if len(artifact) > MAX_BM25_ARTIFACT_BYTES:
@@ -132,7 +143,22 @@ def load_validated_bm25_artifact(
     expected_document_count: int,
     k: int | None = None,
 ) -> BM25Retriever:
-    """Load trusted artifact bytes after validating persistence metadata."""
+    """
+    Load trusted artifact bytes after validating persistence metadata.
+    Args:
+        artifact (bytes): The serialized BM25 artifact to load.
+        expected_checksum (str): The expected SHA-256 checksum of the artifact.
+        format_version (str): The expected format version of the artifact.
+        expected_document_count (int): The expected number of documents in 
+            the artifact.
+        k (int, optional): The number of top documents to retrieve. 
+            Defaults to None.
+    Returns:
+        BM25Retriever: The loaded BM25 retriever.
+    Raises:
+        ValueError: If any validation check fails or the artifact cannot 
+        be loaded.
+    """
     if len(artifact) > MAX_BM25_ARTIFACT_BYTES:
         raise ValueError("BM25 artifact exceeds the 150 MiB size limit")
     if format_version != BM25_ARTIFACT_FORMAT_VERSION:
@@ -180,7 +206,19 @@ async def abuild_serialized_bm25_artifact(
     k: int = 4,
     run_in_thread: Callable[..., Awaitable[bytes]] = asyncio.to_thread,
 ) -> bytes:
-    """Build and serialize BM25 outside the event-loop thread."""
+    """
+    Build and serialize BM25 outside the event-loop thread.
+    Args:
+        documents (list[Document]): The list of documents to create the
+            BM25 retriever from.
+        k (int, optional): The number of top documents to retrieve.
+            Defaults to 4.
+        run_in_thread (Callable[..., Awaitable[bytes]], optional): A callable 
+            to run the serialization in a separate thread. 
+            Defaults to asyncio.to_thread.
+    Returns:
+        bytes: The serialized BM25 artifact.
+    """
     return await run_in_thread(build_serialized_bm25_artifact, documents, k=k)
 
 
@@ -193,7 +231,22 @@ async def aload_validated_bm25_artifact(
     k: int | None = None,
     run_in_thread: Callable[..., Awaitable[BM25Retriever]] = asyncio.to_thread,
 ) -> BM25Retriever:
-    """Load and validate BM25 outside the event-loop thread."""
+    """
+    Load and validate BM25 outside the event-loop thread.
+    Args:
+        artifact (bytes): The serialized BM25 artifact to load.
+        expected_checksum (str): The expected SHA-256 checksum of the artifact.
+        format_version (str): The expected format version of the artifact.
+        expected_document_count (int): The expected number of documents in
+            the artifact.
+        k (int, optional): The number of top documents to retrieve.
+            Defaults to None.
+        run_in_thread (Callable[..., Awaitable[BM25Retriever]], optional): 
+            A callable to run the loading in a separate thread. 
+            Defaults to asyncio.to_thread.
+    Returns:
+        BM25Retriever: The loaded BM25 retriever.
+    """
     return await run_in_thread(
         load_validated_bm25_artifact,
         artifact,
@@ -244,6 +297,16 @@ class HybridRetriever:
         documents: Sequence[Document],
         limit: int,
     ) -> dict[int, tuple[int, Document]]:
+        """
+        Rank documents up to a specified limit.
+        Args:
+            documents (Sequence[Document]): The list of documents to rank.
+            limit (int): The maximum number of documents to consider.
+
+        Returns:
+            dict[int, tuple[int, Document]]: A dictionary mapping chunk 
+            IDs to their rank and document.
+        """
         ranked: dict[int, tuple[int, Document]] = {}
         for rank, document in enumerate(documents[:limit], start=1):
             chunk_id = _document_chunk_id(document)
@@ -251,7 +314,15 @@ class HybridRetriever:
         return ranked
 
     def invoke(self, query: str, config=None, **kwargs) -> list[Document]:
-        """Retrieve active candidates and fuse them without an RRF constant."""
+        """
+        Retrieve active candidates and fuse them without an RRF constant.
+        Args:
+            query (str): The query string to retrieve documents for.
+            config: Optional configuration for the retrievers.
+            **kwargs: Additional keyword arguments to pass to the retrievers.
+        Returns:
+            list[Document]: A list of fused and ranked Document objects.
+        """
         dense_ranked: dict[int, tuple[int, Document]] = {}
         bm25_ranked: dict[int, tuple[int, Document]] = {}
         if self.bm25_weight < 1.0:
@@ -306,7 +377,16 @@ class HybridRetriever:
         return [document for _, _, document in fused[: self.final_top_k]]
 
     async def ainvoke(self, query: str, config=None, **kwargs) -> list[Document]:
-        """Run synchronous child retrievers outside the event-loop thread."""
+        """
+        Run synchronous child retrievers outside the event-loop thread.
+        Args:
+            query (str): The query string to retrieve documents for.
+            config: Optional configuration for the retrievers.
+            **kwargs: Additional keyword arguments to pass to the retrievers.
+
+        Returns:
+            list[Document]: A list of fused and ranked Document objects.
+        """
         return await asyncio.to_thread(self.invoke, query, config, **kwargs)
 
 
@@ -319,7 +399,21 @@ def make_hybrid_retriever(
     bm25_k: int = 4,
     final_top_k: int = 4,
 ) -> HybridRetriever:
-    """Create a deterministic, top-k bounded hybrid retriever."""
+    """
+    Create a deterministic, top-k bounded hybrid retriever.
+    Args:
+        dense_retriever: An optional dense retriever instance.
+        bm25_retriever: An optional BM25 retriever instance.
+        bm25_weight (float): The weight for BM25 scores in the fusion.
+        dense_k (int): The number of top documents to retrieve from the 
+            dense retriever.
+        bm25_k (int): The number of top documents to retrieve from the 
+            BM25 retriever.
+        final_top_k (int): The maximum number of top documents to return 
+            after fusion.
+    Returns:
+        HybridRetriever: The created hybrid retriever instance.
+    """
     return HybridRetriever(
         dense_retriever=dense_retriever,
         bm25_retriever=bm25_retriever,
@@ -331,7 +425,15 @@ def make_hybrid_retriever(
 
 
 def make_graph_retriever(graph_index, k: int = 3):
-    """Create a retriever from a llama-index graph index."""
+    """
+    Create a retriever from a llama-index graph index.
+    Args:
+        graph_index: The llama-index graph index instance.
+        k (int): The number of top documents to retrieve based on similarity.
+
+    Returns:
+        Retriever: The created retriever instance.
+    """
     retriever = graph_index.as_retriever(
         include_text=True,
         similarity_top_k=k,

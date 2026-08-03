@@ -103,6 +103,16 @@ async def get_rag_eval_configuration_by_name(
     name: str,
     session: AsyncSession,
 ) -> RagEvalConfiguration | None:
+    """
+    Get a RAG evaluation configuration by its name.
+
+    Args:
+        name (str): The name of the configuration to retrieve.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalConfiguration | None: The RAG evaluation configuration 
+        with the specified name, or None if not found.
+    """
     result = await session.exec(
         select(RagEvalConfiguration).where(RagEvalConfiguration.name == name)
     )
@@ -114,6 +124,17 @@ async def ensure_rag_eval_configuration_name_available(
     session: AsyncSession,
     exclude_configuration_id: int | None = None,
 ) -> None:
+    """
+    Ensure that a RAG evaluation configuration name is available.
+
+    Args:
+        name (str): The name of the configuration to check.
+        session (AsyncSession): The database session.
+        exclude_configuration_id (int | None): An optional configuration ID 
+            to exclude from the check.
+    Raises:
+        ValueError: If the configuration name already exists.
+    """
     existing = await get_rag_eval_configuration_by_name(name, session)
     if existing is not None and existing.id != exclude_configuration_id:
         raise ValueError("RAG evaluation configuration name already exists")
@@ -217,6 +238,15 @@ async def rag_eval_configuration_has_runs(
     configuration_id: int,
     session: AsyncSession,
 ) -> bool:
+    """
+    Check if a RAG evaluation configuration has any associated runs.
+
+    Args:
+        configuration_id (int): The ID of the RAG evaluation configuration.
+        session (AsyncSession): The database session.
+    Returns:
+        bool: True if the configuration has associated runs, False otherwise.
+    """
     result = await session.exec(
         select(RagEvalRun.id)
         .where(RagEvalRun.configuration_id == configuration_id)
@@ -340,6 +370,14 @@ async def list_rag_eval_runs(
 
 
 def _next_queued_rag_eval_run_statement():
+    """
+    Get the SQL statement for the next queued RAG evaluation run.
+
+    Args:
+        None
+    Returns:
+        Select: The SQLAlchemy select statement.
+    """
     return (
         select(RagEvalRun)
         .where(RagEvalRun.status == "queued")
@@ -352,6 +390,16 @@ def _next_queued_rag_eval_run_statement():
 async def claim_next_rag_eval_run(
     session: AsyncSession,
 ) -> RagEvalRun | None:
+    """
+    Claim the next queued RAG evaluation run if no other run is currently 
+    running.
+
+    Args:
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalRun | None: The claimed RAG evaluation run if available, 
+        else None.
+    """
     running = await session.exec(
         select(RagEvalRun.id).where(RagEvalRun.status == "running").limit(1)
     )
@@ -381,6 +429,17 @@ def _validate_rag_eval_run_transition(
     current_status: str,
     next_status: str,
 ) -> None:
+    """
+    Validate a RAG evaluation run status transition.
+
+    Args:
+        current_status (str): The current status of the evaluation run.
+        next_status (str): The next status to transition to.
+    Returns:
+        None
+    Raises:
+        ValueError: If the transition is not allowed.
+    """
     if next_status not in _RAG_EVAL_RUN_TRANSITIONS.get(current_status, set()):
         raise ValueError(
             "Invalid RAG evaluation run status transition: "
@@ -706,6 +765,17 @@ async def mark_rag_eval_run_failed(
     detail: str,
     session: AsyncSession,
 ) -> RagEvalRun:
+    """
+    Mark a RAG evaluation run as failed, updating its status and recording 
+    the failure details.
+    
+    Args:
+        run (RagEvalRun): The RAG evaluation run to mark as failed.
+        detail (str): The failure message or details.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalRun: The updated RAG evaluation run after marking it as failed.
+    """
     return await transition_rag_eval_run(
         run,
         "failed",
@@ -721,6 +791,16 @@ async def mark_rag_eval_run_cancelled(
     run: RagEvalRun,
     session: AsyncSession,
 ) -> RagEvalRun:
+    """
+    Mark a RAG evaluation run as cancelled, updating its status.
+
+    Args:
+        run (RagEvalRun): The RAG evaluation run to mark as cancelled.
+        session (AsyncSession): The database session.
+    Returns:
+        RagEvalRun: The updated RAG evaluation run after marking it as 
+        cancelled.
+    """
     return await transition_rag_eval_run(
         run,
         "cancelled",

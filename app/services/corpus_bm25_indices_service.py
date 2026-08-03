@@ -24,7 +24,7 @@ from app.services import simulations_service
 
 _T = TypeVar("_T")
 
-
+# Helper candidate
 def _short_error(exc: BaseException, max_length: int = 500) -> str:
     message = str(exc).strip() or exc.__class__.__name__
     if len(message) <= max_length:
@@ -33,7 +33,14 @@ def _short_error(exc: BaseException, max_length: int = 500) -> str:
 
 
 def _build_serialize_and_validate_bm25(documents) -> bytes:
-    """Compose shared retrieval primitives for the build executor."""
+    """
+    Build a serialized BM25 artifact from the given documents and validate it.
+    The artifact is then ready to be persisted in the database.
+    Args:
+        documents: The documents to build the BM25 artifact from.
+    Returns:
+        The serialized BM25 artifact as bytes.
+    """
     artifact = build_serialized_bm25_artifact(documents)
     load_validated_bm25_artifact(
         artifact,
@@ -45,12 +52,24 @@ def _build_serialize_and_validate_bm25(documents) -> bytes:
 
 
 async def _await_durable(operation: Awaitable[_T]) -> _T:
-    """Let a database operation settle despite repeated task cancellation."""
+    """
+    Await an operation while ensuring that cancellation is handled gracefully.
+    If the operation is cancelled, it will be allowed to complete, and the
+    cancellation will be raised after the operation finishes.
+    Args:
+        operation: The awaitable operation to execute.
+    Returns:
+        The result of the operation if it completes successfully.
+    Raises:
+        asyncio.CancelledError: If the operation is cancelled.
+    """
     operation_task = asyncio.ensure_future(operation)
     cancellation: asyncio.CancelledError | None = None
 
     while not operation_task.done():
         try:
+            # Protect the operation from cancellation, but still allow it to 
+            #  be cancelled if the operation itself is cancelled.
             result = await asyncio.shield(operation_task)
         except asyncio.CancelledError as exc:
             if cancellation is None:
@@ -79,6 +98,16 @@ async def _mark_build_failed(
     build_error: str,
     session: AsyncSession,
 ) -> None:
+    """
+    Mark a BM25 index build as failed and clear the associated graph cache.
+
+    Args:
+        index_id: The ID of the BM25 index.
+        build_error: The error message describing the build failure.
+        session: The database session to use.
+    Returns:
+        None.
+    """
     metadata: CorpusBm25IndexMetadata | None = None
     try:
         metadata = await _await_durable(
@@ -97,6 +126,16 @@ async def _mark_build_cancelled(
     build_error: str,
     session: AsyncSession,
 ) -> None:
+    """
+    Mark a BM25 index build as cancelled and clear the associated graph cache.
+
+    Args:
+        index_id: The ID of the BM25 index.
+        build_error: The error message describing the build cancellation.
+        session: The database session to use.
+    Returns:
+        None.
+    """
     metadata: CorpusBm25IndexMetadata | None = None
     try:
         metadata = await _await_durable(
@@ -114,6 +153,15 @@ def _clear_bm25_graph_cache(
     index_id: int,
     metadata: CorpusBm25IndexMetadata | None = None,
 ) -> int:
+    """
+    Clear the BM25 graph cache for the given index.
+
+    Args:
+        index_id: The ID of the BM25 index.
+        metadata: The metadata of the BM25 index, if available.
+    Returns:
+        The result of the cache clearing operation.
+    """
     return simulations_service.clear_negotiation_graph_cache_for_bm25_index(
         index_id,
         **(
@@ -131,6 +179,15 @@ async def retire_corpus_bm25_index_srvc(
     index: CorpusBm25IndexMetadata,
     session: AsyncSession,
 ) -> CorpusBm25IndexMetadata:
+    """
+    Mark a BM25 index as retired and clear the associated graph cache.
+
+    Args:
+        index: The metadata of the BM25 index to retire.
+        session: The database session to use.
+    Returns:
+        The retired BM25 index metadata.
+    """
     retired = await corpus_bm25_indices_repo.mark_corpus_bm25_index_retired(
         index.id,
         session,
@@ -143,6 +200,15 @@ async def delete_corpus_bm25_index_srvc(
     index: CorpusBm25IndexMetadata,
     session: AsyncSession,
 ) -> None:
+    """
+    Mark a BM25 index as deleted and clear the associated graph cache.
+
+    Args:
+        index: The metadata of the BM25 index to delete.
+        session: The database session to use.
+    Returns:
+        None.
+    """
     await corpus_bm25_indices_repo.delete_corpus_bm25_index(index.id, session)
     _clear_bm25_graph_cache(index.id, index)
 
@@ -155,7 +221,19 @@ async def build_corpus_bm25_index_srvc(
     session: AsyncSession,
     run_in_thread: Callable[..., Awaitable[bytes]] = asyncio.to_thread,
 ) -> CorpusBm25IndexMetadata:
-    """Create, validate, and atomically persist one BM25 artifact snapshot."""
+    """
+    Create, validate, and atomically persist one BM25 artifact snapshot.
+
+    Args:
+        name: The name of the BM25 index.
+        corpus_id: The ID of the corpus.
+        chunking_profile_id: The ID of the chunking profile.
+        session: The database session to use.
+        run_in_thread: A callable to run blocking operations in a thread.
+    Returns:
+        The metadata of the created BM25 index.
+    """
+    # Get the persisted document chunks for the given corpus and chunking profile.
     chunks = await list_corpus_document_chunks_for_profile(
         corpus_id=corpus_id,
         chunking_profile_id=chunking_profile_id,
@@ -166,10 +244,11 @@ async def build_corpus_bm25_index_srvc(
             "No document chunks found for this corpus and chunking profile. "
             "Chunk the corpus first."
         )
-
+    # Get the chunk ids
     document_chunk_ids = [
         _persisted_id(chunk.id, "Document chunk") for chunk in chunks
     ]
+    # Return the documents from the persisted chunks
     documents = documents_from_persisted_chunks(
         chunks,
         corpus_id=corpus_id,
@@ -187,7 +266,13 @@ async def build_corpus_bm25_index_srvc(
     index_id: int | None = None
 
     async def create_index() -> None:
-        nonlocal index_id
+        """
+        Create the BM25 index in the database.
+
+        Returns:
+            None.
+        """
+        nonlocal index_id # Mark index_id as nonlocal to modify it within this nested function
         # TODO: Reuse an existing compatible BM25 artifact instead of rebuilding one for every corpus index.
         index = await corpus_bm25_indices_repo.create_corpus_bm25_index(
             index_in,
@@ -197,13 +282,20 @@ async def build_corpus_bm25_index_srvc(
         index_id = _persisted_id(index.id, "Corpus BM25 index")
 
     def recover_index_id() -> int | None:
-        nonlocal index_id
+        """
+        Recover the index ID if it has been set.
+
+        Returns:
+            The index ID if available, otherwise None.
+        """
+        nonlocal index_id # Mark index_id as nonlocal to access it within this nested function
         if index_id is None and isinstance(prepared_index.id, int):
             index_id = prepared_index.id
         return index_id
 
     try:
         await _await_durable(create_index())
+        # Start building the BM25 artifact and mark the index as building
         await _await_durable(
             corpus_bm25_indices_repo.mark_corpus_bm25_index_building(
                 index_id,
@@ -211,6 +303,7 @@ async def build_corpus_bm25_index_srvc(
             )
         )
         artifact = await run_in_thread(_build_serialize_and_validate_bm25, documents)
+        # Mark the index as built and persist the artifact and document chunk ids
         return await _await_durable(
             corpus_bm25_indices_repo.mark_corpus_bm25_index_built(
                 index_id,
@@ -219,6 +312,7 @@ async def build_corpus_bm25_index_srvc(
                 session=session,
             )
         )
+    # Handle cancellation
     except asyncio.CancelledError as exc:
         if recover_index_id() is None:
             raise
@@ -227,6 +321,7 @@ async def build_corpus_bm25_index_srvc(
         except (asyncio.CancelledError, Exception):
             pass
         raise exc
+    # Handle regular exceptions
     except Exception as exc:
         if recover_index_id() is not None:
             try:

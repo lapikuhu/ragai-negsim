@@ -17,6 +17,13 @@ DEFAULT_COHERE_MODEL = "rerank-english-v3.0"
 
 
 def is_reranker_available(name: str) -> bool:
+    """
+    Check if a reranker with the given name is available.
+    Args:
+        name: The name of the reranker to check.
+    Returns:
+        True if the reranker is available, False otherwise.
+    """
     normalized_name = name.strip().lower()
     if normalized_name in {"cross_encoder", "none"}:
         return True
@@ -26,6 +33,11 @@ def is_reranker_available(name: str) -> bool:
 
 
 def list_available_reranker_names() -> list[str]:
+    """
+    List the names of all available rerankers.
+    Returns:
+        A list of available reranker names.
+    """
     names = ["cross_encoder"]
     if is_reranker_available("cohere"):
         names.append("cohere")

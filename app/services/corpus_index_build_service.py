@@ -13,7 +13,20 @@ def documents_from_persisted_chunks(
     chunking_profile_id: int,
     corpus_index_id: int | None = None,
 ) -> list[Document]:
-    """Convert persisted chunks into LangChain documents with safe provenance."""
+    """
+    Convert persisted chunks into LangChain documents with safe provenance.
+    
+    Args:
+        chunks: The persisted chunks to convert.
+        corpus_id: The ID of the corpus to which the chunks belong.
+        chunking_profile_id: The ID of the chunking profile used to create 
+            the chunks.
+        corpus_index_id: Optional ID of the corpus index to which the chunks 
+            belong.
+    Returns:
+        A list of LangChain Document instances representing the persisted 
+        chunks.
+    """
     documents: list[Document] = []
 
     for chunk in chunks:
@@ -40,7 +53,19 @@ def to_vector_documents(
     corpus_index_id: int,
     chunking_profile_id: int,
 ) -> tuple[list[Document], list[IndexedChunkBuildRef]]:
-    """Convert chunks into dense documents and their persisted vector references."""
+    """
+    Convert chunks into dense documents and their persisted vector references.
+
+    Args:
+        chunks: The persisted chunks to convert.
+        corpus_id: The ID of the corpus to which the chunks belong.
+        corpus_index_id: The ID of the corpus index to which the chunks belong.
+        chunking_profile_id: The ID of the chunking profile used to create 
+            the chunks.
+    Returns:
+        A tuple containing a list of LangChain Document instances and a list 
+        of IndexedChunkBuildRef instances.
+    """
     documents = documents_from_persisted_chunks(
         chunks,
         corpus_id=corpus_id,

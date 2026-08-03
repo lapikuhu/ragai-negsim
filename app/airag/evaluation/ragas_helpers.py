@@ -146,11 +146,9 @@ class RagasEvaluator:
     def _metric_payload(metric_name: str, result: Any) -> dict[str, Any]:
         """
         Generate the payload for a specific metric.
-
         Args:
             metric_name: The name of the metric.
             result: The evaluation query result.
-
         Returns:
             A dictionary containing the payload for the metric.
         Raises:

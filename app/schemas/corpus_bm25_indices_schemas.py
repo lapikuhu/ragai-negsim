@@ -9,7 +9,7 @@ class CorpusBm25IndexCreate(SQLModel):
     chunking_profile_id: int
     document_chunk_ids: list[int] = Field(default_factory=list)
     format_version: str = Field(default="pickle-zlib-v1", min_length=1)
-    created_by_full_corpus_index_pipe_job_id: int | None = None
+    created_by_full_corpus_index_pipe_job_id: int | None = None #Check
 
 
 class CorpusBm25IndexMetadata(SQLModel):
@@ -26,4 +26,4 @@ class CorpusBm25IndexMetadata(SQLModel):
     created_at: datetime
     last_updated: datetime
     build_error: str | None = None
-    created_by_full_corpus_index_pipe_job_id: int | None = None
+    created_by_full_corpus_index_pipe_job_id: int | None = None #Check

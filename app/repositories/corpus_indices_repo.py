@@ -116,13 +116,23 @@ async def get_corpus_index_by_name(
     result = await session.exec(select(CorpusIndex).where(CorpusIndex.name == name))
     return result.first()
 
-
+# Check
 async def get_corpus_index_by_vector_namespace(
     *,
     vector_store_id: int,
     vector_namespace: str,
     session: AsyncSession,
 ) -> CorpusIndex | None:
+    """
+    Get a corpus index by its vector namespace AND vector store ID.
+
+    Args:
+        vector_store_id: The ID of the vector store.
+        vector_namespace: The vector namespace of the corpus index.
+        session: The database session.
+    Returns:
+        The corpus index instance if found, None otherwise.
+    """
     result = await session.exec(
         select(CorpusIndex).where(
             CorpusIndex.vector_store_id == vector_store_id,
@@ -140,6 +150,18 @@ async def get_replaceable_built_index(
     embedding_model: str,
     session: AsyncSession,
 ) -> CorpusIndex | None:
+    """
+    Get the built corpus index for the given config tuple.
+
+    Args:
+        corpus_id: The ID of the corpus.
+        chunking_profile_id: The ID of the chunking profile.
+        vector_store_id: The ID of the vector store.
+        embedding_model: The embedding model used.
+        session: The database session.
+    Returns:
+        The corpus index instance if found, None otherwise.
+    """
     result = await session.exec(
         select(CorpusIndex).where(
             CorpusIndex.corpus_id == corpus_id,
@@ -163,6 +185,20 @@ async def activate_candidate_index(
     Activate a built candidate index and optionally retire the prior built
     index for the same configuration tuple. This bypasses the general update
     guard for built indices because it is an orchestration-only transition.
+    
+    Args:
+        candidate_index: The candidate corpus index to activate.
+        requested_name: The name to assign to the candidate index upon 
+            activation.
+        session: The database session.
+        replaced_index: An optional prior built corpus index to retire.
+    Returns:
+        A tuple containing the activated candidate index and the retired 
+        index (if any).
+    Raises:
+        ValueError: If the candidate index is not built, if the replaced 
+        index is not built, or if the candidate index is the same as the 
+        replaced index.
     """
     if candidate_index.status != "built":
         raise ValueError("Candidate corpus index must be built before activation")
@@ -450,6 +486,16 @@ async def update_corpus_index(
     index_in: CorpusIndexUpdate,
     session: AsyncSession,
 ) -> CorpusIndex:
+    """
+    Update an existing corpus index.
+
+    Args:
+        index: The corpus index instance to update.
+        index_in: The data to update the corpus index with.
+        session: The database session.
+    Returns:
+        The updated corpus index.
+    """
     ensure_corpus_index_updatable(index)
     update_data = index_in.model_dump(exclude_unset=True)
 

@@ -189,6 +189,7 @@ async def _conditional_lifecycle_update(
 ) -> CorpusBm25IndexMetadata:
     """
     Update the status of a corpus BM25 index if the current status allows it.
+
     Args:
         index_id: The ID of the corpus BM25 index to update.
         status: The new status to set.
@@ -320,6 +321,16 @@ async def mark_corpus_bm25_index_cancelled(
     build_error: str,
     session: AsyncSession,
 ) -> CorpusBm25IndexMetadata:
+    """
+    Mark a corpus BM25 index as "cancelled" if the current status allows it.
+
+    Args:
+        index_id: The ID of the corpus BM25 index to update.
+        build_error: The error message describing the cancellation.
+        session: The database session to use for the operation.
+    Returns:
+        The updated CorpusBm25IndexMetadata object.
+    """
     return await _conditional_lifecycle_update(
         index_id,
         "cancelled",
@@ -336,6 +347,19 @@ async def _compensate_corpus_bm25_index_build(
     allowed_current_statuses: tuple[str, ...],
     session: AsyncSession,
 ) -> CorpusBm25IndexMetadata:
+    """
+    Compensate a corpus BM25 index build failure or cancellation.
+
+    Args:
+        index_id: The ID of the corpus BM25 index to update.
+        build_error: The error message describing the failure or cancellation.
+        status: The status to set ("failed" or "cancelled").
+        allowed_current_statuses: A tuple of statuses that are allowed for 
+            the transition.
+        session: The database session to use for the operation.
+    Returns:
+        The updated CorpusBm25IndexMetadata object.
+    """
     persisted_id = _corpus_bm25_index_id(index_id)
     await session.rollback()
     now = utc_now()
@@ -385,10 +409,15 @@ async def cancel_corpus_bm25_index_build(
     build_error: str,
     session: AsyncSession,
 ) -> CorpusBm25IndexMetadata:
-    """Compensate task cancellation and atomically remove any built artifact.
-
+    """
+    Compensate task cancellation and atomically remove any built artifact.
     This build-only recovery does not make built-to-cancelled an ordinary
     lifecycle transition.
+
+    Args:
+        index_id: The ID of the corpus BM25 index to update.
+        build_error: The error message describing the cancellation.
+        session: The database session to use for the operation.
     """
     return await _compensate_corpus_bm25_index_build(
         index_id,
@@ -404,10 +433,17 @@ async def fail_corpus_bm25_index_build(
     build_error: str,
     session: AsyncSession,
 ) -> CorpusBm25IndexMetadata:
-    """Compensate an ambiguous build failure and clear any durable artifact.
-
+    """
+    Compensate an ambiguous build failure and clear any durable artifact.
     This build-only recovery does not make built-to-failed an ordinary
     lifecycle transition.
+
+    Args:
+        index_id: The ID of the corpus BM25 index to update.
+        build_error: The error message describing the failure.
+        session: The database session to use for the operation.
+    Returns:
+        The updated CorpusBm25IndexMetadata object.
     """
     return await _compensate_corpus_bm25_index_build(
         index_id,
@@ -422,6 +458,15 @@ async def mark_corpus_bm25_index_retired(
     index_id: int,
     session: AsyncSession,
 ) -> CorpusBm25IndexMetadata:
+    """
+    Mark the corpus BM25 index as retired.
+
+    Args:
+        index_id: The ID of the corpus BM25 index to update.
+        session: The database session to use for the operation.
+    Returns:
+        The updated CorpusBm25IndexMetadata object.
+    """
     return await _conditional_lifecycle_update(
         index_id,
         "retired",
@@ -434,6 +479,17 @@ async def delete_corpus_bm25_index(
     index_id: int,
     session: AsyncSession,
 ) -> None:
+    """
+    Delete the corpus BM25 index.
+
+    Args:
+        index_id: The ID of the corpus BM25 index to delete.
+        session: The database session to use for the operation.
+    Returns:
+        None
+    Raises:
+        ValueError: If the corpus BM25 index is not found.
+    """
     persisted_id = _corpus_bm25_index_id(index_id)
     try:
         result = await session.exec(
