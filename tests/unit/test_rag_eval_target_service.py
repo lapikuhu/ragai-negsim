@@ -19,10 +19,13 @@ async def test_configuration_crud_uses_strict_schemas_and_user_audit_fields(monk
         "rag": {
             "strategy": "crag",
             "retrieval_embedding_model": "text-embedding-3-small",
-            "top_k": 4,
+            "bm25_weight": 0.0,
+            "dense_k": 4,
+            "bm25_k": 4,
+            "final_top_k": 4,
             "reranker": "cross_encoder",
             "top_n": 3,
-            "rewrite_limit": 2,
+            "max_rewrite_attempts": 2,
             **{
                 name: {"provider": "openai", "model": "gpt-4o-mini"}
                 for name in (

@@ -49,10 +49,13 @@ def configuration_input(name: str = "baseline evaluation") -> RagEvalConfigurati
             "rag": {
                 "strategy": "crag",
                 "retrieval_embedding_model": "text-embedding-3-small",
-                "top_k": 4,
+                "bm25_weight": 0.0,
+                "dense_k": 4,
+                "bm25_k": 4,
+                "final_top_k": 4,
                 "reranker": "none",
                 "top_n": 4,
-                "rewrite_limit": 2,
+                "max_rewrite_attempts": 2,
                 **COMPONENT_SELECTIONS,
             },
             "metrics": {
