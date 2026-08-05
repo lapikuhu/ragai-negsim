@@ -144,6 +144,38 @@ def test_metadata_dto_and_statement_never_materialize_artifact_bytes():
 
 
 @pytest.mark.asyncio
+async def test_metadata_list_is_deterministically_paginated_after_filtering():
+    _require_bm25_persistence()
+
+    class FakeResult:
+        def all(self):
+            return []
+
+    class RecordingSession:
+        statement = None
+
+        async def exec(self, statement):
+            self.statement = statement
+            return FakeResult()
+
+    session = RecordingSession()
+
+    result = await corpus_bm25_indices_repo.list_corpus_bm25_index_metadata(
+        session,
+        skip=5,
+        limit=10,
+        corpus_id=11,
+        chunking_profile_id=3,
+        status="built",
+    )
+
+    assert result == []
+    assert session.statement._offset_clause.value == 5
+    assert session.statement._limit_clause.value == 10
+    assert list(session.statement._order_by_clauses) == [CorpusBm25Index.id]
+
+
+@pytest.mark.asyncio
 async def test_stale_lifecycle_object_cannot_overwrite_current_status(monkeypatch):
     _require_bm25_persistence()
     stale_index = CorpusBm25Index(

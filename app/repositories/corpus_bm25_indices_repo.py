@@ -47,6 +47,16 @@ def document_chunk_ids_checksum(document_chunk_ids: list[int]) -> str:
 
 
 def ensure_corpus_bm25_index_status(status: str) -> None:
+    """
+    Ensure the given status is a valid corpus BM25 index status.
+
+    Args:
+        status: The status to validate.
+    Returns:
+        None
+    Raises:
+        ValueError: If the status is not allowed.
+    """
     if status not in ALLOWED_CORPUS_BM25_INDEX_STATUSES:
         raise ValueError("Invalid corpus BM25 index status")
 
@@ -55,6 +65,17 @@ def ensure_corpus_bm25_index_status_transition(
     current_status: str,
     next_status: str,
 ) -> None:
+    """
+    Ensure the transition from the current status to the next status is valid.
+
+    Args:
+        current_status: The current status of the corpus BM25 index.
+        next_status: The desired next status of the corpus BM25 index.
+    Returns:
+        None
+    Raises:
+        ValueError: If the transition is not allowed.
+    """
     ensure_corpus_bm25_index_status(current_status)
     ensure_corpus_bm25_index_status(next_status)
     if next_status not in ALLOWED_CORPUS_BM25_INDEX_STATUS_TRANSITIONS[current_status]:
@@ -62,7 +83,13 @@ def ensure_corpus_bm25_index_status_transition(
 
 
 def _corpus_bm25_index_metadata_statement():
-    """Select only API-safe artifact metadata; never select artifact bytes."""
+    """
+    Select only API-safe artifact metadata not artifact bytes.
+    Args:
+        None
+    Returns:
+        A SQLAlchemy select statement for corpus BM25 index metadata.
+    """
     return select(
         CorpusBm25Index.id,
         CorpusBm25Index.name,
@@ -82,6 +109,13 @@ def _corpus_bm25_index_metadata_statement():
 
 
 def _corpus_bm25_index_metadata_columns():
+    """
+    Return the columns for corpus BM25 index metadata.
+    Args:
+        None
+    Returns:
+        A tuple of SQLAlchemy columns for corpus BM25 index metadata.
+    """
     return (
         CorpusBm25Index.id,
         CorpusBm25Index.name,
@@ -101,6 +135,13 @@ def _corpus_bm25_index_metadata_columns():
 
 
 def _to_metadata(row) -> CorpusBm25IndexMetadata:
+    """
+    Helper function to map a SQLAlchemy row to CorpusBm25IndexMetadata.
+    Args:
+        row: A SQLAlchemy row object containing corpus BM25 index metadata.
+    Returns:
+        A CorpusBm25IndexMetadata object constructed from the row data.
+    """
     return CorpusBm25IndexMetadata(**dict(row._mapping))
 
 
@@ -108,6 +149,15 @@ async def get_corpus_bm25_index_metadata_by_id(
     index_id: int,
     session: AsyncSession,
 ) -> CorpusBm25IndexMetadata | None:
+    """
+    Get corpus BM25 index metadata by ID.
+
+    Args:
+        index_id: The ID of the corpus BM25 index.
+        session: The SQLAlchemy AsyncSession to use for the query.
+    Returns:
+        A CorpusBm25IndexMetadata object if found, otherwise None.
+    """
     result = await session.exec(
         _corpus_bm25_index_metadata_statement().where(CorpusBm25Index.id == index_id)
     )
@@ -118,10 +168,25 @@ async def get_corpus_bm25_index_metadata_by_id(
 async def list_corpus_bm25_index_metadata(
     session: AsyncSession,
     *,
+    skip: int = 0,
+    limit: int = 20,
     corpus_id: int | None = None,
     chunking_profile_id: int | None = None,
     status: str | None = None,
 ) -> list[CorpusBm25IndexMetadata]:
+    """
+    List corpus BM25 index metadata with optional filters.
+
+    Args:
+        session: The SQLAlchemy AsyncSession to use for the query.
+        skip: The number of records to skip.
+        limit: The maximum number of records to return.
+        corpus_id: Optional corpus ID to filter by.
+        chunking_profile_id: Optional chunking profile ID to filter by.
+        status: Optional status to filter by.
+    Returns:
+        A list of CorpusBm25IndexMetadata objects matching the filters.
+    """
     statement = _corpus_bm25_index_metadata_statement()
     if corpus_id is not None:
         statement = statement.where(CorpusBm25Index.corpus_id == corpus_id)
@@ -130,6 +195,7 @@ async def list_corpus_bm25_index_metadata(
     if status is not None:
         ensure_corpus_bm25_index_status(status)
         statement = statement.where(CorpusBm25Index.status == status)
+    statement = statement.order_by(CorpusBm25Index.id).offset(skip).limit(limit)
     result = await session.exec(statement)
     return [_to_metadata(row) for row in result.all()]
 
@@ -138,6 +204,15 @@ async def get_corpus_bm25_index_artifact_by_id(
     index_id: int,
     session: AsyncSession,
 ) -> bytes | None:
+    """
+    Get the artifact bytes of a corpus BM25 index by ID.
+
+    Args:
+        index_id: The ID of the corpus BM25 index.
+        session: The SQLAlchemy AsyncSession to use for the query.
+    Returns:
+        The artifact bytes if found, otherwise None.
+    """
     result = await session.exec(
         select(CorpusBm25Index.artifact).where(CorpusBm25Index.id == index_id)
     )
@@ -147,6 +222,14 @@ async def get_corpus_bm25_index_artifact_by_id(
 def prepare_corpus_bm25_index(
     index_in: CorpusBm25IndexCreate,
 ) -> CorpusBm25Index:
+    """
+    Prepare a CorpusBm25Index instance from the given input data.
+
+    Args:
+        index_in: The input data for creating the corpus BM25 index.
+    Returns:
+        A CorpusBm25Index instance populated with the input data.
+    """
     index_data = index_in.model_dump(exclude={"document_chunk_ids"})
     return CorpusBm25Index(
         **index_data,
@@ -163,17 +246,46 @@ async def create_corpus_bm25_index(
     *,
     prepared_index: CorpusBm25Index | None = None,
 ) -> CorpusBm25Index:
+    """
+    Create a new corpus BM25 index in the database from the prepared
+    CorpusBm25Index instance or the input data.
+
+    Args:
+        index_in: The input data for creating the corpus BM25 index.
+        session: The SQLAlchemy AsyncSession to use for the operation.
+        prepared_index: An optional pre-prepared CorpusBm25Index instance.
+    Returns:
+        The created CorpusBm25Index instance.
+    """
     index = prepared_index or prepare_corpus_bm25_index(index_in)
     return await commit_and_refresh(session, index)
 
 
 def _corpus_bm25_index_id(index_id: int) -> int:
+    """
+    Get the persisted corpus BM25 index ID.
+
+    Args:
+        index_id: The ID of the corpus BM25 index.
+    Returns:
+        The persisted corpus BM25 index ID.
+    Raises:
+        ValueError: If the index ID is not an integer.
+    """
     if not isinstance(index_id, int):
         raise ValueError("Corpus BM25 index must be persisted before transition")
     return index_id
 
 
 def _allowed_current_statuses(next_status: str) -> tuple[str, ...]:
+    """
+    Get the allowed current statuses for a given next status.
+
+    Args:
+        next_status: The next status to check.
+    Returns:
+        A tuple of allowed current statuses.
+    """
     return tuple(
         current_status
         for current_status, allowed_next_statuses in ALLOWED_CORPUS_BM25_INDEX_STATUS_TRANSITIONS.items()

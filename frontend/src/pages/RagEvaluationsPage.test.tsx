@@ -91,6 +91,27 @@ vi.mock("@/features/llmModels/llmModelQueries", () => ({
   }),
 }));
 
+vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
+  useRagProfileDefinitionsQuery: () => ({
+    data: [{
+      strategy: "crag",
+      label: "Corrective RAG",
+      fields: [
+        { name: "bm25_weight", kind: "float", label: "BM25 weight", required: true, default: 0, minimum: 0, maximum: 1, options: [] },
+        { name: "dense_k", kind: "int", label: "Dense candidates", required: true, default: 4, minimum: 1, maximum: 20, options: [] },
+        { name: "bm25_k", kind: "int", label: "BM25 candidates", required: true, default: 4, minimum: 1, maximum: 20, options: [] },
+        { name: "final_top_k", kind: "int", label: "Final retrieval results", required: true, default: 4, minimum: 1, maximum: 20, options: [] },
+        { name: "reranker", kind: "enum", label: "Reranker", required: true, default: "cross_encoder", options: ["cross_encoder", "none"] },
+        { name: "top_n", kind: "int", label: "Reranked documents", required: true, default: 3, minimum: 1, maximum: 20, options: [] },
+        { name: "max_rewrite_attempts", kind: "int", label: "Rewrite attempts", required: true, default: 2, minimum: 0, maximum: 10, options: [] },
+      ],
+    }],
+    isLoading: false,
+    isError: false,
+    error: null,
+  }),
+}));
+
 const cragInput = makeCragConfiguration();
 const graphRagInput = makeGraphRagConfiguration();
 
@@ -212,6 +233,7 @@ describe("RagEvaluationsPage", () => {
 
     expect(screen.getByRole("heading", { name: "RAG Evaluation" })).toBeInTheDocument();
     expect(screen.getByText("CRAG experiment")).toBeInTheDocument();
+    expect(screen.getByText(/CRAG · dense · dense 4 · final 4 · reranked 3/)).toBeInTheDocument();
     expect(screen.getByText("Overall score")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run CRAG experiment" })).toBeEnabled();
     expect(queryMocks.configurations).toHaveBeenCalledWith(0, 20);

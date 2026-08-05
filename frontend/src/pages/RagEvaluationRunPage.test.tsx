@@ -60,6 +60,9 @@ function makeQuery(index: number): RagEvalQueryResultRead {
                 rerank_score: 0.88,
                 retrieval_strategy: "hybrid",
                 retrieval_mode: "local",
+                dense_rank: 1,
+                bm25_rank: 2,
+                fused_score: 0.77,
                 evidence_path: "Entity A -> Entity B",
                 chunk_index: 3,
               },
@@ -75,7 +78,16 @@ const completedRun: RagEvalRunDetailRead = {
   configuration_snapshot: {
     name: "Production CRAG",
     chunking: { strategy: "recursive", chunk_size: 800 },
-    rag: { strategy: "crag", top_k: 5 },
+    rag: {
+      strategy: "crag",
+      bm25_weight: 0.5,
+      dense_k: 8,
+      bm25_k: 6,
+      final_top_k: 5,
+      reranker: "cross_encoder",
+      top_n: 3,
+      max_rewrite_attempts: 2,
+    },
   },
   resolved_pipeline_snapshot: {
     pipeline_version: "pipeline-v2",
@@ -236,6 +248,10 @@ describe("RagEvaluationRunPage", () => {
     expect(within(detail).getByText("0.880")).toBeInTheDocument();
     expect(within(detail).getByText("hybrid")).toBeInTheDocument();
     expect(within(detail).getByText("local")).toBeInTheDocument();
+    expect(within(detail).getByText("Dense rank")).toBeInTheDocument();
+    expect(within(detail).getByText("BM25 rank")).toBeInTheDocument();
+    expect(within(detail).getByText("Fused score")).toBeInTheDocument();
+    expect(within(detail).getByText("0.770")).toBeInTheDocument();
     expect(within(detail).getByText("Entity A -> Entity B")).toBeInTheDocument();
     expect(within(detail).getByText("3.000")).toBeInTheDocument();
   });

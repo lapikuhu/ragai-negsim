@@ -287,8 +287,8 @@ def test_openwiki_documents_hybrid_artifact_operations_contract():
         "no standalone BM25 runtime cache",
         "memory is not bounded",
         "process restart",
-        "Frontend parity is deferred",
-        "RAG evaluation remains dense-only",
+        "GET /corpus-bm25-indices/",
+        "BM25-only configurations omit the retrieval embedding model",
         "build_bm25",
         "artifact_mode",
     )

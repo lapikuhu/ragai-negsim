@@ -24,6 +24,37 @@ from app.services import simulations_service
 
 _T = TypeVar("_T")
 
+
+async def list_corpus_bm25_indices_srvc(
+    *,
+    session: AsyncSession,
+    skip: int,
+    limit: int,
+    corpus_id: int | None = None,
+    chunking_profile_id: int | None = None,
+    status: str | None = None,
+) -> list[CorpusBm25IndexMetadata]:
+    """
+    List BM25 index metadata with optional filtering.
+    Args:
+        session: The database session to use.
+        skip: The number of records to skip.
+        limit: The maximum number of records to return.
+        corpus_id: Optional corpus ID to filter by.
+        chunking_profile_id: Optional chunking profile ID to filter by.
+        status: Optional status to filter by.
+    Returns:
+        A list of CorpusBm25IndexMetadata objects.
+    """
+    return await corpus_bm25_indices_repo.list_corpus_bm25_index_metadata(
+        session,
+        skip=skip,
+        limit=limit,
+        corpus_id=corpus_id,
+        chunking_profile_id=chunking_profile_id,
+        status=status,
+    )
+
 # Helper candidate
 def _short_error(exc: BaseException, max_length: int = 500) -> str:
     message = str(exc).strip() or exc.__class__.__name__

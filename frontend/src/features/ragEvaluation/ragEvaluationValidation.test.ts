@@ -101,16 +101,33 @@ describe("RAG evaluation configuration validation", () => {
     }
   });
 
-  it("normalizes reranker none by copying top_k into top_n", () => {
+  it("normalizes reranker none to the effective retrieval capacity", () => {
     const input = cragConfiguration();
     input.rag.reranker = "none";
-    input.rag.top_k = 7;
+    input.rag.dense_k = 7;
+    input.rag.final_top_k = 6;
     input.rag.top_n = 2;
     expect(normalizeRagEvalConfiguration(input).rag).toMatchObject({
       reranker: "none",
-      top_k: 7,
-      top_n: 7,
+      dense_k: 7,
+      final_top_k: 6,
+      top_n: 6,
     });
+  });
+
+  it("omits the retrieval embedding model only for BM25-only CRAG", () => {
+    const bm25 = cragConfiguration();
+    bm25.rag.bm25_weight = 1;
+    expect(normalizeRagEvalConfiguration(bm25).rag).not.toHaveProperty(
+      "retrieval_embedding_model",
+    );
+
+    const hybrid = cragConfiguration();
+    hybrid.rag.bm25_weight = 0.5;
+    expect(normalizeRagEvalConfiguration(hybrid).rag).toHaveProperty(
+      "retrieval_embedding_model",
+      "text-embedding-3-small",
+    );
   });
 
   it("requires a trimmed name of at least three characters", () => {
@@ -288,15 +305,17 @@ describe("RAG evaluation configuration validation", () => {
     }
   });
 
-  it("validates CRAG embedding, reranker, and numeric boundaries", () => {
+  it("validates all current CRAG numeric boundaries", () => {
     const numericCases: Array<{
-      field: "top_k" | "top_n" | "rewrite_limit";
+      field: "dense_k" | "bm25_k" | "final_top_k" | "top_n" | "max_rewrite_attempts";
       path: string;
       values: number[];
     }> = [
-      { field: "top_k", path: "rag.top_k", values: [0, 21, 1.5] },
+      { field: "dense_k", path: "rag.dense_k", values: [0, 21, 1.5] },
+      { field: "bm25_k", path: "rag.bm25_k", values: [0, 21, 1.5] },
+      { field: "final_top_k", path: "rag.final_top_k", values: [0, 21, 1.5] },
       { field: "top_n", path: "rag.top_n", values: [0, 21, 1.5] },
-      { field: "rewrite_limit", path: "rag.rewrite_limit", values: [-1, 11, 0.5] },
+      { field: "max_rewrite_attempts", path: "rag.max_rewrite_attempts", values: [-1, 11, 0.5] },
     ];
     for (const { field, path, values } of numericCases) {
       for (const value of values) {
@@ -306,10 +325,31 @@ describe("RAG evaluation configuration validation", () => {
       }
     }
 
-    const excessiveTopN = cragConfiguration();
-    excessiveTopN.rag.top_k = 3;
-    excessiveTopN.rag.top_n = 4;
-    expectInvalid(excessiveTopN, "rag.top_n");
+    for (const weight of [-0.1, 1.1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const input = cragConfiguration();
+      input.rag.bm25_weight = weight;
+      expectInvalid(input, "rag.bm25_weight");
+    }
+
+    const excessiveFinal = cragConfiguration();
+    excessiveFinal.rag.dense_k = 3;
+    excessiveFinal.rag.bm25_k = 2;
+    excessiveFinal.rag.final_top_k = 4;
+    expectInvalid(excessiveFinal, "rag.final_top_k");
+
+    for (const { weight, denseK, bm25K, finalTopK, topN } of [
+      { weight: 0, denseK: 3, bm25K: 8, finalTopK: 6, topN: 4 },
+      { weight: 1, denseK: 8, bm25K: 3, finalTopK: 6, topN: 4 },
+      { weight: 0.5, denseK: 8, bm25K: 8, finalTopK: 3, topN: 4 },
+    ]) {
+      const input = cragConfiguration();
+      input.rag.bm25_weight = weight;
+      input.rag.dense_k = denseK;
+      input.rag.bm25_k = bm25K;
+      input.rag.final_top_k = finalTopK;
+      input.rag.top_n = topN;
+      expectInvalid(input, "rag.top_n");
+    }
 
     const invalidReranker = cragConfiguration();
     invalidReranker.rag.reranker = "invalid";
@@ -322,6 +362,11 @@ describe("RAG evaluation configuration validation", () => {
     const unknownEmbedding = cragConfiguration();
     unknownEmbedding.rag.retrieval_embedding_model = "unknown";
     expectInvalid(unknownEmbedding, "rag.retrieval_embedding_model");
+
+    const bm25Only = cragConfiguration();
+    bm25Only.rag.bm25_weight = 1;
+    bm25Only.rag.retrieval_embedding_model = "unknown";
+    expect(validateRagEvalConfiguration(bm25Only, validationContext)).toEqual({});
   });
 
   it("validates GraphRAG embedding, mode, and all numeric boundaries", () => {

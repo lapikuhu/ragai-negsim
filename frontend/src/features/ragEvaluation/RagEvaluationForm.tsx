@@ -2,10 +2,18 @@ import { useRef, useState, type FormEvent } from "react";
 
 import type { LLMSelection } from "@/api/types";
 import { LlmModelSelector } from "@/components/llm/LlmModelSelector";
+import {
+  RagProfileDefinitionFields,
+  buildFieldValues,
+  getCragRetrievalMode,
+  packDefinitionFieldValues,
+  updateDefinitionFieldValues,
+} from "@/components/rag/RagProfileDefinitionFields";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { useEmbeddingModelsQuery } from "@/features/corpusIndices/corpusIndexQueries";
 import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
+import { useRagProfileDefinitionsQuery } from "@/features/ragProfiles/ragProfileQueries";
 
 import {
   makeCragConfiguration,
@@ -82,6 +90,10 @@ export function RagEvaluationForm({
 
   const embeddingModels = useEmbeddingModelsQuery();
   const llmCatalog = useLlmModelCatalogQuery();
+  const ragProfileDefinitions = useRagProfileDefinitionsQuery();
+  const cragDefinition = ragProfileDefinitions.data?.find(
+    (definition) => definition.strategy === "crag",
+  );
 
   function updateConfiguration(update: (next: RagEvalConfigurationInput) => void) {
     setConfiguration((current) => {
@@ -107,7 +119,11 @@ export function RagEvaluationForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || submissionInFlightRef.current) {
+    if (
+      pending ||
+      submissionInFlightRef.current ||
+      (configuration.rag.strategy === "crag" && !cragDefinition)
+    ) {
       return;
     }
     const normalized = normalizeRagEvalConfiguration(configuration);
@@ -161,10 +177,41 @@ export function RagEvaluationForm({
     });
   }
 
+  function updateCragDefinitionField(fieldName: string, value: string) {
+    if (!cragDefinition || configuration.rag.strategy !== "crag") {
+      return;
+    }
+    const currentValues = buildFieldValues(
+      cragDefinition,
+      configuration.rag as unknown as Record<string, unknown>,
+    );
+    const nextValues = updateDefinitionFieldValues(
+      cragDefinition,
+      currentValues,
+      fieldName,
+      value,
+    );
+    const packed = packDefinitionFieldValues(cragDefinition, nextValues);
+    const mode = getCragRetrievalMode(nextValues);
+    updateConfiguration((next) => {
+      if (next.rag.strategy !== "crag") {
+        return;
+      }
+      Object.assign(next.rag, packed);
+      if (mode === "bm25") {
+        delete next.rag.retrieval_embedding_model;
+      } else if (!next.rag.retrieval_embedding_model) {
+        next.rag.retrieval_embedding_model =
+          embeddingModels.data?.[0]?.name ?? "text-embedding-3-small";
+      }
+    });
+  }
+
   const retrievalLimit = configuration.rag.strategy === "crag"
     ? configuration.rag.top_n
     : configuration.rag.evidence_limit;
-  const controlsPending = pending || submissionInFlight;
+  const cragControlsUnavailable = configuration.rag.strategy === "crag" && !cragDefinition;
+  const controlsPending = pending || submissionInFlight || cragControlsUnavailable;
 
   return (
     <form className="grid gap-6" noValidate onSubmit={handleSubmit}>
@@ -304,75 +351,52 @@ export function RagEvaluationForm({
           <div className="grid gap-4 md:grid-cols-2">
             <EmbeddingModelField
               label="Retrieval embedding model"
-              value={configuration.rag.retrieval_embedding_model}
+              value={configuration.rag.retrieval_embedding_model ?? ""}
               error={errors["rag.retrieval_embedding_model"]}
               models={embeddingModels.data ?? []}
+              disabled={getCragRetrievalMode({
+                bm25_weight: configuration.rag.bm25_weight,
+              }) === "bm25"}
               onChange={(value) => updateConfiguration((next) => {
                 if (next.rag.strategy === "crag") {
                   next.rag.retrieval_embedding_model = value;
                 }
               })}
             />
-            <NumberField
-              label="Top K"
-              value={configuration.rag.top_k}
-              path="rag.top_k"
-              errors={errors}
-              min={1}
-              max={20}
-              onChange={(value) => updateConfiguration((next) => {
-                if (next.rag.strategy === "crag") {
-                  next.rag.top_k = value;
-                  if (next.rag.reranker === "none") {
-                    next.rag.top_n = value;
-                  }
-                }
-              })}
-            />
-            <Field label="Reranker" error={errors["rag.reranker"]}>
-              <Select
-                value={configuration.rag.reranker}
-                onChange={(event) => updateConfiguration((next) => {
-                  if (next.rag.strategy === "crag") {
-                    next.rag.reranker = event.target.value;
-                    if (next.rag.reranker === "none") {
-                      next.rag.top_n = next.rag.top_k;
-                    }
-                  }
-                })}
-              >
-                <option value="cross_encoder">Cross encoder</option>
-                <option value="cohere">Cohere</option>
-                <option value="none">None</option>
-              </Select>
-            </Field>
-            <NumberField
-              label="Top N"
-              value={configuration.rag.top_n}
-              path="rag.top_n"
-              errors={errors}
-              min={1}
-              max={20}
-              disabled={configuration.rag.reranker === "none"}
-              onChange={(value) => updateConfiguration((next) => {
-                if (next.rag.strategy === "crag" && next.rag.reranker !== "none") {
-                  next.rag.top_n = value;
-                }
-              })}
-            />
-            <NumberField
-              label="Rewrite limit"
-              value={configuration.rag.rewrite_limit}
-              path="rag.rewrite_limit"
-              errors={errors}
-              min={0}
-              max={10}
-              onChange={(value) => updateConfiguration((next) => {
-                if (next.rag.strategy === "crag") {
-                  next.rag.rewrite_limit = value;
-                }
-              })}
-            />
+            <div className="md:col-span-2">
+              {cragDefinition ? (
+                <RagProfileDefinitionFields
+                  definition={cragDefinition}
+                  fieldValues={buildFieldValues(
+                    cragDefinition,
+                    configuration.rag as unknown as Record<string, unknown>,
+                  )}
+                  errors={Object.fromEntries(
+                    Object.entries(errors)
+                      .filter(([path]) => path.startsWith("rag."))
+                      .map(([path, message]) => [path.slice(4), message]),
+                  )}
+                  onChange={updateCragDefinitionField}
+                />
+              ) : (
+                <div className="grid justify-items-start gap-2 text-sm text-slate-600">
+                  <p>
+                    {ragProfileDefinitions.isError
+                      ? "Unable to load CRAG retrieval controls."
+                      : "Loading CRAG retrieval controls..."}
+                  </p>
+                  {ragProfileDefinitions.isError ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => ragProfileDefinitions.refetch()}
+                    >
+                      Retry CRAG retrieval controls
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
@@ -604,17 +628,19 @@ function EmbeddingModelField({
   value,
   error,
   models,
+  disabled = false,
   onChange,
 }: {
   label: string;
   value: string;
   error?: string;
   models: Array<{ name: string; display_name: string }>;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
     <Field label={label} error={error}>
-      <Select value={value} onChange={(event) => onChange(event.target.value)}>
+      <Select disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Select embedding model</option>
         {models.map((model) => (
           <option key={model.name} value={model.name}>{model.display_name}</option>

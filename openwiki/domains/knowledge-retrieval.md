@@ -80,9 +80,12 @@ explicit negotiation-graph cache clear or a process restart. A restart clears
 the process-local graph cache and forces the persisted artifact to be loaded
 again when next used.
 
-Frontend parity is deferred; the current frontend does not yet provide the
-complete dense/BM25/hybrid binding controls. RAG evaluation remains dense-only,
-and evaluation parity is deferred. If a future full-corpus-index-pipe job
+The frontend derives dense-only, BM25-only, and hybrid artifact selectors from
+the selected CRAG profile. It lists BM25 artifact metadata through the
+admin-only `GET /corpus-bm25-indices/` endpoint; serialized artifact bytes are
+never returned. Hybrid choices are prefiltered by corpus, build status,
+chunking profile, and document count, while FastAPI remains authoritative for
+the exact document-chunk checksum match. If a future full-corpus-index-pipe job
 materializes BM25, its API must make that choice explicit with
 `build_bm25: bool` or `artifact_mode: "dense" | "bm25" | "both"`; neither
 option is added by the current backend migration.
@@ -95,7 +98,7 @@ Both strategies now return sources. That source capture is important because the
 ### Isolated RAG evaluation
 RAG evaluation does not borrow an existing corpus index or production knowledge graph. Suite version `2.0` contains exactly 80 reviewed examples: 20 direct retrieval, 20 paraphrased retrieval, 10 answerable hard negatives, 10 unanswerable, and 20 relational multi-hop examples. The multi-hop rows require support from at least two documents. A deterministic SHA-256 covers sorted relative paths and bytes for all eight `synth_docs`, all eight paired `supports`, and `support_spans.json`; the current digest is `8c89bef303f17948c20ecc4b00e65d8feb60eea87996911a78509adc31f3e23d`. Every queued run stores the suite version and digest.
 
-Each run chunks the suite in memory and tags aligned chunks with evaluation IDs before selecting an isolated adapter. CRAG builds a temporary FAISS index with the configured retrieval embedding model. GraphRAG builds a deterministic run-scoped Neo4j generation with its configured extraction LLM, graph embedding model, and simple extractor. Both strategies then use the same canonical response-pipeline factory as production CRAG/GraphRAG behavior. Temporary resources are cleaned on success, failure, and cancellation; startup retries interrupted GraphRAG cleanup before later queued work.
+Each run chunks the suite in memory and tags aligned chunks with evaluation IDs before selecting an isolated adapter. CRAG builds the temporary dense and/or BM25 retrieval resources required by `bm25_weight`; BM25-only configurations omit the retrieval embedding model, while dense and hybrid configurations require it. The evaluation form uses the same definition-driven candidate, fusion, reranking, and rewrite controls as production profiles. GraphRAG builds a deterministic run-scoped Neo4j generation with its configured extraction LLM, graph embedding model, and simple extractor. Both strategies then use the same canonical response-pipeline factory as production CRAG/GraphRAG behavior. Temporary resources are cleaned on success, failure, and cancellation; startup retries interrupted GraphRAG cleanup before later queued work.
 
 Scoring uses the pipeline's final ranked answer-context documents, not the retriever's initial candidates. Answerable examples receive Hit@k and MRR@k. Unanswerable examples leave those rank metrics null and instead record successful abstention and false-positive final context. The generated answer and final contexts are also scored with exactly five RAGAS metrics: faithfulness, answer relevancy, context precision, context recall, and answer correctness. Overall and per-category aggregates use equal-weight available quality components.
 

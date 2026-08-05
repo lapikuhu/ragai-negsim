@@ -5,7 +5,6 @@ import type {
   LLMSelection,
   RagProfileCopy,
   RagProfileDefinitionRead,
-  RagProfileFieldDefinitionRead,
   RagProfileRead,
 } from "@/api/types";
 import { getErrorMessage } from "@/api/client";
@@ -29,6 +28,14 @@ import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmMo
 import { formatDateTime } from "@/utils/format";
 import { useKnowledgeGraphsQuery } from "@/features/knowledgeGraphs/knowledgeGraphQueries";
 import { useLlmModelCatalogQuery } from "@/features/llmModels/llmModelQueries";
+import {
+  RagProfileDefinitionFields,
+  buildFieldValues,
+  getCragRetrievalMode,
+  packDefinitionFieldValues,
+  updateDefinitionFieldValues,
+  validateCragFieldValues,
+} from "@/components/rag/RagProfileDefinitionFields";
 
 type ProfileCreateState = {
   name: string;
@@ -241,13 +248,18 @@ export function RagProfilesPage() {
                   </Select>
                 </Field>
               ) : null}
-              <DefinitionFields
+              <RagProfileDefinitionFields
                 definition={createDefinition}
                 fieldValues={createForm.fieldValues}
                 onChange={(fieldName, value) =>
                   setCreateForm((current) => ({
                     ...current,
-                    fieldValues: { ...current.fieldValues, [fieldName]: value },
+                    fieldValues: updateDefinitionFieldValues(
+                      createDefinition,
+                      current.fieldValues,
+                      fieldName,
+                      value,
+                    ),
                   }))
                 }
               />
@@ -317,10 +329,7 @@ export function RagProfilesPage() {
                   header: "Config",
                   render: (profile) => (
                     <div className="grid gap-1 text-xs text-slate-600">
-                      <span>top_k {getConfigValue(profile, "top_k")}</span>
-                      <span>reranker {getConfigValue(profile, "reranker")}</span>
-                      <span>top_n {getConfigValue(profile, "top_n")}</span>
-                      <span>rewrite attempts {getConfigValue(profile, "max_rewrite_attempts")}</span>
+                      {getProfileSummaryLines(profile).map((line) => <span key={line}>{line}</span>)}
                       {profile.knowledge_graph_index_id ? (
                         <span>graph #{profile.knowledge_graph_index_id}</span>
                       ) : null}
@@ -504,14 +513,19 @@ function EditProfilePanel({
             </Select>
           </Field>
         ) : null}
-        <DefinitionFields
+        <RagProfileDefinitionFields
           definition={definition}
           fieldValues={form.fieldValues}
           disabled={used}
           onChange={(fieldName, value) =>
             setForm((current) => ({
               ...current,
-              fieldValues: { ...current.fieldValues, [fieldName]: value },
+              fieldValues: updateDefinitionFieldValues(
+                definition,
+                current.fieldValues,
+                fieldName,
+                value,
+              ),
             }))
           }
         />
@@ -617,13 +631,18 @@ function CopyProfilePanel({
             </Select>
           </Field>
         ) : null}
-        <DefinitionFields
+        <RagProfileDefinitionFields
           definition={definition}
           fieldValues={form.fieldValues}
           onChange={(fieldName, value) =>
             setForm((current) => ({
               ...current,
-              fieldValues: { ...current.fieldValues, [fieldName]: value },
+              fieldValues: updateDefinitionFieldValues(
+                definition,
+                current.fieldValues,
+                fieldName,
+                value,
+              ),
             }))
           }
         />
@@ -709,47 +728,25 @@ function getConfigValue(profile: RagProfileRead, key: string) {
   return value == null ? "-" : String(value);
 }
 
-function DefinitionFields({
-  definition,
-  fieldValues,
-  onChange,
-  disabled = false,
-}: {
-  definition: RagProfileDefinitionRead;
-  fieldValues: Record<string, string>;
-  onChange: (fieldName: string, value: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="grid gap-3 md:grid-cols-2">
-      {definition.fields.map((field: RagProfileFieldDefinitionRead) => (
-        <Field key={field.name} label={field.label} hint={field.help_text ?? undefined}>
-          {field.kind === "enum" ? (
-            <Select
-              value={fieldValues[field.name] ?? String(field.default)}
-              disabled={disabled}
-              onChange={(event) => onChange(field.name, event.target.value)}
-            >
-              {field.options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <Input
-              type="number"
-              min={field.minimum ?? undefined}
-              max={field.maximum ?? undefined}
-              disabled={disabled}
-              value={fieldValues[field.name] ?? String(field.default)}
-              onChange={(event) => onChange(field.name, event.target.value)}
-            />
-          )}
-        </Field>
-      ))}
-    </div>
-  );
+function getProfileSummaryLines(profile: RagProfileRead) {
+  if (profile.strategy !== "crag") {
+    return [
+      `mode ${getConfigValue(profile, "retrieval_mode")}`,
+      `evidence ${getConfigValue(profile, "evidence_limit")} · depth ${getConfigValue(profile, "traversal_depth")}`,
+    ];
+  }
+  const config = profile.config ?? {};
+  const mode = getCragRetrievalMode(config as Record<string, string | number>);
+  const label = mode === "dense" ? "Dense" : mode === "bm25" ? "BM25" : "Hybrid";
+  const candidates = mode === "dense"
+    ? `dense ${getConfigValue(profile, "dense_k")}`
+    : mode === "bm25"
+      ? `BM25 ${getConfigValue(profile, "bm25_k")}`
+      : `dense ${getConfigValue(profile, "dense_k")} · BM25 ${getConfigValue(profile, "bm25_k")}`;
+  return [
+    `${label} · ${candidates} · final ${getConfigValue(profile, "final_top_k")}`,
+    `${getConfigValue(profile, "reranker")} · top ${getConfigValue(profile, "top_n")} · rewrites ${getConfigValue(profile, "max_rewrite_attempts")}`,
+  ];
 }
 
 function LlmComponentsFields({
@@ -807,12 +804,6 @@ function requireDefinition(definition: RagProfileDefinitionRead | null, strategy
   return definition;
 }
 
-function buildFieldValues(definition: RagProfileDefinitionRead, config?: Record<string, unknown>) {
-  return Object.fromEntries(
-    definition.fields.map((field) => [field.name, String(config?.[field.name] ?? field.default ?? "")]),
-  );
-}
-
 function buildLlmComponentValues(raw?: unknown, defaultModel = ""): Record<string, LLMSelection> {
   const source = isRecord(raw) ? raw : {};
   return Object.fromEntries(
@@ -849,16 +840,14 @@ function packProfileConfig(
   fieldValues: Record<string, string>,
   llmComponents: Record<string, LLMSelection>,
 ) {
+  if (definition.strategy === "crag") {
+    const validationErrors = Object.values(validateCragFieldValues(fieldValues));
+    if (validationErrors.length) {
+      throw new Error(validationErrors[0]);
+    }
+  }
   return {
-    ...Object.fromEntries(
-    definition.fields.map((field) => {
-      const raw = fieldValues[field.name] ?? "";
-      if (field.kind === "int") {
-        return [field.name, Number(raw)];
-      }
-      return [field.name, raw];
-    }),
-    ),
+    ...packDefinitionFieldValues(definition, fieldValues),
     llm_components: Object.fromEntries(
       RAG_LLM_COMPONENTS.map((component) => [component.key, llmComponents[component.key]]),
     ),

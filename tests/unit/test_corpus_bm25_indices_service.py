@@ -11,6 +11,43 @@ import pytest
 from app.schemas.corpus_bm25_indices_schemas import CorpusBm25IndexMetadata
 
 
+@pytest.mark.asyncio
+async def test_list_bm25_indices_forwards_pagination_and_filters(monkeypatch):
+    from app.services import corpus_bm25_indices_service
+
+    captured = {}
+    expected = [SimpleNamespace(id=17)]
+
+    async def fake_list(session, **filters):
+        captured.update(session=session, **filters)
+        return expected
+
+    monkeypatch.setattr(
+        corpus_bm25_indices_service.corpus_bm25_indices_repo,
+        "list_corpus_bm25_index_metadata",
+        fake_list,
+    )
+
+    result = await corpus_bm25_indices_service.list_corpus_bm25_indices_srvc(
+        session="session",
+        skip=5,
+        limit=10,
+        corpus_id=11,
+        chunking_profile_id=3,
+        status="built",
+    )
+
+    assert result is expected
+    assert captured == {
+        "session": "session",
+        "skip": 5,
+        "limit": 10,
+        "corpus_id": 11,
+        "chunking_profile_id": 3,
+        "status": "built",
+    }
+
+
 def _chunk(chunk_id: int, content: str) -> SimpleNamespace:
     return SimpleNamespace(
         id=chunk_id,

@@ -1,6 +1,27 @@
 import type { ApiComponents } from "@/api/types";
 
-export type RagEvalConfigurationInput = ApiComponents["schemas"]["RagEvalConfigurationCreateRequest"];
+type GeneratedRagEvalConfigurationInput = ApiComponents["schemas"]["RagEvalConfigurationCreateRequest"];
+export type CragEvaluationConfiguration = Omit<
+  ApiComponents["schemas"]["CragEvaluationConfiguration"],
+  | "bm25_weight"
+  | "dense_k"
+  | "bm25_k"
+  | "final_top_k"
+  | "reranker"
+  | "top_n"
+  | "max_rewrite_attempts"
+> & {
+  bm25_weight: number;
+  dense_k: number;
+  bm25_k: number;
+  final_top_k: number;
+  reranker: string;
+  top_n: number;
+  max_rewrite_attempts: number;
+};
+export type RagEvalConfigurationInput = Omit<GeneratedRagEvalConfigurationInput, "rag"> & {
+  rag: CragEvaluationConfiguration | ApiComponents["schemas"]["GraphRagEvaluationConfiguration"];
+};
 export type RagEvalConfigurationUpdate = ApiComponents["schemas"]["RagEvalConfigurationUpdateRequest"];
 export type RagEvalConfigurationRead = ApiComponents["schemas"]["RagEvalConfigurationRead"];
 export type RagEvalRunRead = ApiComponents["schemas"]["RagEvalRunRead"];
@@ -31,10 +52,13 @@ export function makeCragConfiguration(): RagEvalConfigurationInput {
     rag: {
       strategy: "crag",
       retrieval_embedding_model: "text-embedding-3-small",
-      top_k: 4,
+      bm25_weight: 0,
+      dense_k: 4,
+      bm25_k: 4,
+      final_top_k: 4,
       reranker: "cross_encoder",
       top_n: 3,
-      rewrite_limit: 2,
+      max_rewrite_attempts: 2,
       ...responseLlms(),
     },
     metrics: {

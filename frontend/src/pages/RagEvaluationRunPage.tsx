@@ -415,6 +415,9 @@ function QueryResultDetail({ result }: { result: RagEvalQueryResultRead }) {
                 ["Rerank score", metadata.rerank_score],
                 ["Retrieval strategy", metadata.retrieval_strategy],
                 ["Retrieval mode", metadata.retrieval_mode],
+                ["Dense rank", metadata.dense_rank],
+                ["BM25 rank", metadata.bm25_rank],
+                ["Fused score", metadata.fused_score],
                 ["Evidence path", metadata.evidence_path],
                 ["Chunk index", metadata.chunk_index],
               ];

@@ -28,6 +28,8 @@ import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmMo
 import { formatDateTime } from "@/utils/format";
 import { getErrorMessage } from "@/api/client";
 import type { LLMSelection } from "@/api/types";
+import { useCorpusBm25IndicesQuery } from "@/features/corpusBm25Indices/corpusBm25IndexQueries";
+import { getCragRetrievalMode } from "@/components/rag/RagProfileDefinitionFields";
 
 export function SimulationsPage() {
   const query = useSimulationsQuery();
@@ -51,6 +53,7 @@ export function SimulationsPage() {
     description: "",
     corpusId: "",
     corpusIndexId: "",
+    bm25IndexId: "",
     ragProfileId: "",
     scenarioId: "",
     personaId: "",
@@ -73,6 +76,13 @@ export function SimulationsPage() {
   const corpusOptions = corpora.data ?? [];
   const ragProfileOptions = ragProfiles.data ?? [];
   const selectedRagProfile = ragProfileOptions.find((profile) => String(profile.id) === form.ragProfileId);
+  const retrievalMode = selectedRagProfile?.strategy === "crag"
+    ? getCragRetrievalMode(selectedRagProfile.config as Record<string, string | number>)
+    : selectedRagProfile?.strategy === "graphrag" ? "dense" : null;
+  const needsDenseIndex = retrievalMode === "dense" || retrievalMode === "hybrid";
+  const needsBm25Index = retrievalMode === "bm25" || retrievalMode === "hybrid";
+  const bm25Indices = useCorpusBm25IndicesQuery(form.corpusId ? Number(form.corpusId) : undefined);
+  const bm25ArtifactsUnavailable = needsBm25Index && (bm25Indices.isLoading || bm25Indices.isError);
   const selectedKnowledgeGraph = (knowledgeGraphs.data ?? []).find(
     (graph) => graph.id === selectedRagProfile?.knowledge_graph_index_id,
   );
@@ -81,8 +91,20 @@ export function SimulationsPage() {
   );
   const graphSelectionLocked = selectedRagProfile?.strategy === "graphrag" && Boolean(graphCorpusIndex);
   const indexOptions = useMemo(
-    () => (indices.data ?? []).filter((index) => String(index.corpus_id) === form.corpusId || !form.corpusId),
+    () => (indices.data ?? []).filter(
+      (index) => (String(index.corpus_id) === form.corpusId || !form.corpusId) && index.status === "built",
+    ),
     [form.corpusId, indices.data]
+  );
+  const selectedCorpusIndex = indexOptions.find((index) => String(index.id) === form.corpusIndexId);
+  const bm25IndexOptions = useMemo(
+    () => (bm25Indices.data ?? []).filter((index) => {
+      if (index.status !== "built" || String(index.corpus_id) !== form.corpusId) return false;
+      if (retrievalMode !== "hybrid" || !selectedCorpusIndex) return true;
+      return index.chunking_profile_id === selectedCorpusIndex.chunking_profile_id &&
+        index.document_count === (selectedCorpusIndex.indexed_document_chunk_ids?.length ?? 0);
+    }),
+    [bm25Indices.data, form.corpusId, retrievalMode, selectedCorpusIndex],
   );
 
   useEffect(() => {
@@ -148,7 +170,8 @@ export function SimulationsPage() {
                 name: form.name,
                 description: form.description || null,
                 corpus_id: Number(form.corpusId),
-                corpus_index_id: Number(form.corpusIndexId),
+                corpus_index_id: needsDenseIndex && form.corpusIndexId ? Number(form.corpusIndexId) : null,
+                bm25_index_id: needsBm25Index && form.bm25IndexId ? Number(form.bm25IndexId) : null,
                 rag_profile_id: Number(form.ragProfileId),
                 coach_prompt_id: form.coachPromptId ? Number(form.coachPromptId) : null,
                 counterpart_prompt_id: form.counterpartPromptId ? Number(form.counterpartPromptId) : null,
@@ -176,7 +199,12 @@ export function SimulationsPage() {
           <Field label="Corpus">
             <Select
               value={form.corpusId}
-              onChange={(event) => setForm((current) => ({ ...current, corpusId: event.target.value }))}
+              onChange={(event) => setForm((current) => ({
+                ...current,
+                corpusId: event.target.value,
+                corpusIndexId: "",
+                bm25IndexId: "",
+              }))}
               disabled={graphSelectionLocked}
               required
             >
@@ -194,26 +222,15 @@ export function SimulationsPage() {
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             />
           </Field>
-          <Field label="Corpus index" className="self-start">
-            <Select
-              className="min-h-10 leading-5"
-              value={form.corpusIndexId}
-              onChange={(event) => setForm((current) => ({ ...current, corpusIndexId: event.target.value }))}
-              disabled={graphSelectionLocked}
-              required
-            >
-              <option value="">Select corpus index</option>
-              {indexOptions.map((index) => (
-                <option key={index.id} value={index.id}>
-                  {index.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
           <Field label="RAG profile" hint={ragProfileOptions.length ? "Required" : "Create one from the admin RAG Profiles page first."}>
             <Select
               value={form.ragProfileId}
-              onChange={(event) => setForm((current) => ({ ...current, ragProfileId: event.target.value }))}
+              onChange={(event) => setForm((current) => ({
+                ...current,
+                ragProfileId: event.target.value,
+                corpusIndexId: "",
+                bm25IndexId: "",
+              }))}
               required
             >
               <option value="">{ragProfileOptions.length ? "Select RAG profile" : "No RAG profiles available"}</option>
@@ -224,6 +241,63 @@ export function SimulationsPage() {
               ))}
             </Select>
           </Field>
+
+          {needsDenseIndex ? (
+            <Field label="Corpus index" className="self-start">
+              <Select
+                className="min-h-10 leading-5"
+                value={form.corpusIndexId}
+                onChange={(event) => setForm((current) => ({
+                  ...current,
+                  corpusIndexId: event.target.value,
+                  bm25IndexId: retrievalMode === "hybrid" ? "" : current.bm25IndexId,
+                }))}
+                disabled={graphSelectionLocked}
+                required
+              >
+                <option value="">Select built corpus index</option>
+                {indexOptions.map((index) => (
+                  <option key={index.id} value={index.id}>{index.name}</option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+          {needsBm25Index ? (
+            <>
+              <Field
+                label="BM25 index"
+                className="self-start"
+                hint={bm25Indices.isLoading
+                  ? "Loading BM25 artifacts..."
+                  : bm25Indices.isError
+                    ? undefined
+                    : bm25IndexOptions.length
+                      ? "Built artifacts for the selected corpus."
+                      : "Build a compatible BM25 artifact before creating this simulation."}
+              >
+                <Select
+                  className="min-h-10 leading-5"
+                  value={form.bm25IndexId}
+                  disabled={bm25Indices.isLoading || bm25Indices.isError}
+                  onChange={(event) => setForm((current) => ({ ...current, bm25IndexId: event.target.value }))}
+                  required
+                >
+                  <option value="">Select built BM25 index</option>
+                  {bm25IndexOptions.map((index) => (
+                    <option key={index.id} value={index.id}>{index.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              {bm25Indices.isError ? (
+                <div role="alert" className="self-start text-sm text-red-700">
+                  <p>Unable to load BM25 artifacts.</p>
+                  <Button type="button" variant="secondary" onClick={() => bm25Indices.refetch()}>
+                    Retry BM25 artifacts
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
 
           <Field label="Scenario" className="self-start">
             <Select
@@ -399,7 +473,7 @@ export function SimulationsPage() {
           </div>
 
           <div className="md:col-span-2 flex items-center gap-3">
-            <Button type="submit" disabled={createMutation.isPending || !ragProfileOptions.length || !canSubmitLearnerConfig}>
+            <Button type="submit" disabled={createMutation.isPending || !ragProfileOptions.length || !canSubmitLearnerConfig || bm25ArtifactsUnavailable}>
               {createMutation.isPending ? "Creating..." : "Create simulation"}
             </Button>
             {message ? <span className="text-sm text-red-700">{message}</span> : null}

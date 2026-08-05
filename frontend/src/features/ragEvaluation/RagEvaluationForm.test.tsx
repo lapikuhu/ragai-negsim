@@ -1,6 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeCragConfiguration } from "./ragEvaluationTypes";
 import { RagEvaluationForm } from "./RagEvaluationForm";
@@ -29,6 +29,12 @@ const catalogs = vi.hoisted(() => ({
     ],
   },
 }));
+const definitionQueryState = vi.hoisted(() => ({
+  hasData: true,
+  isLoading: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
 
 vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
   useEmbeddingModelsQuery: () => ({
@@ -48,7 +54,38 @@ vi.mock("@/features/llmModels/llmModelQueries", () => ({
   }),
 }));
 
+vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
+  useRagProfileDefinitionsQuery: () => ({
+    data: definitionQueryState.hasData ? [
+      {
+        strategy: "crag",
+        label: "Corrective RAG",
+        fields: [
+          { name: "bm25_weight", kind: "float", label: "BM25 weight", required: true, default: 0, minimum: 0, maximum: 1, help_text: "Choose dense, BM25, or hybrid retrieval.", options: [] },
+          { name: "dense_k", kind: "int", label: "Dense candidates", required: true, default: 4, minimum: 1, maximum: 20, options: [] },
+          { name: "bm25_k", kind: "int", label: "BM25 candidates", required: true, default: 4, minimum: 1, maximum: 20, options: [] },
+          { name: "final_top_k", kind: "int", label: "Final retrieval results", required: true, default: 4, minimum: 1, maximum: 20, options: [] },
+          { name: "reranker", kind: "enum", label: "Reranker", required: true, default: "cross_encoder", options: ["cross_encoder", "cohere", "none"] },
+          { name: "top_n", kind: "int", label: "Reranked documents", required: true, default: 3, minimum: 1, maximum: 20, options: [] },
+          { name: "max_rewrite_attempts", kind: "int", label: "Rewrite attempts", required: true, default: 2, minimum: 0, maximum: 10, options: [] },
+        ],
+      },
+    ] : undefined,
+    isLoading: definitionQueryState.isLoading,
+    isError: definitionQueryState.isError,
+    error: null,
+    refetch: definitionQueryState.refetch,
+  }),
+}));
+
 describe("RagEvaluationForm", () => {
+  beforeEach(() => {
+    definitionQueryState.hasData = true;
+    definitionQueryState.isLoading = false;
+    definitionQueryState.isError = false;
+    definitionQueryState.refetch.mockReset();
+  });
+
   it("renders shared LLM defaults and all eight GraphRAG overrides", async () => {
     const user = userEvent.setup();
     render(<RagEvaluationForm submitLabel="Create experiment" onSubmit={vi.fn()} />);
@@ -96,16 +133,19 @@ describe("RagEvaluationForm", () => {
     render(<RagEvaluationForm submitLabel="Create experiment" onSubmit={vi.fn()} />);
 
     expect(screen.getByLabelText("Retrieval embedding model")).toBeInTheDocument();
-    expect(screen.getByLabelText("Top K")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^BM25 weight/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Dense candidates")).toBeInTheDocument();
+    expect(screen.getByLabelText("BM25 candidates")).toBeInTheDocument();
+    expect(screen.getByLabelText("Final retrieval results")).toBeInTheDocument();
     expect(screen.getByLabelText("Reranker")).toBeInTheDocument();
-    expect(screen.getByLabelText("Top N")).toBeInTheDocument();
-    expect(screen.getByLabelText("Rewrite limit")).toBeInTheDocument();
+    expect(screen.getByLabelText("Reranked documents")).toBeInTheDocument();
+    expect(screen.getByLabelText("Rewrite attempts")).toBeInTheDocument();
     expect(screen.getByLabelText("Metric K")).toBeInTheDocument();
     expect(screen.getByLabelText("Judge embedding model")).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("RAG strategy"), "graphrag");
 
-    expect(screen.queryByLabelText("Top K")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^BM25 weight/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Reranker")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Graph embedding model")).toBeInTheDocument();
     expect(screen.getByLabelText("Max paths per chunk")).toBeInTheDocument();
@@ -124,9 +164,10 @@ describe("RagEvaluationForm", () => {
     expect(screen.getByLabelText("Chunk size")).toHaveAttribute("step", "1");
     expect(screen.getByLabelText("Chunk overlap")).toHaveAttribute("min", "0");
     expect(screen.getByLabelText("Chunk overlap")).toHaveAttribute("max", "2000");
-    expect(screen.getByLabelText("Top K")).toHaveAttribute("max", "20");
-    expect(screen.getByLabelText("Top N")).toHaveAttribute("max", "20");
-    expect(screen.getByLabelText("Rewrite limit")).toHaveAttribute("max", "10");
+    expect(screen.getByLabelText(/^BM25 weight/)).toHaveAttribute("step", "0.1");
+    expect(screen.getByLabelText("Dense candidates")).toHaveAttribute("max", "20");
+    expect(screen.getByLabelText("Reranked documents")).toHaveAttribute("max", "20");
+    expect(screen.getByLabelText("Rewrite attempts")).toHaveAttribute("max", "10");
     expect(screen.getByLabelText("Metric K")).toHaveAttribute("max", "3");
 
     await user.selectOptions(screen.getByLabelText("RAG strategy"), "graphrag");
@@ -143,8 +184,8 @@ describe("RagEvaluationForm", () => {
     const onSubmit = vi.fn();
     render(<RagEvaluationForm submitLabel="Create experiment" onSubmit={onSubmit} />);
 
-    await user.clear(screen.getByLabelText("Top K"));
-    await user.type(screen.getByLabelText("Top K"), "21");
+    await user.clear(screen.getByLabelText("Final retrieval results"));
+    await user.type(screen.getByLabelText("Final retrieval results"), "21");
     await user.click(screen.getByRole("button", { name: "Create experiment" }));
 
     expect(screen.getByText("Enter a valid value.")).toBeInTheDocument();
@@ -176,17 +217,55 @@ describe("RagEvaluationForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("synchronizes and locks Top N while the reranker is none", async () => {
+  it("synchronizes and locks reranked documents while the reranker is none", async () => {
     const user = userEvent.setup();
     render(<RagEvaluationForm submitLabel="Create experiment" onSubmit={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText("Reranker"), "none");
-    expect(screen.getByLabelText("Top N")).toBeDisabled();
-    expect(screen.getByLabelText("Top N")).toHaveValue(4);
+    expect(screen.getByLabelText("Reranked documents")).toBeDisabled();
+    expect(screen.getByLabelText("Reranked documents")).toHaveValue(4);
 
-    await user.clear(screen.getByLabelText("Top K"));
-    await user.type(screen.getByLabelText("Top K"), "7");
-    expect(screen.getByLabelText("Top N")).toHaveValue(7);
+    await user.clear(screen.getByLabelText("Dense candidates"));
+    await user.type(screen.getByLabelText("Dense candidates"), "7");
+    await user.clear(screen.getByLabelText("Final retrieval results"));
+    await user.type(screen.getByLabelText("Final retrieval results"), "7");
+    expect(screen.getByLabelText("Reranked documents")).toHaveValue(7);
+  });
+
+  it("disables and omits the retrieval embedding model for BM25-only submissions", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(<RagEvaluationForm submitLabel="Create experiment" onSubmit={onSubmit} />);
+
+    await user.clear(screen.getByLabelText(/^BM25 weight/));
+    await user.type(screen.getByLabelText(/^BM25 weight/), "1");
+    expect(screen.getByLabelText("Retrieval embedding model")).toBeDisabled();
+    expect(screen.getByLabelText("Retrieval embedding model")).toHaveValue("");
+
+    await user.click(screen.getByRole("button", { name: "Create experiment" }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0].rag).not.toHaveProperty("retrieval_embedding_model");
+  });
+
+  it("blocks CRAG submission while retrieval definitions are loading", () => {
+    definitionQueryState.hasData = false;
+    definitionQueryState.isLoading = true;
+    render(<RagEvaluationForm submitLabel="Create experiment" onSubmit={vi.fn()} />);
+
+    expect(screen.getByText("Loading CRAG retrieval controls...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create experiment" })).toBeDisabled();
+  });
+
+  it("blocks CRAG submission and retries when retrieval definitions fail", async () => {
+    definitionQueryState.hasData = false;
+    definitionQueryState.isError = true;
+    const user = userEvent.setup();
+    render(<RagEvaluationForm submitLabel="Create experiment" onSubmit={vi.fn()} />);
+
+    expect(screen.getByText("Unable to load CRAG retrieval controls.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create experiment" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Retry CRAG retrieval controls" }));
+    expect(definitionQueryState.refetch).toHaveBeenCalledTimes(1);
   });
 
   it("applies a shared default to every GraphRAG LLM role", async () => {

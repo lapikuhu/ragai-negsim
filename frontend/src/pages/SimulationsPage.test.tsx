@@ -7,6 +7,11 @@ import { SimulationsPage } from "./SimulationsPage";
 
 const createSimulation = vi.fn();
 const navigate = vi.fn();
+const bm25QueryState = vi.hoisted(() => ({
+  isLoading: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -43,7 +48,7 @@ vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
   useCorpusIndicesQuery: () => ({
     isLoading: false,
     isError: false,
-    data: [{ id: 77, corpus_id: 11, name: "Index A" }],
+    data: [{ id: 77, corpus_id: 11, chunking_profile_id: 3, indexed_document_chunk_ids: [1, 2], status: "built", name: "Index A" }],
     refetch: vi.fn(),
   }),
   useChunkingProfilesQuery: () => ({
@@ -70,7 +75,31 @@ vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
         name: "Default CRAG",
         strategy: "crag",
         knowledge_graph_index_id: null,
-        config: { top_k: 4, reranker: "cross_encoder", top_n: 3, max_rewrite_attempts: 2 },
+        config: { bm25_weight: 0, dense_k: 4, bm25_k: 4, final_top_k: 4, reranker: "cross_encoder", top_n: 3, max_rewrite_attempts: 2 },
+        created_by_user_id: 1,
+        last_edit_by_user_id: null,
+        created_at: "2026-06-14T12:00:00Z",
+        last_updated: "2026-06-14T12:00:00Z",
+        simulation_ids: [],
+      },
+      {
+        id: 502,
+        name: "BM25 CRAG",
+        strategy: "crag",
+        knowledge_graph_index_id: null,
+        config: { bm25_weight: 1, dense_k: 4, bm25_k: 4, final_top_k: 4, reranker: "cross_encoder", top_n: 3, max_rewrite_attempts: 2 },
+        created_by_user_id: 1,
+        last_edit_by_user_id: null,
+        created_at: "2026-06-14T12:00:00Z",
+        last_updated: "2026-06-14T12:00:00Z",
+        simulation_ids: [],
+      },
+      {
+        id: 503,
+        name: "Hybrid CRAG",
+        strategy: "crag",
+        knowledge_graph_index_id: null,
+        config: { bm25_weight: 0.5, dense_k: 4, bm25_k: 4, final_top_k: 4, reranker: "cross_encoder", top_n: 3, max_rewrite_attempts: 2 },
         created_by_user_id: 1,
         last_edit_by_user_id: null,
         created_at: "2026-06-14T12:00:00Z",
@@ -97,6 +126,17 @@ vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
       },
     ],
     refetch: vi.fn(),
+  }),
+}));
+
+vi.mock("@/features/corpusBm25Indices/corpusBm25IndexQueries", () => ({
+  useCorpusBm25IndicesQuery: () => ({
+    ...bm25QueryState,
+    data: [
+      { id: 88, name: "BM25 A", corpus_id: 11, chunking_profile_id: 3, document_count: 2, status: "built" },
+      { id: 89, name: "BM25 incompatible", corpus_id: 11, chunking_profile_id: 4, document_count: 2, status: "built" },
+      { id: 90, name: "BM25 unbuilt", corpus_id: 11, chunking_profile_id: 3, document_count: 2, status: "failed" },
+    ],
   }),
 }));
 
@@ -160,6 +200,9 @@ describe("SimulationsPage", () => {
   beforeEach(() => {
     createSimulation.mockReset();
     navigate.mockReset();
+    bm25QueryState.isLoading = false;
+    bm25QueryState.isError = false;
+    bm25QueryState.refetch.mockReset();
   });
 
   it("renders a required RAG profile selector in the create form", () => {
@@ -184,8 +227,90 @@ describe("SimulationsPage", () => {
     expect(corpusIndex).toBeDisabled();
   });
 
+  it("renders only the artifact selectors required by the selected CRAG mode", () => {
+    render(<SimulationsPage />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Corpus" }), { target: { value: "11" } });
+
+    fireEvent.change(screen.getByRole("combobox", { name: /RAG profile/ }), { target: { value: "502" } });
+    expect(screen.getByRole("combobox", { name: /^BM25 index/ })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Corpus index" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: /RAG profile/ }), { target: { value: "503" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Corpus index" }), { target: { value: "77" } });
+    expect(screen.getByRole("combobox", { name: /^BM25 index/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "BM25 A" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "BM25 incompatible" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "BM25 unbuilt" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: /RAG profile/ }), { target: { value: "500" } });
+    expect(screen.getByRole("combobox", { name: "Corpus index" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /^BM25 index/ })).not.toBeInTheDocument();
+  });
+
+  it("submits only a BM25 binding for a BM25-only profile", async () => {
+    createSimulation.mockResolvedValueOnce({ id: 46 });
+    const user = userEvent.setup();
+    render(<SimulationsPage />);
+
+    await user.type(screen.getByLabelText("Name"), "BM25 simulation");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
+    await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "502");
+    await user.selectOptions(screen.getByRole("combobox", { name: /^BM25 index/ }), "88");
+    await user.click(screen.getByRole("button", { name: "Create simulation" }));
+
+    expect(createSimulation).toHaveBeenCalledWith(
+      expect.objectContaining({ corpus_index_id: null, bm25_index_id: 88, rag_profile_id: 502 }),
+    );
+  });
+
+  it("submits both compatible bindings for a hybrid profile", async () => {
+    createSimulation.mockResolvedValueOnce({ id: 47 });
+    const user = userEvent.setup();
+    render(<SimulationsPage />);
+
+    await user.type(screen.getByLabelText("Name"), "Hybrid simulation");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
+    await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "503");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus index" }), "77");
+    await user.selectOptions(screen.getByRole("combobox", { name: /^BM25 index/ }), "88");
+    await user.click(screen.getByRole("button", { name: "Create simulation" }));
+
+    expect(createSimulation).toHaveBeenCalledWith(
+      expect.objectContaining({ corpus_index_id: 77, bm25_index_id: 88, rag_profile_id: 503 }),
+    );
+  });
+
+  it("distinguishes BM25 loading from an empty artifact list", () => {
+    bm25QueryState.isLoading = true;
+    render(<SimulationsPage />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Corpus" }), { target: { value: "11" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /RAG profile/ }), { target: { value: "502" } });
+
+    expect(screen.getByText("Loading BM25 artifacts...")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /^BM25 index/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create simulation" })).toBeDisabled();
+    expect(screen.queryByText(/Build a compatible BM25 artifact/)).not.toBeInTheDocument();
+  });
+
+  it("shows an actionable BM25 request error", async () => {
+    bm25QueryState.isError = true;
+    const user = userEvent.setup();
+    render(<SimulationsPage />);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
+    await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "502");
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to load BM25 artifacts.");
+    expect(screen.getByRole("combobox", { name: /^BM25 index/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create simulation" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Retry BM25 artifacts" }));
+    expect(bm25QueryState.refetch).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the corpus index selector bordered, single-line, and top aligned with description", () => {
     render(<SimulationsPage />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Corpus" }), { target: { value: "11" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /RAG profile/ }), { target: { value: "500" } });
 
     const corpusIndex = screen.getByRole("combobox", { name: "Corpus index" });
 
@@ -230,8 +355,8 @@ describe("SimulationsPage", () => {
 
     await user.type(screen.getByLabelText("Name"), "Salary practice");
     await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus index" }), "77");
     await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "500");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus index" }), "77");
     await user.click(screen.getByRole("checkbox", { name: "Use Learning Agent" }));
     const modelSelectors = screen.getAllByRole("combobox", { name: "Model" });
     await user.selectOptions(modelSelectors[0], "gpt-4.1-mini");
@@ -266,8 +391,8 @@ describe("SimulationsPage", () => {
 
     await user.type(screen.getByLabelText("Name"), "Salary practice");
     await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus index" }), "77");
     await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "500");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus index" }), "77");
     await user.click(screen.getByRole("button", { name: "Create simulation" }));
 
     expect(createSimulation).toHaveBeenCalledWith(

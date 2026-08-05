@@ -18,7 +18,7 @@ The router is organized into three main access tiers:
 This mirrors the backend's authorization model and makes the UI a useful map of the product surface.
 
 ## Important pages
-- `SimulationsPage.tsx` and `SimulationCockpitPage.tsx` are the primary learner workflow pages.
+- `SimulationsPage.tsx` and `SimulationCockpitPage.tsx` are the primary learner workflow pages. Simulation creation places the RAG profile after the corpus and derives its required artifact bindings from that profile: dense CRAG requires a built dense index, BM25 CRAG requires a built BM25 index, hybrid CRAG requires both compatible artifacts, and GraphRAG retains its graph-bound dense index behavior.
 - `DocumentsPage.tsx`, `DocumentDetailPage.tsx`, and `DocumentChunksPage.tsx` cover document and chunk management.
 - `NotFoundPage.tsx` handles unknown routes and returns users to the dashboard.
 - `CorporaPage.tsx` and `CorpusDetailPage.tsx` cover corpus management.
@@ -29,11 +29,11 @@ This mirrors the backend's authorization model and makes the UI a useful map of 
 - `KnowledgeGraphsPage.tsx`, `FullCorpusIndexPipeJobsPage.tsx`, and `VectorStoresPage.tsx` support the retrieval infrastructure.
 
 ## Data and API wiring
-The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows.
+The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows. The BM25 metadata query uses the admin-only `GET /corpus-bm25-indices/` list endpoint and never requests serialized artifact bytes.
 
 The RAG Evaluation query layer requests the latest run independently for each visible configuration with a filtered `limit=1` request. Queued and running runs poll every two seconds, while terminal runs stop polling. History is filtered by configuration and paginated in pages of 20. A run whose latest state is `running` with stage `cleanup_pending` produces a distinct warning that queue execution is blocked until automatic GraphRAG cleanup retries succeed, and the form submission path now blocks duplicate in-flight submissions.
 
-The experiment form validates the complete typed configuration before submission. GraphRAG exposes eight LLM selections: six response-pipeline roles, the RAGAS judge, and the extraction model. For CRAG, selecting reranker `none` synchronizes Top N with Top K and disables Top N.
+The experiment form validates the complete typed configuration before submission. GraphRAG exposes eight LLM selections: six response-pipeline roles, the RAGAS judge, and the extraction model. CRAG reuses the RAG-profile definition renderer for BM25 weight, dense and BM25 candidate limits, final fusion limit, reranker, reranked count, and rewrite attempts. Retrieval mode disables irrelevant candidate controls; reranker `none` synchronizes and disables the reranked count. BM25-only evaluation disables and omits the retrieval embedding model, while dense and hybrid evaluation require it.
 
 The recent UI history shows the frontend tracking backend domain changes closely, including learner debug traces, raw document corpus associations, document bibliographic metadata in list/detail views, simulation learner settings, coach source cards, and pagination controls for document chunks.
 

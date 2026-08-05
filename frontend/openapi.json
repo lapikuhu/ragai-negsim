@@ -1467,6 +1467,119 @@
         }
       }
     },
+    "/corpus-bm25-indices/": {
+      "get": {
+        "tags": [
+          "corpus-bm25-indices"
+        ],
+        "summary": "List Corpus Bm25 Indices",
+        "operationId": "list_corpus_bm25_indices_corpus_bm25_indices__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "corpus_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Corpus Id"
+            }
+          },
+          {
+            "name": "chunking_profile_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Chunking Profile Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CorpusBm25IndexMetadata"
+                  },
+                  "title": "Response List Corpus Bm25 Indices Corpus Bm25 Indices  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/corpora/": {
       "post": {
         "tags": [
@@ -4690,7 +4803,7 @@
             "required": false,
             "schema": {
               "type": "number",
-              "default": 0.0,
+              "default": 0,
               "title": "Temperature"
             }
           }
@@ -7634,6 +7747,111 @@
         "type": "object",
         "title": "ChunkingProfileUpdate"
       },
+      "CorpusBm25IndexMetadata": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "corpus_id": {
+            "type": "integer",
+            "title": "Corpus Id"
+          },
+          "chunking_profile_id": {
+            "type": "integer",
+            "title": "Chunking Profile Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "format_version": {
+            "type": "string",
+            "title": "Format Version"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          },
+          "document_chunk_ids_checksum": {
+            "type": "string",
+            "title": "Document Chunk Ids Checksum"
+          },
+          "compressed_artifact_checksum": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compressed Artifact Checksum"
+          },
+          "built_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Built At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Updated"
+          },
+          "build_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Error"
+          },
+          "created_by_full_corpus_index_pipe_job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Full Corpus Index Pipe Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "corpus_id",
+          "chunking_profile_id",
+          "status",
+          "format_version",
+          "document_count",
+          "document_chunk_ids_checksum",
+          "created_at",
+          "last_updated"
+        ],
+        "title": "CorpusBm25IndexMetadata"
+      },
       "CorpusChunkResult": {
         "properties": {
           "corpus_id": {
@@ -7901,7 +8119,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -7983,7 +8201,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8025,7 +8243,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8133,7 +8351,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8172,7 +8390,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8282,7 +8500,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8695,36 +8913,43 @@
             "default": "crag"
           },
           "retrieval_embedding_model": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Retrieval Embedding Model",
-            "default": "text-embedding-3-small"
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Embedding Model"
           },
-          "top_k": {
-            "type": "integer",
-            "maximum": 20.0,
-            "minimum": 1.0,
-            "title": "Top K",
+          "bm25_weight": {
+            "title": "Bm25 Weight",
+            "default": 0
+          },
+          "dense_k": {
+            "title": "Dense K",
+            "default": 4
+          },
+          "bm25_k": {
+            "title": "Bm25 K",
+            "default": 4
+          },
+          "final_top_k": {
+            "title": "Final Top K",
             "default": 4
           },
           "reranker": {
-            "type": "string",
-            "minLength": 1,
             "title": "Reranker",
             "default": "cross_encoder"
           },
           "top_n": {
-            "type": "integer",
-            "maximum": 20.0,
-            "minimum": 1.0,
             "title": "Top N",
             "default": 3
           },
-          "rewrite_limit": {
-            "type": "integer",
-            "maximum": 10.0,
-            "minimum": 0.0,
-            "title": "Rewrite Limit",
+          "max_rewrite_attempts": {
+            "title": "Max Rewrite Attempts",
             "default": 2
           }
         },
@@ -8763,7 +8988,7 @@
           },
           "chunk_index": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Chunk Index"
           },
           "chunk_metadata": {
@@ -9413,8 +9638,8 @@
           },
           "max_paths_per_chunk": {
             "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Max Paths Per Chunk",
             "default": 10
           },
@@ -9430,22 +9655,22 @@
           },
           "evidence_limit": {
             "type": "integer",
-            "maximum": 30.0,
-            "minimum": 1.0,
+            "maximum": 30,
+            "minimum": 1,
             "title": "Evidence Limit",
             "default": 6
           },
           "traversal_depth": {
             "type": "integer",
-            "maximum": 5.0,
-            "minimum": 1.0,
+            "maximum": 5,
+            "minimum": 1,
             "title": "Traversal Depth",
             "default": 2
           },
           "rrf_constant": {
             "type": "integer",
-            "maximum": 200.0,
-            "minimum": 1.0,
+            "maximum": 200,
+            "minimum": 1,
             "title": "Rrf Constant",
             "default": 60
           }
@@ -9492,27 +9717,27 @@
           },
           "breakpoint_threshold_amount": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Breakpoint Threshold Amount",
             "default": 90
           },
           "buffer_size": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Buffer Size",
             "default": 1
           },
           "chunk_size": {
             "type": "integer",
-            "maximum": 8000.0,
-            "minimum": 100.0,
+            "maximum": 8000,
+            "minimum": 100,
             "title": "Chunk Size",
             "default": 1000
           },
           "chunk_overlap": {
             "type": "integer",
-            "maximum": 2000.0,
-            "minimum": 0.0,
+            "maximum": 2000,
+            "minimum": 0,
             "title": "Chunk Overlap",
             "default": 200
           },
@@ -9571,13 +9796,13 @@
           },
           "total_documents": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Total Documents",
             "default": 0
           },
           "processed_documents": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Processed Documents",
             "default": 0
           },
@@ -9615,7 +9840,7 @@
           },
           "total_chunks": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Total Chunks",
             "default": 0
           },
@@ -9629,13 +9854,13 @@
           },
           "node_count": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Node Count",
             "default": 0
           },
           "relationship_count": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Relationship Count",
             "default": 0
           },
@@ -10440,7 +10665,7 @@
         "properties": {
           "rank": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Rank"
           },
           "content": {
@@ -10466,7 +10691,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -10506,6 +10731,41 @@
               }
             ],
             "title": "Rerank Score"
+          },
+          "dense_rank": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dense Rank"
+          },
+          "bm25_rank": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bm25 Rank"
+          },
+          "fused_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fused Score"
           },
           "retrieval_strategy": {
             "anyOf": [
@@ -10549,7 +10809,7 @@
         "properties": {
           "k": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "K",
             "default": 3
           },
@@ -10618,7 +10878,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -10641,8 +10901,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -10676,8 +10936,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -10689,8 +10949,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -10702,8 +10962,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -10715,8 +10975,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -10728,8 +10988,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -10799,18 +11059,18 @@
           },
           "progress": {
             "type": "number",
-            "maximum": 100.0,
-            "minimum": 0.0,
+            "maximum": 100,
+            "minimum": 0,
             "title": "Progress"
           },
           "completed_examples": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Completed Examples"
           },
           "total_examples": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Total Examples"
           },
           "queued_at": {
@@ -10941,7 +11201,7 @@
         "properties": {
           "configuration_id": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Configuration Id"
           }
         },
@@ -10992,18 +11252,18 @@
           },
           "progress": {
             "type": "number",
-            "maximum": 100.0,
-            "minimum": 0.0,
+            "maximum": 100,
+            "minimum": 0,
             "title": "Progress"
           },
           "completed_examples": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Completed Examples"
           },
           "total_examples": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Total Examples"
           },
           "queued_at": {
@@ -11243,6 +11503,7 @@
             "type": "string",
             "enum": [
               "int",
+              "float",
               "enum"
             ],
             "title": "Kind"
@@ -11261,6 +11522,9 @@
                 "type": "integer"
               },
               {
+                "type": "number"
+              },
+              {
                 "type": "string"
               }
             ],
@@ -11272,6 +11536,9 @@
                 "type": "integer"
               },
               {
+                "type": "number"
+              },
+              {
                 "type": "null"
               }
             ],
@@ -11281,6 +11548,9 @@
             "anyOf": [
               {
                 "type": "integer"
+              },
+              {
+                "type": "number"
               },
               {
                 "type": "null"
@@ -11510,7 +11780,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11685,7 +11955,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11904,7 +12174,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11956,15 +12226,15 @@
           },
           "chunk_size": {
             "type": "integer",
-            "maximum": 8000.0,
-            "minimum": 100.0,
+            "maximum": 8000,
+            "minimum": 100,
             "title": "Chunk Size",
             "default": 1000
           },
           "chunk_overlap": {
             "type": "integer",
-            "maximum": 2000.0,
-            "minimum": 0.0,
+            "maximum": 2000,
+            "minimum": 0,
             "title": "Chunk Overlap",
             "default": 200
           },
@@ -12387,13 +12657,13 @@
           },
           "breakpoint_threshold_amount": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Breakpoint Threshold Amount",
             "default": 90
           },
           "buffer_size": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Buffer Size",
             "default": 1
           }
@@ -12598,8 +12868,26 @@
             "title": "Corpus Id"
           },
           "corpus_index_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Corpus Index Id"
+          },
+          "bm25_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bm25 Index Id"
           },
           "rag_profile_id": {
             "type": "integer",
@@ -12782,7 +13070,7 @@
           },
           "learner_tavily_max_results": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Learner Tavily Max Results",
             "default": 5
           },
@@ -12801,7 +13089,6 @@
         "required": [
           "name",
           "corpus_id",
-          "corpus_index_id",
           "rag_profile_id"
         ],
         "title": "SimulationCreateRequest"
@@ -12874,8 +13161,26 @@
             "title": "Corpus Id"
           },
           "corpus_index_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Corpus Index Id"
+          },
+          "bm25_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bm25 Index Id"
           },
           "rag_profile_id": {
             "type": "integer",
@@ -13007,7 +13312,6 @@
           "status",
           "user_id_owner",
           "corpus_id",
-          "corpus_index_id",
           "rag_profile_id",
           "teacher_reviewed",
           "created_at",
@@ -13052,7 +13356,7 @@
           },
           "turn_index": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Turn Index"
           },
           "agent_name": {
@@ -13062,7 +13366,7 @@
           },
           "sequence": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Sequence",
             "default": 0
           },
@@ -13158,7 +13462,7 @@
           },
           "max_results": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Maximum web search results",
             "default": 5
           },
@@ -13584,8 +13888,26 @@
             "title": "Corpus Id"
           },
           "corpus_index_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Corpus Index Id"
+          },
+          "bm25_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bm25 Index Id"
           },
           "rag_profile_id": {
             "type": "integer",
@@ -13702,7 +14024,6 @@
           "status",
           "user_id_owner",
           "corpus_id",
-          "corpus_index_id",
           "rag_profile_id",
           "teacher_reviewed",
           "created_at",
@@ -13778,8 +14099,26 @@
             "title": "Corpus Id"
           },
           "corpus_index_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Corpus Index Id"
+          },
+          "bm25_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bm25 Index Id"
           },
           "rag_profile_id": {
             "type": "integer",
@@ -13924,7 +14263,6 @@
           "status",
           "user_id_owner",
           "corpus_id",
-          "corpus_index_id",
           "rag_profile_id",
           "teacher_reviewed",
           "created_at",
@@ -13946,8 +14284,8 @@
           },
           "max_turn_count": {
             "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Max Turn Count",
             "default": 12
           },
@@ -14301,6 +14639,17 @@
               }
             ],
             "title": "Corpus Index Id"
+          },
+          "bm25_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bm25 Index Id"
           },
           "coach_prompt_id": {
             "anyOf": [
@@ -14796,7 +15145,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"

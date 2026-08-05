@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { getCragRetrievalMode } from "@/components/rag/RagProfileDefinitionFields";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { RagEvaluationForm } from "@/features/ragEvaluation/RagEvaluationForm";
@@ -595,10 +596,22 @@ function focusableElements(container: HTMLElement) {
 function configurationToInput(
   configuration: RagEvalConfigurationRead,
 ): RagEvalConfigurationInput {
+  const rag = structuredClone(configuration.rag);
   return {
     name: configuration.name,
     chunking: structuredClone(configuration.chunking),
-    rag: structuredClone(configuration.rag),
+    rag: rag.strategy === "crag"
+      ? {
+          ...rag,
+          bm25_weight: Number(rag.bm25_weight),
+          dense_k: Number(rag.dense_k),
+          bm25_k: Number(rag.bm25_k),
+          final_top_k: Number(rag.final_top_k),
+          reranker: String(rag.reranker),
+          top_n: Number(rag.top_n),
+          max_rewrite_attempts: Number(rag.max_rewrite_attempts),
+        }
+      : rag,
     metrics: structuredClone(configuration.metrics),
   };
 }
@@ -626,7 +639,13 @@ function summarizeChunking(configuration: RagEvalConfigurationRead) {
 function summarizeRag(configuration: RagEvalConfigurationRead) {
   const rag = configuration.rag;
   if (rag.strategy === "crag") {
-    return `CRAG · top ${rag.top_k} · ${toSentenceCase(rag.reranker)}`;
+    const mode = getCragRetrievalMode({ bm25_weight: Number(rag.bm25_weight) });
+    const candidates = mode === "dense"
+      ? `dense ${String(rag.dense_k)}`
+      : mode === "bm25"
+        ? `BM25 ${String(rag.bm25_k)}`
+        : `dense ${String(rag.dense_k)} + BM25 ${String(rag.bm25_k)}`;
+    return `CRAG · ${toSentenceCase(mode)} · ${candidates} · final ${String(rag.final_top_k)} · reranked ${String(rag.top_n)} · ${toSentenceCase(String(rag.reranker))} · rewrites ${String(rag.max_rewrite_attempts)}`;
   }
   return `GraphRAG · ${toSentenceCase(rag.retrieval_mode)} · depth ${rag.traversal_depth}`;
 }

@@ -1,4 +1,8 @@
 import type { LLMModelCatalogResponse } from "@/api/types";
+import {
+  getCragEffectiveCapacity,
+  getCragRetrievalMode,
+} from "@/components/rag/RagProfileDefinitionFields";
 
 import type {
   RagEvalConfigurationInput,
@@ -97,9 +101,14 @@ export function normalizeRagEvalConfiguration(
   normalized.metrics.judge_embedding_model = normalized.metrics.judge_embedding_model.trim();
 
   if (normalized.rag.strategy === "crag") {
-    normalized.rag.retrieval_embedding_model = normalized.rag.retrieval_embedding_model.trim();
+    if (Number(normalized.rag.bm25_weight) === 1) {
+      delete normalized.rag.retrieval_embedding_model;
+    } else if (normalized.rag.retrieval_embedding_model !== null) {
+      normalized.rag.retrieval_embedding_model =
+        normalized.rag.retrieval_embedding_model?.trim();
+    }
     if (normalized.rag.reranker === "none") {
-      normalized.rag.top_n = normalized.rag.top_k;
+      normalized.rag.top_n = getCragEffectiveCapacity(normalized.rag);
     }
   } else {
     normalized.rag.graph_embedding_model = normalized.rag.graph_embedding_model.trim();
@@ -173,23 +182,37 @@ export function validateRagEvalConfiguration(
 
   if (normalized.rag.strategy === "crag") {
     const rag = normalized.rag;
-    validateEmbeddingModel(
-      rag.retrieval_embedding_model,
-      "rag.retrieval_embedding_model",
-      errors,
-      context.embeddingModelNames,
-    );
-    if (!isIntegerInRange(rag.top_k, 1, 20)) {
-      addError(errors, "rag.top_k");
+    const retrievalMode = getCragRetrievalMode({ bm25_weight: rag.bm25_weight });
+    if (retrievalMode !== "bm25") {
+      validateEmbeddingModel(
+        rag.retrieval_embedding_model ?? "",
+        "rag.retrieval_embedding_model",
+        errors,
+        context.embeddingModelNames,
+      );
+    }
+    if (!Number.isFinite(rag.bm25_weight) || rag.bm25_weight < 0 || rag.bm25_weight > 1) {
+      addError(errors, "rag.bm25_weight");
+    }
+    for (const field of ["dense_k", "bm25_k", "final_top_k"] as const) {
+      if (!isIntegerInRange(rag[field], 1, 20)) {
+        addError(errors, `rag.${field}`);
+      }
+    }
+    if (rag.final_top_k > Math.max(rag.dense_k, rag.bm25_k)) {
+      addError(errors, "rag.final_top_k");
     }
     if (!(["cross_encoder", "cohere", "none"] as string[]).includes(rag.reranker)) {
       addError(errors, "rag.reranker");
     }
-    if (!isIntegerInRange(rag.top_n, 1, 20) || rag.top_n > rag.top_k) {
+    if (
+      !isIntegerInRange(rag.top_n, 1, 20) ||
+      rag.top_n > getCragEffectiveCapacity(rag)
+    ) {
       addError(errors, "rag.top_n");
     }
-    if (!isIntegerInRange(rag.rewrite_limit, 0, 10)) {
-      addError(errors, "rag.rewrite_limit");
+    if (!isIntegerInRange(rag.max_rewrite_attempts, 0, 10)) {
+      addError(errors, "rag.max_rewrite_attempts");
     }
   } else {
     const rag = normalized.rag;

@@ -115,6 +115,7 @@ export type SimulationCreateRequest = components["schemas"]["SimulationCreateReq
 export type SessionRead = components["schemas"]["SessionRead"];
 export type CorpusRead = components["schemas"]["CorpusRead"];
 export type CorpusIndexRead = components["schemas"]["CorpusIndexReadWithIds"];
+export type CorpusBm25IndexMetadata = components["schemas"]["CorpusBm25IndexMetadata"];
 export type ChunkingProfileRead = components["schemas"]["ChunkingProfileReadWithIds"];
 export type RagProfileRead = components["schemas"]["RagProfileReadWithIds"] & {
   knowledge_graph_index_id?: number | null;
@@ -155,7 +156,7 @@ export type ChunkerDefinitionRead = {
 
 export type RagProfileFieldDefinitionRead = {
   name: string;
-  kind: "int" | "enum";
+  kind: "int" | "float" | "enum";
   label: string;
   required: boolean;
   default: unknown;

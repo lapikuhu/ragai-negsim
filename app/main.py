@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.web.routes.chunking_profiles_route import router as chunking_profiles_router
 from app.web.routes.counterpart_personas_route import router as counterpart_personas_router
 from app.web.routes.corpus_indices_route import router as corpus_indices_router
+from app.web.routes.corpus_bm25_indices_route import router as corpus_bm25_indices_router
 from app.web.routes.corpus_route import router as corpus_router
 from app.web.routes.document_chunks_route import router as document_chunks_router
 from app.web.routes.embeddings_route import router as embeddings_router
@@ -82,6 +83,7 @@ app.include_router(users_router)
 app.include_router(chunking_profiles_router)
 app.include_router(document_chunks_router)
 app.include_router(corpus_indices_router)
+app.include_router(corpus_bm25_indices_router)
 app.include_router(corpus_router)
 app.include_router(embeddings_router)
 app.include_router(full_corpus_index_pipe_jobs_router)
