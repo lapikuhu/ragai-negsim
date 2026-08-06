@@ -83,12 +83,14 @@ again when next used.
 The frontend derives dense-only, BM25-only, and hybrid artifact selectors from
 the selected CRAG profile. It lists BM25 artifact metadata through the
 admin-only `GET /corpus-bm25-indices/` endpoint; serialized artifact bytes are
-never returned. Hybrid choices are prefiltered by corpus, build status,
-chunking profile, and document count, while FastAPI remains authoritative for
-the exact document-chunk checksum match. If a future full-corpus-index-pipe job
-materializes BM25, its API must make that choice explicit with
-`build_bm25: bool` or `artifact_mode: "dense" | "bm25" | "both"`; neither
-option is added by the current backend migration.
+never returned. That endpoint now also powers the BM25 corpus index picker in
+simulation and RAG profile workflows, so the UI can expose only built BM25
+artifacts when a profile asks for them. Hybrid choices are prefiltered by
+corpus, build status, chunking profile, and document count, while FastAPI
+remains authoritative for the exact document-chunk checksum match. If a future
+full-corpus-index-pipe job materializes BM25, its API must make that choice
+explicit with `build_bm25: bool` or `artifact_mode: "dense" | "bm25" | "both"`;
+neither option is added by the current backend migration.
 
 ### GraphRAG
 GraphRAG uses a knowledge graph backed by Neo4j. It can retrieve evidence through semantic graph search, validated text-to-Cypher, or a hybrid ranking strategy.

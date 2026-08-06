@@ -29,7 +29,7 @@ This mirrors the backend's authorization model and makes the UI a useful map of 
 - `KnowledgeGraphsPage.tsx`, `FullCorpusIndexPipeJobsPage.tsx`, and `VectorStoresPage.tsx` support the retrieval infrastructure.
 
 ## Data and API wiring
-The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows. The BM25 metadata query uses the admin-only `GET /corpus-bm25-indices/` list endpoint and never requests serialized artifact bytes.
+The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows. The BM25 metadata query uses the admin-only `GET /corpus-bm25-indices/` list endpoint and never requests serialized artifact bytes. The new `RagProfileDefinitionFields` component centralizes CRAG field rendering, retrieval-mode badges, and mode-dependent disabling so Rag Profiles and evaluation forms stay aligned with the backend's dense, BM25, and hybrid artifact rules.
 
 The RAG Evaluation query layer requests the latest run independently for each visible configuration with a filtered `limit=1` request. Queued and running runs poll every two seconds, while terminal runs stop polling. History is filtered by configuration and paginated in pages of 20. A run whose latest state is `running` with stage `cleanup_pending` produces a distinct warning that queue execution is blocked until automatic GraphRAG cleanup retries succeed, and the form submission path now blocks duplicate in-flight submissions.
 

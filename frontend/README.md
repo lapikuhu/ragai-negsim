@@ -84,16 +84,18 @@ Implemented against real backend endpoints:
 - session admin pages
 - raw document upload, ingest, chunk, and detail
 - corpus list, create, ingest, chunk, and queued embedding jobs
+- BM25 index metadata selection for BM25-only and hybrid CRAG simulations
+- RAG profile configuration for dense-only, BM25-only, and weighted hybrid CRAG retrieval
 - prompts, personas, and scenarios management
-- admin RAG Evaluation console for CRAG/GraphRAG configurations, queued runs, progress, cancellation, history, and run-detail metrics
+- admin RAG Evaluation console for dense, BM25-only, hybrid CRAG, and GraphRAG configurations, queued runs, progress, cancellation, history, and run-detail metrics
 - models and vector-store inspection
 - user list and registration
 
 ## RAG Evaluation UI
 
-Admins can open `/rag-evaluations` to create, edit, delete, and enqueue complete CRAG or GraphRAG evaluation configurations. The page shows each visible configuration's latest run, headline metrics, queue/progress state, cleanup warnings, and paginated run history.
+Admins can open `/rag-evaluations` to create, edit, delete, and enqueue complete CRAG or GraphRAG evaluation configurations. CRAG configurations select dense-only retrieval with a BM25 weight of `0`, BM25-only retrieval with a weight of `1`, or weighted hybrid retrieval for intermediate values; the form enables the relevant candidate and embedding-model controls for the selected mode. The page shows each visible configuration's latest run, headline metrics, queue/progress state, cleanup warnings, and paginated run history.
 
-Run detail pages under `/rag-evaluations/runs/:runId` show the stored configuration snapshot, resolved model and prompt metadata, overall/category metrics, per-query answers, scores, and rank-ordered final evidence chunks. These views reflect the backend's persistent RAG-evaluation APIs at `/rag-eval-configurations/` and `/rag-eval-runs/`; scoring includes Hit@k, MRR@k, abstention/false-positive context signals, and the backend's RAGAS metrics.
+Run detail pages under `/rag-evaluations/runs/:runId` show the stored configuration snapshot, resolved model and prompt metadata, overall/category metrics, per-query answers, scores, and rank-ordered final evidence chunks. Hybrid evidence metadata includes dense rank, BM25 rank, and fused score where available. These views reflect the backend's persistent RAG-evaluation APIs at `/rag-eval-configurations/` and `/rag-eval-runs/`; scoring includes Hit@k, MRR@k, abstention/false-positive context signals, and the backend's RAGAS metrics.
 
 ## Known backend gaps
 

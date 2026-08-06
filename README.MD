@@ -9,7 +9,7 @@ The current codebase focuses on the backend foundation for:
 - User authentication, roles, and sessions
 - Uploading and managing raw PDF source documents
 - Corpus creation, ingestion, chunking, and vector indexing
-- Reusable retrieval strategies with both CRAG and GraphRAG flows
+- Reusable CRAG retrieval profiles supporting dense, BM25, and hybrid retrieval, alongside GraphRAG flows
 - Persistent RAG evaluation for isolated CRAG and GraphRAG experiment runs using a hard-coded synthetic evaluation corpus
 - Prompt, scenario, and counterpart persona management
 - Simulation lifecycle management
@@ -32,17 +32,19 @@ The system is designed around educational negotiation practice rather than a gen
 
 The generative-AI layer is built from four cooperating parts:
 
-- Retrieval profiles define how course or domain material is selected for a simulation.
+- Retrieval profiles define how course or domain material is selected for a simulation, including dense, lexical BM25, and hybrid CRAG retrieval.
 - LangGraph-based agent graphs coordinate negotiation turns, coaching, counterpart responses, and evaluation.
 - RAG evaluation configurations run the shared CRAG or GraphRAG response pipeline against isolated test resources and persist immutable run snapshots, final contexts, answers, and metrics.
 - Prompt templates keep each model call role-specific and aligned with the simulation context.
 
 Two retrieval strategies are currently available through reusable RAG profiles:
 
-- `CRAG` for corrective retrieval over the configured vector store. The CRAG graph retrieves candidate chunks, reranks them, grades their relevance, rewrites the query when evidence is weak, generates an answer from trusted context, checks answer quality, and falls back when the configured rewrite limit is reached.
+- `CRAG` for corrective retrieval over dense vector indexes, persisted BM25 indexes, or both. A CRAG profile's `bm25_weight` selects dense-only retrieval at `0`, BM25-only retrieval at `1`, and weighted hybrid retrieval for an intermediate value. The CRAG graph retrieves candidates from the selected source(s), fuses hybrid results with reciprocal-rank fusion, reranks them, grades their relevance, rewrites the query when evidence is weak, generates an answer from trusted context, checks answer quality, and falls back when the configured rewrite limit is reached.
 - `GraphRAG` for knowledge-graph retrieval backed by Neo4j. GraphRAG uses a built knowledge graph tied to a corpus index and can retrieve scoped evidence through semantic graph search, validated text-to-Cypher, or a hybrid mode that combines ranked evidence with reciprocal rank fusion. Each GraphRAG is stored as a subgraph under one Neo4j database. This runs contrary to Llammaindex assumptions (expects one graph database for one knowledge graph), but accommodates Neo4 Community edition (restricted to one database).
 
-RAG profiles expose strategy-specific settings instead of hard-coding retrieval behavior. CRAG profiles configure values such as retrieved document count, reranker choice, reranked document count, and maximum rewrite attempts. GraphRAG profiles configure retrieval mode, evidence limits, traversal depth, and the hybrid ranking constant.
+Dense vector indexes and BM25 indexes are independent persisted artifacts. Dense indexes store vector-store identity and indexed-chunk references; BM25 indexes store a compressed lexical-retriever artifact and checksums for both the artifact and its source chunk snapshot. A hybrid simulation must bind compatible dense and BM25 indexes from the same corpus and chunking profile with matching source chunks. Neither artifact is inferred from the other.
+
+RAG profiles expose strategy-specific settings instead of hard-coding retrieval behavior. CRAG profiles configure the BM25 weight, dense and BM25 candidate counts, fused result count, reranker choice, reranked document count, and maximum rewrite attempts. GraphRAG profiles configure retrieval mode, evidence limits, traversal depth, and the hybrid ranking constant.
 
 The parent negotiation graph orchestrates each turn through dedicated agent nodes:
 
@@ -66,7 +68,7 @@ Admins can use the persistent RAG-evaluation workflow to compare CRAG and GraphR
 
 The backend exposes admin-only configuration and run APIs under `/rag-eval-configurations/` and `/rag-eval-runs/`. A single application-owned FIFO coordinator executes one run at a time, reports stage/progress metadata, supports cancellation, and recovers interrupted GraphRAG cleanup before later queue work continues. The supported deployment model for this in-process coordinator is one Uvicorn worker.
 
-Runs score the pipeline's final ranked answer-context documents rather than only the initial retrieval candidates. Answerable examples receive Hit@k and MRR@k, unanswerable examples track abstention and false-positive final context, and generated answers/final contexts are scored with five RAGAS metrics: faithfulness, answer relevancy, context precision, context recall, and answer correctness.
+Runs score the pipeline's final ranked answer-context documents rather than only the initial retrieval candidates. CRAG evaluation creates isolated dense and/or BM25 resources according to `bm25_weight`; BM25-only runs do not require a retrieval embedding model. Answerable examples receive Hit@k and MRR@k, unanswerable examples track abstention and false-positive final context, and generated answers/final contexts are scored with five RAGAS metrics: faithfulness, answer relevancy, context precision, context recall, and answer correctness.
 
 ## Folder Structure
 
@@ -168,7 +170,7 @@ After the database exists and your `.env` points to it, the FastAPI startup hook
 
 ### Alembic and schema versioning
 
-This repositorυ now includes:
+This repository now includes:
 
 - `alembic.ini` at the repo root
 - `migrations/env.py`
@@ -298,6 +300,7 @@ Greek DOC file in docs\DOC.pdf
 - `/raw-documents` for PDF upload and source document management
 - `/corpora` for corpus creation, ingestion, chunking, and embedding jobs
 - `/corpus-indices` for index metadata and build status
+- `/corpus-bm25-indices` for admin inspection of persisted BM25 index metadata
 - `/knowledge-graph-indexes` for GraphRAG graph definitions and build jobs
 - `/chunking-profiles` for chunking presets
 - `/vector-stores` for vector backend configuration
@@ -583,6 +586,7 @@ docker compose down
 - Uploads raw documents (pdfs only). They are stored locally under /raw_docs_store
 - Defines a corpus from uploaded documents
 - With a corpus, chunking profile and a vector store, admin can create a corpus index
+- Can create a separate BM25 index from corpus chunks for lexical or hybrid CRAG retrieval
 - Optionally creates a knowledge graph from a built corpus index for GraphRAG
 - Creates RAG profiles using either `CRAG` or `GraphRAG`
 - Optionally defines a counterpart persona
@@ -605,7 +609,6 @@ docker compose down
 
 - Move developing to WSL.
 - Refactor god files.
-- For completeness implement the BM25 retriever, even though it is not appropriate for the nature of the project.
 - Add a deduplication layer in retrievers.
 - Decouple chunking from indexing, keep complete pipeline as a feature.
 - Expand prompt guard module.
