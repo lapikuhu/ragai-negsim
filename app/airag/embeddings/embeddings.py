@@ -28,7 +28,7 @@ SUPPORTED_EMBEDDING_MODELS: dict[str, EmbeddingModelInfo] = {
     "bge-base": {
         "name": "bge-base",
         "provider": "huggingface",
-        "display_name": "BAAI bge-large-zh-v1.5",
+        "display_name": "BAAI bge-base-en-v1.5",
         "dimensionality": 768,
         "normalized": True,
     },
@@ -95,7 +95,7 @@ def hf_bge_base_embeddings() -> HuggingFaceEmbeddings:
         the BGE-base model.
     """
     return HuggingFaceEmbeddings(
-        model_name="BAAI/bge-large-zh-v1.5",
+        model_name="BAAI/bge-base-en-v1.5",
         encode_kwargs={"normalize_embeddings": True},
     )
 

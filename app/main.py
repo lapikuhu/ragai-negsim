@@ -12,6 +12,7 @@ from app.web.routes.corpus_route import router as corpus_router
 from app.web.routes.document_chunks_route import router as document_chunks_router
 from app.web.routes.embeddings_route import router as embeddings_router
 from app.web.routes.full_corpus_index_pipe_jobs_route import router as full_corpus_index_pipe_jobs_router
+from app.web.routes.health import router as health_router
 from app.web.routes.knowledge_graph_build_jobs_route import router as knowledge_graph_build_jobs_router
 from app.web.routes.knowledge_graph_indices_route import router as knowledge_graph_indices_router
 from app.web.routes.llm_models_route import router as llm_models_router
@@ -79,6 +80,7 @@ app.add_middleware(
 app.add_middleware(RequestLoggingMiddleware)
 
 # Register the routers
+app.include_router(health_router)
 app.include_router(users_router)
 app.include_router(chunking_profiles_router)
 app.include_router(document_chunks_router)

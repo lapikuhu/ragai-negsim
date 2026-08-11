@@ -117,7 +117,7 @@ Scoring uses the pipeline's final ranked answer-context documents, not the retri
 This module is the canonical place to inspect when retrieval output changes shape.
 
 ## Prompt guards and runnable invocation
-`app/airag/observability/llm_usage.py` now includes `guarded_invoke_with_config`, which normalizes a payload to text and runs it through `return_guarded_query` before invoking the runnable. The helper currently relies on the new scaffold in `app/airag/prompt_guard/prompt_guard.py`, where prompt-injection patterns are implemented and PII detection remains a placeholder.
+`app/airag/observability/llm_usage.py` now includes `guarded_invoke_with_config`, which normalizes a payload to text and runs it through `return_guarded_query` before invoking the runnable. The helper currently relies on the scaffold in `app/airag/prompt_guard/prompt_guard.py`, where prompt-injection patterns and PII detection are implemented and the ensemble helper returns a structured `(failed, message)` result for callers that need the error text.
 
 At the moment this is a front-door validation layer rather than a full policy engine: the tests only confirm that safe payloads pass through and prompt-injection strings are blocked before the runnable is called. Future changes here should check both the guard module and the usage-tracking tests.
 

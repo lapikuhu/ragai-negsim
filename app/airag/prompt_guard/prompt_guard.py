@@ -122,16 +122,16 @@ def ensemble_guard(text: str) -> bool:
         return True
     return False
 
-def ensemble_guard_with_error(text: str) -> bool:
+def ensemble_guard_with_error(text: str) -> tuple[bool, str]:
     """
     Return True if the text fails any of the guard checks (prompt injection, 
     PII, size limit).
     Args:
         text (str): The text to check against the ensemble of guards.
     Returns:
-        bool: True if any guard check fails, False otherwise.
-        error_message (str): A warning message indicating which guard 
-        check failed.
+        tuple[bool, str]: A tuple where the first element is True if any guard 
+        check fails, and the second element is an error message indicating 
+        which guard check failed.
     """
     if detect_injection(text):
         error_message = "Warning: The input text contains a prompt injection pattern."
