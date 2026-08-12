@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useDocumentsQuery, useUploadDocumentMutation } from "@/features/documents/documentQueries";
 import { useCorporaQuery } from "@/features/corpora/corpusQueries";
@@ -26,6 +26,19 @@ export function DocumentsPage() {
   const [corpusIds, setCorpusIds] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setFile(event.target.files?.[0] ?? null);
+    setMessage((currentMessage) => (currentMessage === "Upload complete." ? null : currentMessage));
+  };
+
+  const clearSelectedFile = () => {
+    setFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   return (
     <div className="grid gap-6">
@@ -72,6 +85,9 @@ export function DocumentsPage() {
               setDocumentYear("");
               setCorpusIds("");
               setFile(null);
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+              }
               setMessage("Upload complete.");
             } catch (error) {
               setMessage(getErrorMessage(error));
@@ -105,7 +121,28 @@ export function DocumentsPage() {
             <Textarea value={description} onChange={(event) => setDescription(event.target.value)} />
           </Field>
           <Field label="PDF file">
-            <Input type="file" accept="application/pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+            <div className="relative">
+              <Input
+                ref={fileInputRef}
+                className="pr-10"
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange}
+              />
+              {file ? (
+                <button
+                  type="button"
+                  aria-label="Clear selected file"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-lg leading-none text-red-600 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-200"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    clearSelectedFile();
+                  }}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
           </Field>
           <div className="md:col-span-2 flex items-center gap-3">
             <Button type="submit" disabled={uploadMutation.isPending}>

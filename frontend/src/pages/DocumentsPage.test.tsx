@@ -1,9 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
+import { createRef } from "react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DocumentsPage } from "./DocumentsPage";
+import { Input } from "@/components/ui/Field";
 
 const state = vi.hoisted(() => ({
   documentsQuery: {
@@ -94,6 +96,65 @@ describe("DocumentsPage", () => {
     });
   });
 
+  it("forwards an input ref to the HTML input element", () => {
+    const ref = createRef<HTMLInputElement>();
+    render(<Input ref={ref} />);
+
+    expect(ref.current).toBe(screen.getByRole("textbox"));
+  });
+
+  it("keeps the selected PDF while an upload is pending and clears it after success", async () => {
+    const user = userEvent.setup();
+    let resolveUpload: (() => void) | undefined;
+    state.uploadMutation.mutateAsync = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUpload = resolve;
+        })
+    );
+    render(<DocumentsPage />, { wrapper: MemoryRouter });
+
+    const fileInput = screen.getByLabelText("PDF file") as HTMLInputElement;
+    await user.type(screen.getByLabelText(/Name-Alias/), "Labor casebook");
+    await user.upload(fileInput, new File(["brief"], "brief.pdf", { type: "application/pdf" }));
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+
+    expect(state.uploadMutation.mutateAsync).toHaveBeenCalledOnce();
+    expect(fileInput.files?.[0]?.name).toBe("brief.pdf");
+
+    resolveUpload?.();
+    await waitFor(() => expect(fileInput).toHaveValue(""));
+  });
+
+  it("clears the selected PDF when the clear control is pressed", async () => {
+    const user = userEvent.setup();
+    render(<DocumentsPage />, { wrapper: MemoryRouter });
+
+    const fileInput = screen.getByLabelText("PDF file") as HTMLInputElement;
+    await user.type(screen.getByLabelText(/Name-Alias/), "Labor casebook");
+    await user.upload(fileInput, new File(["brief"], "brief.pdf", { type: "application/pdf" }));
+    await user.click(screen.getByRole("button", { name: "Clear selected file" }));
+
+    expect(fileInput).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+    expect(screen.getByText("Choose a file first.")).toBeInTheDocument();
+  });
+
+  it("clears the upload success message when another PDF is selected", async () => {
+    const user = userEvent.setup();
+    render(<DocumentsPage />, { wrapper: MemoryRouter });
+
+    await user.type(screen.getByLabelText(/Name-Alias/), "Labor casebook");
+    const fileInput = screen.getByLabelText("PDF file");
+    await user.upload(fileInput, new File(["brief"], "brief.pdf", { type: "application/pdf" }));
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+    await screen.findByText("Upload complete.");
+
+    await user.upload(fileInput, new File(["replacement"], "replacement.pdf", { type: "application/pdf" }));
+
+    expect(screen.queryByText("Upload complete.")).not.toBeInTheDocument();
+  });
+
   it("keeps the Title upload field aligned with the Name-Alias field", () => {
     render(<DocumentsPage />, { wrapper: MemoryRouter });
 
@@ -118,7 +179,7 @@ describe("DocumentsPage", () => {
     expect(descriptionField).toHaveClass("content-start");
   });
 
-  it("rejects non-integer year text before uploading", async () => {
+  it("retains the selected PDF when year validation fails", async () => {
     const user = userEvent.setup();
     render(<DocumentsPage />, { wrapper: MemoryRouter });
 
@@ -132,5 +193,20 @@ describe("DocumentsPage", () => {
 
     expect(state.uploadMutation.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText("Year must be an integer.")).toBeInTheDocument();
+    expect((screen.getByLabelText("PDF file") as HTMLInputElement).files?.[0]?.name).toBe("brief.pdf");
+  });
+
+  it("retains the selected PDF when the upload is rejected", async () => {
+    const user = userEvent.setup();
+    state.uploadMutation.mutateAsync = vi.fn().mockRejectedValue(new Error("Upload failed."));
+    render(<DocumentsPage />, { wrapper: MemoryRouter });
+
+    const fileInput = screen.getByLabelText("PDF file") as HTMLInputElement;
+    await user.type(screen.getByLabelText(/Name-Alias/), "Labor casebook");
+    await user.upload(fileInput, new File(["brief"], "brief.pdf", { type: "application/pdf" }));
+    await user.click(screen.getByRole("button", { name: "Upload document" }));
+
+    await waitFor(() => expect(screen.getByText("Upload failed.")).toBeInTheDocument());
+    expect(fileInput.files?.[0]?.name).toBe("brief.pdf");
   });
 });

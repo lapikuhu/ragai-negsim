@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import clsx from "clsx";
 
 type FieldProps = {
@@ -22,9 +23,11 @@ export function Field({ label, hint, error, className, children }: FieldProps) {
 const inputBase =
   "w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-teal-100";
 
-export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={clsx(inputBase, className)} {...props} />;
-}
+export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, ...props }, ref) => <input ref={ref} className={clsx(inputBase, className)} {...props} />
+);
+
+Input.displayName = "Input";
 
 export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea className={clsx(inputBase, "min-h-28", className)} {...props} />;
