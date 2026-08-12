@@ -20,6 +20,7 @@ from app.schemas.rag_eval_schemas import (
     RagEvalRunDetailRead,
     RagEvalRunRead,
 )
+from app.services.rag_eval_export import serialize_rag_eval_run_summary_csv
 from app.services.rag_eval_coordinator import (
     RagEvalCoordinator,
     rag_eval_coordinator,
@@ -287,6 +288,32 @@ async def get_rag_eval_run_srvc(
             for row in rows
         ],
     )
+
+
+async def export_rag_eval_run_summary_csv_srvc(
+    run_id: int,
+    session: AsyncSession,
+) -> bytes:
+    """
+    Return a completed persisted RAG evaluation run as summary CSV bytes.
+    
+    Args:
+        run_id (int): The ID of the RAG evaluation run.
+        session (AsyncSession): The database session.
+    Returns:
+        bytes: The CSV representation of the RAG evaluation run summary.
+    Raises:
+        ValueError: If the RAG evaluation run is not found or not 
+        completed.
+    """
+    run = await rag_eval_repo.get_rag_eval_run_by_id(run_id, session)
+    if run is None:
+        raise ValueError("RAG evaluation run not found")
+    if run.status != "completed":
+        raise ValueError(
+            "RAG evaluation run export is available only for completed runs"
+        )
+    return serialize_rag_eval_run_summary_csv(_run_read(run))
 
 
 async def cancel_rag_eval_run_srvc(

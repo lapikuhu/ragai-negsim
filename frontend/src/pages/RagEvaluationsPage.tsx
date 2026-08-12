@@ -544,40 +544,42 @@ function ConfigurationEditor({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className="max-h-[90vh] w-full max-w-5xl overflow-y-auto"
+        className="w-full max-w-5xl"
       >
-        <Card>
-          <div className="mb-5">
-            <h2 id={titleId} className="text-xl font-semibold text-slate-950">{title}</h2>
-            <p id={descriptionId} className="mt-1 text-sm text-slate-600">
-              Define the chunking, retrieval, and metric settings for this experiment.
-            </p>
+        <Card className="overflow-hidden !p-0">
+          <div className="max-h-[90vh] overflow-y-auto p-5 [scrollbar-gutter:stable]">
+            <div className="mb-5">
+              <h2 id={titleId} className="text-xl font-semibold text-slate-950">{title}</h2>
+              <p id={descriptionId} className="mt-1 text-sm text-slate-600">
+                Define the chunking, retrieval, and metric settings for this experiment.
+              </p>
+            </div>
+            {error ? (
+              <p
+                role="alert"
+                className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              >
+                {error}
+              </p>
+            ) : null}
+            <RagEvaluationForm
+              initialValue={initialValue}
+              submitLabel={creating ? "Create experiment" : "Save experiment"}
+              onCancel={requestClose}
+              onSubmissionStateChange={(inFlight) => {
+                submissionInFlightRef.current = inFlight;
+              }}
+              pending={pending}
+              onSubmit={(input) =>
+                creating
+                  ? onCreate(input)
+                  : onUpdate(editor.configuration, input)
+              }
+            />
+            {pending ? (
+              <p className="mt-3 text-sm text-slate-500">Saving experiment...</p>
+            ) : null}
           </div>
-          {error ? (
-            <p
-              role="alert"
-              className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-            >
-              {error}
-            </p>
-          ) : null}
-          <RagEvaluationForm
-            initialValue={initialValue}
-            submitLabel={creating ? "Create experiment" : "Save experiment"}
-            onCancel={requestClose}
-            onSubmissionStateChange={(inFlight) => {
-              submissionInFlightRef.current = inFlight;
-            }}
-            pending={pending}
-            onSubmit={(input) =>
-              creating
-                ? onCreate(input)
-                : onUpdate(editor.configuration, input)
-            }
-          />
-          {pending ? (
-            <p className="mt-3 text-sm text-slate-500">Saving experiment...</p>
-          ) : null}
         </Card>
       </div>
     </div>,

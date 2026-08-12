@@ -9,7 +9,10 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { useRagEvalRunQuery } from "@/features/ragEvaluation/ragEvaluationQueries";
+import {
+  useExportRagEvalRunSummaryMutation,
+  useRagEvalRunQuery,
+} from "@/features/ragEvaluation/ragEvaluationQueries";
 import { formatRagEvalProgress } from "@/features/ragEvaluation/ragEvaluationProgress";
 import type {
   RagEvalQueryResultRead,
@@ -66,9 +69,47 @@ function RagEvaluationRunDetail({ runId }: { runId: number }) {
 }
 
 function RunContent({ run }: { run: RagEvalRunDetailRead }) {
+  const exportMutation = useExportRagEvalRunSummaryMutation();
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function exportSummary() {
+    setExportError(null);
+    try {
+      await exportMutation.mutateAsync(run.id);
+    } catch (error) {
+      setExportError(
+        getErrorMessage(error, "Unable to export RAG evaluation run."),
+      );
+    }
+  }
+
   return (
     <div className="grid gap-6">
-      <PageHeader title={`Run #${run.id}`} description={`Suite ${run.suite_version}`} />
+      <PageHeader
+        title={`Run #${run.id}`}
+        description={`Suite ${run.suite_version}`}
+        actions={
+          run.status === "completed" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={exportMutation.isPending}
+              onClick={() => void exportSummary()}
+            >
+              {exportMutation.isPending ? "Exporting..." : "Export CSV"}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {exportError ? (
+        <div
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+        >
+          {exportError}
+        </div>
+      ) : null}
 
       {run.stage === "cleanup_pending" ? (
         <div

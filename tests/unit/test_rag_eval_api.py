@@ -105,12 +105,132 @@ def test_openapi_exposes_only_target_rag_eval_paths(api_client):
         "/rag-eval-runs/",
         "/rag-eval-runs/{id}",
         "/rag-eval-runs/{id}/cancel",
+        "/rag-eval-runs/{id}/export",
     }.issubset(paths)
     assert not any(path.startswith("/rag-eval-pair-profiles") for path in paths)
     assert "/rag-eval-configurations/{id}/runs" not in paths
     assert paths["/rag-eval-configurations/"]["post"]["responses"]["201"]
     assert paths["/rag-eval-runs/"]["post"]["responses"]["202"]
     assert "requestBody" in paths["/rag-eval-runs/"]["post"]
+    export = paths["/rag-eval-runs/{id}/export"]["get"]
+    parameters = {item["name"]: item for item in export["parameters"]}
+    assert parameters["format"]["required"] is True
+    assert parameters["report"]["required"] is True
+    assert "text/csv" in export["responses"]["200"]["content"]
+
+
+def test_run_summary_export_returns_downloadable_csv(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
+    from app.services import rag_eval_service
+
+    _authorize_admin(override_current_user, override_session, allow_roles)
+    calls = []
+
+    async def fake_export(run_id, _session):
+        calls.append(run_id)
+        return b"\xef\xbb\xbfSection,Field,Value\r\n"
+
+    monkeypatch.setattr(
+        rag_eval_service,
+        "export_rag_eval_run_summary_csv_srvc",
+        fake_export,
+        raising=False,
+    )
+
+    response = api_client.get(
+        "/rag-eval-runs/11/export?format=csv&report=summary"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"\xef\xbb\xbfSection,Field,Value\r\n"
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="rag-eval-run-11-summary.csv"'
+    )
+    assert response.headers["cache-control"] == "no-store"
+    assert calls == [11]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "report=summary",
+        "format=csv",
+        "format=json&report=summary",
+        "format=csv&report=detailed",
+    ],
+)
+def test_run_summary_export_rejects_missing_or_unsupported_query_values(
+    query,
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
+    from app.services import rag_eval_service
+
+    _authorize_admin(override_current_user, override_session, allow_roles)
+
+    async def reject_export(*_args, **_kwargs):
+        pytest.fail("invalid export query must not reach service")
+
+    monkeypatch.setattr(
+        rag_eval_service,
+        "export_rag_eval_run_summary_csv_srvc",
+        reject_export,
+        raising=False,
+    )
+
+    response = api_client.get(f"/rag-eval-runs/11/export?{query}")
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_status"),
+    [
+        ("RAG evaluation run not found", 404),
+        (
+            "RAG evaluation run export is available only for completed runs",
+            409,
+        ),
+    ],
+)
+def test_run_summary_export_maps_domain_errors(
+    message,
+    expected_status,
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
+    from app.services import rag_eval_service
+
+    _authorize_admin(override_current_user, override_session, allow_roles)
+
+    async def fail(*_args, **_kwargs):
+        raise ValueError(message)
+
+    monkeypatch.setattr(
+        rag_eval_service,
+        "export_rag_eval_run_summary_csv_srvc",
+        fail,
+        raising=False,
+    )
+
+    response = api_client.get(
+        "/rag-eval-runs/11/export?format=csv&report=summary"
+    )
+
+    assert response.status_code == expected_status
+    assert response.json()["detail"] == message
 
 
 def test_rag_eval_routes_require_admin(
@@ -138,6 +258,39 @@ def test_rag_eval_routes_require_admin(
     )
 
     response = api_client.get("/rag-eval-configurations/")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Admin role required"
+
+
+def test_run_summary_export_requires_admin(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+):
+    from app.services import rag_eval_service
+
+    override_current_user(username="teacher", roles=["teacher"])
+    override_session()
+
+    async def deny_admin(_user, _role, _session):
+        return False
+
+    async def reject_export(*_args, **_kwargs):
+        pytest.fail("export service must not run without admin authorization")
+
+    monkeypatch.setattr(dependencies, "user_has_role", deny_admin)
+    monkeypatch.setattr(
+        rag_eval_service,
+        "export_rag_eval_run_summary_csv_srvc",
+        reject_export,
+        raising=False,
+    )
+
+    response = api_client.get(
+        "/rag-eval-runs/11/export?format=csv&report=summary"
+    )
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Admin role required"

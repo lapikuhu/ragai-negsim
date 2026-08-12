@@ -274,3 +274,87 @@ async def test_service_lifecycle_hooks_start_and_await_shutdown():
     await rag_eval_service.shutdown_rag_eval_coordinator_srvc(coordinator)
 
     assert events == ["start", "stop"]
+
+
+@pytest.mark.asyncio
+async def test_summary_export_uses_completed_run_without_query_rows(monkeypatch):
+    from app.services import rag_eval_service
+
+    persisted = SimpleNamespace(id=11, status="completed")
+    projected = SimpleNamespace(id=11, status="completed")
+
+    async def get(run_id, _session):
+        assert run_id == 11
+        return persisted
+
+    async def reject_query_rows(*_args, **_kwargs):
+        pytest.fail("summary export must not load query-result rows")
+
+    monkeypatch.setattr(rag_eval_service.rag_eval_repo, "get_rag_eval_run_by_id", get)
+    monkeypatch.setattr(
+        rag_eval_service.rag_eval_repo,
+        "list_rag_eval_query_results",
+        reject_query_rows,
+    )
+    monkeypatch.setattr(rag_eval_service, "_run_read", lambda run: projected)
+    monkeypatch.setattr(
+        rag_eval_service,
+        "serialize_rag_eval_run_summary_csv",
+        lambda run: b"csv" if run is projected else b"wrong",
+    )
+
+    assert await rag_eval_service.export_rag_eval_run_summary_csv_srvc(
+        11, object()
+    ) == b"csv"
+
+
+@pytest.mark.asyncio
+async def test_summary_export_rejects_missing_run(monkeypatch):
+    from app.services import rag_eval_service
+
+    async def get(_run_id, _session):
+        return None
+
+    monkeypatch.setattr(rag_eval_service.rag_eval_repo, "get_rag_eval_run_by_id", get)
+
+    with pytest.raises(ValueError, match="^RAG evaluation run not found$"):
+        await rag_eval_service.export_rag_eval_run_summary_csv_srvc(404, object())
+
+
+@pytest.mark.parametrize(
+    ("status", "stage"),
+    [
+        ("queued", "queued"),
+        ("running", "evaluating"),
+        ("running", "cleanup_pending"),
+        ("failed", "finished"),
+        ("cancelled", "finished"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_summary_export_rejects_non_completed_run(
+    monkeypatch, status, stage
+):
+    from app.services import rag_eval_service
+
+    run = SimpleNamespace(id=11, status=status, stage=stage)
+
+    async def get(_run_id, _session):
+        return run
+
+    def reject_serializer(_run):
+        pytest.fail("non-completed runs must not be serialized")
+
+    monkeypatch.setattr(rag_eval_service.rag_eval_repo, "get_rag_eval_run_by_id", get)
+    monkeypatch.setattr(
+        rag_eval_service,
+        "serialize_rag_eval_run_summary_csv",
+        reject_serializer,
+        raising=False,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="^RAG evaluation run export is available only for completed runs$",
+    ):
+        await rag_eval_service.export_rag_eval_run_summary_csv_srvc(11, object())

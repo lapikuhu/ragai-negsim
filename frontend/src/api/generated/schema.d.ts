@@ -339,7 +339,20 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List Corpus Bm25 Indices */
+        /**
+         * List Corpus Bm25 Indices
+         * @description List corpus BM25 indices with optional filters.
+         *
+         *     Args:
+         *         session: The database session dependency.
+         *         _admin: The admin dependency.
+         *         page: The pagination information.
+         *         corpus_id: Optional corpus ID to filter by.
+         *         chunking_profile_id: Optional chunking profile ID to filter by.
+         *         status: Optional status to filter by.
+         *     Returns:
+         *         A list of CorpusBm25IndexMetadata objects matching the filters.
+         */
         get: operations["list_corpus_bm25_indices_corpus_bm25_indices__get"];
         put?: never;
         post?: never;
@@ -817,6 +830,82 @@ export type paths = {
          *             or a 204 No Content response if no active job is found.
          */
         get: operations["get_active_full_corpus_index_pipe_job_full_corpus_index_pipe_jobs_active_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Check
+         * @description Check the application's liveness and readiness.
+         *
+         *     Args:
+         *         session: The database session.
+         *         settings: The application settings.
+         *     Returns:
+         *         A JSON response indicating the health status of the application.
+         */
+        get: operations["health_check_health__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Liveness Check
+         * @description Simple liveness check endpoint.
+         *
+         *     Returns a JSON response indicating the application is alive.
+         */
+        get: operations["liveness_check_health_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Readiness Check
+         * @description Check the application's hard infrastructure dependencies.
+         *
+         *     Args:
+         *         session: The database session.
+         *         settings: The application settings.
+         *     Returns:
+         *         A JSON response indicating the readiness status of the
+         *         application. Both PostgreSQL and Neo4j connection checks are
+         *         performed.
+         */
+        get: operations["readiness_check_health_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1374,6 +1463,26 @@ export type paths = {
          *         processed.
          */
         post: operations["cancel_run_rag_eval_runs__id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag-eval-runs/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Run
+         * @description Download a completed RAG evaluation run summary.
+         */
+        get: operations["export_run_rag_eval_runs__id__export_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6552,6 +6661,66 @@ export interface operations {
             };
         };
     };
+    health_check_health__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    liveness_check_health_live_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    readiness_check_health_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     list_knowledge_graph_build_jobs_knowledge_graph_build_jobs__get: {
         parameters: {
             query?: {
@@ -7366,6 +7535,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RagEvalRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_run_rag_eval_runs__id__export_get: {
+        parameters: {
+            query: {
+                format: "csv";
+                report: "summary";
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description RAG evaluation run summary CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
                 };
             };
             /** @description Validation Error */

@@ -57,7 +57,11 @@ The RAG evaluation API is:
 - `POST /rag-eval-runs/` with `{"configuration_id": <positive integer>}`
 - `GET /rag-eval-runs/`
 - `GET /rag-eval-runs/{id}`
+- `GET /rag-eval-runs/{id}/export?format=csv&report=summary`
 - `POST /rag-eval-runs/{id}/cancel`
+- `GET /rag-eval-runs/{id}/export?format=csv&report=summary`
+
+The export endpoint is admin-only and available only when the persisted run status is `completed`. Its summary CSV is built from persisted `RagEvalRun` metadata, configuration and resolved-pipeline snapshots, and overall/category metrics; it does not load per-query result rows.
 
 ## Recent evolution worth knowing
 Recent commits show the backend changing in a few important ways:

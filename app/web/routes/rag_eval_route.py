@@ -1,7 +1,7 @@
 """Admin-only HTTP API for RAG evaluation configurations and runs."""
 
-from typing import Literal, NoReturn
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated, Literal, NoReturn
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import ValidationError
 
 # local imports
@@ -25,6 +25,10 @@ RagEvalRunStatus = Literal[
     "cancelled",
 ]
 
+# Allowed rag-eval run export formats and reports for validation
+RagEvalExportFormat = Annotated[Literal["csv"], Query(alias="format")]
+RagEvalExportReport = Literal["summary"]
+
 # Instantiate the config router
 configuration_router = APIRouter(
     prefix="/rag-eval-configurations",
@@ -42,6 +46,9 @@ _SAFE_SERVICE_ERRORS = {
         "Cannot delete RAG evaluation configuration referenced by evaluation runs"
     ): status.HTTP_409_CONFLICT,
     "Cannot cancel a finished RAG evaluation run": status.HTTP_409_CONFLICT,
+    (
+        "RAG evaluation run export is available only for completed runs"
+    ): status.HTTP_409_CONFLICT,
 }
 _SAFE_CONFIGURATION_VALIDATION_MESSAGES = {
     "Value error, metrics.k must be less than or equal to rag.top_n",
@@ -313,8 +320,56 @@ async def list_runs(
         status=status,
     )
 
-### ------------------------- RAG-RUN GET BY ID -------------------- ###
+### ---------------------- RAG-RUN GET EXPORT BY ID ---------------- ###
 # (carries the results of the run, if completed)
+@run_router.get(
+    "/{id}/export",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "RAG evaluation run summary CSV",
+            "content": {"text/csv": {}},
+        }
+    },
+)
+async def export_run(
+    id: int,
+    session: SessionDep,
+    _admin: AdminDep,
+    export_format: RagEvalExportFormat,
+    report: RagEvalExportReport,
+) -> Response:
+    """
+    Download a completed RAG evaluation run summary.
+
+    Args:
+        id: The ID of the run to export.
+        session: The database session.
+        _admin: The admin performing the action.
+        export_format: The format of the export (currently only "csv" is 
+        supported).
+        report: The type of report to generate (currently only "summary" is 
+        supported).
+    """
+    del export_format, report
+    try:
+        payload = await rag_eval_service.export_rag_eval_run_summary_csv_srvc(
+            id, session
+        )
+    except ValueError as exc:
+        _raise_service_error(exc)
+    return Response(
+        content=payload,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="rag-eval-run-{id}-summary.csv"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @run_router.get("/{id}", response_model=RagEvalRunDetailRead)
 async def get_run(
     id: int,

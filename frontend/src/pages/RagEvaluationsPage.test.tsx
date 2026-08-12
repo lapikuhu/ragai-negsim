@@ -562,4 +562,23 @@ describe("RagEvaluationsPage", () => {
     expect(container).not.toHaveAttribute("inert");
     expect(container).not.toHaveAttribute("aria-hidden");
   });
+
+  it("clips the editor scrollbar to the rounded card", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Create experiment" }));
+    const dialog = screen.getByRole("dialog", { name: "Create experiment" });
+    const card = dialog.querySelector("section");
+    const scrollContainer = card?.firstElementChild;
+
+    expect(dialog).not.toHaveClass("overflow-y-auto");
+    expect(card).toHaveClass("overflow-hidden", "!p-0");
+    expect(scrollContainer).toHaveClass(
+      "max-h-[90vh]",
+      "overflow-y-auto",
+      "p-5",
+      "[scrollbar-gutter:stable]",
+    );
+  });
 });

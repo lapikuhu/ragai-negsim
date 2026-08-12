@@ -9,10 +9,11 @@ import type {
 } from "@/features/ragEvaluation/ragEvaluationTypes";
 import { RagEvaluationRunPage } from "./RagEvaluationRunPage";
 
-const queryMocks = vi.hoisted(() => ({ run: vi.fn() }));
+const queryMocks = vi.hoisted(() => ({ run: vi.fn(), exportRun: vi.fn() }));
 
 vi.mock("@/features/ragEvaluation/ragEvaluationQueries", () => ({
   useRagEvalRunQuery: queryMocks.run,
+  useExportRagEvalRunSummaryMutation: queryMocks.exportRun,
 }));
 
 function makeQuery(index: number): RagEvalQueryResultRead {
@@ -144,7 +145,59 @@ function renderPage(path = "/rag-evaluations/runs/11") {
 describe("RagEvaluationRunPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    queryMocks.exportRun.mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue(undefined),
+      isPending: false,
+    });
     setRun();
+  });
+
+  it("offers CSV export for a completed run", async () => {
+    const user = userEvent.setup();
+    const mutateAsync = vi.fn().mockResolvedValue(undefined);
+    queryMocks.exportRun.mockReturnValue({ mutateAsync, isPending: false });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    expect(mutateAsync).toHaveBeenCalledWith(11);
+  });
+
+  it.each([
+    ["queued", "queued"],
+    ["running", "evaluating"],
+    ["running", "cleanup_pending"],
+    ["failed", "finished"],
+    ["cancelled", "finished"],
+  ] as const)("hides CSV export for a %s run in %s", (status, stage) => {
+    setRun({ status, stage });
+
+    renderPage();
+
+    expect(screen.queryByRole("button", { name: "Export CSV" })).not.toBeInTheDocument();
+  });
+
+  it("disables CSV export while the download is pending", () => {
+    queryMocks.exportRun.mockReturnValue({ mutateAsync: vi.fn(), isPending: true });
+
+    renderPage();
+
+    expect(screen.getByRole("button", { name: "Exporting..." })).toBeDisabled();
+  });
+
+  it("keeps run content visible and shows a retryable export error", async () => {
+    const user = userEvent.setup();
+    queryMocks.exportRun.mockReturnValue({
+      mutateAsync: vi.fn().mockRejectedValue(new Error("Download failed")),
+      isPending: false,
+    });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Download failed");
+    expect(screen.getByText("Run #11")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export CSV" })).toBeEnabled();
   });
 
   it("renders run metadata, snapshots, deterministic scalar metrics, and ten results", () => {
