@@ -26,7 +26,7 @@ RagEvalRunStatus = Literal[
 ]
 
 # Allowed rag-eval run export formats and reports for validation
-RagEvalExportFormat = Annotated[Literal["csv"], Query(alias="format")]
+RagEvalExportFormat = Annotated[Literal["csv", "json"], Query(alias="format")]
 RagEvalExportReport = Literal["summary"]
 
 # Instantiate the config router
@@ -290,7 +290,8 @@ async def enqueue_run(
         _raise_service_error(exc)
 
 ### ------------------------- RAG-RUN LIST ------------------------- ###
-@run_router.get("/", response_model=list[RagEvalRunRead])
+@run_router.get("/", 
+                response_model=list[RagEvalRunRead])
 async def list_runs(
     session: SessionDep,
     _admin: AdminDep,
@@ -327,8 +328,8 @@ async def list_runs(
     response_class=Response,
     responses={
         200: {
-            "description": "RAG evaluation run summary CSV",
-            "content": {"text/csv": {}},
+            "description": "RAG evaluation run summary export",
+            "content": {"text/csv": {}, "application/json": {}},
         }
     },
 )
@@ -346,24 +347,32 @@ async def export_run(
         id: The ID of the run to export.
         session: The database session.
         _admin: The admin performing the action.
-        export_format: The format of the export (currently only "csv" is 
-        supported).
+        export_format: The format of the export.
         report: The type of report to generate (currently only "summary" is 
         supported).
     """
-    del export_format, report
+    del report
     try:
-        payload = await rag_eval_service.export_rag_eval_run_summary_csv_srvc(
-            id, session
-        )
+        match export_format:
+            case "csv":
+                payload = await rag_eval_service.export_rag_eval_run_summary_csv_srvc(
+                    id, session
+                )
+                media_type = "text/csv"
+            case "json":
+                payload = await rag_eval_service.export_rag_eval_run_summary_json_srvc(
+                    id, session
+                )
+                media_type = "application/json"
     except ValueError as exc:
         _raise_service_error(exc)
+    extension = export_format
     return Response(
         content=payload,
-        media_type="text/csv",
+        media_type=media_type,
         headers={
             "Content-Disposition": (
-                f'attachment; filename="rag-eval-run-{id}-summary.csv"'
+                f'attachment; filename="rag-eval-run-{id}-summary.{extension}"'
             ),
             "Cache-Control": "no-store",
         },

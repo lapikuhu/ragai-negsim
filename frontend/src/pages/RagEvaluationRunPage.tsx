@@ -69,17 +69,23 @@ function RagEvaluationRunDetail({ runId }: { runId: number }) {
 }
 
 function RunContent({ run }: { run: RagEvalRunDetailRead }) {
-  const exportMutation = useExportRagEvalRunSummaryMutation();
-  const [exportError, setExportError] = useState<string | null>(null);
+  const csvExportMutation = useExportRagEvalRunSummaryMutation();
+  const jsonExportMutation = useExportRagEvalRunSummaryMutation();
+  const [exportErrors, setExportErrors] = useState<Record<"csv" | "json", string | null>>({
+    csv: null,
+    json: null,
+  });
 
-  async function exportSummary() {
-    setExportError(null);
+  async function exportSummary(format: "csv" | "json") {
+    const mutation = format === "csv" ? csvExportMutation : jsonExportMutation;
+    setExportErrors((errors) => ({ ...errors, [format]: null }));
     try {
-      await exportMutation.mutateAsync(run.id);
+      await mutation.mutateAsync({ format, runId: run.id });
     } catch (error) {
-      setExportError(
-        getErrorMessage(error, "Unable to export RAG evaluation run."),
-      );
+      setExportErrors((errors) => ({
+        ...errors,
+        [format]: getErrorMessage(error, "Unable to export RAG evaluation run."),
+      }));
     }
   }
 
@@ -90,24 +96,43 @@ function RunContent({ run }: { run: RagEvalRunDetailRead }) {
         description={`Suite ${run.suite_version}`}
         actions={
           run.status === "completed" ? (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={exportMutation.isPending}
-              onClick={() => void exportSummary()}
-            >
-              {exportMutation.isPending ? "Exporting..." : "Export CSV"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={csvExportMutation.isPending}
+                onClick={() => void exportSummary("csv")}
+              >
+                {csvExportMutation.isPending ? "Exporting CSV..." : "Export CSV"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={jsonExportMutation.isPending}
+                onClick={() => void exportSummary("json")}
+              >
+                {jsonExportMutation.isPending ? "Exporting JSON..." : "Export JSON"}
+              </Button>
+            </div>
           ) : undefined
         }
       />
 
-      {exportError ? (
+      {exportErrors.csv ? (
         <div
           role="alert"
           className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
         >
-          {exportError}
+          {exportErrors.csv}
+        </div>
+      ) : null}
+
+      {exportErrors.json ? (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          {exportErrors.json}
         </div>
       ) : null}
 

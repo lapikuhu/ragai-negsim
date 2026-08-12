@@ -13,7 +13,7 @@ import type {
   RagEvalRunDetailRead,
   RagEvalRunRead,
 } from "./ragEvaluationTypes";
-import { downloadRagEvalRunSummary } from "./ragEvaluationExport";
+import { downloadRagEvalRunSummaryExport } from "./ragEvaluationExport";
 
 export const ragEvaluationKeys = {
   configurations: (skip = 0, limit = 20) =>
@@ -264,5 +264,5 @@ export function useCancelRagEvalRunMutation() {
 }
 
 export function useExportRagEvalRunSummaryMutation() {
-  return useMutation({ mutationFn: downloadRagEvalRunSummary });
+  return useMutation({ mutationFn: downloadRagEvalRunSummaryExport });
 }

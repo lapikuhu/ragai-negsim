@@ -2,9 +2,19 @@ import { ApiError, apiFetch } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
 
 
-export async function downloadRagEvalRunSummary(runId: number) {
+export type RagEvalExportFormat = "csv" | "json";
+
+export type RagEvalRunSummaryExport = {
+  runId: number;
+  format: RagEvalExportFormat;
+};
+
+export async function downloadRagEvalRunSummary(
+  runId: number,
+  format: RagEvalExportFormat = "csv",
+) {
   const response = await apiFetch(
-    `${getApiBaseUrl()}/rag-eval-runs/${runId}/export?format=csv&report=summary`,
+    `${getApiBaseUrl()}/rag-eval-runs/${runId}/export?format=${format}&report=summary`,
   );
   if (!response.ok) {
     let detail: unknown;
@@ -25,11 +35,18 @@ export async function downloadRagEvalRunSummary(runId: number) {
   try {
     anchor = document.createElement("a");
     anchor.href = objectUrl;
-    anchor.download = `rag-eval-run-${runId}-summary.csv`;
+    anchor.download = `rag-eval-run-${runId}-summary.${format}`;
     document.body.append(anchor);
     anchor.click();
   } finally {
     anchor?.remove();
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+export function downloadRagEvalRunSummaryExport({
+  runId,
+  format,
+}: RagEvalRunSummaryExport) {
+  return downloadRagEvalRunSummary(runId, format);
 }

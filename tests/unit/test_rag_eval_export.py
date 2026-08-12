@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 from datetime import datetime, timezone
 
 import pytest
@@ -77,6 +78,42 @@ def test_summary_csv_has_deterministic_excel_safe_rows():
         "direct_retrieval / context_recall",
         "0.87654",
     ] in rows
+
+
+def test_summary_json_has_deterministic_structured_sections():
+    from app.services.rag_eval_export import serialize_rag_eval_run_summary_json
+
+    payload = serialize_rag_eval_run_summary_json(_completed_run())
+
+    assert not payload.startswith(b"\xef\xbb\xbf")
+    assert payload == serialize_rag_eval_run_summary_json(_completed_run())
+    assert json.loads(payload) == {
+        "category_metrics": {
+            "direct_retrieval": {"context_recall": 0.87654}
+        },
+        "configuration": {
+            "+formula_key": "safe",
+            "a_formula": "=SUM(1,2)",
+            "nested": {"a": "α", "z": True},
+            "quoted": 'comma, quote " and\nnewline',
+        },
+        "overall_metrics": {"faithfulness": 0.91234},
+        "resolved_pipeline": {"model": "gpt-4o-mini"},
+        "run": {
+            "completed_at": "2026-08-12T08:10:00Z",
+            "completed_examples": 80,
+            "configuration_id": 7,
+            "id": 11,
+            "progress": 100.0,
+            "queued_at": "2026-08-12T08:00:00Z",
+            "stage": "finished",
+            "started_at": None,
+            "status": "completed",
+            "suite_content_hash": "abc123",
+            "suite_version": "rag-eval-v1",
+            "total_examples": 80,
+        },
+    }
 
 
 @pytest.mark.parametrize(

@@ -114,3 +114,32 @@ def serialize_rag_eval_run_summary_csv(run: RagEvalRunRead) -> bytes:
             )
 
     return output.getvalue().encode("utf-8-sig")
+
+
+def serialize_rag_eval_run_summary_json(run: RagEvalRunRead) -> bytes:
+    """
+    Serialize persisted run metadata and aggregates as structured JSON.
+
+    Args:
+        run (RagEvalRunRead): The persisted RAG evaluation run to serialize.
+    Returns:
+        bytes: The JSON representation of the run.
+    """
+    serialized_run = run.model_dump(mode="json")
+    for metrics in run.category_metrics.values():
+        if not isinstance(metrics, Mapping):
+            raise TypeError("category metric group must be a mapping")
+
+    summary = {
+        "run": {field: serialized_run[field] for field in _RUN_FIELDS},
+        "configuration": serialized_run["configuration_snapshot"],
+        "resolved_pipeline": serialized_run["resolved_pipeline_snapshot"],
+        "overall_metrics": serialized_run["overall_metrics"],
+        "category_metrics": serialized_run["category_metrics"],
+    }
+    return json.dumps(
+        summary,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    ).encode("utf-8")

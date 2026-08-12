@@ -117,6 +117,7 @@ def test_openapi_exposes_only_target_rag_eval_paths(api_client):
     assert parameters["format"]["required"] is True
     assert parameters["report"]["required"] is True
     assert "text/csv" in export["responses"]["200"]["content"]
+    assert "application/json" in export["responses"]["200"]["content"]
 
 
 def test_run_summary_export_returns_downloadable_csv(
@@ -156,12 +157,49 @@ def test_run_summary_export_returns_downloadable_csv(
     assert calls == [11]
 
 
+def test_run_summary_export_returns_downloadable_json(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
+    from app.services import rag_eval_service
+
+    _authorize_admin(override_current_user, override_session, allow_roles)
+    calls = []
+
+    async def fake_export(run_id, _session):
+        calls.append(run_id)
+        return b'{"run":{"id":11}}\n'
+
+    monkeypatch.setattr(
+        rag_eval_service,
+        "export_rag_eval_run_summary_json_srvc",
+        fake_export,
+        raising=False,
+    )
+
+    response = api_client.get(
+        "/rag-eval-runs/11/export?format=json&report=summary"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b'{"run":{"id":11}}\n'
+    assert response.headers["content-type"] == "application/json"
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="rag-eval-run-11-summary.json"'
+    )
+    assert response.headers["cache-control"] == "no-store"
+    assert calls == [11]
+
+
 @pytest.mark.parametrize(
     "query",
     [
         "report=summary",
         "format=csv",
-        "format=json&report=summary",
+        "format=xml&report=summary",
         "format=csv&report=detailed",
     ],
 )

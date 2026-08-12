@@ -309,6 +309,38 @@ async def test_summary_export_uses_completed_run_without_query_rows(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_json_summary_export_uses_completed_run_without_query_rows(monkeypatch):
+    from app.services import rag_eval_service
+
+    persisted = SimpleNamespace(id=11, status="completed")
+    projected = SimpleNamespace(id=11, status="completed")
+
+    async def get(run_id, _session):
+        assert run_id == 11
+        return persisted
+
+    async def reject_query_rows(*_args, **_kwargs):
+        pytest.fail("summary export must not load query-result rows")
+
+    monkeypatch.setattr(rag_eval_service.rag_eval_repo, "get_rag_eval_run_by_id", get)
+    monkeypatch.setattr(
+        rag_eval_service.rag_eval_repo,
+        "list_rag_eval_query_results",
+        reject_query_rows,
+    )
+    monkeypatch.setattr(rag_eval_service, "_run_read", lambda run: projected)
+    monkeypatch.setattr(
+        rag_eval_service,
+        "serialize_rag_eval_run_summary_json",
+        lambda run: b"json" if run is projected else b"wrong",
+    )
+
+    assert await rag_eval_service.export_rag_eval_run_summary_json_srvc(
+        11, object()
+    ) == b"json"
+
+
+@pytest.mark.asyncio
 async def test_summary_export_rejects_missing_run(monkeypatch):
     from app.services import rag_eval_service
 

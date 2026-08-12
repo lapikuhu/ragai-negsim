@@ -4194,7 +4194,10 @@
             "in": "query",
             "required": true,
             "schema": {
-              "const": "csv",
+              "enum": [
+                "csv",
+                "json"
+              ],
               "type": "string",
               "title": "Format"
             }
@@ -4212,9 +4215,10 @@
         ],
         "responses": {
           "200": {
-            "description": "RAG evaluation run summary CSV",
+            "description": "RAG evaluation run summary export",
             "content": {
-              "text/csv": {}
+              "text/csv": {},
+              "application/json": {}
             }
           },
           "422": {

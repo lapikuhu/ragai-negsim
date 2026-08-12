@@ -160,7 +160,18 @@ describe("RagEvaluationRunPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Export CSV" }));
 
-    expect(mutateAsync).toHaveBeenCalledWith(11);
+    expect(mutateAsync).toHaveBeenCalledWith({ format: "csv", runId: 11 });
+  });
+
+  it("offers JSON export for a completed run", async () => {
+    const user = userEvent.setup();
+    const mutateAsync = vi.fn().mockResolvedValue(undefined);
+    queryMocks.exportRun.mockReturnValue({ mutateAsync, isPending: false });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Export JSON" }));
+
+    expect(mutateAsync).toHaveBeenCalledWith({ format: "json", runId: 11 });
   });
 
   it.each([
@@ -177,12 +188,12 @@ describe("RagEvaluationRunPage", () => {
     expect(screen.queryByRole("button", { name: "Export CSV" })).not.toBeInTheDocument();
   });
 
-  it("disables CSV export while the download is pending", () => {
+  it("disables CSV export while its download is pending", () => {
     queryMocks.exportRun.mockReturnValue({ mutateAsync: vi.fn(), isPending: true });
 
     renderPage();
 
-    expect(screen.getByRole("button", { name: "Exporting..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Exporting CSV..." })).toBeDisabled();
   });
 
   it("keeps run content visible and shows a retryable export error", async () => {

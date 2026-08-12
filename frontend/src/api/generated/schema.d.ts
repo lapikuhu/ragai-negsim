@@ -7551,7 +7551,7 @@ export interface operations {
     export_run_rag_eval_runs__id__export_get: {
         parameters: {
             query: {
-                format: "csv";
+                format: "csv" | "json";
                 report: "summary";
             };
             header?: never;
@@ -7562,13 +7562,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description RAG evaluation run summary CSV */
+            /** @description RAG evaluation run summary export */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "text/csv": unknown;
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

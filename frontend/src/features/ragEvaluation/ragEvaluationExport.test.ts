@@ -59,6 +59,21 @@ describe("RAG evaluation run summary download", () => {
     expect(filename).toBe("rag-eval-run-42-summary.csv");
   });
 
+  it("downloads JSON with the matching request and filename", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(new Response("{}", { status: 200 }));
+    let filename = "";
+    clickSpy.mockImplementation(function (this: HTMLAnchorElement) {
+      filename = this.download;
+    });
+
+    await downloadRagEvalRunSummary(42, "json");
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/rag-eval-runs/42/export?format=json&report=summary",
+    );
+    expect(filename).toBe("rag-eval-run-42-summary.json");
+  });
+
   it("throws an ApiError with the server detail for a failed response", async () => {
     const detail = {
       detail: "RAG evaluation run export is available only for completed runs",
