@@ -170,7 +170,7 @@ After the database exists and your `.env` points to it, the FastAPI startup hook
 
 ### Alembic and schema versioning
 
-This repository now includes:
+This repository includes:
 
 - `alembic.ini` at the repo root
 - `migrations/env.py`
@@ -182,20 +182,20 @@ The Alembic environment reads the application settings from `.env`, imports the 
 Typical workflow:
 
 ```powershell
-alembic revision --autogenerate -m "describe schema change"
-alembic upgrade head
+uv run alembic revision --autogenerate -m "describe schema change"
+uv run alembic upgrade head
 ```
 
 To roll back one revision:
 
 ```powershell
-alembic downgrade -1
+uv run alembic downgrade -1
 ```
 
 To inspect the current revision:
 
 ```powershell
-alembic current
+uv run alembic current
 ```
 
 The backend startup code in [app/db/db.py] assumes the schema has already been created and migrated before the app starts.

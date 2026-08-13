@@ -34,6 +34,8 @@ def test_alembic_migrations_apply_to_postgres(migrated_postgres_db):
                 "simulationevidenceledger",
                 "corpusindex",
                 "knowledgegraphindex",
+                "corpusbm25index",
+                "corpusbm25buildjob",
             } <= table_names
 
             simulation_columns = {

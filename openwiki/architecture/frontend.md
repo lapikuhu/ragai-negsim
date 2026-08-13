@@ -22,6 +22,12 @@ This mirrors the backend's authorization model and makes the UI a useful map of 
 - `DocumentsPage.tsx`, `DocumentDetailPage.tsx`, and `DocumentChunksPage.tsx` cover document and chunk management.
 - `NotFoundPage.tsx` handles unknown routes and returns users to the dashboard.
 - `CorporaPage.tsx` and `CorpusDetailPage.tsx` cover corpus management.
+- Corpus detail now embeds the BM25 artifacts card, which combines the built
+  BM25 artifact list, the persisted chunk-set picker, and corpus-scoped BM25
+  build-job history. Admins can queue a build for one persisted chunk set,
+  cancel active work, and retry failed or cancelled jobs. Corpora without
+  persisted chunks link to the Full Corpus Index Pipe, which is still the
+  exposed way to produce chunks.
 - `ScenariosPage.tsx`, `PersonasPage.tsx`, and `PromptsPage.tsx` support authoring and review.
 - `EvaluationsPage.tsx` and `EvaluationReviewPage.tsx` are used for teacher/admin review.
 - `RagEvaluationsPage.tsx` is the admin-only experiment console at `/rag-evaluations`. Admins can create, edit, delete, and enqueue complete CRAG or GraphRAG configurations, inspect each configuration's latest run and headline metrics, cancel active work, and open paginated run history. The page now keeps latest-run polling independent per visible configuration, uses the shared `formatRagEvalProgress()` helper for status text, and surfaces a queue-blocked warning when any running run is stuck in `cleanup_pending`.

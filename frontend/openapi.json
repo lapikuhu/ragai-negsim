@@ -1641,6 +1641,305 @@
         }
       }
     },
+    "/corpus-bm25-build-jobs/": {
+      "post": {
+        "tags": [
+          "corpus-bm25-build-jobs"
+        ],
+        "summary": "Queue Corpus Bm25 Build Job",
+        "operationId": "queue_corpus_bm25_build_job_corpus_bm25_build_jobs__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorpusBm25BuildJobQueueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorpusBm25BuildJobRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "corpus-bm25-build-jobs"
+        ],
+        "summary": "List Corpus Bm25 Build Jobs",
+        "operationId": "list_corpus_bm25_build_jobs_corpus_bm25_build_jobs__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "corpus_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Corpus Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "queued",
+                    "running",
+                    "completed",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CorpusBm25BuildJobRead"
+                  },
+                  "title": "Response List Corpus Bm25 Build Jobs Corpus Bm25 Build Jobs  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/corpus-bm25-build-jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "corpus-bm25-build-jobs"
+        ],
+        "summary": "Get Corpus Bm25 Build Job",
+        "operationId": "get_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorpusBm25BuildJobRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/corpus-bm25-build-jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "corpus-bm25-build-jobs"
+        ],
+        "summary": "Cancel Corpus Bm25 Build Job",
+        "operationId": "cancel_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__cancel_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorpusBm25BuildJobRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/corpus-bm25-build-jobs/{job_id}/retry": {
+      "post": {
+        "tags": [
+          "corpus-bm25-build-jobs"
+        ],
+        "summary": "Retry Corpus Bm25 Build Job",
+        "operationId": "retry_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__retry_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorpusBm25BuildJobRetryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorpusBm25BuildJobRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/corpora/": {
       "post": {
         "tags": [
@@ -1780,6 +2079,58 @@
                     "$ref": "#/components/schemas/CorpusRead"
                   },
                   "title": "Response List Corpora Corpora  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/corpora/{corpus_id}/chunk-sets": {
+      "get": {
+        "tags": [
+          "corpora"
+        ],
+        "summary": "List Corpus Chunk Sets",
+        "description": "List buildable persisted chunk sets for a corpus.",
+        "operationId": "list_corpus_chunk_sets_corpora__corpus_id__chunk_sets_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "corpus_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Corpus Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CorpusChunkSetSummary"
+                  },
+                  "title": "Response List Corpus Chunk Sets Corpora  Corpus Id  Chunk Sets Get"
                 }
               }
             }
@@ -4172,7 +4523,7 @@
           "rag-eval"
         ],
         "summary": "Export Run",
-        "description": "Download a completed RAG evaluation run summary.",
+        "description": "Download a completed RAG evaluation run summary.\n\nArgs:\n    id: The ID of the run to export.\n    session: The database session.\n    _admin: The admin performing the action.\n    export_format: The format of the export.\n    report: The type of report to generate (currently only \"summary\" is \n    supported).",
         "operationId": "export_run_rag_eval_runs__id__export_get",
         "security": [
           {
@@ -4932,7 +5283,7 @@
             "required": false,
             "schema": {
               "type": "number",
-              "default": 0.0,
+              "default": 0,
               "title": "Temperature"
             }
           }
@@ -7876,6 +8227,163 @@
         "type": "object",
         "title": "ChunkingProfileUpdate"
       },
+      "CorpusBm25BuildJobQueueRequest": {
+        "properties": {
+          "requested_artifact_name": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Requested Artifact Name"
+          },
+          "corpus_id": {
+            "type": "integer",
+            "title": "Corpus Id"
+          },
+          "chunking_profile_id": {
+            "type": "integer",
+            "title": "Chunking Profile Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "requested_artifact_name",
+          "corpus_id",
+          "chunking_profile_id"
+        ],
+        "title": "CorpusBm25BuildJobQueueRequest"
+      },
+      "CorpusBm25BuildJobRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "requested_artifact_name": {
+            "type": "string",
+            "title": "Requested Artifact Name"
+          },
+          "corpus_id": {
+            "type": "integer",
+            "title": "Corpus Id"
+          },
+          "chunking_profile_id": {
+            "type": "integer",
+            "title": "Chunking Profile Id"
+          },
+          "requested_by_user_id": {
+            "type": "integer",
+            "title": "Requested By User Id"
+          },
+          "document_chunk_ids_checksum": {
+            "type": "string",
+            "title": "Document Chunk Ids Checksum"
+          },
+          "distinct_document_count": {
+            "type": "integer",
+            "title": "Distinct Document Count"
+          },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "cancel_requested": {
+            "type": "boolean",
+            "title": "Cancel Requested"
+          },
+          "queued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Queued At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "result_bm25_index_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Bm25 Index Id"
+          },
+          "failure_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "requested_artifact_name",
+          "corpus_id",
+          "chunking_profile_id",
+          "requested_by_user_id",
+          "document_chunk_ids_checksum",
+          "distinct_document_count",
+          "chunk_count",
+          "status",
+          "stage",
+          "cancel_requested",
+          "queued_at"
+        ],
+        "title": "CorpusBm25BuildJobRead"
+      },
+      "CorpusBm25BuildJobRetryRequest": {
+        "properties": {
+          "requested_artifact_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Artifact Name"
+          }
+        },
+        "type": "object",
+        "title": "CorpusBm25BuildJobRetryRequest"
+      },
       "CorpusBm25IndexMetadata": {
         "properties": {
           "id": {
@@ -7964,6 +8472,17 @@
               }
             ],
             "title": "Created By Full Corpus Index Pipe Job Id"
+          },
+          "created_by_bm25_build_job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Bm25 Build Job Id"
           }
         },
         "type": "object",
@@ -8020,6 +8539,39 @@
           "chunker"
         ],
         "title": "CorpusChunkResult"
+      },
+      "CorpusChunkSetSummary": {
+        "properties": {
+          "chunking_profile_id": {
+            "type": "integer",
+            "title": "Chunking Profile Id"
+          },
+          "chunking_profile_name": {
+            "type": "string",
+            "title": "Chunking Profile Name"
+          },
+          "distinct_document_count": {
+            "type": "integer",
+            "title": "Distinct Document Count"
+          },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "document_chunk_ids_checksum": {
+            "type": "string",
+            "title": "Document Chunk Ids Checksum"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chunking_profile_id",
+          "chunking_profile_name",
+          "distinct_document_count",
+          "chunk_count",
+          "document_chunk_ids_checksum"
+        ],
+        "title": "CorpusChunkSetSummary"
       },
       "CorpusCreate": {
         "properties": {
@@ -8248,7 +8800,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8330,7 +8882,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8372,7 +8924,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8480,7 +9032,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8519,7 +9071,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -8629,7 +9181,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -9055,7 +9607,7 @@
           },
           "bm25_weight": {
             "title": "Bm25 Weight",
-            "default": 0.0
+            "default": 0
           },
           "dense_k": {
             "title": "Dense K",
@@ -9117,7 +9669,7 @@
           },
           "chunk_index": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Chunk Index"
           },
           "chunk_metadata": {
@@ -9767,8 +10319,8 @@
           },
           "max_paths_per_chunk": {
             "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Max Paths Per Chunk",
             "default": 10
           },
@@ -9784,22 +10336,22 @@
           },
           "evidence_limit": {
             "type": "integer",
-            "maximum": 30.0,
-            "minimum": 1.0,
+            "maximum": 30,
+            "minimum": 1,
             "title": "Evidence Limit",
             "default": 6
           },
           "traversal_depth": {
             "type": "integer",
-            "maximum": 5.0,
-            "minimum": 1.0,
+            "maximum": 5,
+            "minimum": 1,
             "title": "Traversal Depth",
             "default": 2
           },
           "rrf_constant": {
             "type": "integer",
-            "maximum": 200.0,
-            "minimum": 1.0,
+            "maximum": 200,
+            "minimum": 1,
             "title": "Rrf Constant",
             "default": 60
           }
@@ -9846,27 +10398,27 @@
           },
           "breakpoint_threshold_amount": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Breakpoint Threshold Amount",
             "default": 90
           },
           "buffer_size": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Buffer Size",
             "default": 1
           },
           "chunk_size": {
             "type": "integer",
-            "maximum": 8000.0,
-            "minimum": 100.0,
+            "maximum": 8000,
+            "minimum": 100,
             "title": "Chunk Size",
             "default": 1000
           },
           "chunk_overlap": {
             "type": "integer",
-            "maximum": 2000.0,
-            "minimum": 0.0,
+            "maximum": 2000,
+            "minimum": 0,
             "title": "Chunk Overlap",
             "default": 200
           },
@@ -9925,13 +10477,13 @@
           },
           "total_documents": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Total Documents",
             "default": 0
           },
           "processed_documents": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Processed Documents",
             "default": 0
           },
@@ -9969,7 +10521,7 @@
           },
           "total_chunks": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Total Chunks",
             "default": 0
           },
@@ -9983,13 +10535,13 @@
           },
           "node_count": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Node Count",
             "default": 0
           },
           "relationship_count": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Relationship Count",
             "default": 0
           },
@@ -10794,7 +11346,7 @@
         "properties": {
           "rank": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Rank"
           },
           "content": {
@@ -10820,7 +11372,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -10865,7 +11417,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -10877,7 +11429,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -10938,7 +11490,7 @@
         "properties": {
           "k": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "K",
             "default": 3
           },
@@ -11007,7 +11559,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"
@@ -11030,8 +11582,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11065,8 +11617,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11078,8 +11630,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11091,8 +11643,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11104,8 +11656,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11117,8 +11669,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
+                "maximum": 1,
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -11188,18 +11740,18 @@
           },
           "progress": {
             "type": "number",
-            "maximum": 100.0,
-            "minimum": 0.0,
+            "maximum": 100,
+            "minimum": 0,
             "title": "Progress"
           },
           "completed_examples": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Completed Examples"
           },
           "total_examples": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Total Examples"
           },
           "queued_at": {
@@ -11330,7 +11882,7 @@
         "properties": {
           "configuration_id": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Configuration Id"
           }
         },
@@ -11381,18 +11933,18 @@
           },
           "progress": {
             "type": "number",
-            "maximum": 100.0,
-            "minimum": 0.0,
+            "maximum": 100,
+            "minimum": 0,
             "title": "Progress"
           },
           "completed_examples": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Completed Examples"
           },
           "total_examples": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Total Examples"
           },
           "queued_at": {
@@ -11909,7 +12461,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -12084,7 +12636,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -12303,7 +12855,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0.0
+                "minimum": 0
               },
               {
                 "type": "null"
@@ -12355,15 +12907,15 @@
           },
           "chunk_size": {
             "type": "integer",
-            "maximum": 8000.0,
-            "minimum": 100.0,
+            "maximum": 8000,
+            "minimum": 100,
             "title": "Chunk Size",
             "default": 1000
           },
           "chunk_overlap": {
             "type": "integer",
-            "maximum": 2000.0,
-            "minimum": 0.0,
+            "maximum": 2000,
+            "minimum": 0,
             "title": "Chunk Overlap",
             "default": 200
           },
@@ -12786,13 +13338,13 @@
           },
           "breakpoint_threshold_amount": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Breakpoint Threshold Amount",
             "default": 90
           },
           "buffer_size": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Buffer Size",
             "default": 1
           }
@@ -13199,7 +13751,7 @@
           },
           "learner_tavily_max_results": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Learner Tavily Max Results",
             "default": 5
           },
@@ -13485,7 +14037,7 @@
           },
           "turn_index": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Turn Index"
           },
           "agent_name": {
@@ -13495,7 +14047,7 @@
           },
           "sequence": {
             "type": "integer",
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Sequence",
             "default": 0
           },
@@ -13591,7 +14143,7 @@
           },
           "max_results": {
             "type": "integer",
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Maximum web search results",
             "default": 5
           },
@@ -14413,8 +14965,8 @@
           },
           "max_turn_count": {
             "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Max Turn Count",
             "default": 12
           },
@@ -15274,7 +15826,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 1.0
+                "minimum": 1
               },
               {
                 "type": "null"

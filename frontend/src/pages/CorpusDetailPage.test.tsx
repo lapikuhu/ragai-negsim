@@ -42,6 +42,10 @@ vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
   useCorpusIndicesQuery: () => state.indicesQuery
 }));
 
+vi.mock("@/components/corpora/CorpusBm25ArtifactsCard", () => ({
+  CorpusBm25ArtifactsCard: () => <div>BM25 artifacts</div>
+}));
+
 describe("CorpusDetailPage", () => {
   beforeEach(() => {
     state.corporaQuery.isLoading = false;

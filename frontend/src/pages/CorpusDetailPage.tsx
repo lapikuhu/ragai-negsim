@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { KeyValueList } from "@/components/common/KeyValueList";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { formatDateTime } from "@/utils/format";
+import { CorpusBm25ArtifactsCard } from "@/components/corpora/CorpusBm25ArtifactsCard";
 
 export function CorpusDetailPage() {
   const corpusId = Number(useParams().corpusId);
@@ -87,6 +88,8 @@ export function CorpusDetailPage() {
           )}
         </div>
       </Card>
+
+      <CorpusBm25ArtifactsCard corpusId={corpus.id} corpusName={corpus.name} />
     </div>
   );
 }

@@ -96,6 +96,29 @@ async def get_chunking_profile_by_name(
     return result.first()
 
 
+async def get_chunking_profile_names_by_ids(
+    profile_ids: set[int],
+    session: AsyncSession,
+) -> dict[int, str]:
+    """
+    Resolve chunking profile display names in one query.
+    
+    Args:
+        profile_ids: A set of chunking profile IDs.
+        session: The database session.
+    Returns:
+        A dictionary mapping profile IDs to their display names.
+    """
+    if not profile_ids:
+        return {}
+    result = await session.exec(
+        select(ChunkingProfile.id, ChunkingProfile.name).where(
+            ChunkingProfile.id.in_(profile_ids)
+        )
+    )
+    return {profile_id: name for profile_id, name in result.all()}
+
+
 async def ensure_chunking_profile_name_available(
     name: str,
     session: AsyncSession,

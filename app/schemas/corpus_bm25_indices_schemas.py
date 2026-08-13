@@ -10,6 +10,7 @@ class CorpusBm25IndexCreate(SQLModel):
     document_chunk_ids: list[int] = Field(default_factory=list)
     format_version: str = Field(default="pickle-zlib-v1", min_length=1)
     created_by_full_corpus_index_pipe_job_id: int | None = None #Check
+    created_by_bm25_build_job_id: int | None = None
 
 
 class CorpusBm25IndexMetadata(SQLModel):
@@ -27,3 +28,4 @@ class CorpusBm25IndexMetadata(SQLModel):
     last_updated: datetime
     build_error: str | None = None
     created_by_full_corpus_index_pipe_job_id: int | None = None #Check
+    created_by_bm25_build_job_id: int | None = None

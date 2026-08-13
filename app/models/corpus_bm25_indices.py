@@ -87,3 +87,7 @@ class CorpusBm25Index(SQLModel, table=True):
         default=None,
         foreign_key="fullcorpusindexpipejob.id",
     )
+    created_by_bm25_build_job_id: int | None = Field(
+        default=None,
+        foreign_key="corpusbm25buildjob.id",
+    )

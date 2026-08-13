@@ -1,5 +1,6 @@
 from app.core.dependencies import (
     AdminDep,
+    CorpusDep,
     ChunkingProfileDep,
     ChunkingExecutionOptionsDep,
     CorpusCreatorDep,
@@ -10,6 +11,7 @@ from app.core.dependencies import (
     WritableCorpusDep,
 )
 from app.schemas.corpus_schemas import CorpusCreate, CorpusRead
+from app.schemas.corpus_bm25_build_jobs_schemas import CorpusChunkSetSummary
 from app.schemas.chunking_schemas import CorpusChunkResult
 from app.schemas.embeddings_schemas import (
     CorpusEmbeddingBuildQueued,
@@ -18,7 +20,9 @@ from app.schemas.embeddings_schemas import (
 )
 from app.schemas.ingestion_schemas import CorpusIngestResult
 from app.services.corpus_service import (create_corpus_srvc, 
-                                     list_corpora_srvc)
+                                     list_corpora_srvc,
+                                     list_corpus_chunk_set_summaries_srvc)
+from app.services.helpers import _persisted_id
 from app.services.chunking_service import chunk_corpus_srvc
 from app.services.embeddings_service import (
     build_corpus_embeddings_srvc,
@@ -110,8 +114,33 @@ async def list_corpora(
                                       has_indices=has_indices)
     return [_serialize_corpus(corpus) for corpus in corpora]
 
+### ------------------- CORPUS CHUNK SETS LIST --------------------- ###
 
-### ------------------------ INGEST CORPUS -------------------------- ###
+@router.get("/{corpus_id}/chunk-sets", 
+            response_model=list[CorpusChunkSetSummary],
+            status_code=200)
+async def list_corpus_chunk_sets(
+    corpus: CorpusDep,
+    session: SessionDep,
+    _admin: AdminDep,
+) -> list[CorpusChunkSetSummary]:
+    """
+    List buildable persisted chunk sets for a corpus.
+
+    Args:
+        corpus: The corpus for which to list chunk sets.
+        session: The database session to use for the operation.
+        _admin: The current admin user making the request (for authorization).
+    Returns:
+        A list of CorpusChunkSetSummary instances representing the chunk sets
+        associated with the specified corpus.
+    """
+    return await list_corpus_chunk_set_summaries_srvc(
+        _persisted_id(corpus.id, "Corpus"), session
+    )
+
+
+### ------------------------ INGEST CORPUS ------------------------- ###
 @router.post(
     "/{corpus_id}/chunking-profiles/{profile_id}/ingest",
     response_model=CorpusIngestResult,

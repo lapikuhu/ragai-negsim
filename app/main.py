@@ -8,6 +8,7 @@ from app.web.routes.chunking_profiles_route import router as chunking_profiles_r
 from app.web.routes.counterpart_personas_route import router as counterpart_personas_router
 from app.web.routes.corpus_indices_route import router as corpus_indices_router
 from app.web.routes.corpus_bm25_indices_route import router as corpus_bm25_indices_router
+from app.web.routes.corpus_bm25_build_jobs_route import router as corpus_bm25_build_jobs_router
 from app.web.routes.corpus_route import router as corpus_router
 from app.web.routes.document_chunks_route import router as document_chunks_router
 from app.web.routes.embeddings_route import router as embeddings_router
@@ -44,6 +45,15 @@ async def lifespan(app: FastAPI):
     # active by an application shutdown or restart
     await fail_interrupted_full_corpus_index_pipe_jobs_srvc()
     await fail_interrupted_knowledge_graph_builds_srvc()
+    from app.services.corpus_bm25_build_jobs_service import recover_interrupted_corpus_bm25_build_jobs_srvc
+    from app.services.corpus_bm25_build_coordinator import (
+        shutdown_corpus_bm25_build_coordinator_srvc,
+        startup_corpus_bm25_build_coordinator_srvc,
+    )
+    from app.db.db import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
+        await recover_interrupted_corpus_bm25_build_jobs_srvc(session)
+    await startup_corpus_bm25_build_coordinator_srvc()
     from app.services.rag_eval_service import (
         shutdown_rag_eval_coordinator_srvc,
         startup_rag_eval_coordinator_srvc,
@@ -57,6 +67,7 @@ async def lifespan(app: FastAPI):
     try:
         yield # execution pauses here and the app starts accepting requests
     finally:
+        await shutdown_corpus_bm25_build_coordinator_srvc()
         await shutdown_rag_eval_coordinator_srvc()
         print("Shutting down application... [OK]")
 
@@ -86,6 +97,7 @@ app.include_router(chunking_profiles_router)
 app.include_router(document_chunks_router)
 app.include_router(corpus_indices_router)
 app.include_router(corpus_bm25_indices_router)
+app.include_router(corpus_bm25_build_jobs_router)
 app.include_router(corpus_router)
 app.include_router(embeddings_router)
 app.include_router(full_corpus_index_pipe_jobs_router)

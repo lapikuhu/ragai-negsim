@@ -75,6 +75,8 @@ Implemented admin pages:
 - `/rag-profiles`
 - `/knowledge-graphs`
 - `/full-corpus-index-pipe-jobs`
+- `/corpus-bm25-build-jobs`
+- `/corpora/:corpusId/chunk-sets`
 - `/vector-stores`
 - `/models`
 - `/users`
@@ -148,6 +150,9 @@ Composed or derived frontend views:
 
 - dashboard composes simulations, raw documents, and sessions from existing list endpoints while tolerating role-based `401`/`403` responses
 - corpus detail resolves display data from the corpus list and related corpus indices
+- corpus detail lists BM25 metadata and polls corpus-scoped build jobs while
+  queued or running; BM25 creation consumes an explicitly selected persisted
+  chunk set and never creates embeddings
 - evaluations page uses simulation review and completed-simulation resources
 - legacy corpus embed-job queueing returns a corpus-index polling URL, while the richer job monitor exists under the newer `/full-corpus-index-pipe-jobs` workflow
 

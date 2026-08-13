@@ -5,10 +5,13 @@ import type { CorpusBm25IndexMetadata } from "@/api/types";
 
 export const corpusBm25IndexKeys = {
   all: ["corpus-bm25-indices"] as const,
-  list: (corpusId?: number) => ["corpus-bm25-indices", { corpusId }] as const,
+  list: (corpusId?: number, status: string | null = "built") => ["corpus-bm25-indices", { corpusId, status }] as const,
 };
 
-export async function listCorpusBm25Indices(corpusId?: number) {
+export type CorpusBm25IndexListOptions = { status?: string | null };
+
+export async function listCorpusBm25Indices(corpusId?: number, options: CorpusBm25IndexListOptions = {}) {
+  const status = options.status === undefined ? "built" : options.status;
   const pageSize = 100;
   const indices: CorpusBm25IndexMetadata[] = [];
   for (let skip = 0; ; skip += pageSize) {
@@ -17,7 +20,7 @@ export async function listCorpusBm25Indices(corpusId?: number) {
         query: {
           skip,
           limit: pageSize,
-          status: "built",
+          ...(status === null ? {} : { status }),
           ...(corpusId ? { corpus_id: corpusId } : {}),
         },
       },
@@ -30,10 +33,11 @@ export async function listCorpusBm25Indices(corpusId?: number) {
   }
 }
 
-export function useCorpusBm25IndicesQuery(corpusId?: number) {
+export function useCorpusBm25IndicesQuery(corpusId?: number, options: CorpusBm25IndexListOptions = {}) {
+  const status = options.status === undefined ? "built" : options.status;
   return useQuery({
-    queryKey: corpusBm25IndexKeys.list(corpusId),
-    queryFn: () => listCorpusBm25Indices(corpusId),
+    queryKey: corpusBm25IndexKeys.list(corpusId, status),
+    queryFn: () => listCorpusBm25Indices(corpusId, { status }),
     enabled: Number.isFinite(corpusId),
   });
 }

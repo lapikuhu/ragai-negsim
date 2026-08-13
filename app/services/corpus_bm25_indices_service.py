@@ -22,6 +22,7 @@ from app.services.corpus_index_build_service import documents_from_persisted_chu
 from app.services.helpers import _persisted_id
 from app.services import simulations_service
 
+# Type hint for the generic return type of _await_durable
 _T = TypeVar("_T")
 
 
@@ -250,6 +251,10 @@ async def build_corpus_bm25_index_srvc(
     corpus_id: int,
     chunking_profile_id: int,
     session: AsyncSession,
+    expected_document_chunk_ids: list[int] | None = None,
+    created_by_bm25_build_job_id: int | None = None,
+    on_index_created: Callable[[int], Awaitable[None]] | None = None,
+    before_finalize: Callable[[], Awaitable[None]] | None = None,
     run_in_thread: Callable[..., Awaitable[bytes]] = asyncio.to_thread,
 ) -> CorpusBm25IndexMetadata:
     """
@@ -261,8 +266,19 @@ async def build_corpus_bm25_index_srvc(
         chunking_profile_id: The ID of the chunking profile.
         session: The database session to use.
         run_in_thread: A callable to run blocking operations in a thread.
+        expected_document_chunk_ids: Optional list of expected document 
+            chunk IDs to validate against the current set of persisted chunks.
+        created_by_bm25_build_job_id: Optional ID of the BM25 build job 
+            that created this index.
+        on_index_created: Optional callback to invoke when the index is 
+            created.
+        before_finalize: Optional callback to invoke before finalizing the 
+            index build.
     Returns:
         The metadata of the created BM25 index.
+    Raises:
+        ValueError: If no document chunks are found or if the expected 
+        document chunk IDs do not match the current set of persisted chunks.
     """
     # Get the persisted document chunks for the given corpus and chunking profile.
     chunks = await list_corpus_document_chunks_for_profile(
@@ -279,6 +295,13 @@ async def build_corpus_bm25_index_srvc(
     document_chunk_ids = [
         _persisted_id(chunk.id, "Document chunk") for chunk in chunks
     ]
+    if expected_document_chunk_ids is not None and sorted(document_chunk_ids) != sorted(
+        expected_document_chunk_ids
+    ):
+        raise ValueError(
+            "The corpus chunk set changed since the job was queued. "
+            "Retry to build the current snapshot."
+        )
     # Return the documents from the persisted chunks
     documents = documents_from_persisted_chunks(
         chunks,
@@ -292,6 +315,7 @@ async def build_corpus_bm25_index_srvc(
         chunking_profile_id=chunking_profile_id,
         document_chunk_ids=document_chunk_ids,
         format_version=BM25_ARTIFACT_FORMAT_VERSION,
+        created_by_bm25_build_job_id=created_by_bm25_build_job_id,
     )
     prepared_index = corpus_bm25_indices_repo.prepare_corpus_bm25_index(index_in)
     index_id: int | None = None
@@ -311,6 +335,8 @@ async def build_corpus_bm25_index_srvc(
             prepared_index=prepared_index,
         )
         index_id = _persisted_id(index.id, "Corpus BM25 index")
+        if on_index_created is not None:
+            await on_index_created(index_id)
 
     def recover_index_id() -> int | None:
         """
@@ -334,6 +360,8 @@ async def build_corpus_bm25_index_srvc(
             )
         )
         artifact = await run_in_thread(_build_serialize_and_validate_bm25, documents)
+        if before_finalize is not None:
+            await before_finalize()
         # Mark the index as built and persist the artifact and document chunk ids
         return await _await_durable(
             corpus_bm25_indices_repo.mark_corpus_bm25_index_built(
@@ -362,3 +390,48 @@ async def build_corpus_bm25_index_srvc(
             except Exception:
                 pass
         raise
+
+
+async def build_corpus_bm25_index_from_snapshot_srvc(
+    *,
+    name: str,
+    corpus_id: int,
+    chunking_profile_id: int,
+    document_chunk_ids: list[int],
+    created_by_bm25_build_job_id: int,
+    session: AsyncSession,
+    on_index_created: Callable[[int], Awaitable[None]] | None = None,
+    before_finalize: Callable[[], Awaitable[None]] | None = None,
+) -> CorpusBm25IndexMetadata:
+    """
+    Build BM25 only if the corpus/profile still matches a queued snapshot.
+    Args:
+        name: The name of the BM25 index to create.
+        corpus_id: The ID of the corpus.
+        chunking_profile_id: The ID of the chunking profile.
+        document_chunk_ids: The list of document chunk IDs to include in 
+            the index.
+        created_by_bm25_build_job_id: The ID of the BM25 build job that 
+            triggered this index creation.
+        session: The database session to use.
+        on_index_created: Optional callback to invoke when the index is 
+            created.
+        before_finalize: Optional callback to invoke before finalizing the 
+            index build.
+
+    Returns:
+        CorpusBm25IndexMetadata: Metadata of the created BM25 index.
+
+    Raises:
+        ValueError: If no document chunks are found or if the expected document chunk IDs do not match the current set of persisted chunks.
+    """
+    return await build_corpus_bm25_index_srvc(
+        name=name,
+        corpus_id=corpus_id,
+        chunking_profile_id=chunking_profile_id,
+        expected_document_chunk_ids=document_chunk_ids,
+        created_by_bm25_build_job_id=created_by_bm25_build_job_id,
+        on_index_created=on_index_created,
+        before_finalize=before_finalize,
+        session=session,
+    )

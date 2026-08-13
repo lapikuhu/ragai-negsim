@@ -52,4 +52,16 @@ describe("BM25 index metadata requests", () => {
       },
     });
   });
+
+  it("can request every artifact status for corpus detail", async () => {
+    vi.mocked(apiClient.GET).mockResolvedValueOnce({
+      data: [], error: undefined, response: new Response(null, { status: 200 }),
+    } as never);
+
+    await listCorpusBm25Indices(11, { status: null });
+
+    expect(apiClient.GET).toHaveBeenCalledWith("/corpus-bm25-indices/", {
+      params: { query: { skip: 0, limit: 100, corpus_id: 11 } },
+    });
+  });
 });

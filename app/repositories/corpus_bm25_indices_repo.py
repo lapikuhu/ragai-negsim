@@ -105,6 +105,7 @@ def _corpus_bm25_index_metadata_statement():
         CorpusBm25Index.last_updated,
         CorpusBm25Index.build_error,
         CorpusBm25Index.created_by_full_corpus_index_pipe_job_id,
+        CorpusBm25Index.created_by_bm25_build_job_id,
     )
 
 
@@ -131,6 +132,7 @@ def _corpus_bm25_index_metadata_columns():
         CorpusBm25Index.last_updated,
         CorpusBm25Index.build_error,
         CorpusBm25Index.created_by_full_corpus_index_pipe_job_id,
+        CorpusBm25Index.created_by_bm25_build_job_id,
     )
 
 

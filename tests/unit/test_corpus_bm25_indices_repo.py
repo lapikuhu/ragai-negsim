@@ -40,6 +40,7 @@ def _metadata_row(index: CorpusBm25Index, *, status: str | None = None):
             "last_updated": index.last_updated,
             "build_error": index.build_error,
             "created_by_full_corpus_index_pipe_job_id": index.created_by_full_corpus_index_pipe_job_id,
+            "created_by_bm25_build_job_id": index.created_by_bm25_build_job_id,
         }
     )
 
@@ -64,6 +65,7 @@ def test_bm25_artifact_table_has_required_postgres_schema_and_safe_defaults():
         "last_updated",
         "build_error",
         "created_by_full_corpus_index_pipe_job_id",
+        "created_by_bm25_build_job_id",
     } <= set(table.c.keys())
     assert table.c.name.unique is True
     assert table.c.artifact.nullable is True
@@ -75,6 +77,7 @@ def test_bm25_artifact_table_has_required_postgres_schema_and_safe_defaults():
         "corpus.id",
         "chunkingprofile.id",
         "fullcorpusindexpipejob.id",
+        "corpusbm25buildjob.id",
     }
     status_constraint = next(
         constraint
@@ -124,6 +127,7 @@ def test_metadata_dto_and_statement_never_materialize_artifact_bytes():
         last_updated=datetime(2026, 7, 28, tzinfo=timezone.utc),
         build_error=None,
         created_by_full_corpus_index_pipe_job_id=None,
+        created_by_bm25_build_job_id=None,
     )
 
     assert "artifact" not in metadata.model_dump()

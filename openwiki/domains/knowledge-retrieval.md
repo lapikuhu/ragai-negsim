@@ -80,6 +80,16 @@ explicit negotiation-graph cache clear or a process restart. A restart clears
 the process-local graph cache and forces the persisted artifact to be loaded
 again when next used.
 
+Administrators can queue a dedicated persistent BM25 build job from corpus
+detail. The job snapshots the exact persisted document-chunk IDs for the
+selected corpus and chunking profile, then the single application-owned FIFO
+coordinator validates that snapshot before building. A changed snapshot fails
+instead of silently indexing newer chunks. Queued jobs survive restart;
+interrupted running jobs and any linked in-progress artifacts are marked
+failed. The job boundary is intentionally reusable by a later **Build also
+BM25** option in the Full Corpus Index Pipe, but that option is not part of the
+current workflow.
+
 The frontend derives dense-only, BM25-only, and hybrid artifact selectors from
 the selected CRAG profile. It lists BM25 artifact metadata through the
 admin-only `GET /corpus-bm25-indices/` endpoint; serialized artifact bytes are
@@ -87,10 +97,22 @@ never returned. That endpoint now also powers the BM25 corpus index picker in
 simulation and RAG profile workflows, so the UI can expose only built BM25
 artifacts when a profile asks for them. Hybrid choices are prefiltered by
 corpus, build status, chunking profile, and document count, while FastAPI
-remains authoritative for the exact document-chunk checksum match. If a future
-full-corpus-index-pipe job materializes BM25, its API must make that choice
-explicit with `build_bm25: bool` or `artifact_mode: "dense" | "bm25" | "both"`;
-neither option is added by the current backend migration.
+remains authoritative for the exact document-chunk checksum match.
+
+Administrators can also queue a dedicated corpus-scoped BM25 build job from the
+corpus detail page. The new workflow snapshots the exact persisted document
+chunk IDs for a selected corpus and chunking profile, verifies that snapshot
+before build time, and then persists a BM25 artifact through the same
+`/corpus-bm25-indices/` artifact model. The job API supports queue, list, get,
+cancel, and retry; the backend coordinator wakes on queue/retry and processes
+one job at a time in the application process. Corpus detail now exposes a
+persisted chunk-set summary, existing BM25 artifacts, and build-job history so
+operators can choose a stable chunk snapshot instead of relying on the broader
+full-corpus index pipe.
+
+If a future full-corpus-index-pipe job materializes BM25, its API must make
+that choice explicit with `build_bm25: bool` or `artifact_mode: "dense" |
+"bm25" | "both"`; neither option is added by the current backend migration.
 
 ### GraphRAG
 GraphRAG uses a knowledge graph backed by Neo4j. It can retrieve evidence through semantic graph search, validated text-to-Cypher, or a hybrid ranking strategy.

@@ -202,6 +202,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/corpora/{corpus_id}/chunk-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Corpus Chunk Sets
+         * @description List buildable persisted chunk sets for a corpus.
+         */
+        get: operations["list_corpus_chunk_sets_corpora__corpus_id__chunk_sets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/corpora/{corpus_id}/chunking-profiles/{profile_id}/chunk": {
         parameters: {
             query?: never;
@@ -326,6 +346,75 @@ export type paths = {
          *         be queued.
          */
         post: operations["queue_embed_corpus_job_corpora__corpus_id__chunking_profiles__profile_id__vector_stores__vector_store_id__embed_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/corpus-bm25-build-jobs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Corpus Bm25 Build Jobs */
+        get: operations["list_corpus_bm25_build_jobs_corpus_bm25_build_jobs__get"];
+        put?: never;
+        /** Queue Corpus Bm25 Build Job */
+        post: operations["queue_corpus_bm25_build_job_corpus_bm25_build_jobs__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/corpus-bm25-build-jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Corpus Bm25 Build Job */
+        get: operations["get_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/corpus-bm25-build-jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Corpus Bm25 Build Job */
+        post: operations["cancel_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/corpus-bm25-build-jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Corpus Bm25 Build Job */
+        post: operations["retry_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__retry_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1479,6 +1568,14 @@ export type paths = {
         /**
          * Export Run
          * @description Download a completed RAG evaluation run summary.
+         *
+         *     Args:
+         *         id: The ID of the run to export.
+         *         session: The database session.
+         *         _admin: The admin performing the action.
+         *         export_format: The format of the export.
+         *         report: The type of report to generate (currently only "summary" is
+         *         supported).
          */
         get: operations["export_run_rag_eval_runs__id__export_get"];
         put?: never;
@@ -2960,6 +3057,58 @@ export type components = {
             /** Content */
             content: string;
         };
+        /** CorpusBm25BuildJobQueueRequest */
+        CorpusBm25BuildJobQueueRequest: {
+            /** Chunking Profile Id */
+            chunking_profile_id: number;
+            /** Corpus Id */
+            corpus_id: number;
+            /** Requested Artifact Name */
+            requested_artifact_name: string;
+        };
+        /** CorpusBm25BuildJobRead */
+        CorpusBm25BuildJobRead: {
+            /** Cancel Requested */
+            cancel_requested: boolean;
+            /** Chunk Count */
+            chunk_count: number;
+            /** Chunking Profile Id */
+            chunking_profile_id: number;
+            /** Completed At */
+            completed_at?: string | null;
+            /** Corpus Id */
+            corpus_id: number;
+            /** Distinct Document Count */
+            distinct_document_count: number;
+            /** Document Chunk Ids Checksum */
+            document_chunk_ids_checksum: string;
+            /** Failure Detail */
+            failure_detail?: string | null;
+            /** Id */
+            id: number;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /** Requested Artifact Name */
+            requested_artifact_name: string;
+            /** Requested By User Id */
+            requested_by_user_id: number;
+            /** Result Bm25 Index Id */
+            result_bm25_index_id?: number | null;
+            /** Stage */
+            stage: string;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
+        };
+        /** CorpusBm25BuildJobRetryRequest */
+        CorpusBm25BuildJobRetryRequest: {
+            /** Requested Artifact Name */
+            requested_artifact_name?: string | null;
+        };
         /** CorpusBm25IndexMetadata */
         CorpusBm25IndexMetadata: {
             /** Build Error */
@@ -2977,6 +3126,8 @@ export type components = {
              * Format: date-time
              */
             created_at: string;
+            /** Created By Bm25 Build Job Id */
+            created_by_bm25_build_job_id?: number | null;
             /** Created By Full Corpus Index Pipe Job Id */
             created_by_full_corpus_index_pipe_job_id?: number | null;
             /** Document Chunk Ids Checksum */
@@ -3017,6 +3168,19 @@ export type components = {
             preview: boolean;
             /** Raw Documents */
             raw_documents?: components["schemas"]["RawDocumentChunkResult"][];
+        };
+        /** CorpusChunkSetSummary */
+        CorpusChunkSetSummary: {
+            /** Chunk Count */
+            chunk_count: number;
+            /** Chunking Profile Id */
+            chunking_profile_id: number;
+            /** Chunking Profile Name */
+            chunking_profile_name: string;
+            /** Distinct Document Count */
+            distinct_document_count: number;
+            /** Document Chunk Ids Checksum */
+            document_chunk_ids_checksum: string;
         };
         /** CorpusCreate */
         CorpusCreate: {
@@ -5780,6 +5944,37 @@ export interface operations {
             };
         };
     };
+    list_corpus_chunk_sets_corpora__corpus_id__chunk_sets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                corpus_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorpusChunkSetSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chunk_corpus_corpora__corpus_id__chunking_profiles__profile_id__chunk_post: {
         parameters: {
             query?: {
@@ -5910,6 +6105,170 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CorpusEmbeddingBuildQueued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_corpus_bm25_build_jobs_corpus_bm25_build_jobs__get: {
+        parameters: {
+            query?: {
+                corpus_id?: number | null;
+                limit?: number;
+                skip?: number;
+                status?: ("queued" | "running" | "completed" | "failed" | "cancelled") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorpusBm25BuildJobRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    queue_corpus_bm25_build_job_corpus_bm25_build_jobs__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorpusBm25BuildJobQueueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorpusBm25BuildJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorpusBm25BuildJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorpusBm25BuildJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorpusBm25BuildJobRetryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorpusBm25BuildJobRead"];
                 };
             };
             /** @description Validation Error */
@@ -7568,8 +7927,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "text/csv": unknown;
                     "application/json": unknown;
+                    "text/csv": unknown;
                 };
             };
             /** @description Validation Error */

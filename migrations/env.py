@@ -9,6 +9,8 @@ from sqlmodel import SQLModel
 from app.core.config import settings
 from app.models import chunking_profiles  # noqa: F401
 from app.models import corpus  # noqa: F401
+from app.models import corpus_bm25_build_jobs  # noqa: F401
+from app.models import corpus_bm25_indices  # noqa: F401
 from app.models import corpus_indices  # noqa: F401
 from app.models import counterpart_personas  # noqa: F401
 from app.models import document_chunks  # noqa: F401

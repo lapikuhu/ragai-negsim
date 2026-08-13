@@ -116,6 +116,10 @@ export type SessionRead = components["schemas"]["SessionRead"];
 export type CorpusRead = components["schemas"]["CorpusRead"];
 export type CorpusIndexRead = components["schemas"]["CorpusIndexReadWithIds"];
 export type CorpusBm25IndexMetadata = components["schemas"]["CorpusBm25IndexMetadata"];
+export type CorpusBm25BuildJobQueueRequest = components["schemas"]["CorpusBm25BuildJobQueueRequest"];
+export type CorpusBm25BuildJobRead = components["schemas"]["CorpusBm25BuildJobRead"];
+export type CorpusBm25BuildJobRetryRequest = components["schemas"]["CorpusBm25BuildJobRetryRequest"];
+export type CorpusChunkSetSummary = components["schemas"]["CorpusChunkSetSummary"];
 export type ChunkingProfileRead = components["schemas"]["ChunkingProfileReadWithIds"];
 export type RagProfileRead = components["schemas"]["RagProfileReadWithIds"] & {
   knowledge_graph_index_id?: number | null;

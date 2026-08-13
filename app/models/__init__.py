@@ -1,6 +1,7 @@
 from . import chunking_profiles
 from . import corpus
 from . import corpus_bm25_indices
+from . import corpus_bm25_build_jobs
 from . import corpus_indices
 from . import counterpart_personas
 from . import document_chunks
@@ -25,6 +26,7 @@ __all__ = [
     "chunking_profiles",
     "corpus",
     "corpus_bm25_indices",
+    "corpus_bm25_build_jobs",
     "corpus_indices",
     "counterpart_personas",
     "document_chunks",
