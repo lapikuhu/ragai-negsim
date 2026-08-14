@@ -18,7 +18,7 @@ The router is organized into three main access tiers:
 This mirrors the backend's authorization model and makes the UI a useful map of the product surface.
 
 ## Important pages
-- `SimulationsPage.tsx` and `SimulationCockpitPage.tsx` are the primary learner workflow pages. Simulation creation places the RAG profile after the corpus and derives its required artifact bindings from that profile: dense CRAG requires a built dense index, BM25 CRAG requires a built BM25 index, hybrid CRAG requires both compatible artifacts, and GraphRAG retains its graph-bound dense index behavior.
+- `SimulationsPage.tsx` and `SimulationCockpitPage.tsx` are the primary learner workflow pages. Simulation creation places the RAG profile after the corpus and requests backend-authoritative retrieval options for CRAG profiles: dense CRAG requires a built dense index, BM25 CRAG requires a built BM25 index, hybrid CRAG requires one returned compatible pair, and GraphRAG retains its graph-bound dense index behavior.
 - `DocumentsPage.tsx`, `DocumentDetailPage.tsx`, and `DocumentChunksPage.tsx` cover document and chunk management.
 - `NotFoundPage.tsx` handles unknown routes and returns users to the dashboard.
 - `CorporaPage.tsx` and `CorpusDetailPage.tsx` cover corpus management.
@@ -35,7 +35,9 @@ This mirrors the backend's authorization model and makes the UI a useful map of 
 - `KnowledgeGraphsPage.tsx`, `FullCorpusIndexPipeJobsPage.tsx`, and `VectorStoresPage.tsx` support the retrieval infrastructure.
 
 ## Data and API wiring
-The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows. The BM25 metadata query uses the admin-only `GET /corpus-bm25-indices/` list endpoint and never requests serialized artifact bytes. The new `RagProfileDefinitionFields` component centralizes CRAG field rendering, retrieval-mode badges, and mode-dependent disabling so Rag Profiles and evaluation forms stay aligned with the backend's dense, BM25, and hybrid artifact rules.
+The frontend consumes an OpenAPI-generated schema and typed API helpers under `frontend/src/api/`. TanStack Query features are used for list/detail fetching, invalidation, and mutation workflows. Corpus-detail BM25 management uses the admin-only `GET /corpus-bm25-indices/` metadata endpoint, while simulation creation uses the authenticated `GET /simulations/retrieval-options` endpoint and never requests serialized artifact bytes. The `RagProfileDefinitionFields` component centralizes CRAG field rendering, retrieval-mode badges, and mode-dependent disabling so Rag Profiles and evaluation forms stay aligned with the backend's dense, BM25, and hybrid artifact rules.
+
+Hybrid simulation selection is two-stage and symmetric. Before selection, both dropdowns show all artifacts participating in at least one backend-returned pair. Selecting a dense index filters BM25 choices, and selecting BM25 first filters dense choices. Loading, empty, request-error, retry, and stale-create states keep submission disabled or reconcile only invalid selections; GraphRAG bypasses this CRAG query and keeps its existing locked graph binding.
 
 The RAG Evaluation query layer requests the latest run independently for each visible configuration with a filtered `limit=1` request. Queued and running runs poll every two seconds, while terminal runs stop polling. History is filtered by configuration and paginated in pages of 20. A run whose latest state is `running` with stage `cleanup_pending` produces a distinct warning that queue execution is blocked until automatic GraphRAG cleanup retries succeed, and the form submission path now blocks duplicate in-flight submissions.
 

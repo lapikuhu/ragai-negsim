@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/api/client";
 import { CorpusBm25ArtifactsCard } from "./CorpusBm25ArtifactsCard";
 
 const state = vi.hoisted(() => ({
@@ -34,7 +35,10 @@ describe("CorpusBm25ArtifactsCard", () => {
     state.artifacts.data = [];
     state.chunkSets.data = [];
     state.jobs.data = [];
-    vi.clearAllMocks();
+    state.queue.mutateAsync.mockReset();
+    state.queue.mutateAsync.mockResolvedValue(undefined);
+    state.cancel.mutateAsync.mockReset();
+    state.retry.mutateAsync.mockReset();
   });
 
   it("lists multiple artifacts and keeps the build action available", () => {
@@ -64,5 +68,25 @@ describe("CorpusBm25ArtifactsCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Build BM25 artifact" }));
     expect(screen.getByText(/BM25 requires persisted chunks/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Full Corpus Index Pipe" })).toHaveAttribute("href", "/full-corpus-index-pipe-jobs");
+  });
+
+  it("shows the API detail when queueing a build fails", async () => {
+    state.chunkSets.data = [
+      { chunking_profile_id: 3, chunking_profile_name: "recursive", distinct_document_count: 2, chunk_count: 8, document_chunk_ids_checksum: "a".repeat(64) },
+    ];
+    state.queue.mutateAsync.mockRejectedValue(
+      new ApiError("Unable to manage BM25 build", 409, {
+        detail: "No persisted chunks are available for this corpus and chunking profile",
+      }),
+    );
+
+    renderCard();
+    await userEvent.click(screen.getByRole("button", { name: "Build BM25 artifact" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Chunk set" }), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Queue BM25 build" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No persisted chunks are available for this corpus and chunking profile",
+    );
   });
 });

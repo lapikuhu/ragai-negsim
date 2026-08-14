@@ -90,14 +90,24 @@ failed. The job boundary is intentionally reusable by a later **Build also
 BM25** option in the Full Corpus Index Pipe, but that option is not part of the
 current workflow.
 
-The frontend derives dense-only, BM25-only, and hybrid artifact selectors from
-the selected CRAG profile. It lists BM25 artifact metadata through the
-admin-only `GET /corpus-bm25-indices/` endpoint; serialized artifact bytes are
-never returned. That endpoint now also powers the BM25 corpus index picker in
-simulation and RAG profile workflows, so the UI can expose only built BM25
-artifacts when a profile asks for them. Hybrid choices are prefiltered by
-corpus, build status, chunking profile, and document count, while FastAPI
-remains authoritative for the exact document-chunk checksum match.
+Simulation creation discovers CRAG artifact choices through the authenticated
+`GET /simulations/retrieval-options` endpoint. The backend resolves the
+selected profile's dense-only, BM25-only, or hybrid mode and returns only safe
+option metadata. Hybrid responses contain the exact compatible-pair matrix
+computed from corpus, build state, chunking profile, chunk count, and
+document-chunk checksum. Simulation create-time validation uses the same
+compatibility rule and remains authoritative if an option response becomes
+stale. Serialized BM25 artifact bytes and chunk content are never returned.
+Corpus-detail administration continues to list safe artifact metadata through
+the admin-only `GET /corpus-bm25-indices/` endpoint; that management endpoint
+is no longer used to derive simulation compatibility.
+
+The simulation UI renders that backend contract in two stages. Initially both
+hybrid dropdowns contain every artifact participating in at least one pair.
+Selecting either artifact filters the other dropdown to its compatible
+neighbors; compatible selections are preserved and incompatible or stale
+selections are cleared. GraphRAG continues to use its knowledge-graph-bound
+dense index and does not call this CRAG endpoint.
 
 Administrators can also queue a dedicated corpus-scoped BM25 build job from the
 corpus detail page. The new workflow snapshots the exact persisted document

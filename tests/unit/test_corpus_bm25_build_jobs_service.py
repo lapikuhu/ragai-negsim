@@ -30,7 +30,7 @@ async def test_queue_snapshots_sorted_chunk_ids(monkeypatch):
         failure_detail=None,
         **value.model_dump(),
     ))
-    monkeypatch.setattr(service.repository, "create_corpus_bm25_build_job", created)
+    monkeypatch.setattr(service.corpus_bm25_build_jobs_repo, "create_corpus_bm25_build_job", created)
 
     result = await service.queue_corpus_bm25_build_job_srvc(
         CorpusBm25BuildJobQueueRequest(
@@ -59,7 +59,7 @@ async def test_execution_rejects_stale_snapshot_without_building(monkeypatch):
         cancel_requested=False,
         status="running",
     )
-    monkeypatch.setattr(service.repository, "get_corpus_bm25_build_job_by_id", AsyncMock(return_value=job))
+    monkeypatch.setattr(service.corpus_bm25_build_jobs_repo, "get_corpus_bm25_build_job_by_id", AsyncMock(return_value=job))
     monkeypatch.setattr(
         service.document_chunks_repo,
         "list_corpus_document_chunks_for_profile",
@@ -76,7 +76,7 @@ async def test_execution_rejects_stale_snapshot_without_building(monkeypatch):
         completed_at=service.datetime.now(service.timezone.utc),
         result_bm25_index_id=None,
     ))
-    monkeypatch.setattr(service.repository, "mark_corpus_bm25_build_job_failed", failed)
+    monkeypatch.setattr(service.corpus_bm25_build_jobs_repo, "mark_corpus_bm25_build_job_failed", failed)
     build = AsyncMock()
     monkeypatch.setattr(service, "build_corpus_bm25_index_from_snapshot_srvc", build)
 

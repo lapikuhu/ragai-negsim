@@ -180,6 +180,41 @@ async def test_metadata_list_is_deterministically_paginated_after_filtering():
 
 
 @pytest.mark.asyncio
+async def test_built_simulation_candidates_are_unpaginated_and_metadata_only():
+    _require_bm25_persistence()
+
+    class FakeResult:
+        def all(self):
+            return []
+
+    class RecordingSession:
+        statement = None
+
+        async def exec(self, statement):
+            self.statement = statement
+            return FakeResult()
+
+    session = RecordingSession()
+
+    result = (
+        await corpus_bm25_indices_repo.list_built_corpus_bm25_index_metadata_for_corpus(
+            44,
+            session,
+        )
+    )
+
+    assert result == []
+    statement = session.statement
+    assert statement._limit_clause is None
+    assert statement._offset_clause is None
+    assert list(statement._order_by_clauses) == [CorpusBm25Index.id]
+    assert "artifact" not in statement.selected_columns.keys()
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "corpusbm25index.corpus_id" in sql
+    assert "corpusbm25index.status" in sql
+
+
+@pytest.mark.asyncio
 async def test_stale_lifecycle_object_cannot_overwrite_current_status(monkeypatch):
     _require_bm25_persistence()
     stale_index = CorpusBm25Index(

@@ -12,6 +12,7 @@ import type {
   SimulationProxyTurnResponse,
   SimulationRead,
   SimulationReadWithState,
+  SimulationRetrievalOptionsResponse,
   SimulationStartRequest,
   SimulationTurnResponse
 } from "@/api/types";
@@ -24,7 +25,9 @@ export const simulationKeys = {
   completed: (skip: number, limit: number) => ["simulations", "completed", skip, limit] as const,
   detail: (simulationId: number) => ["simulations", simulationId] as const,
   reviewed: (skip: number, limit: number) => ["simulations", "reviewed", skip, limit] as const,
-  state: (simulationId: number) => ["simulations", simulationId, "state"] as const
+  state: (simulationId: number) => ["simulations", simulationId, "state"] as const,
+  retrievalOptions: (corpusId: number, ragProfileId: number) =>
+    ["simulations", "retrieval-options", corpusId, ragProfileId] as const
 };
 
 export async function listSimulations() {
@@ -44,6 +47,19 @@ export async function getSimulationState(simulationId: number) {
     params: { path: { simulation_id: simulationId } }
   });
   return unwrapResult<SimulationReadWithState>(result, "Unable to load simulation state");
+}
+
+export async function getSimulationRetrievalOptions(
+  corpusId: number,
+  ragProfileId: number,
+) {
+  const result = await apiClient.GET("/simulations/retrieval-options", {
+    params: { query: { corpus_id: corpusId, rag_profile_id: ragProfileId } }
+  });
+  return unwrapResult<SimulationRetrievalOptionsResponse>(
+    result,
+    "Unable to load retrieval options"
+  );
 }
 
 async function listReviewedSimulations(skip: number, limit: number) {
@@ -206,6 +222,18 @@ export function useSimulationStateQuery(simulationId: number) {
     queryKey: simulationKeys.state(simulationId),
     queryFn: () => getSimulationState(simulationId),
     enabled: Number.isFinite(simulationId)
+  });
+}
+
+export function useSimulationRetrievalOptionsQuery(
+  corpusId?: number,
+  ragProfileId?: number,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: simulationKeys.retrievalOptions(corpusId ?? 0, ragProfileId ?? 0),
+    queryFn: () => getSimulationRetrievalOptions(corpusId!, ragProfileId!),
+    enabled: enabled && corpusId !== undefined && ragProfileId !== undefined
   });
 }
 

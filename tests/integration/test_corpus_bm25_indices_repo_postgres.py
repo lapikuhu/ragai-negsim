@@ -6,27 +6,15 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.corpus_bm25_indices import CorpusBm25Index
 from app.repositories import corpus_bm25_indices_repo
 from app.schemas.corpus_bm25_indices_schemas import CorpusBm25IndexCreate
 
 
 @pytest_asyncio.fixture
-async def corpus_bm25_async_engine(migrated_async_engine):
-    async with migrated_async_engine.begin() as connection:
-        await connection.run_sync(CorpusBm25Index.__table__.create, checkfirst=True)
-    try:
-        yield migrated_async_engine
-    finally:
-        async with migrated_async_engine.begin() as connection:
-            await connection.run_sync(CorpusBm25Index.__table__.drop, checkfirst=True)
-
-
-@pytest_asyncio.fixture
-async def corpus_bm25_parent_rows(corpus_bm25_async_engine):
+async def corpus_bm25_parent_rows(migrated_async_engine):
     suffix = uuid4().hex
     session_factory = async_sessionmaker(
-        corpus_bm25_async_engine,
+        migrated_async_engine,
         class_=AsyncSession,
         expire_on_commit=False,
     )

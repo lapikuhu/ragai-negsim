@@ -8,6 +8,29 @@ from app.schemas.evidence_ledger_schemas import SimulationEvidenceLedgerRead
 
 SimulationStatus = Literal["created", "active", "paused", "completed", "cancelled", "failed"]
 SimulationSide = Literal["side_a", "side_b"]
+SimulationRetrievalMode = Literal["dense", "bm25", "hybrid"]
+
+
+class SimulationRetrievalIndexOption(SQLModel):
+    id: int
+    name: str
+
+
+class SimulationRetrievalCompatiblePair(SQLModel):
+    """
+    Simulation retrieval compatible pair for building a hybrid RAG index.
+    """
+    corpus_index_id: int
+    bm25_index_id: int
+
+
+class SimulationRetrievalOptionsResponse(SQLModel):
+    mode: SimulationRetrievalMode
+    dense_indices: list[SimulationRetrievalIndexOption] = Field(default_factory=list)
+    bm25_indices: list[SimulationRetrievalIndexOption] = Field(default_factory=list)
+    compatible_pairs: list[SimulationRetrievalCompatiblePair] = Field(
+        default_factory=list
+    )
 
 
 class NegotiationStateSchema(SQLModel):

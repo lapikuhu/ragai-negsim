@@ -11,7 +11,7 @@ from app.schemas.simulations_schemas import (
     SimulationUpdate,
     SimulationUpdateRequest,
 )
-from app.services import simulations_service
+from app.services import simulation_retrieval_options_service, simulations_service
 from app.web.routes.simulations_route import router as simulations_router
 
 
@@ -60,6 +60,7 @@ def explicit_binding_dependencies(monkeypatch):
             id=corpus_index_id,
             corpus_id=corpus_id,
             chunking_profile_id=9,
+            status="built",
         )
 
     async def get_bm25(corpus_id, bm25_index_id, session):
@@ -68,8 +69,12 @@ def explicit_binding_dependencies(monkeypatch):
             id=bm25_index_id,
             corpus_id=corpus_id,
             chunking_profile_id=9,
+            status="built",
             document_count=2,
-            document_chunk_ids_checksum="chunk-snapshot",
+            document_chunk_ids_checksum=(
+                "d5f84c51467916769802ee29e3ddc9f44b94f2effee90494a6a1511fc916e51e"
+            ),
+            compressed_artifact_checksum="artifact-checksum",
         )
 
     async def get_chunk_ids(corpus_index_id, session):
@@ -81,11 +86,6 @@ def explicit_binding_dependencies(monkeypatch):
         simulations_service.indexed_chunks_repo,
         "get_document_chunk_ids_by_corpus_index_id",
         get_chunk_ids,
-    )
-    monkeypatch.setattr(
-        simulations_service.corpus_bm25_indices_repo,
-        "document_chunk_ids_checksum",
-        lambda chunk_ids: "chunk-snapshot",
     )
     return calls
 
@@ -158,6 +158,36 @@ def test_read_schema_preserves_selected_ids_without_artifact_payloads():
     assert payload["corpus_index_id"] is None
     assert payload["bm25_index_id"] == 202
     assert not {"artifact", "bm25_artifact", "compressed_artifact_data"} & set(payload)
+
+
+@pytest.mark.asyncio
+async def test_hybrid_create_validation_delegates_to_shared_pair_validator(
+    monkeypatch,
+    explicit_binding_dependencies,
+):
+    captured = {}
+
+    def ensure_pair(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(
+        simulation_retrieval_options_service,
+        "ensure_hybrid_indices_compatible",
+        ensure_pair,
+    )
+
+    await simulations_service._validate_crag_retrieval_bindings(
+        corpus_id=44,
+        corpus_index_id=101,
+        bm25_index_id=202,
+        rag_profile=_crag_profile(0.5),
+        session=object(),
+    )
+
+    assert captured["corpus_id"] == 44
+    assert captured["corpus_index"].id == 101
+    assert captured["bm25_index"].id == 202
+    assert captured["dense_chunk_ids"] == [71, 72]
 
 
 @pytest.mark.asyncio

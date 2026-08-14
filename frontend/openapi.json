@@ -1647,6 +1647,7 @@
           "corpus-bm25-build-jobs"
         ],
         "summary": "Queue Corpus Bm25 Build Job",
+        "description": "Queue a new corpus BM25 build job.\n\nArgs:\n    request (CorpusBm25BuildJobQueueRequest): The request body containing \n        the details of the corpus BM25 build job to be queued.\n    session (SessionDep): The database session dependency.\n    admin (AdminDep): The admin dependency for authorization.\nReturns:\n    CorpusBm25BuildJobRead: The details of the queued corpus BM25 \n    build job.",
         "operationId": "queue_corpus_bm25_build_job_corpus_bm25_build_jobs__post",
         "security": [
           {
@@ -1691,6 +1692,7 @@
           "corpus-bm25-build-jobs"
         ],
         "summary": "List Corpus Bm25 Build Jobs",
+        "description": "List corpus BM25 build jobs.\n\nArgs:\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency for authorization.\n    page (Page): Pagination information.\n    corpus_id (int | None): Filter by corpus ID.\n    status_filter (Literal[\"queued\", \"running\", \"completed\", \"failed\", \n        \"cancelled\"] | None): Filter by job status.\nReturns:\n    list[CorpusBm25BuildJobRead]: A list of corpus BM25 build jobs.",
         "operationId": "list_corpus_bm25_build_jobs_corpus_bm25_build_jobs__get",
         "security": [
           {
@@ -1795,6 +1797,7 @@
           "corpus-bm25-build-jobs"
         ],
         "summary": "Get Corpus Bm25 Build Job",
+        "description": "Get a corpus BM25 build job by its ID.\n\nArgs:\n    job_id (int): The ID of the corpus BM25 build job to retrieve.\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency for authorization.\nReturns:\n    CorpusBm25BuildJobRead | None: The details of the corpus BM25 build \n    job.",
         "operationId": "get_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__get",
         "security": [
           {
@@ -1842,6 +1845,7 @@
           "corpus-bm25-build-jobs"
         ],
         "summary": "Cancel Corpus Bm25 Build Job",
+        "description": "Cancel a corpus BM25 build job by its ID.\n\nArgs:\n    job_id (int): The ID of the corpus BM25 build job to cancel.\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency for authorization.\nReturns:\n    CorpusBm25BuildJobRead: The details of the cancelled corpus BM25 \n    build job.",
         "operationId": "cancel_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__cancel_post",
         "security": [
           {
@@ -1889,6 +1893,7 @@
           "corpus-bm25-build-jobs"
         ],
         "summary": "Retry Corpus Bm25 Build Job",
+        "description": "Retry a corpus BM25 build job by its ID.\n\nArgs:\n    job_id (int): The ID of the corpus BM25 build job to retry.\n    request (CorpusBm25BuildJobRetryRequest): The retry request payload.\n    session (SessionDep): The database session dependency.\n    admin (AdminDep): The admin dependency for authorization.\nReturns:\n    CorpusBm25BuildJobRead: The details of the retried corpus BM25 \n    build job.",
         "operationId": "retry_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__retry_post",
         "security": [
           {
@@ -2102,7 +2107,7 @@
           "corpora"
         ],
         "summary": "List Corpus Chunk Sets",
-        "description": "List buildable persisted chunk sets for a corpus.",
+        "description": "List buildable persisted chunk sets for a corpus.\n\nArgs:\n    corpus: The corpus for which to list chunk sets.\n    session: The database session to use for the operation.\n    _admin: The current admin user making the request (for authorization).\nReturns:\n    A list of CorpusChunkSetSummary instances representing the chunk sets\n    associated with the specified corpus.",
         "operationId": "list_corpus_chunk_sets_corpora__corpus_id__chunk_sets_get",
         "security": [
           {
@@ -6224,6 +6229,63 @@
                     "$ref": "#/components/schemas/SimulationRead"
                   },
                   "title": "Response List Simulations Simulations  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulations/retrieval-options": {
+      "get": {
+        "tags": [
+          "simulations"
+        ],
+        "summary": "Get Simulation Retrieval Options",
+        "description": "List profile-authoritative retrieval bindings for simulation creation.",
+        "operationId": "get_simulation_retrieval_options_simulations_retrieval_options_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "corpus_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Corpus Id"
+            }
+          },
+          {
+            "name": "rag_profile_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Rag Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationRetrievalOptionsResponse"
                 }
               }
             }
@@ -14950,6 +15012,81 @@
           "last_updated"
         ],
         "title": "SimulationReadWithState"
+      },
+      "SimulationRetrievalCompatiblePair": {
+        "properties": {
+          "corpus_index_id": {
+            "type": "integer",
+            "title": "Corpus Index Id"
+          },
+          "bm25_index_id": {
+            "type": "integer",
+            "title": "Bm25 Index Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "corpus_index_id",
+          "bm25_index_id"
+        ],
+        "title": "SimulationRetrievalCompatiblePair"
+      },
+      "SimulationRetrievalIndexOption": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "SimulationRetrievalIndexOption"
+      },
+      "SimulationRetrievalOptionsResponse": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "dense",
+              "bm25",
+              "hybrid"
+            ],
+            "title": "Mode"
+          },
+          "dense_indices": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationRetrievalIndexOption"
+            },
+            "type": "array",
+            "title": "Dense Indices"
+          },
+          "bm25_indices": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationRetrievalIndexOption"
+            },
+            "type": "array",
+            "title": "Bm25 Indices"
+          },
+          "compatible_pairs": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationRetrievalCompatiblePair"
+            },
+            "type": "array",
+            "title": "Compatible Pairs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "SimulationRetrievalOptionsResponse"
       },
       "SimulationStartRequest": {
         "properties": {

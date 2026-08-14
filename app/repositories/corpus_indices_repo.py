@@ -461,6 +461,30 @@ async def list_corpus_indices(
     return list(result.all())
 
 
+async def list_built_corpus_indices_for_corpus(
+    corpus_id: int,
+    session: AsyncSession,
+) -> list[CorpusIndex]:
+    """
+    Return every built dense index for one corpus.
+    
+    Args:
+        corpus_id: The ID of the corpus.
+        session: The database session.
+    Returns:
+        A list of built corpus indices for the specified corpus.
+    """
+    result = await session.exec(
+        select(CorpusIndex)
+        .where(
+            CorpusIndex.corpus_id == corpus_id,
+            CorpusIndex.status == "built",
+        )
+        .order_by(CorpusIndex.id)
+    )
+    return list(result.all())
+
+
 async def create_corpus_index(
     index_in: CorpusIndexCreate,
     session: AsyncSession,

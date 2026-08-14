@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSimulationsQuery, useCreateSimulationMutation } from "@/features/simulations/simulationQueries";
+import {
+  useCreateSimulationMutation,
+  useSimulationRetrievalOptionsQuery,
+  useSimulationsQuery,
+} from "@/features/simulations/simulationQueries";
+import {
+  filterRetrievalOptions,
+  reconcileRetrievalSelection,
+} from "@/features/simulations/simulationRetrievalOptions";
 import { useCorporaQuery } from "@/features/corpora/corpusQueries";
 import {
   useCorpusIndicesQuery,
@@ -26,10 +34,8 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { LlmModelSelector, getDefaultCatalogModel } from "@/components/llm/LlmModelSelector";
 import { formatDateTime } from "@/utils/format";
-import { getErrorMessage } from "@/api/client";
+import { ApiError, getErrorMessage } from "@/api/client";
 import type { LLMSelection } from "@/api/types";
-import { useCorpusBm25IndicesQuery } from "@/features/corpusBm25Indices/corpusBm25IndexQueries";
-import { getCragRetrievalMode } from "@/components/rag/RagProfileDefinitionFields";
 
 export function SimulationsPage() {
   const query = useSimulationsQuery();
@@ -76,13 +82,17 @@ export function SimulationsPage() {
   const corpusOptions = corpora.data ?? [];
   const ragProfileOptions = ragProfiles.data ?? [];
   const selectedRagProfile = ragProfileOptions.find((profile) => String(profile.id) === form.ragProfileId);
-  const retrievalMode = selectedRagProfile?.strategy === "crag"
-    ? getCragRetrievalMode(selectedRagProfile.config as Record<string, string | number>)
+  const isCragProfile = selectedRagProfile?.strategy === "crag";
+  const retrievalOptions = useSimulationRetrievalOptionsQuery(
+    form.corpusId ? Number(form.corpusId) : undefined,
+    form.ragProfileId ? Number(form.ragProfileId) : undefined,
+    isCragProfile,
+  );
+  const retrievalMode = isCragProfile
+    ? retrievalOptions.data?.mode ?? null
     : selectedRagProfile?.strategy === "graphrag" ? "dense" : null;
   const needsDenseIndex = retrievalMode === "dense" || retrievalMode === "hybrid";
   const needsBm25Index = retrievalMode === "bm25" || retrievalMode === "hybrid";
-  const bm25Indices = useCorpusBm25IndicesQuery(form.corpusId ? Number(form.corpusId) : undefined);
-  const bm25ArtifactsUnavailable = needsBm25Index && (bm25Indices.isLoading || bm25Indices.isError);
   const selectedKnowledgeGraph = (knowledgeGraphs.data ?? []).find(
     (graph) => graph.id === selectedRagProfile?.knowledge_graph_index_id,
   );
@@ -90,21 +100,32 @@ export function SimulationsPage() {
     (index) => index.id === selectedKnowledgeGraph?.corpus_index_id,
   );
   const graphSelectionLocked = selectedRagProfile?.strategy === "graphrag" && Boolean(graphCorpusIndex);
-  const indexOptions = useMemo(
+  const graphIndexOptions = useMemo(
     () => (indices.data ?? []).filter(
       (index) => (String(index.corpus_id) === form.corpusId || !form.corpusId) && index.status === "built",
     ),
     [form.corpusId, indices.data]
   );
-  const selectedCorpusIndex = indexOptions.find((index) => String(index.id) === form.corpusIndexId);
-  const bm25IndexOptions = useMemo(
-    () => (bm25Indices.data ?? []).filter((index) => {
-      if (index.status !== "built" || String(index.corpus_id) !== form.corpusId) return false;
-      if (retrievalMode !== "hybrid" || !selectedCorpusIndex) return true;
-      return index.chunking_profile_id === selectedCorpusIndex.chunking_profile_id &&
-        index.document_count === (selectedCorpusIndex.indexed_document_chunk_ids?.length ?? 0);
-    }),
-    [bm25Indices.data, form.corpusId, retrievalMode, selectedCorpusIndex],
+  const filteredRetrievalOptions = retrievalOptions.data
+    ? filterRetrievalOptions(
+        retrievalOptions.data,
+        form.corpusIndexId,
+        form.bm25IndexId,
+      )
+    : { dense: [], bm25: [] };
+  const indexOptions = isCragProfile
+    ? filteredRetrievalOptions.dense
+    : graphIndexOptions;
+  const bm25IndexOptions = filteredRetrievalOptions.bm25;
+  const retrievalOptionsEnabled = Boolean(
+    isCragProfile && form.corpusId && form.ragProfileId,
+  );
+  const retrievalOptionsUnavailable = retrievalOptionsEnabled
+    && (retrievalOptions.isLoading || retrievalOptions.isError);
+  const retrievalSelectionComplete = !isCragProfile || Boolean(
+    retrievalOptions.data
+    && (!needsDenseIndex || form.corpusIndexId)
+    && (!needsBm25Index || form.bm25IndexId)
   );
 
   useEffect(() => {
@@ -120,6 +141,29 @@ export function SimulationsPage() {
       return { ...current, corpusId, corpusIndexId };
     });
   }, [graphCorpusIndex]);
+
+  useEffect(() => {
+    if (!isCragProfile || !retrievalOptions.data) {
+      return;
+    }
+    setForm((current) => {
+      const reconciled = reconcileRetrievalSelection(
+        retrievalOptions.data,
+        {
+          corpusIndexId: current.corpusIndexId,
+          bm25IndexId: current.bm25IndexId,
+        },
+        "refresh",
+      );
+      if (
+        reconciled.corpusIndexId === current.corpusIndexId
+        && reconciled.bm25IndexId === current.bm25IndexId
+      ) {
+        return current;
+      }
+      return { ...current, ...reconciled };
+    });
+  }, [isCragProfile, retrievalOptions.data]);
 
   useEffect(() => {
     const defaultModel = getDefaultCatalogModel(llmCatalogQuery.data, "openai");
@@ -186,6 +230,13 @@ export function SimulationsPage() {
               navigate(`/simulations/${simulation.id}`);
             } catch (error) {
               setMessage(getErrorMessage(error));
+              if (
+                error instanceof ApiError
+                && error.status === 409
+                && isCragProfile
+              ) {
+                await retrievalOptions.refetch();
+              }
             }
           }}
         >
@@ -243,16 +294,30 @@ export function SimulationsPage() {
           </Field>
 
           {needsDenseIndex ? (
-            <Field label="Corpus index" className="self-start">
+            <Field
+              label="Corpus index"
+              className="self-start"
+            >
               <Select
                 className="min-h-10 leading-5"
                 value={form.corpusIndexId}
-                onChange={(event) => setForm((current) => ({
-                  ...current,
-                  corpusIndexId: event.target.value,
-                  bm25IndexId: retrievalMode === "hybrid" ? "" : current.bm25IndexId,
-                }))}
-                disabled={graphSelectionLocked}
+                onChange={(event) => setForm((current) => {
+                  const selection = {
+                    corpusIndexId: event.target.value,
+                    bm25IndexId: current.bm25IndexId,
+                  };
+                  return {
+                    ...current,
+                    ...(isCragProfile && retrievalOptions.data
+                      ? reconcileRetrievalSelection(
+                          retrievalOptions.data,
+                          selection,
+                          "dense",
+                        )
+                      : selection),
+                  };
+                })}
+                disabled={graphSelectionLocked || retrievalOptionsUnavailable}
                 required
               >
                 <option value="">Select built corpus index</option>
@@ -267,19 +332,27 @@ export function SimulationsPage() {
               <Field
                 label="BM25 index"
                 className="self-start"
-                hint={bm25Indices.isLoading
-                  ? "Loading BM25 artifacts..."
-                  : bm25Indices.isError
-                    ? undefined
-                    : bm25IndexOptions.length
-                      ? "Built artifacts for the selected corpus."
-                      : "Build a compatible BM25 artifact before creating this simulation."}
               >
                 <Select
                   className="min-h-10 leading-5"
                   value={form.bm25IndexId}
-                  disabled={bm25Indices.isLoading || bm25Indices.isError}
-                  onChange={(event) => setForm((current) => ({ ...current, bm25IndexId: event.target.value }))}
+                  disabled={retrievalOptionsUnavailable}
+                  onChange={(event) => setForm((current) => {
+                    const selection = {
+                      corpusIndexId: current.corpusIndexId,
+                      bm25IndexId: event.target.value,
+                    };
+                    return {
+                      ...current,
+                      ...(retrievalOptions.data
+                        ? reconcileRetrievalSelection(
+                            retrievalOptions.data,
+                            selection,
+                            "bm25",
+                          )
+                        : selection),
+                    };
+                  })}
                   required
                 >
                   <option value="">Select built BM25 index</option>
@@ -288,15 +361,40 @@ export function SimulationsPage() {
                   ))}
                 </Select>
               </Field>
-              {bm25Indices.isError ? (
-                <div role="alert" className="self-start text-sm text-red-700">
-                  <p>Unable to load BM25 artifacts.</p>
-                  <Button type="button" variant="secondary" onClick={() => bm25Indices.refetch()}>
-                    Retry BM25 artifacts
-                  </Button>
-                </div>
-              ) : null}
             </>
+          ) : null}
+
+          {retrievalOptionsEnabled && retrievalOptions.isLoading ? (
+            <p className="self-start text-sm text-slate-500">Loading retrieval options...</p>
+          ) : null}
+          {retrievalOptionsEnabled
+            && !retrievalOptions.isLoading
+            && !retrievalOptions.isError
+            && retrievalOptions.data?.mode === "dense"
+            && !(retrievalOptions.data.dense_indices ?? []).length ? (
+              <p className="self-start text-sm text-amber-700">A built dense index is required.</p>
+            ) : null}
+          {retrievalOptionsEnabled
+            && !retrievalOptions.isLoading
+            && !retrievalOptions.isError
+            && retrievalOptions.data?.mode === "bm25"
+            && !(retrievalOptions.data.bm25_indices ?? []).length ? (
+              <p className="self-start text-sm text-amber-700">A built BM25 artifact is required.</p>
+            ) : null}
+          {retrievalOptionsEnabled
+            && !retrievalOptions.isLoading
+            && !retrievalOptions.isError
+            && retrievalOptions.data?.mode === "hybrid"
+            && !(retrievalOptions.data.compatible_pairs ?? []).length ? (
+              <p className="self-start text-sm text-amber-700">No compatible dense/BM25 pair exists.</p>
+            ) : null}
+          {retrievalOptionsEnabled && retrievalOptions.isError ? (
+            <div role="alert" className="self-start text-sm text-red-700">
+              <p>{getErrorMessage(retrievalOptions.error, "Unable to load retrieval options")}</p>
+              <Button type="button" variant="secondary" onClick={() => retrievalOptions.refetch()}>
+                Retry retrieval options
+              </Button>
+            </div>
           ) : null}
 
           <Field label="Scenario" className="self-start">
@@ -473,7 +571,16 @@ export function SimulationsPage() {
           </div>
 
           <div className="md:col-span-2 flex items-center gap-3">
-            <Button type="submit" disabled={createMutation.isPending || !ragProfileOptions.length || !canSubmitLearnerConfig || bm25ArtifactsUnavailable}>
+            <Button
+              type="submit"
+              disabled={
+                createMutation.isPending
+                || !ragProfileOptions.length
+                || !canSubmitLearnerConfig
+                || retrievalOptionsUnavailable
+                || !retrievalSelectionComplete
+              }
+            >
               {createMutation.isPending ? "Creating..." : "Create simulation"}
             </Button>
             {message ? <span className="text-sm text-red-700">{message}</span> : null}

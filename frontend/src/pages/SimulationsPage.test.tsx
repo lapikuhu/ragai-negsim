@@ -1,16 +1,53 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/api/client";
 import { SimulationsPage } from "./SimulationsPage";
 
 const createSimulation = vi.fn();
 const navigate = vi.fn();
-const bm25QueryState = vi.hoisted(() => ({
+const retrievalOptionsQueryState = vi.hoisted(() => ({
   isLoading: false,
   isError: false,
+  error: null as unknown,
   refetch: vi.fn(),
+  responses: {
+    500: {
+      mode: "dense",
+      dense_indices: [{ id: 77, name: "Index A" }],
+      bm25_indices: [],
+      compatible_pairs: [],
+    },
+    502: {
+      mode: "bm25",
+      dense_indices: [],
+      bm25_indices: [{ id: 88, name: "BM25 A" }],
+      compatible_pairs: [],
+    },
+    503: {
+      mode: "hybrid",
+      dense_indices: [
+        { id: 77, name: "Index A" },
+        { id: 78, name: "Index B" },
+      ],
+      bm25_indices: [
+        { id: 88, name: "BM25 A" },
+        { id: 89, name: "BM25 B" },
+      ],
+      compatible_pairs: [
+        { corpus_index_id: 77, bm25_index_id: 88 },
+        { corpus_index_id: 78, bm25_index_id: 89 },
+      ],
+    },
+  } as Record<number, {
+    mode: "dense" | "bm25" | "hybrid";
+    dense_indices: { id: number; name: string }[];
+    bm25_indices: { id: number; name: string }[];
+    compatible_pairs: { corpus_index_id: number; bm25_index_id: number }[];
+  }>,
+  calls: [] as Array<{ corpusId?: number; ragProfileId?: number; enabled: boolean }>,
 }));
 
 vi.mock("react-router-dom", async () => {
@@ -32,6 +69,20 @@ vi.mock("@/features/simulations/simulationQueries", () => ({
   useCreateSimulationMutation: () => ({
     isPending: false,
     mutateAsync: createSimulation,
+  }),
+  useSimulationRetrievalOptionsQuery: (
+    corpusId?: number,
+    ragProfileId?: number,
+    enabled = true,
+  ) => ({
+    ...(retrievalOptionsQueryState.calls.push({ corpusId, ragProfileId, enabled }), {}),
+    isLoading: retrievalOptionsQueryState.isLoading,
+    isError: retrievalOptionsQueryState.isError,
+    error: retrievalOptionsQueryState.error,
+    refetch: retrievalOptionsQueryState.refetch,
+    data: enabled && corpusId && ragProfileId
+      ? retrievalOptionsQueryState.responses[ragProfileId]
+      : undefined,
   }),
 }));
 
@@ -129,17 +180,6 @@ vi.mock("@/features/ragProfiles/ragProfileQueries", () => ({
   }),
 }));
 
-vi.mock("@/features/corpusBm25Indices/corpusBm25IndexQueries", () => ({
-  useCorpusBm25IndicesQuery: () => ({
-    ...bm25QueryState,
-    data: [
-      { id: 88, name: "BM25 A", corpus_id: 11, chunking_profile_id: 3, document_count: 2, status: "built" },
-      { id: 89, name: "BM25 incompatible", corpus_id: 11, chunking_profile_id: 4, document_count: 2, status: "built" },
-      { id: 90, name: "BM25 unbuilt", corpus_id: 11, chunking_profile_id: 3, document_count: 2, status: "failed" },
-    ],
-  }),
-}));
-
 vi.mock("@/features/knowledgeGraphs/knowledgeGraphQueries", () => ({
   useKnowledgeGraphsQuery: () => ({
     isLoading: false,
@@ -200,9 +240,38 @@ describe("SimulationsPage", () => {
   beforeEach(() => {
     createSimulation.mockReset();
     navigate.mockReset();
-    bm25QueryState.isLoading = false;
-    bm25QueryState.isError = false;
-    bm25QueryState.refetch.mockReset();
+    retrievalOptionsQueryState.isLoading = false;
+    retrievalOptionsQueryState.isError = false;
+    retrievalOptionsQueryState.error = null;
+    retrievalOptionsQueryState.refetch.mockReset();
+    retrievalOptionsQueryState.calls.length = 0;
+    retrievalOptionsQueryState.responses[500] = {
+      mode: "dense",
+      dense_indices: [{ id: 77, name: "Index A" }],
+      bm25_indices: [],
+      compatible_pairs: [],
+    };
+    retrievalOptionsQueryState.responses[502] = {
+      mode: "bm25",
+      dense_indices: [],
+      bm25_indices: [{ id: 88, name: "BM25 A" }],
+      compatible_pairs: [],
+    };
+    retrievalOptionsQueryState.responses[503] = {
+      mode: "hybrid",
+      dense_indices: [
+        { id: 77, name: "Index A" },
+        { id: 78, name: "Index B" },
+      ],
+      bm25_indices: [
+        { id: 88, name: "BM25 A" },
+        { id: 89, name: "BM25 B" },
+      ],
+      compatible_pairs: [
+        { corpus_index_id: 77, bm25_index_id: 88 },
+        { corpus_index_id: 78, bm25_index_id: 89 },
+      ],
+    };
   });
 
   it("renders a required RAG profile selector in the create form", () => {
@@ -225,6 +294,11 @@ describe("SimulationsPage", () => {
     expect(corpusIndex).toHaveValue("77");
     expect(corpus).toBeDisabled();
     expect(corpusIndex).toBeDisabled();
+    expect(retrievalOptionsQueryState.calls).toContainEqual({
+      corpusId: 11,
+      ragProfileId: 501,
+      enabled: false,
+    });
   });
 
   it("renders only the artifact selectors required by the selected CRAG mode", () => {
@@ -239,12 +313,29 @@ describe("SimulationsPage", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Corpus index" }), { target: { value: "77" } });
     expect(screen.getByRole("combobox", { name: /^BM25 index/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "BM25 A" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "BM25 incompatible" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "BM25 unbuilt" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "BM25 B" })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("combobox", { name: /RAG profile/ }), { target: { value: "500" } });
     expect(screen.getByRole("combobox", { name: "Corpus index" })).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /^BM25 index/ })).not.toBeInTheDocument();
+  });
+
+  it("starts hybrid selection from either artifact dropdown", async () => {
+    const user = userEvent.setup();
+    render(<SimulationsPage />);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
+    await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "503");
+
+    expect(screen.getByRole("option", { name: "Index A" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Index B" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "BM25 A" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "BM25 B" })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: /^BM25 index/ }), "89");
+
+    expect(screen.queryByRole("option", { name: "Index A" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Index B" })).toBeInTheDocument();
   });
 
   it("submits only a BM25 binding for a BM25-only profile", async () => {
@@ -281,29 +372,92 @@ describe("SimulationsPage", () => {
   });
 
   it("distinguishes BM25 loading from an empty artifact list", () => {
-    bm25QueryState.isLoading = true;
+    retrievalOptionsQueryState.isLoading = true;
     render(<SimulationsPage />);
     fireEvent.change(screen.getByRole("combobox", { name: "Corpus" }), { target: { value: "11" } });
     fireEvent.change(screen.getByRole("combobox", { name: /RAG profile/ }), { target: { value: "502" } });
 
-    expect(screen.getByText("Loading BM25 artifacts...")).toBeInTheDocument();
+    expect(screen.getByText("Loading retrieval options...")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /^BM25 index/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Create simulation" })).toBeDisabled();
-    expect(screen.queryByText(/Build a compatible BM25 artifact/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/built BM25 artifact is required/)).not.toBeInTheDocument();
   });
 
   it("shows an actionable BM25 request error", async () => {
-    bm25QueryState.isError = true;
+    retrievalOptionsQueryState.isError = true;
+    retrievalOptionsQueryState.error = new Error("Retrieval service unavailable");
     const user = userEvent.setup();
     render(<SimulationsPage />);
     await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
     await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "502");
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Unable to load BM25 artifacts.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Retrieval service unavailable");
     expect(screen.getByRole("combobox", { name: /^BM25 index/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Create simulation" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Retry BM25 artifacts" }));
-    expect(bm25QueryState.refetch).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Retry retrieval options" }));
+    expect(retrievalOptionsQueryState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [500, "A built dense index is required."],
+    [502, "A built BM25 artifact is required."],
+    [503, "No compatible dense/BM25 pair exists."],
+  ])("explains an empty retrieval response for profile %s", async (profileId, copy) => {
+    retrievalOptionsQueryState.responses[profileId] = {
+      mode: profileId === 500 ? "dense" : profileId === 502 ? "bm25" : "hybrid",
+      dense_indices: [],
+      bm25_indices: [],
+      compatible_pairs: [],
+    };
+    const user = userEvent.setup();
+    render(<SimulationsPage />);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /RAG profile/ }),
+      String(profileId),
+    );
+
+    expect(screen.getByText(copy)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create simulation" })).toBeDisabled();
+  });
+
+  it("refetches and reconciles selections after a stale create conflict", async () => {
+    createSimulation.mockRejectedValueOnce(
+      new ApiError(
+        "Unable to create simulation",
+        409,
+        { detail: "Hybrid indexes must contain the same chunk set" },
+      ),
+    );
+    retrievalOptionsQueryState.refetch.mockImplementationOnce(async () => {
+      retrievalOptionsQueryState.responses[503] = {
+        mode: "hybrid",
+        dense_indices: [{ id: 78, name: "Index B" }],
+        bm25_indices: [{ id: 89, name: "BM25 B" }],
+        compatible_pairs: [{ corpus_index_id: 78, bm25_index_id: 89 }],
+      };
+      return { data: retrievalOptionsQueryState.responses[503] };
+    });
+    const user = userEvent.setup();
+    const { rerender } = render(<SimulationsPage />);
+
+    await user.type(screen.getByLabelText("Name"), "Stale hybrid simulation");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus" }), "11");
+    await user.selectOptions(screen.getByRole("combobox", { name: /RAG profile/ }), "503");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Corpus index" }), "77");
+    await user.selectOptions(screen.getByRole("combobox", { name: /^BM25 index/ }), "88");
+    await user.click(screen.getByRole("button", { name: "Create simulation" }));
+
+    expect(await screen.findByText("Hybrid indexes must contain the same chunk set")).toBeInTheDocument();
+    expect(retrievalOptionsQueryState.refetch).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+
+    rerender(<SimulationsPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: "Corpus index" })).toHaveValue("");
+      expect(screen.getByRole("combobox", { name: /^BM25 index/ })).toHaveValue("");
+    });
   });
 
   it("keeps the corpus index selector bordered, single-line, and top aligned with description", () => {

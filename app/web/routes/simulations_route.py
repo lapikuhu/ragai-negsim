@@ -17,6 +17,7 @@ from app.schemas.simulations_schemas import (
     SimulationProxyTurnResponse,
     SimulationRead,
     SimulationReadWithState,
+    SimulationRetrievalOptionsResponse,
     SimulationStartRequest,
     SimulationStatus,
     SimulationTeacherReviewRequest,
@@ -28,7 +29,11 @@ from app.schemas.simulation_learner_schemas import (
     SimulationLearnerAskRequest,
     SimulationLearnerAskResponse,
 )
-from app.services import simulation_learner_service, simulations_service
+from app.services import (
+    simulation_learner_service,
+    simulation_retrieval_options_service,
+    simulations_service,
+)
 
 # TODO: Consider moving the review endpoints to a separate route file for 
 # better organization.
@@ -89,6 +94,43 @@ async def create_simulation(
             simulation_data,
             session,
             current_user,
+        )
+    except ValueError as exc:
+        _raise_simulation_service_error(exc)
+
+### ------------------- SIMULATION RETRIEVAL OPTIONS --------------- ###
+@router.get(
+    "/retrieval-options",
+    response_model=SimulationRetrievalOptionsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_simulation_retrieval_options(
+    corpus_id: int,
+    rag_profile_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> SimulationRetrievalOptionsResponse:
+    """
+    List profile-authoritative retrieval bindings for simulation creation.
+    Args:
+        corpus_id: The ID of the corpus.
+        rag_profile_id: The ID of the RAG profile.
+        session: The database session.
+        current_user: The user requesting the retrieval options.
+    Returns:
+        A SimulationRetrievalOptionsResponse containing the retrieval options.
+    Raises:
+        ValueError: If the corpus or RAG profile is not found, or if the
+        RAG profile is not a CRAG profile.
+    """
+    del current_user
+    try:
+        return (
+            await simulation_retrieval_options_service.get_simulation_retrieval_options_srvc(
+                corpus_id=corpus_id,
+                rag_profile_id=rag_profile_id,
+                session=session,
+            )
         )
     except ValueError as exc:
         _raise_simulation_service_error(exc)

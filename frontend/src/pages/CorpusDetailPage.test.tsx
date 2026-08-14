@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CorpusDetailPage } from "./CorpusDetailPage";
 
 const state = vi.hoisted(() => ({
+  roles: ["admin"] as string[],
   corporaQuery: {
     isLoading: false,
     isError: false,
@@ -30,6 +31,12 @@ const state = vi.hoisted(() => ({
   }
 }));
 
+vi.mock("@/app/AuthProvider", () => ({
+  useAuth: () => ({
+    hasRole: (...roles: string[]) => roles.some((role) => state.roles.includes(role)),
+  }),
+}));
+
 vi.mock("react-router-dom", () => ({
   useParams: () => ({ corpusId: "11" })
 }));
@@ -48,6 +55,7 @@ vi.mock("@/components/corpora/CorpusBm25ArtifactsCard", () => ({
 
 describe("CorpusDetailPage", () => {
   beforeEach(() => {
+    state.roles = ["admin"];
     state.corporaQuery.isLoading = false;
     state.corporaQuery.isError = false;
     state.corporaQuery.error = null;
@@ -88,5 +96,13 @@ describe("CorpusDetailPage", () => {
 
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("does not show admin-only BM25 controls to non-admin users", () => {
+    state.roles = ["teacher"];
+
+    render(<CorpusDetailPage />);
+
+    expect(screen.queryByText("BM25 artifacts")).not.toBeInTheDocument();
   });
 });

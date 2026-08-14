@@ -212,6 +212,14 @@ export type paths = {
         /**
          * List Corpus Chunk Sets
          * @description List buildable persisted chunk sets for a corpus.
+         *
+         *     Args:
+         *         corpus: The corpus for which to list chunk sets.
+         *         session: The database session to use for the operation.
+         *         _admin: The current admin user making the request (for authorization).
+         *     Returns:
+         *         A list of CorpusChunkSetSummary instances representing the chunk sets
+         *         associated with the specified corpus.
          */
         get: operations["list_corpus_chunk_sets_corpora__corpus_id__chunk_sets_get"];
         put?: never;
@@ -359,10 +367,35 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** List Corpus Bm25 Build Jobs */
+        /**
+         * List Corpus Bm25 Build Jobs
+         * @description List corpus BM25 build jobs.
+         *
+         *     Args:
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency for authorization.
+         *         page (Page): Pagination information.
+         *         corpus_id (int | None): Filter by corpus ID.
+         *         status_filter (Literal["queued", "running", "completed", "failed",
+         *             "cancelled"] | None): Filter by job status.
+         *     Returns:
+         *         list[CorpusBm25BuildJobRead]: A list of corpus BM25 build jobs.
+         */
         get: operations["list_corpus_bm25_build_jobs_corpus_bm25_build_jobs__get"];
         put?: never;
-        /** Queue Corpus Bm25 Build Job */
+        /**
+         * Queue Corpus Bm25 Build Job
+         * @description Queue a new corpus BM25 build job.
+         *
+         *     Args:
+         *         request (CorpusBm25BuildJobQueueRequest): The request body containing
+         *             the details of the corpus BM25 build job to be queued.
+         *         session (SessionDep): The database session dependency.
+         *         admin (AdminDep): The admin dependency for authorization.
+         *     Returns:
+         *         CorpusBm25BuildJobRead: The details of the queued corpus BM25
+         *         build job.
+         */
         post: operations["queue_corpus_bm25_build_job_corpus_bm25_build_jobs__post"];
         delete?: never;
         options?: never;
@@ -377,7 +410,18 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get Corpus Bm25 Build Job */
+        /**
+         * Get Corpus Bm25 Build Job
+         * @description Get a corpus BM25 build job by its ID.
+         *
+         *     Args:
+         *         job_id (int): The ID of the corpus BM25 build job to retrieve.
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency for authorization.
+         *     Returns:
+         *         CorpusBm25BuildJobRead | None: The details of the corpus BM25 build
+         *         job.
+         */
         get: operations["get_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__get"];
         put?: never;
         post?: never;
@@ -396,7 +440,18 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Cancel Corpus Bm25 Build Job */
+        /**
+         * Cancel Corpus Bm25 Build Job
+         * @description Cancel a corpus BM25 build job by its ID.
+         *
+         *     Args:
+         *         job_id (int): The ID of the corpus BM25 build job to cancel.
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency for authorization.
+         *     Returns:
+         *         CorpusBm25BuildJobRead: The details of the cancelled corpus BM25
+         *         build job.
+         */
         post: operations["cancel_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__cancel_post"];
         delete?: never;
         options?: never;
@@ -413,7 +468,19 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /** Retry Corpus Bm25 Build Job */
+        /**
+         * Retry Corpus Bm25 Build Job
+         * @description Retry a corpus BM25 build job by its ID.
+         *
+         *     Args:
+         *         job_id (int): The ID of the corpus BM25 build job to retry.
+         *         request (CorpusBm25BuildJobRetryRequest): The retry request payload.
+         *         session (SessionDep): The database session dependency.
+         *         admin (AdminDep): The admin dependency for authorization.
+         *     Returns:
+         *         CorpusBm25BuildJobRead: The details of the retried corpus BM25
+         *         build job.
+         */
         post: operations["retry_corpus_bm25_build_job_corpus_bm25_build_jobs__job_id__retry_post"];
         delete?: never;
         options?: never;
@@ -2543,6 +2610,26 @@ export type paths = {
          *         with pagination details.
          */
         get: operations["list_completed_simulations_simulations_completed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/simulations/retrieval-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Simulation Retrieval Options
+         * @description List profile-authoritative retrieval bindings for simulation creation.
+         */
+        get: operations["get_simulation_retrieval_options_simulations_retrieval_options_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5366,6 +5453,34 @@ export type components = {
             user_id_participant?: number | null;
             /** User Side */
             user_side?: string | null;
+        };
+        /** SimulationRetrievalCompatiblePair */
+        SimulationRetrievalCompatiblePair: {
+            /** Bm25 Index Id */
+            bm25_index_id: number;
+            /** Corpus Index Id */
+            corpus_index_id: number;
+        };
+        /** SimulationRetrievalIndexOption */
+        SimulationRetrievalIndexOption: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+        };
+        /** SimulationRetrievalOptionsResponse */
+        SimulationRetrievalOptionsResponse: {
+            /** Bm25 Indices */
+            bm25_indices?: components["schemas"]["SimulationRetrievalIndexOption"][];
+            /** Compatible Pairs */
+            compatible_pairs?: components["schemas"]["SimulationRetrievalCompatiblePair"][];
+            /** Dense Indices */
+            dense_indices?: components["schemas"]["SimulationRetrievalIndexOption"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "dense" | "bm25" | "hybrid";
         };
         /** SimulationStartRequest */
         SimulationStartRequest: {
@@ -9386,6 +9501,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimulationEvaluationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_simulation_retrieval_options_simulations_retrieval_options_get: {
+        parameters: {
+            query: {
+                corpus_id: number;
+                rag_profile_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationRetrievalOptionsResponse"];
                 };
             };
             /** @description Validation Error */

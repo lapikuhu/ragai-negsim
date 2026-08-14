@@ -202,6 +202,35 @@ async def list_corpus_bm25_index_metadata(
     return [_to_metadata(row) for row in result.all()]
 
 
+async def list_built_corpus_bm25_index_metadata_for_corpus(
+    corpus_id: int,
+    session: AsyncSession,
+) -> list[CorpusBm25IndexMetadata]:
+    """
+    Get every built BM25 metadata record for one corpus. Useful for getting 
+    multiple built BM25 indices for a given corpus. Note that checks only
+    against corpus_id: dodgy if multiple chunking profiles are used for the 
+    same corpus.
+
+    Args:
+        corpus_id: The ID of the corpus to filter by.
+        session: The SQLAlchemy AsyncSession to use for the query.
+    Returns:
+        A list of CorpusBm25IndexMetadata objects for built indices of the
+        specified corpus.
+    """
+    statement = (
+        _corpus_bm25_index_metadata_statement()
+        .where(
+            CorpusBm25Index.corpus_id == corpus_id,
+            CorpusBm25Index.status == "built",
+        )
+        .order_by(CorpusBm25Index.id)
+    )
+    result = await session.exec(statement)
+    return [_to_metadata(row) for row in result.all()]
+
+
 async def get_corpus_bm25_index_artifact_by_id(
     index_id: int,
     session: AsyncSession,

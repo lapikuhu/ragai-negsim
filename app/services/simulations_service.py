@@ -78,6 +78,7 @@ from app.airag.knowledge_graph.scoped_schema_store import (
 from app.core.config import settings
 from app.airag.llm_models.llm_models import get_llm
 from app.services.llm_models_service import normalize_llm_selection
+from app.services import simulation_retrieval_options_service
 from app.services.source_cards_service import enrich_source_cards_with_raw_document_metadata
 from app.schemas.simulations_schemas import (
     NegotiationStateSchema,
@@ -735,23 +736,18 @@ async def _validate_crag_retrieval_bindings(
     if mode != "hybrid":
         return corpus_index, bm25_index
 
-    if corpus_index.corpus_id != bm25_index.corpus_id:
-        raise ValueError("Hybrid indexes must use the same corpus")
-    if corpus_index.chunking_profile_id != bm25_index.chunking_profile_id:
-        raise ValueError("Hybrid indexes must use the same chunking profile")
     dense_chunk_ids = (
         await indexed_chunks_repo.get_document_chunk_ids_by_corpus_index_id(
             corpus_index.id,
             session,
         )
     )
-    if len(dense_chunk_ids) != bm25_index.document_count:
-        raise ValueError("Hybrid indexes must have the same document count")
-    dense_checksum = corpus_bm25_indices_repo.document_chunk_ids_checksum(
-        dense_chunk_ids
+    simulation_retrieval_options_service.ensure_hybrid_indices_compatible(
+        corpus_id=corpus_id,
+        corpus_index=corpus_index,
+        bm25_index=bm25_index,
+        dense_chunk_ids=dense_chunk_ids,
     )
-    if dense_checksum != bm25_index.document_chunk_ids_checksum:
-        raise ValueError("Hybrid indexes must contain the same chunk set")
     return corpus_index, bm25_index
 
 

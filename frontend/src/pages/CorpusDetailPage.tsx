@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
+import { useAuth } from "@/app/AuthProvider";
 import { useCorporaQuery } from "@/features/corpora/corpusQueries";
 import { useCorpusIndicesQuery } from "@/features/corpusIndices/corpusIndexQueries";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -12,6 +13,7 @@ import { formatDateTime } from "@/utils/format";
 import { CorpusBm25ArtifactsCard } from "@/components/corpora/CorpusBm25ArtifactsCard";
 
 export function CorpusDetailPage() {
+  const auth = useAuth();
   const corpusId = Number(useParams().corpusId);
   const corpora = useCorporaQuery();
   const indices = useCorpusIndicesQuery();
@@ -89,7 +91,7 @@ export function CorpusDetailPage() {
         </div>
       </Card>
 
-      <CorpusBm25ArtifactsCard corpusId={corpus.id} corpusName={corpus.name} />
+      {auth.hasRole("admin") ? <CorpusBm25ArtifactsCard corpusId={corpus.id} corpusName={corpus.name} /> : null}
     </div>
   );
 }
