@@ -36,18 +36,51 @@ async def corpus_bm25_parent_rows(migrated_async_engine):
                 "VALUES (:name, 'recursive', '{}'::json, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
                 "RETURNING id"
             ), params={"name": f"bm25 profile {suffix}"})).scalar_one()
+            chunk_sets = {}
+            for label, document_chunk_ids in (
+                ("full", [3, 2, 1]),
+                ("single", [1]),
+            ):
+                checksum = corpus_bm25_indices_repo.document_chunk_ids_checksum(
+                    document_chunk_ids
+                )
+                chunk_set_id = (await session.exec(text(
+                    "INSERT INTO corpuschunkset "
+                    "(corpus_id, name, chunking_profile_id, chunking_profile_name, "
+                    "chunking_strategy, chunking_config, revision, "
+                    "document_chunk_ids_checksum, created_at, last_updated) "
+                    "VALUES (:corpus_id, :name, :profile_id, :profile_name, "
+                    "'recursive', '{}'::json, 1, :checksum, CURRENT_TIMESTAMP, "
+                    "CURRENT_TIMESTAMP) RETURNING id"
+                ), params={
+                    "corpus_id": corpus_id,
+                    "name": f"bm25 {label} set {suffix}",
+                    "profile_id": chunking_profile_id,
+                    "profile_name": f"bm25 profile {suffix}",
+                    "checksum": checksum,
+                })).scalar_one()
+                chunk_sets[label] = {
+                    "id": chunk_set_id,
+                    "revision": 1,
+                    "checksum": checksum,
+                }
             await session.commit()
             yield {
                 "suffix": suffix,
                 "session_factory": session_factory,
                 "corpus_id": corpus_id,
                 "chunking_profile_id": chunking_profile_id,
+                "chunk_sets": chunk_sets,
             }
         finally:
             await session.rollback()
             if corpus_id is not None:
                 await session.exec(
                     text("DELETE FROM corpusbm25index WHERE corpus_id = :id"),
+                    params={"id": corpus_id},
+                )
+                await session.exec(
+                    text("DELETE FROM corpuschunkset WHERE corpus_id = :id"),
                     params={"id": corpus_id},
                 )
                 await session.exec(
@@ -81,6 +114,13 @@ async def test_postgres_bm25_repository_reads_metadata_without_artifact_and_fetc
                 name=f"bm25 index {parent_rows['suffix']}",
                 corpus_id=parent_rows["corpus_id"],
                 chunking_profile_id=parent_rows["chunking_profile_id"],
+                corpus_chunk_set_id=parent_rows["chunk_sets"]["full"]["id"],
+                corpus_chunk_set_revision=parent_rows["chunk_sets"]["full"][
+                    "revision"
+                ],
+                corpus_chunk_set_checksum=parent_rows["chunk_sets"]["full"][
+                    "checksum"
+                ],
                 document_chunk_ids=[3, 2, 1],
             ),
             session,
@@ -109,6 +149,10 @@ async def test_postgres_bm25_repository_reads_metadata_without_artifact_and_fetc
         assert metadata is not None
         assert "artifact" not in metadata.model_dump()
         assert metadata.status == "built"
+        assert (
+            metadata.corpus_chunk_set_id
+            == parent_rows["chunk_sets"]["full"]["id"]
+        )
         assert artifact == b"compressed-artifact"
         assert await corpus_bm25_indices_repo.get_corpus_bm25_index_metadata_by_id(created.id, session) is None
 
@@ -127,6 +171,13 @@ async def test_postgres_stale_bm25_object_cannot_overwrite_cancelled_row(
                 name=f"bm25 stale {parent_rows['suffix']}",
                 corpus_id=parent_rows["corpus_id"],
                 chunking_profile_id=parent_rows["chunking_profile_id"],
+                corpus_chunk_set_id=parent_rows["chunk_sets"]["single"]["id"],
+                corpus_chunk_set_revision=parent_rows["chunk_sets"]["single"][
+                    "revision"
+                ],
+                corpus_chunk_set_checksum=parent_rows["chunk_sets"]["single"][
+                    "checksum"
+                ],
                 document_chunk_ids=[1],
             ),
             first_session,
