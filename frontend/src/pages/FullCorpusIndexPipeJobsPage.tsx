@@ -15,6 +15,7 @@ import {
   useVectorStoresQuery
 } from "@/features/corpusIndices/corpusIndexQueries";
 import { useCorporaQuery } from "@/features/corpora/corpusQueries";
+import { useCorpusBm25BuildJobQuery, useCorpusChunkSetNameAvailabilityQuery } from "@/features/corpusBm25BuildJobs/corpusBm25BuildJobQueries";
 import {
   useActiveFullCorpusIndexPipeJobQuery,
   useCancelFullCorpusIndexPipeJobMutation,
@@ -52,12 +53,31 @@ export function FullCorpusIndexPipeJobsPage() {
   const [vectorStoreId, setVectorStoreId] = useState("");
   const [modelName, setModelName] = useState("");
   const [indexName, setIndexName] = useState("");
+  const [chunkSetName, setChunkSetName] = useState("");
+  const [buildBm25, setBuildBm25] = useState(true);
+  const [bm25IndexName, setBm25IndexName] = useState("");
   const [vectorNamespace, setVectorNamespace] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const chunkSetNameAvailability = useCorpusChunkSetNameAvailabilityQuery(
+    Number(corpusId || "0"),
+    chunkSetName,
+  );
 
   const selectedDetailId = activeJob.data?.id ?? selectedJobId ?? null;
   const jobDetail = useFullCorpusIndexPipeJobDetailQuery(selectedDetailId);
+  const detail = activeJob.data ?? jobDetail.data ?? null;
+  const parentIsActive = detail?.status === "queued" || detail?.status === "running";
+  const bm25Child = useCorpusBm25BuildJobQuery(
+    detail?.bm25_build_job_id ?? null,
+    parentIsActive,
+  );
+
+  useEffect(() => {
+    if (detail?.bm25_build_job_id && !parentIsActive) {
+      void bm25Child.refetch();
+    }
+  }, [detail?.bm25_build_job_id, detail?.status, parentIsActive, bm25Child.refetch]);
 
   useEffect(() => {
     if (activeJob.data?.id) {
@@ -123,7 +143,6 @@ export function FullCorpusIndexPipeJobsPage() {
     );
   }
 
-  const detail = activeJob.data ?? jobDetail.data ?? null;
   const warnings = detail?.warnings ?? [];
   const cancelRequested = detail ? getCancelRequested(detail) : false;
   const canCancel = Boolean(detail) && (detail?.status === "queued" || detail?.status === "running") && !cancelRequested;
@@ -140,12 +159,10 @@ export function FullCorpusIndexPipeJobsPage() {
       <Card className="border-amber-200 bg-amber-50/80">
         <h2 className="text-lg font-semibold text-amber-950">Important</h2>
         <p className="mt-2 text-sm text-amber-900">
-          Only one full corpus index pipe job can run at a time. Do not shut down or restart the app while a job is queued or running,
-          because FastAPI background tasks do not survive application shutdown.
+          Only one full corpus index pipe job runs at a time. Queued work is durable across application restarts.
         </p>
         <p className="mt-2 text-sm text-amber-900">
-          Cancelling a full corpus index pipe job stops future work and leaves any partial build artifacts in place, but cancelled candidate
-          indexes are not activated for normal use.
+          Cancelling stops future work and rolls back artifacts created by the combined pipeline before the parent job becomes terminal.
         </p>
         <p className="mt-2 text-sm text-amber-900">
           A 100 page pdf takes about 4 to 5 minutes to index for a default recursive chunking profile with a small 
@@ -214,6 +231,10 @@ export function FullCorpusIndexPipeJobsPage() {
           <Field label="Index name" hint="This must be unique. Use a different name to create another index for the same corpus.">
             <Input value={indexName} onChange={(event) => setIndexName(event.target.value)} disabled={formDisabled} />
           </Field>
+          <Field label="Chunk set name" hint="Required and unique within the selected corpus.">
+            <Input value={chunkSetName} onChange={(event) => setChunkSetName(event.target.value)} disabled={formDisabled} required minLength={3} />
+            {chunkSetNameAvailability.data?.available === false ? <p role="alert" className="mt-1 text-sm text-red-700">{chunkSetNameAvailability.data.reason}</p> : null}
+          </Field>
           <Field label="Vector namespace" hint="Optional. Leave blank to let the backend generate a namespace automatically.">
             <Input
               value={vectorNamespace}
@@ -222,6 +243,30 @@ export function FullCorpusIndexPipeJobsPage() {
               placeholder="Optional namespace"
             />
           </Field>
+          <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={buildBm25}
+              onChange={(event) => setBuildBm25(event.target.checked)}
+              disabled={formDisabled}
+              className="h-4 w-4 rounded border-slate-300 text-accent"
+            />
+            Build BM25 index also
+          </label>
+          {buildBm25 ? (
+            <Field
+              label="BM25 index name"
+              hint="Required and unique. This names the lexical half of the hybrid pair."
+            >
+              <Input
+                value={bm25IndexName}
+                onChange={(event) => setBm25IndexName(event.target.value)}
+                disabled={formDisabled}
+                required
+                minLength={3}
+              />
+            </Field>
+          ) : null}
         </div>
         {selectedCorpusIndices.length ? (
           <div className="mt-4 rounded-xl bg-slate-50 p-4">
@@ -244,7 +289,18 @@ export function FullCorpusIndexPipeJobsPage() {
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button
             type="button"
-            disabled={!corpusId || !profileId || !vectorStoreId || !modelName || !indexName || Boolean(dimensionWarning) || formDisabled}
+            disabled={
+              !corpusId ||
+              !profileId ||
+              !vectorStoreId ||
+              !modelName ||
+              indexName.trim().length < 3 ||
+              chunkSetName.trim().length < 3 ||
+              chunkSetNameAvailability.data?.available === false ||
+              (buildBm25 && bm25IndexName.trim().length < 3) ||
+              Boolean(dimensionWarning) ||
+              formDisabled
+            }
             onClick={async () => {
               try {
                 const queued = await createMutation.mutateAsync({
@@ -252,8 +308,11 @@ export function FullCorpusIndexPipeJobsPage() {
                   chunking_profile_id: Number(profileId),
                   vector_store_id: Number(vectorStoreId),
                   embedding_model: modelName,
-                  requested_index_name: indexName,
+                  requested_index_name: indexName.trim(),
+                  requested_chunk_set_name: chunkSetName.trim(),
                   requested_vector_namespace: vectorNamespace.trim() || null,
+                  build_bm25: buildBm25,
+                  requested_bm25_index_name: buildBm25 ? bm25IndexName.trim() : null,
                   status: "queued",
                   stage: "validating"
                 });
@@ -303,9 +362,28 @@ export function FullCorpusIndexPipeJobsPage() {
                 <div>
                   <p className="text-sm font-medium text-slate-900">{detail.requested_index_name}</p>
                   <p className="text-xs text-slate-500">Job #{detail.id}</p>
+                  <p className="text-xs text-slate-500">Chunk set: {detail.requested_chunk_set_name}{detail.corpus_chunk_set_id ? ` (#${detail.corpus_chunk_set_id})` : ""}</p>
                 </div>
                 <StatusBadge status={detail.status} />
               </div>
+              {detail.build_bm25 && detail.bm25_build_job_id ? (
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">
+                        {detail.requested_bm25_index_name}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {`BM25 job #${detail.bm25_build_job_id}`}
+                      </p>
+                    </div>
+                    {bm25Child.data ? <StatusBadge status={bm25Child.data.status} /> : null}
+                  </div>
+                  {bm25Child.data?.failure_detail ? (
+                    <p className="mt-3 text-sm text-red-700">{bm25Child.data.failure_detail}</p>
+                  ) : null}
+                </div>
+              ) : null}
               {cancelRequested && detail.status === "running" ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   Cancelling after the current step finishes.
@@ -444,6 +522,10 @@ function formatStageLabel(stage: string) {
       return "Chunking document";
     case "embedding":
       return "Embedding chunks";
+    case "building_bm25":
+      return "Building BM25 index";
+    case "rolling_back":
+      return "Rolling back artifacts";
     case "finalizing":
       return "Finalizing index";
     default:
@@ -456,11 +538,17 @@ function getCurrentActivityMessage(detail: {
   stage: string;
   current_document_name?: string | null;
 }) {
+  if (detail.stage === "rolling_back") {
+    return "Cleaning up BM25 and dense artifacts before the job is marked terminal.";
+  }
   if (getCancelRequested(detail) && detail.status === "running") {
     return "Cancellation requested. The current step will finish before the job stops.";
   }
   if (detail.stage === "embedding") {
     return "All documents ingested. Embedding chunks now.";
+  }
+  if (detail.stage === "building_bm25") {
+    return "Chunks are ready. Waiting for the BM25 child job to finish before dense embedding starts.";
   }
   if (detail.stage === "finalizing") {
     return "Activating the candidate index.";

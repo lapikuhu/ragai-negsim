@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.full_corpus_index_pipe_job_warnings import FullCorpusIndexPipeJobWarning
 from app.models.full_corpus_index_pipe_jobs import FullCorpusIndexPipeJob
 from app.repositories.helpers import commit_and_refresh, utc_now
-from app.schemas.full_corpus_index_pipe_jobs_schemas import FullCorpusIndexPipeJobCreate
+from app.schemas.full_corpus_index_pipe_jobs_schemas import FullCorpusIndexPipeJobPersist
 
 
 ACTIVE_FULL_CORPUS_INDEX_PIPE_JOB_STATUSES = {"queued", "running"}
@@ -45,8 +45,49 @@ async def get_active_full_corpus_index_pipe_job(session: AsyncSession) -> FullCo
     return result.first()
 
 
+async def claim_next_full_corpus_index_pipe_job(
+    session: AsyncSession,
+) -> FullCorpusIndexPipeJob | None:
+    """
+    Claim rollback work first, otherwise the oldest queued parent.
+
+    Args:
+        session: The database session to use for the query.
+    Returns:
+        The claimed full corpus index pipe job if available, otherwise None.
+    """
+    rollback_result = await session.exec(
+        select(FullCorpusIndexPipeJob)
+        .where(
+            FullCorpusIndexPipeJob.status == "running",
+            FullCorpusIndexPipeJob.stage == "rolling_back",
+        )
+        .order_by(FullCorpusIndexPipeJob.queued_at, FullCorpusIndexPipeJob.id)
+        .with_for_update(skip_locked=True)
+        .limit(1)
+    )
+    rollback_job = rollback_result.first()
+    if rollback_job is not None:
+        return rollback_job
+
+    queued_result = await session.exec(
+        select(FullCorpusIndexPipeJob)
+        .where(FullCorpusIndexPipeJob.status == "queued")
+        .order_by(FullCorpusIndexPipeJob.queued_at, FullCorpusIndexPipeJob.id)
+        .with_for_update(skip_locked=True)
+        .limit(1)
+    )
+    job = queued_result.first()
+    if job is None:
+        return None
+    job.status = "running"
+    job.started_at = utc_now()
+    job.cancel_requested = False
+    return await commit_and_refresh(session, job)
+
+
 async def create_full_corpus_index_pipe_job(
-    job_in: FullCorpusIndexPipeJobCreate,
+    job_in: FullCorpusIndexPipeJobPersist,
     session: AsyncSession,
 ) -> FullCorpusIndexPipeJob:
     """
@@ -64,6 +105,97 @@ async def create_full_corpus_index_pipe_job(
 
     job = FullCorpusIndexPipeJob(**job_in.model_dump())
     return await commit_and_refresh(session, job)
+
+
+async def set_full_corpus_index_pipe_job_bm25_child(
+    job: FullCorpusIndexPipeJob,
+    bm25_build_job_id: int,
+    session: AsyncSession,
+) -> FullCorpusIndexPipeJob:
+    """
+    Link a queued BM25 child and expose that the parent is waiting on it.
+
+    Args:
+        job: The full corpus index pipe job instance to update.
+        bm25_build_job_id: The ID of the BM25 build job to link.
+        session: The database session.
+    Returns:
+        The updated full corpus index pipe job.
+    """
+    job.bm25_build_job_id = bm25_build_job_id
+    job.stage = "building_bm25"
+    return await commit_and_refresh(session, job)
+
+
+async def set_full_corpus_index_pipe_job_chunk_set(
+    job: FullCorpusIndexPipeJob,
+    chunk_set_id: int,
+    session: AsyncSession,
+) -> FullCorpusIndexPipeJob:
+    """
+    Link a queued chunk set and expose that the parent is waiting on it.
+
+    Args:
+        job: The full corpus index pipe job instance to update.
+        chunk_set_id: The ID of the chunk set to link.
+        session: The database session.
+    Returns:
+        The updated full corpus index pipe job.
+    """
+    job.corpus_chunk_set_id = chunk_set_id
+    return await commit_and_refresh(session, job)
+
+
+async def has_active_full_pipe_bm25_name_reservation(
+    requested_name: str,
+    session: AsyncSession,
+) -> bool:
+    """
+    Check if there is an active full pipe BM25 name reservation.
+
+    Args:
+        requested_name: The requested BM25 index name to check for.
+        session: The database session.
+    Returns:
+        True if there is an active reservation with the requested name, False otherwise.
+    """
+    result = await session.exec(
+        select(FullCorpusIndexPipeJob.id)
+        .where(
+            FullCorpusIndexPipeJob.build_bm25.is_(True),
+            FullCorpusIndexPipeJob.requested_bm25_index_name == requested_name,
+            FullCorpusIndexPipeJob.status.in_(ACTIVE_FULL_CORPUS_INDEX_PIPE_JOB_STATUSES),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
+async def has_active_full_pipe_chunk_set_name_reservation(
+    corpus_id: int,
+    requested_name: str,
+    session: AsyncSession,
+) -> bool:
+    """
+    Check if there is an active full pipe chunk set name reservation.
+
+    Args:
+        corpus_id: The ID of the corpus to check for.
+        requested_name: The requested chunk set name to check for.
+        session: The database session.
+    Returns:
+        True if there is an active reservation with the requested name, False otherwise.
+    """
+    result = await session.exec(
+        select(FullCorpusIndexPipeJob.id)
+        .where(
+            FullCorpusIndexPipeJob.corpus_id == corpus_id,
+            FullCorpusIndexPipeJob.requested_chunk_set_name == requested_name,
+            FullCorpusIndexPipeJob.status.in_(ACTIVE_FULL_CORPUS_INDEX_PIPE_JOB_STATUSES),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
 
 
 async def list_full_corpus_index_pipe_jobs(
@@ -207,6 +339,27 @@ async def update_full_corpus_index_pipe_job_progress(
         job.chunks_created = chunks_created
     if chunks_indexed is not None:
         job.chunks_indexed = chunks_indexed
+    return await commit_and_refresh(session, job)
+
+
+async def mark_full_corpus_index_pipe_job_rolling_back(
+    job: FullCorpusIndexPipeJob,
+    failure_detail: str,
+    session: AsyncSession,
+) -> FullCorpusIndexPipeJob:
+    """
+    Keep a parent non-terminal until its artifact rollback succeeds.
+
+    Args:
+        job: The full corpus index pipe job to update.
+        failure_detail: The failure detail message for the rollback.
+        session: The database session to use for the query.
+    Returns:
+        The updated full corpus index pipe job.
+    """
+    job.status = "running"
+    job.stage = "rolling_back"
+    job.failure_detail = failure_detail
     return await commit_and_refresh(session, job)
 
 

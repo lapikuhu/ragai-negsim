@@ -123,7 +123,6 @@ async def get_simulation_retrieval_options(
         ValueError: If the corpus or RAG profile is not found, or if the
         RAG profile is not a CRAG profile.
     """
-    del current_user
     try:
         return (
             await simulation_retrieval_options_service.get_simulation_retrieval_options_srvc(

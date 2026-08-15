@@ -22,7 +22,21 @@ class FullCorpusIndexPipeJob(SQLModel, table=True):
     vector_store_id: int = Field(foreign_key="vectorstore.id")
     embedding_model: str = Field(min_length=1)
     requested_index_name: str = Field(min_length=3)
+    requested_chunk_set_name: str = Field(min_length=3)
     requested_vector_namespace: str | None = None
+    build_bm25: bool = Field(default=True)
+    requested_bm25_index_name: str | None = Field(default=None, min_length=3)
+    requested_by_user_id: int | None = Field(default=None, foreign_key="user.id")
+    bm25_build_job_id: int | None = Field(
+        default=None,
+        foreign_key="corpusbm25buildjob.id",
+    )
+    corpus_chunk_set_id: int | None = Field(
+        default=None,
+        foreign_key="corpuschunkset.id",
+        index=True,
+        ondelete="SET NULL",
+    )
     status: str = Field(index=True, min_length=1)
     stage: str = Field(index=True, min_length=1)
     current_raw_document_id: int | None = Field(default=None, foreign_key="rawdocument.id")

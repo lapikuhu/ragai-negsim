@@ -2,11 +2,12 @@
 
 from hashlib import sha256
 
-from sqlalchemy import delete, update
+from sqlalchemy import delete, or_, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.corpus_bm25_indices import CorpusBm25Index
+from app.repositories.corpus_chunk_sets_repo import document_chunk_ids_checksum
 from app.repositories.helpers import commit_and_refresh, utc_now
 from app.schemas.corpus_bm25_indices_schemas import (
     CorpusBm25IndexCreate,
@@ -30,20 +31,6 @@ ALLOWED_CORPUS_BM25_INDEX_STATUS_TRANSITIONS = {
     "cancelled": {"retired"},
     "retired": set(),
 }
-
-
-def document_chunk_ids_checksum(document_chunk_ids: list[int]) -> str:
-    """
-    Return the canonical checksum for a BM25 artifact's chunk set.
-    Args:
-        document_chunk_ids: The list of document chunk IDs that were used 
-        to build the BM25 artifact
-    Returns:
-        A SHA256 checksum of the canonical serialization of the document 
-        chunk IDs.
-    """
-    serialized_ids = ",".join(str(chunk_id) for chunk_id in sorted(document_chunk_ids))
-    return sha256(serialized_ids.encode("utf-8")).hexdigest()
 
 
 def ensure_corpus_bm25_index_status(status: str) -> None:
@@ -95,6 +82,9 @@ def _corpus_bm25_index_metadata_statement():
         CorpusBm25Index.name,
         CorpusBm25Index.corpus_id,
         CorpusBm25Index.chunking_profile_id,
+        CorpusBm25Index.corpus_chunk_set_id,
+        CorpusBm25Index.corpus_chunk_set_revision,
+        CorpusBm25Index.corpus_chunk_set_checksum,
         CorpusBm25Index.status,
         CorpusBm25Index.format_version,
         CorpusBm25Index.document_count,
@@ -122,6 +112,9 @@ def _corpus_bm25_index_metadata_columns():
         CorpusBm25Index.name,
         CorpusBm25Index.corpus_id,
         CorpusBm25Index.chunking_profile_id,
+        CorpusBm25Index.corpus_chunk_set_id,
+        CorpusBm25Index.corpus_chunk_set_revision,
+        CorpusBm25Index.corpus_chunk_set_checksum,
         CorpusBm25Index.status,
         CorpusBm25Index.format_version,
         CorpusBm25Index.document_count,
@@ -165,6 +158,92 @@ async def get_corpus_bm25_index_metadata_by_id(
     )
     row = result.first()
     return None if row is None else _to_metadata(row)
+
+
+async def get_corpus_bm25_index_metadata_by_name(
+    name: str,
+    session: AsyncSession,
+) -> CorpusBm25IndexMetadata | None:
+    """
+    Return safe BM25 metadata for one exact artifact name.
+
+    Args:
+        name: The name of the corpus BM25 index.
+        session: The SQLAlchemy AsyncSession to use for the query.
+    Returns:
+        A CorpusBm25IndexMetadata object if found, otherwise None.
+    """
+    result = await session.exec(
+        _corpus_bm25_index_metadata_statement()
+        .where(CorpusBm25Index.name == name)
+        .limit(1)
+    )
+    row = result.first()
+    return None if row is None else _to_metadata(row)
+
+
+async def get_corpus_bm25_index_metadata_by_full_pipe_job_id(
+    full_pipe_job_id: int,
+    session: AsyncSession,
+) -> CorpusBm25IndexMetadata | None:
+    """
+    Return safe metadata for the artifact owned by one full pipeline job.
+
+    Args:
+        full_pipe_job_id: The ID of the full pipeline job.
+        session: The SQLAlchemy AsyncSession to use for the query.
+    Returns:
+        A CorpusBm25IndexMetadata object if found, otherwise None.
+    """
+    result = await session.exec(
+        _corpus_bm25_index_metadata_statement()
+        .where(
+            CorpusBm25Index.created_by_full_corpus_index_pipe_job_id
+            == full_pipe_job_id
+        )
+        .limit(1)
+    )
+    row = result.first()
+    return None if row is None else _to_metadata(row)
+
+
+async def link_corpus_bm25_index_to_full_pipe_job(
+    index_id: int,
+    full_pipe_job_id: int,
+    session: AsyncSession,
+) -> None:
+    """
+    Claim a BM25 artifact for one parent, idempotently for that parent.
+
+    Args:
+        index_id: The ID of the corpus BM25 index.
+        full_pipe_job_id: The ID of the full pipeline job.
+        session: The SQLAlchemy AsyncSession to use for the query.
+    Raises:
+        ValueError: If the BM25 index is already owned by another full corpus pipeline job.
+    """
+    try:
+        result = await session.exec(
+            update(CorpusBm25Index)
+            .where(
+                CorpusBm25Index.id == index_id,
+                or_(
+                    CorpusBm25Index.created_by_full_corpus_index_pipe_job_id.is_(None),
+                    CorpusBm25Index.created_by_full_corpus_index_pipe_job_id
+                    == full_pipe_job_id,
+                ),
+            )
+            .values(created_by_full_corpus_index_pipe_job_id=full_pipe_job_id)
+            .returning(CorpusBm25Index.id)
+        )
+        linked_id = result.one_or_none()
+    except Exception:
+        await session.rollback()
+        raise
+    if linked_id is None:
+        await session.rollback()
+        raise ValueError("BM25 index is already owned by another full corpus pipeline job")
+    await session.commit()
 
 
 async def list_corpus_bm25_index_metadata(

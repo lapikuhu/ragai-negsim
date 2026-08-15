@@ -7,6 +7,9 @@ class CorpusBm25IndexCreate(SQLModel):
     name: str = Field(min_length=3)
     corpus_id: int
     chunking_profile_id: int
+    corpus_chunk_set_id: int
+    corpus_chunk_set_revision: int = Field(ge=1)
+    corpus_chunk_set_checksum: str = Field(min_length=64, max_length=64)
     document_chunk_ids: list[int] = Field(default_factory=list)
     format_version: str = Field(default="pickle-zlib-v1", min_length=1)
     created_by_full_corpus_index_pipe_job_id: int | None = None #Check
@@ -18,6 +21,11 @@ class CorpusBm25IndexMetadata(SQLModel):
     name: str
     corpus_id: int
     chunking_profile_id: int
+    corpus_chunk_set_id: int
+    corpus_chunk_set_revision: int
+    corpus_chunk_set_checksum: str
+    is_stale: bool = False
+    stale_reason: str | None = None
     status: str
     format_version: str
     document_count: int

@@ -4,11 +4,14 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Column, DateTime as SQLAlchemyDateTime, JSON
 from sqlmodel import Field, Relationship, SQLModel
 
+from .corpus_chunk_sets import CorpusChunkSetDocumentChunkLink
+
 if TYPE_CHECKING:
     from .chunking_profiles import ChunkingProfile
     from .indexed_chunks import IndexedChunk
     from .full_corpus_index_pipe_jobs import FullCorpusIndexPipeJob
     from .raw_documents import RawDocument
+    from .corpus_chunk_sets import CorpusChunkSet
 
 
 class DocumentChunk(SQLModel, table=True):
@@ -23,6 +26,10 @@ class DocumentChunk(SQLModel, table=True):
     chunking_profile: "ChunkingProfile" = Relationship(back_populates="document_chunks")
     full_corpus_index_pipe_job: "FullCorpusIndexPipeJob" = Relationship(back_populates="document_chunks")
     indexed_chunks: list["IndexedChunk"] = Relationship(back_populates="document_chunk")
+    corpus_chunk_sets: list["CorpusChunkSet"] = Relationship(
+        back_populates="document_chunks",
+        link_model=CorpusChunkSetDocumentChunkLink,
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(SQLAlchemyDateTime(timezone=True), nullable=False),

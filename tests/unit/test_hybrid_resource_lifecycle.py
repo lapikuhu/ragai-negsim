@@ -65,7 +65,11 @@ async def test_candidate_terminal_paths_clear_only_dense_cache(
 
     monkeypatch.setattr(
         full_corpus_index_pipe_job.corpus_indices_repo,
-        f"mark_corpus_index_{terminal_state}",
+        (
+            "fail_corpus_index_build"
+            if terminal_state == "failed"
+            else "cancel_corpus_index_build"
+        ),
         mark_dense_terminal,
     )
     monkeypatch.setattr(
@@ -113,7 +117,7 @@ async def test_dense_candidate_cache_eviction_survives_repeated_cancellation(
 
     monkeypatch.setattr(
         full_corpus_index_pipe_job.corpus_indices_repo,
-        "mark_corpus_index_cancelled",
+        "cancel_corpus_index_build",
         cancelled_after_status_commit,
     )
     monkeypatch.setattr(
@@ -206,10 +210,17 @@ async def test_retired_dense_cleanup_removes_vectors_refs_and_dense_cache_only(
 
 
 @pytest.mark.asyncio
-async def test_interrupted_job_recovery_uses_dense_failure_cleanup_only(
+async def test_interrupted_job_recovery_rolls_back_the_parent_owned_pair(
     monkeypatch,
 ):
-    job = SimpleNamespace(id=9, candidate_corpus_index_id=17)
+    job = SimpleNamespace(
+        id=9,
+        status="running",
+        stage="embedding",
+        cancel_requested=False,
+        failure_detail=None,
+        candidate_corpus_index_id=17,
+    )
     dense_index = SimpleNamespace(id=17, status="building")
     events = []
     bm25_artifact = bytearray(b"lexical artifact remains")
@@ -227,8 +238,15 @@ async def test_interrupted_job_recovery_uses_dense_failure_cleanup_only(
     async def get_dense(index_id, session):
         return dense_index
 
-    async def fail(job_arg, index_arg, session, detail):
-        events.append((job_arg.id, index_arg.id, detail))
+    async def rollback(job_arg, index_arg, **kwargs):
+        events.append(
+            (
+                job_arg.id,
+                index_arg.id,
+                kwargs["terminal_status"],
+                kwargs["detail"],
+            )
+        )
 
     monkeypatch.setattr(full_corpus_index_pipe_job, "AsyncSessionLocal", Session)
     monkeypatch.setattr(
@@ -241,7 +259,7 @@ async def test_interrupted_job_recovery_uses_dense_failure_cleanup_only(
         "get_corpus_index_by_id",
         get_dense,
     )
-    monkeypatch.setattr(full_corpus_index_pipe_job, "_fail_job_and_candidate", fail)
+    monkeypatch.setattr(full_corpus_index_pipe_job, "_rollback_parent_artifacts", rollback)
 
     await full_corpus_index_pipe_job.fail_interrupted_full_corpus_index_pipe_jobs_srvc()
 
@@ -249,6 +267,7 @@ async def test_interrupted_job_recovery_uses_dense_failure_cleanup_only(
         (
             9,
             17,
+            "failed",
             full_corpus_index_pipe_job.INTERRUPTED_FAILURE_DETAIL,
         )
     ]
@@ -265,6 +284,9 @@ def test_dense_status_schema_does_not_claim_bm25_availability():
         corpus_id=2,
         vector_store_id=3,
         chunking_profile_id=4,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="a" * 64,
         status="built",
         embedding_model="dense-model",
         created_at=now,
@@ -273,6 +295,9 @@ def test_dense_status_schema_does_not_claim_bm25_availability():
     )
 
     assert not any("bm25" in field.lower() for field in result.model_dump())
+    assert result.corpus_chunk_set_id == 21
+    assert result.corpus_chunk_set_revision == 3
+    assert result.corpus_chunk_set_checksum == "a" * 64
 
 
 def test_openwiki_documents_hybrid_artifact_operations_contract():
@@ -290,7 +315,8 @@ def test_openwiki_documents_hybrid_artifact_operations_contract():
         "GET /corpus-bm25-indices/",
         "BM25-only configurations omit the retrieval embedding model",
         "build_bm25",
-        "artifact_mode",
+        "requested_bm25_index_name",
+        "persisted named sets",
     )
     for guidance in required_guidance:
         assert guidance in guide

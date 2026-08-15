@@ -23,6 +23,14 @@ class CorpusBm25BuildJob(SQLModel, table=True):
     requested_artifact_name: str = Field(min_length=3)
     corpus_id: int = Field(foreign_key="corpus.id", index=True)
     chunking_profile_id: int = Field(foreign_key="chunkingprofile.id", index=True)
+    corpus_chunk_set_id: int | None = Field(
+        default=None,
+        foreign_key="corpuschunkset.id",
+        index=True,
+        ondelete="SET NULL",
+    )
+    corpus_chunk_set_revision: int = Field(ge=1)
+    corpus_chunk_set_checksum: str = Field(min_length=64, max_length=64)
     requested_by_user_id: int = Field(foreign_key="user.id")
     document_chunk_ids: list[int] = Field(sa_column=Column(JSON, nullable=False))
     document_chunk_ids_checksum: str = Field(min_length=64, max_length=64)

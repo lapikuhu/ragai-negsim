@@ -7,6 +7,7 @@ from app.schemas.corpus_bm25_build_jobs_schemas import (
     CorpusBm25BuildJobQueueRequest,
     CorpusBm25BuildJobRead,
     CorpusBm25BuildJobRetryRequest,
+    CorpusBm25IndexNameAvailability,
 )
 from app.services import corpus_bm25_build_jobs_service as service
 from app.services.corpus_bm25_build_coordinator import wake_corpus_bm25_build_coordinator
@@ -29,6 +30,37 @@ def _raise(exc: ValueError) -> None:
     """
     code = status.HTTP_404_NOT_FOUND if isinstance(exc, CorpusBm25BuildJobNotFoundError) else status.HTTP_409_CONFLICT
     raise HTTPException(status_code=code, detail=str(exc)) from exc
+
+### ---------------------- BM25 NAME AVAILABILITY GET --------------------- ###
+@router.get("/name-availability", 
+            response_model=CorpusBm25IndexNameAvailability,
+            status_code=status.HTTP_200_OK,
+            )
+async def get_corpus_bm25_index_name_availability(
+    name: str,
+    session: SessionDep,
+    _admin: AdminDep,
+) -> CorpusBm25IndexNameAvailability:
+    """
+    Check the availability of a corpus BM25 index name.
+
+    Args:
+        name (str): The name of the corpus BM25 index to check.
+        session (SessionDep): The database session dependency.
+        _admin (AdminDep): The admin dependency for authorization.
+    Returns:
+        CorpusBm25IndexNameAvailability: The availability status of the corpus 
+        BM25 index name.
+    """
+    try:
+        normalized = await service.ensure_corpus_bm25_index_name_available_srvc(
+            name, session
+        )
+    except CorpusBm25BuildJobConflictError as exc:
+        return CorpusBm25IndexNameAvailability(
+            name=name.strip(), available=False, reason=str(exc)
+        )
+    return CorpusBm25IndexNameAvailability(name=normalized, available=True)
 
 ### ------------------------ QUEUE BM25 JOB ------------------------ ###
 @router.post("/", 
@@ -59,7 +91,8 @@ async def queue_corpus_bm25_build_job(request: CorpusBm25BuildJobQueueRequest,
 
 ### ------------------------ LIST BM25 JOBS ------------------------ ###
 @router.get("/", 
-            response_model=list[CorpusBm25BuildJobRead])
+            response_model=list[CorpusBm25BuildJobRead],
+            status_code=status.HTTP_200_OK)
 async def list_corpus_bm25_build_jobs(
     session: SessionDep,
     _admin: AdminDep,
@@ -86,7 +119,8 @@ async def list_corpus_bm25_build_jobs(
 
 ### ---------------------- GET BM25 JOB BY ID ---------------------- ###
 @router.get("/{job_id}", 
-            response_model=CorpusBm25BuildJobRead)
+            response_model=CorpusBm25BuildJobRead,
+            status_code=status.HTTP_200_OK)
 async def get_corpus_bm25_build_job(job_id: int, 
                                     session: SessionDep, 
                                     _admin: AdminDep) -> CorpusBm25BuildJobRead | None:
@@ -107,7 +141,9 @@ async def get_corpus_bm25_build_job(job_id: int,
         _raise(exc)
 
 ### -------------------- CANCEL BM25 JOB BY ID --------------------- ###
-@router.post("/{job_id}/cancel", response_model=CorpusBm25BuildJobRead)
+@router.post("/{job_id}/cancel", 
+             response_model=CorpusBm25BuildJobRead,
+             status_code=status.HTTP_200_OK)
 async def cancel_corpus_bm25_build_job(job_id: int, 
                                        session: SessionDep, 
                                        _admin: AdminDep):

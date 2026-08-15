@@ -4,6 +4,7 @@ from app.models.corpus_indices import CorpusIndex
 from app.repositories import (
     chunking_profiles_repo,
     corpus_indices_repo,
+    corpus_chunk_sets_repo,
     corpus_repo,
     vector_stores_repo,
 )
@@ -32,7 +33,20 @@ async def _read_corpus_index_with_ids(
     Returns:
         CorpusIndexReadWithIds: the corpus index with the indexed chunked documents ids
     """
-    return await corpus_indices_repo.to_corpus_index_read_with_ids(index, session)
+    value = await corpus_indices_repo.to_corpus_index_read_with_ids(index, session)
+    chunk_set = await corpus_chunk_sets_repo.get_corpus_chunk_set_by_id(
+        index.corpus_chunk_set_id, session
+    )
+    reason = None
+    if chunk_set is None:
+        reason = "Corpus chunk set no longer exists"
+    elif index.corpus_chunk_set_revision != chunk_set.revision:
+        reason = "Corpus chunk set revision changed"
+    elif index.corpus_chunk_set_checksum != chunk_set.document_chunk_ids_checksum:
+        reason = "Corpus chunk set checksum changed"
+    return value.model_copy(
+        update={"is_stale": reason is not None, "stale_reason": reason}
+    )
 
 
 async def _ensure_corpus_exists(corpus_id: int, session: AsyncSession) -> None:
@@ -102,6 +116,47 @@ async def _ensure_required_refs_exist(
     await _ensure_vector_store_exists(vector_store_id, session)
     await _ensure_chunking_profile_exists(chunking_profile_id, session)
 
+
+async def _ensure_chunk_set_identity(
+    *,
+    corpus_id: int,
+    chunking_profile_id: int,
+    corpus_chunk_set_id: int,
+    corpus_chunk_set_revision: int,
+    corpus_chunk_set_checksum: str,
+    session: AsyncSession,
+) -> None:
+    """
+    Perform checks to ensure that the corpus chunk set identity matches the 
+    expected values.
+    
+    Args:
+        corpus_id (int): The ID of the corpus to check.
+        chunking_profile_id (int): The ID of the chunking profile to check.
+        corpus_chunk_set_id (int): The ID of the corpus chunk set to check.
+        corpus_chunk_set_revision (int): The expected revision of the corpus 
+            chunk set.
+        corpus_chunk_set_checksum (str): The expected checksum of the corpus 
+            chunk set.
+        session (AsyncSession): The database session.
+    Raises:
+        ValueError: If any of the checks fail.
+    
+    """
+    chunk_set = await corpus_chunk_sets_repo.get_corpus_chunk_set_by_id(
+        corpus_chunk_set_id, session
+    )
+    if chunk_set is None:
+        raise ValueError("Corpus chunk set not found")
+    if chunk_set.corpus_id != corpus_id:
+        raise ValueError("Corpus chunk set does not belong to corpus")
+    if chunk_set.chunking_profile_id != chunking_profile_id:
+        raise ValueError("Corpus chunk set uses a different chunking profile")
+    if chunk_set.revision != corpus_chunk_set_revision:
+        raise ValueError("Corpus chunk set revision changed")
+    if chunk_set.document_chunk_ids_checksum != corpus_chunk_set_checksum:
+        raise ValueError("Corpus chunk set checksum changed")
+
 # CHECK
 async def _ensure_copy_override_refs_exist(
     copy_data: CorpusIndexCopy,
@@ -146,6 +201,15 @@ async def create_corpus_index_srvc(
         index_data.vector_store_id,
         index_data.chunking_profile_id,
         session,
+    )
+    # Check the chunk set identity to ensure it matches the expected values
+    await _ensure_chunk_set_identity(
+        corpus_id=index_data.corpus_id,
+        chunking_profile_id=index_data.chunking_profile_id,
+        corpus_chunk_set_id=index_data.corpus_chunk_set_id,
+        corpus_chunk_set_revision=index_data.corpus_chunk_set_revision,
+        corpus_chunk_set_checksum=index_data.corpus_chunk_set_checksum,
+        session=session,
     )
     index = await corpus_indices_repo.create_corpus_index(index_data, session)
     return await _read_corpus_index_with_ids(index, session)
@@ -216,9 +280,23 @@ async def get_corpus_index_detail_srvc(
     Returns:
         CorpusIndexReadWithIndexedChunks: the corpus index with indexed chunks
     """
-    return await corpus_indices_repo.to_corpus_index_read_with_indexed_chunks(
+    value = await corpus_indices_repo.to_corpus_index_read_with_indexed_chunks(
         index,
         session,
+    )
+    chunk_set = await corpus_chunk_sets_repo.get_corpus_chunk_set_by_id(
+        index.corpus_chunk_set_id, session
+    )
+    # Get the chunk set and perform staleness checks on it
+    reason = None
+    if chunk_set is None:
+        reason = "Corpus chunk set no longer exists"
+    elif index.corpus_chunk_set_revision != chunk_set.revision:
+        reason = "Corpus chunk set revision changed"
+    elif index.corpus_chunk_set_checksum != chunk_set.document_chunk_ids_checksum:
+        reason = "Corpus chunk set checksum changed"
+    return value.model_copy(
+        update={"is_stale": reason is not None, "stale_reason": reason}
     )
 
 # CHECK
@@ -305,6 +383,21 @@ async def copy_corpus_index_srvc(
         CorpusIndexReadWithIds: the copied corpus index with IDs
     """
     await _ensure_copy_override_refs_exist(copy_data, session)
+    if copy_data.corpus_id not in (None, source_index.corpus_id):
+        raise ValueError("Cannot copy a corpus index to a different corpus chunk set")
+    if copy_data.chunking_profile_id not in (
+        None,
+        source_index.chunking_profile_id,
+    ):
+        raise ValueError("Cannot copy a corpus index to a different chunking profile")
+    await _ensure_chunk_set_identity(
+        corpus_id=source_index.corpus_id,
+        chunking_profile_id=source_index.chunking_profile_id,
+        corpus_chunk_set_id=source_index.corpus_chunk_set_id,
+        corpus_chunk_set_revision=source_index.corpus_chunk_set_revision,
+        corpus_chunk_set_checksum=source_index.corpus_chunk_set_checksum,
+        session=session,
+    )
     copied_index = await corpus_indices_repo.copy_corpus_index(
         source_index,
         copy_data,

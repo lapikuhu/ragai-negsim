@@ -30,6 +30,9 @@ def _metadata_row(index: CorpusBm25Index, *, status: str | None = None):
             "name": index.name,
             "corpus_id": index.corpus_id,
             "chunking_profile_id": index.chunking_profile_id,
+            "corpus_chunk_set_id": index.corpus_chunk_set_id,
+            "corpus_chunk_set_revision": index.corpus_chunk_set_revision,
+            "corpus_chunk_set_checksum": index.corpus_chunk_set_checksum,
             "status": status or index.status,
             "format_version": index.format_version,
             "document_count": index.document_count,
@@ -54,6 +57,9 @@ def test_bm25_artifact_table_has_required_postgres_schema_and_safe_defaults():
         "name",
         "corpus_id",
         "chunking_profile_id",
+        "corpus_chunk_set_id",
+        "corpus_chunk_set_revision",
+        "corpus_chunk_set_checksum",
         "status",
         "format_version",
         "artifact",
@@ -76,6 +82,7 @@ def test_bm25_artifact_table_has_required_postgres_schema_and_safe_defaults():
     assert foreign_keys == {
         "corpus.id",
         "chunkingprofile.id",
+        "corpuschunkset.id",
         "fullcorpusindexpipejob.id",
         "corpusbm25buildjob.id",
     }
@@ -117,6 +124,9 @@ def test_metadata_dto_and_statement_never_materialize_artifact_bytes():
         name="bm25 candidate",
         corpus_id=5,
         chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         status="built",
         format_version="pickle-zlib-v1",
         document_count=2,
@@ -131,16 +141,27 @@ def test_metadata_dto_and_statement_never_materialize_artifact_bytes():
     )
 
     assert "artifact" not in metadata.model_dump()
+    assert metadata.corpus_chunk_set_id == 21
+    assert metadata.corpus_chunk_set_revision == 3
+    assert metadata.corpus_chunk_set_checksum == "c" * 64
     statement = corpus_bm25_indices_repo._corpus_bm25_index_metadata_statement().where(
         CorpusBm25Index.id == 3
     )
     assert "artifact" not in statement.selected_columns.keys()
+    assert {
+        "corpus_chunk_set_id",
+        "corpus_chunk_set_revision",
+        "corpus_chunk_set_checksum",
+    } <= set(statement.selected_columns.keys())
 
     model = CorpusBm25Index(
         id=3,
         name="bm25 candidate",
         corpus_id=5,
         chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         document_chunk_ids_checksum="a" * 64,
         artifact=b"private-binary",
     )
@@ -215,6 +236,126 @@ async def test_built_simulation_candidates_are_unpaginated_and_metadata_only():
 
 
 @pytest.mark.asyncio
+async def test_metadata_lookup_by_name_is_exact_and_does_not_select_artifact_bytes():
+    _require_bm25_persistence()
+    index = CorpusBm25Index(
+        id=14,
+        name="policy lexical",
+        corpus_id=5,
+        chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
+        status="built",
+        document_chunk_ids_checksum="a" * 64,
+    )
+
+    class FakeResult:
+        def first(self):
+            return _metadata_row(index)
+
+    class RecordingSession:
+        statement = None
+
+        async def exec(self, statement):
+            self.statement = statement
+            return FakeResult()
+
+    lookup = getattr(
+        corpus_bm25_indices_repo,
+        "get_corpus_bm25_index_metadata_by_name",
+        None,
+    )
+    assert lookup is not None
+    session = RecordingSession()
+
+    result = await lookup("policy lexical", session)
+
+    assert result.id == 14
+    assert result.corpus_chunk_set_id == 21
+    assert result.corpus_chunk_set_revision == 3
+    assert result.corpus_chunk_set_checksum == "c" * 64
+    assert "artifact" not in session.statement.selected_columns.keys()
+    compiled = session.statement.compile(dialect=postgresql.dialect())
+    assert compiled.params == {"name_1": "policy lexical", "param_1": 1}
+
+
+@pytest.mark.asyncio
+async def test_metadata_lookup_by_full_pipe_owner_is_safe():
+    _require_bm25_persistence()
+    index = CorpusBm25Index(
+        id=15,
+        name="owned lexical",
+        corpus_id=5,
+        chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
+        status="built",
+        document_chunk_ids_checksum="a" * 64,
+        created_by_full_corpus_index_pipe_job_id=81,
+    )
+
+    class FakeResult:
+        def first(self):
+            return _metadata_row(index)
+
+    class RecordingSession:
+        statement = None
+
+        async def exec(self, statement):
+            self.statement = statement
+            return FakeResult()
+
+    lookup = getattr(
+        corpus_bm25_indices_repo,
+        "get_corpus_bm25_index_metadata_by_full_pipe_job_id",
+        None,
+    )
+    assert lookup is not None
+    session = RecordingSession()
+
+    result = await lookup(81, session)
+
+    assert result.id == 15
+    assert result.corpus_chunk_set_id == 21
+    assert "artifact" not in session.statement.selected_columns.keys()
+
+
+@pytest.mark.asyncio
+async def test_link_bm25_index_to_full_pipe_owner_is_persisted():
+    _require_bm25_persistence()
+
+    class FakeResult:
+        def one_or_none(self):
+            return 15
+
+    class RecordingSession:
+        statement = None
+        commits = 0
+
+        async def exec(self, statement):
+            self.statement = statement
+            return FakeResult()
+
+        async def commit(self):
+            self.commits += 1
+
+    linker = getattr(
+        corpus_bm25_indices_repo,
+        "link_corpus_bm25_index_to_full_pipe_job",
+        None,
+    )
+    assert linker is not None
+    session = RecordingSession()
+
+    await linker(15, 81, session)
+
+    assert session.statement.is_update
+    assert session.commits == 1
+
+
+@pytest.mark.asyncio
 async def test_stale_lifecycle_object_cannot_overwrite_current_status(monkeypatch):
     _require_bm25_persistence()
     stale_index = CorpusBm25Index(
@@ -222,6 +363,9 @@ async def test_stale_lifecycle_object_cannot_overwrite_current_status(monkeypatc
         name="bm25 candidate",
         corpus_id=5,
         chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         status="building",
         document_chunk_ids_checksum="a" * 64,
     )
@@ -230,6 +374,9 @@ async def test_stale_lifecycle_object_cannot_overwrite_current_status(monkeypatc
         name="bm25 candidate",
         corpus_id=5,
         chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         status="cancelled",
         document_chunk_ids_checksum="a" * 64,
     )
@@ -285,6 +432,9 @@ async def test_successful_lifecycle_update_returns_safe_metadata_without_artifac
         name="bm25 candidate",
         corpus_id=5,
         chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         status="building",
         document_chunk_ids_checksum="a" * 64,
     )
@@ -314,6 +464,9 @@ async def test_successful_lifecycle_update_returns_safe_metadata_without_artifac
     assert isinstance(result, corpus_bm25_indices_repo.CorpusBm25IndexMetadata)
     assert session.statement.is_update
     assert CorpusBm25Index.artifact not in session.statement._returning
+    assert CorpusBm25Index.corpus_chunk_set_id in session.statement._returning
+    assert CorpusBm25Index.corpus_chunk_set_revision in session.statement._returning
+    assert CorpusBm25Index.corpus_chunk_set_checksum in session.statement._returning
     assert session.commit_calls == 1
 
 
@@ -366,6 +519,9 @@ async def test_lifecycle_rejects_an_unpersisted_bm25_index_before_querying():
         name="bm25 candidate",
         corpus_id=5,
         chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         document_chunk_ids_checksum="a" * 64,
     )
 
@@ -389,12 +545,18 @@ async def test_create_derives_chunk_snapshot_integrity_from_raw_chunk_ids(monkey
             name="bm25 candidate",
             corpus_id=5,
             chunking_profile_id=7,
+            corpus_chunk_set_id=21,
+            corpus_chunk_set_revision=3,
+            corpus_chunk_set_checksum="c" * 64,
             document_chunk_ids=[19, 2, 11],
         ),
         object(),
     )
 
     assert created.document_count == 3
+    assert created.corpus_chunk_set_id == 21
+    assert created.corpus_chunk_set_revision == 3
+    assert created.corpus_chunk_set_checksum == "c" * 64
     assert created.document_chunk_ids_checksum == (
         "8d07d17ff08d8d86c287ed16f39ad962457ccdb24b290ba0bc9340d2249d7151"
     )
@@ -417,6 +579,9 @@ async def test_lifecycle_transitions_are_independent_from_dense_index_status(mon
         name="bm25 candidate",
         corpus_id=5,
         chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         document_chunk_ids_checksum="a" * 64,
     )
 
@@ -461,6 +626,9 @@ async def test_failure_and_cancellation_are_terminal_bm25_lifecycle_states(monke
         name=f"bm25 {terminal_status}",
         corpus_id=5,
         chunking_profile_id=7,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         document_chunk_ids_checksum="a" * 64,
     )
 

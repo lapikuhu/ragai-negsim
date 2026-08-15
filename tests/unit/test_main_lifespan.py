@@ -4,6 +4,7 @@ from app import main
 from app.services import (
     corpus_bm25_build_coordinator,
     corpus_bm25_build_jobs_service,
+    full_corpus_index_pipe_coordinator,
     full_corpus_index_pipe_job,
     knowledge_graph_builds_service,
     rag_eval_service,
@@ -37,6 +38,12 @@ async def test_lifespan_recovers_indexing_and_knowledge_graph_jobs(monkeypatch):
 
     async def fake_stop_bm25():
         recovered.append("bm25-stop")
+
+    async def fake_start_full_pipe():
+        recovered.append("full-pipe-start")
+
+    async def fake_stop_full_pipe():
+        recovered.append("full-pipe-stop")
 
     monkeypatch.setattr(main, "startup_seed", fake_startup_seed)
     monkeypatch.setattr(
@@ -74,15 +81,26 @@ async def test_lifespan_recovers_indexing_and_knowledge_graph_jobs(monkeypatch):
         "shutdown_corpus_bm25_build_coordinator_srvc",
         fake_stop_bm25,
     )
+    monkeypatch.setattr(
+        full_corpus_index_pipe_coordinator,
+        "startup_full_corpus_index_pipe_coordinator_srvc",
+        fake_start_full_pipe,
+    )
+    monkeypatch.setattr(
+        full_corpus_index_pipe_coordinator,
+        "shutdown_full_corpus_index_pipe_coordinator_srvc",
+        fake_stop_full_pipe,
+    )
 
     async with main.lifespan(main.app):
         assert recovered == [
             "seed",
+            "bm25-recovery",
             "indexing",
             "knowledge-graphs",
-            "bm25-recovery",
             "bm25-start",
+            "full-pipe-start",
             "rag-eval-start",
         ]
 
-    assert recovered[-2:] == ["bm25-stop", "rag-eval-stop"]
+    assert recovered[-3:] == ["full-pipe-stop", "bm25-stop", "rag-eval-stop"]

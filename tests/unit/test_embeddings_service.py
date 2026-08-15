@@ -55,9 +55,36 @@ def _build_request(**overrides):
         "name": "my index",
         "embedding_model": "mini-l6-v2",
         "vector_namespace": None,
+        "corpus_chunk_set_id": 21,
     }
     values.update(overrides)
     return CorpusEmbeddingBuildRequest(**values)
+
+
+def _install_chunk_set(monkeypatch, chunks):
+    ids = [chunk.id for chunk in chunks]
+    snapshot = SimpleNamespace(
+        chunk_set=SimpleNamespace(
+            id=21,
+            corpus_id=11,
+            chunking_profile_id=3,
+            revision=3,
+            document_chunk_ids_checksum="c" * 64,
+        ),
+        document_chunk_ids=ids,
+    )
+
+    async def get_snapshot(chunk_set_id, session):
+        assert chunk_set_id == 21
+        return snapshot
+
+    async def get_chunks(chunk_set_id, document_chunk_ids, session):
+        assert chunk_set_id == 21
+        assert document_chunk_ids == ids
+        return chunks
+
+    monkeypatch.setattr(embeddings_service, "get_corpus_chunk_set_snapshot_srvc", get_snapshot)
+    monkeypatch.setattr(embeddings_service, "get_corpus_chunk_set_document_chunks_by_ids", get_chunks)
 
 
 def test_embedding_catalog_uses_registry():
@@ -110,6 +137,7 @@ def test_queued_embedding_build_response_contains_poll_links():
         corpus_index_id=77,
         vector_store_id=5,
         chunking_profile_id=3,
+        corpus_chunk_set_id=21,
         embedding_model="mini-l6-v2",
         embedding_dimensions=384,
         vector_namespace="corpus-index-77",
@@ -128,10 +156,8 @@ async def test_build_corpus_embeddings_creates_index_and_vector_refs(monkeypatch
     captured_metadata = []
     created_index = None
 
-    async def fake_list_chunks(corpus_id, chunking_profile_id, session):
-        assert corpus_id == 11
-        assert chunking_profile_id == 3
-        return [_chunk(101, content="first"), _chunk(102, content="second")]
+    chunks = [_chunk(101, content="first"), _chunk(102, content="second")]
+    _install_chunk_set(monkeypatch, chunks)
 
     async def fake_create_index(index_in, session):
         nonlocal created_index
@@ -142,6 +168,9 @@ async def test_build_corpus_embeddings_creates_index_and_vector_refs(monkeypatch
             built_at=None,
             vector_namespace=index_in.vector_namespace,
             embedding_model=index_in.embedding_model,
+            corpus_chunk_set_id=index_in.corpus_chunk_set_id,
+            corpus_chunk_set_revision=index_in.corpus_chunk_set_revision,
+            corpus_chunk_set_checksum=index_in.corpus_chunk_set_checksum,
             build_error="old failure",
         )
         return created_index
@@ -171,11 +200,6 @@ async def test_build_corpus_embeddings_creates_index_and_vector_refs(monkeypatch
         captured_indexed_chunks.extend(indexed_chunks_in)
         return []
 
-    monkeypatch.setattr(
-        embeddings_service,
-        "list_corpus_document_chunks_for_profile",
-        fake_list_chunks,
-    )
     monkeypatch.setattr(
         embeddings_service.corpus_indices_repo,
         "create_corpus_index",
@@ -230,14 +254,7 @@ async def test_build_corpus_embeddings_creates_index_and_vector_refs(monkeypatch
 
 @pytest.mark.asyncio
 async def test_build_corpus_embeddings_requires_chunks(monkeypatch):
-    async def fake_list_chunks(corpus_id, chunking_profile_id, session):
-        return []
-
-    monkeypatch.setattr(
-        embeddings_service,
-        "list_corpus_document_chunks_for_profile",
-        fake_list_chunks,
-    )
+    _install_chunk_set(monkeypatch, [])
 
     from app.airag.embeddings import embeddings as embeddings_module
 
@@ -247,7 +264,7 @@ async def test_build_corpus_embeddings_requires_chunks(monkeypatch):
         lambda model_name: (object(), {"dimensionality": 384}),
     )
 
-    with pytest.raises(ValueError, match="Chunk the corpus first"):
+    with pytest.raises(ValueError, match="empty"):
         await embeddings_service.build_corpus_embeddings_srvc(
             corpus=_corpus(),
             chunking_profile=_chunking_profile(),
@@ -262,8 +279,7 @@ async def test_build_corpus_embeddings_marks_index_failed_on_vector_error(monkey
     marked_failed = []
     created_index = None
 
-    async def fake_list_chunks(corpus_id, chunking_profile_id, session):
-        return [_chunk(101)]
+    _install_chunk_set(monkeypatch, [_chunk(101)])
 
     async def fake_create_index(index_in, session):
         nonlocal created_index
@@ -273,6 +289,9 @@ async def test_build_corpus_embeddings_marks_index_failed_on_vector_error(monkey
             built_at=None,
             vector_namespace=index_in.vector_namespace,
             embedding_model=index_in.embedding_model,
+            corpus_chunk_set_id=index_in.corpus_chunk_set_id,
+            corpus_chunk_set_revision=index_in.corpus_chunk_set_revision,
+            corpus_chunk_set_checksum=index_in.corpus_chunk_set_checksum,
             build_error=None,
         )
         return created_index
@@ -294,11 +313,6 @@ async def test_build_corpus_embeddings_marks_index_failed_on_vector_error(monkey
     async def fake_store_docs(**kwargs):
         raise RuntimeError("vector store unavailable")
 
-    monkeypatch.setattr(
-        embeddings_service,
-        "list_corpus_document_chunks_for_profile",
-        fake_list_chunks,
-    )
     monkeypatch.setattr(
         embeddings_service.corpus_indices_repo,
         "create_corpus_index",
@@ -343,8 +357,7 @@ async def test_queue_corpus_embedding_build_creates_building_index(monkeypatch):
     captured_indices = []
     captured_metadata = []
 
-    async def fake_list_chunks(corpus_id, chunking_profile_id, session):
-        return [_chunk(101), _chunk(102)]
+    _install_chunk_set(monkeypatch, [_chunk(101), _chunk(102)])
 
     async def fake_create_index(index_in, session):
         captured_indices.append(index_in)
@@ -354,6 +367,9 @@ async def test_queue_corpus_embedding_build_creates_building_index(monkeypatch):
             built_at=None,
             vector_namespace=index_in.vector_namespace,
             build_error=None,
+            corpus_chunk_set_id=index_in.corpus_chunk_set_id,
+            corpus_chunk_set_revision=index_in.corpus_chunk_set_revision,
+            corpus_chunk_set_checksum=index_in.corpus_chunk_set_checksum,
         )
 
     async def fake_set_build_metadata(index, vector_namespace, session):
@@ -362,7 +378,6 @@ async def test_queue_corpus_embedding_build_creates_building_index(monkeypatch):
         index.build_error = None
         return index
 
-    monkeypatch.setattr(embeddings_service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "create_corpus_index", fake_create_index)
     monkeypatch.setattr(embeddings_service.corpus_indices_repo, "set_corpus_index_build_metadata", fake_set_build_metadata)
 
@@ -393,10 +408,7 @@ async def test_queue_corpus_embedding_build_creates_building_index(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_queue_corpus_embedding_build_requires_chunks(monkeypatch):
-    async def fake_list_chunks(corpus_id, chunking_profile_id, session):
-        return []
-
-    monkeypatch.setattr(embeddings_service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    _install_chunk_set(monkeypatch, [])
 
     from app.airag.embeddings import embeddings as embeddings_module
 
@@ -406,7 +418,7 @@ async def test_queue_corpus_embedding_build_requires_chunks(monkeypatch):
         lambda model_name: (object(), {"dimensionality": 384}),
     )
 
-    with pytest.raises(ValueError, match="Chunk the corpus first"):
+    with pytest.raises(ValueError, match="empty"):
         await embeddings_service.queue_corpus_embedding_build_srvc(
             corpus=_corpus(),
             chunking_profile=_chunking_profile(),
@@ -424,6 +436,9 @@ async def test_run_queued_corpus_embedding_build_loads_fresh_records_and_builds(
         corpus_id=11,
         vector_store_id=5,
         chunking_profile_id=3,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         status="building",
         embedding_model="mini-l6-v2",
         embedding_dimensions=384,
@@ -479,6 +494,9 @@ async def test_run_queued_corpus_embedding_build_marks_failed_on_error(monkeypat
         corpus_id=11,
         vector_store_id=5,
         chunking_profile_id=3,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         status="building",
         embedding_model="mini-l6-v2",
         embedding_dimensions=384,

@@ -12,7 +12,7 @@ from app.repositories import (
     corpus_repo,
     vector_stores_repo,
 )
-from app.repositories.document_chunks_repo import list_corpus_document_chunks_for_profile
+from app.repositories.document_chunks_repo import get_corpus_chunk_set_document_chunks_by_ids
 from app.repositories.indexed_chunks_repo import bulk_create_indexed_chunks
 from app.schemas.corpus_indices_schemas import (
     CorpusIndexBuildComplete,
@@ -25,6 +25,7 @@ from app.schemas.embeddings_schemas import (
 )
 from app.schemas.indexed_chunks_schemas import IndexedChunkCreate
 from app.services.corpus_index_build_service import to_vector_documents
+from app.services.corpus_chunk_sets_service import get_corpus_chunk_set_snapshot_srvc
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 def _vector_namespace(index_id: int, requested_namespace: str | None) -> str:
@@ -111,11 +112,25 @@ async def _build_existing_corpus_index(
     embedding_dimensions = embedding_metadata["dimensionality"]
     vector_namespace = _vector_namespace(corpus_index_id, index.vector_namespace)
 
-    chunks = await list_corpus_document_chunks_for_profile(
-        corpus_id=corpus_id,
-        chunking_profile_id=chunking_profile_id,
-        session=session,
+    # Get the corpus chunk set snapshot and perform staleness checks
+    snapshot = await get_corpus_chunk_set_snapshot_srvc(
+        index.corpus_chunk_set_id, session
     )
+    if (
+        snapshot.chunk_set.corpus_id != corpus_id
+        or snapshot.chunk_set.chunking_profile_id != chunking_profile_id
+        or snapshot.chunk_set.revision != index.corpus_chunk_set_revision
+        or snapshot.chunk_set.document_chunk_ids_checksum
+        != index.corpus_chunk_set_checksum
+    ):
+        raise ValueError("Corpus chunk set changed since the index was queued")
+    chunks = await get_corpus_chunk_set_document_chunks_by_ids(
+        index.corpus_chunk_set_id, snapshot.document_chunk_ids, session
+    )
+    if sorted(_persisted_id(chunk.id, "Document chunk") for chunk in chunks) != sorted(
+        snapshot.document_chunk_ids
+    ):
+        raise ValueError("Corpus chunk set membership could not be loaded exactly")
     if not chunks:
         raise ValueError("No document chunks found for this corpus and chunking profile. Chunk the corpus first.")
 
@@ -166,6 +181,7 @@ async def _build_existing_corpus_index(
         corpus_index_id=corpus_index_id,
         vector_store_id=vector_store_id,
         chunking_profile_id=chunking_profile_id,
+        corpus_chunk_set_id=index.corpus_chunk_set_id,
         embedding_model=index.embedding_model,
         embedding_dimensions=embedding_dimensions,
         vector_namespace=vector_namespace,
@@ -214,13 +230,15 @@ async def queue_corpus_embedding_build_srvc(
     _embedding_model, embedding_metadata = choose_embedding_model(build_in.embedding_model)
     embedding_dimensions = embedding_metadata["dimensionality"]
 
-    chunks = await list_corpus_document_chunks_for_profile(
-        corpus_id=corpus_id,
-        chunking_profile_id=chunking_profile_id,
-        session=session,
+    snapshot = await get_corpus_chunk_set_snapshot_srvc(
+        build_in.corpus_chunk_set_id, session
     )
-    if not chunks:
-        raise ValueError("No document chunks found for this corpus and chunking profile. Chunk the corpus first.")
+    if snapshot.chunk_set.corpus_id != corpus_id:
+        raise ValueError("Corpus chunk set does not belong to the selected corpus")
+    if snapshot.chunk_set.chunking_profile_id != chunking_profile_id:
+        raise ValueError("Corpus chunk set does not use the selected chunking profile")
+    if not snapshot.document_chunk_ids:
+        raise ValueError("Corpus chunk set is empty")
 
     index = await corpus_indices_repo.create_corpus_index(
         CorpusIndexCreate(
@@ -228,6 +246,9 @@ async def queue_corpus_embedding_build_srvc(
             corpus_id=corpus_id,
             vector_store_id=vector_store_id,
             chunking_profile_id=chunking_profile_id,
+            corpus_chunk_set_id=snapshot.chunk_set.id,
+            corpus_chunk_set_revision=snapshot.chunk_set.revision,
+            corpus_chunk_set_checksum=snapshot.chunk_set.document_chunk_ids_checksum,
             status="building",
             embedding_model=build_in.embedding_model,
             embedding_dimensions=embedding_dimensions,
@@ -248,6 +269,7 @@ async def queue_corpus_embedding_build_srvc(
         corpus_index_id=corpus_index_id,
         vector_store_id=vector_store_id,
         chunking_profile_id=chunking_profile_id,
+        corpus_chunk_set_id=snapshot.chunk_set.id,
         embedding_model=build_in.embedding_model,
         embedding_dimensions=embedding_dimensions,
         vector_namespace=vector_namespace,

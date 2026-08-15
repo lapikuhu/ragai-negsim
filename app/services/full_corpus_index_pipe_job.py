@@ -19,27 +19,52 @@ from app.models.full_corpus_index_pipe_jobs import FullCorpusIndexPipeJob
 from app.models.simulations import Simulation
 from app.repositories import (
     chunking_profiles_repo,
+    corpus_bm25_indices_repo,
     corpus_indices_repo,
     corpus_repo,
     document_chunks_repo,
     indexed_chunks_repo,
+    name_reservations_repo,
     full_corpus_index_pipe_jobs_repo,
     raw_documents_repo,
     vector_stores_repo,
 )
+from app.schemas.corpus_bm25_build_jobs_schemas import (
+    CorpusBm25BuildJobQueueRequest,
+    CorpusBm25BuildJobRead,
+)
 from app.schemas.corpus_indices_schemas import CorpusIndexBuildComplete, CorpusIndexCreate
+from app.schemas.corpus_chunk_sets_schemas import CorpusChunkSetCreate, CorpusChunkSetSnapshot
 from app.schemas.indexed_chunks_schemas import IndexedChunkCreate
 from app.schemas.full_corpus_index_pipe_jobs_schemas import (
     FullCorpusIndexPipeJobCreate,
     FullCorpusIndexPipeJobDetail,
+    FullCorpusIndexPipeJobPersist,
     FullCorpusIndexPipeJobQueued,
     FullCorpusIndexPipeJobRead,
     FullCorpusIndexPipeJobWarningRead,
 )
+from app.services.corpus_bm25_build_jobs_service import (
+    cancel_corpus_bm25_build_job_srvc,
+    ensure_corpus_bm25_index_name_available_srvc,
+    get_corpus_bm25_build_job_srvc,
+    queue_corpus_bm25_build_job_for_requester_id_srvc,
+    rollback_parent_owned_corpus_bm25_job_srvc,
+)
+from app.services.corpus_bm25_build_coordinator import (
+    wake_corpus_bm25_build_coordinator,
+)
+from app.services.helpers import _persisted_id
 from app.services.chunking_profile_runtime import resolve_ingestion_profile_options
 from app.services.corpus_index_build_service import to_vector_documents
+from app.services.corpus_chunk_sets_service import (
+    create_corpus_chunk_set_srvc,
+    delete_owned_corpus_chunk_set_srvc,
+    get_corpus_chunk_set_snapshot_srvc,
+)
+from app.repositories import corpus_chunk_sets_repo
 from app.services.ingestion_service import ingest_raw_document_srvc
-from app.services import simulations_service
+from app.services import simulation_retrieval_options_service, simulations_service
 from app.repositories.indexed_chunks_repo import bulk_create_indexed_chunks
 
 
@@ -49,7 +74,13 @@ INTERRUPTED_FAILURE_DETAIL = (
 )
 CANCELLED_FAILURE_DETAIL = "Full corpus index pipe job cancelled by user"
 EMBEDDING_BATCH_SIZE = 25
-_FULL_CORPUS_INDEX_PIPE_TASKS: dict[int, asyncio.Task[FullCorpusIndexPipeJobDetail]] = {}
+
+
+def normalize_chunk_set_name(name: str) -> str:
+    normalized = name.strip()
+    if len(normalized) < 3:
+        raise ValueError("Corpus chunk set name must contain at least 3 characters")
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -137,7 +168,10 @@ def _job_read(job: Any) -> FullCorpusIndexPipeJobRead:
         vector_store_id=getattr(job, "vector_store_id"),
         embedding_model=getattr(job, "embedding_model"),
         requested_index_name=getattr(job, "requested_index_name"),
+        requested_chunk_set_name=getattr(job, "requested_chunk_set_name"),
         requested_vector_namespace=getattr(job, "requested_vector_namespace", None),
+        build_bm25=getattr(job, "build_bm25", False),
+        requested_bm25_index_name=getattr(job, "requested_bm25_index_name", None),
         status=getattr(job, "status"),
         stage=getattr(job, "stage"),
         cancel_requested=getattr(job, "cancel_requested", False),
@@ -152,6 +186,9 @@ def _job_read(job: Any) -> FullCorpusIndexPipeJobRead:
         completed_at=getattr(job, "completed_at", None),
         candidate_corpus_index_id=getattr(job, "candidate_corpus_index_id", None),
         replaced_corpus_index_id=getattr(job, "replaced_corpus_index_id", None),
+        requested_by_user_id=getattr(job, "requested_by_user_id", None),
+        bm25_build_job_id=getattr(job, "bm25_build_job_id", None),
+        corpus_chunk_set_id=getattr(job, "corpus_chunk_set_id", None),
         failure_detail=getattr(job, "failure_detail", None),
     )
 
@@ -173,53 +210,6 @@ async def _read_job_detail(job: Any, session: AsyncSession) -> FullCorpusIndexPi
     )
 
 
-def _cancel_live_full_corpus_index_pipe_task(job_id: int) -> bool:
-    """
-    Cancel a live full corpus index pipeline task if it exists and is running.
-        
-    Args:
-        job_id: The ID of the full corpus index pipe job to cancel.
-    Returns:
-        True if the task was cancelled, False otherwise.
-    """
-    task = _FULL_CORPUS_INDEX_PIPE_TASKS.get(job_id)
-    if task is None or task.done():
-        return False
-    task.cancel()
-    return True
-
-
-def _unregister_full_corpus_index_pipe_task(job_id: int, 
-                                            task: asyncio.Task[FullCorpusIndexPipeJobDetail]) -> None:
-    """
-    Unregister a full corpus index pipe task.
-
-    Args:
-        job_id: The ID of the full corpus index pipe job.
-        task: The asyncio task associated with the job.
-    Returns:
-        None
-    """
-    if _FULL_CORPUS_INDEX_PIPE_TASKS.get(job_id) is task:
-        _FULL_CORPUS_INDEX_PIPE_TASKS.pop(job_id, None)
-
-
-def start_full_corpus_index_pipe_job_task(job_id: int) -> asyncio.Task[FullCorpusIndexPipeJobDetail]:
-    """
-    Start a full corpus index pipeline job task and register it in the global 
-    task registry.
-    
-    Args:
-        job_id: The ID of the full corpus index pipe job to start.
-    Returns:
-        The asyncio task handling the job.
-    """
-    task = asyncio.create_task(run_full_corpus_index_pipe_job_srvc(job_id))
-    _FULL_CORPUS_INDEX_PIPE_TASKS[job_id] = task
-    task.add_done_callback(lambda current_task, current_job_id=job_id: _unregister_full_corpus_index_pipe_task(current_job_id, current_task))
-    return task
-
-
 async def _raise_if_cancel_requested(job: FullCorpusIndexPipeJob, session: AsyncSession) -> None:
     """
     Raise an asyncio.CancelledError if the job has a cancellation requested.
@@ -233,6 +223,106 @@ async def _raise_if_cancel_requested(job: FullCorpusIndexPipeJob, session: Async
     await session.refresh(job)
     if job.cancel_requested:
         raise asyncio.CancelledError(CANCELLED_FAILURE_DETAIL)
+
+
+async def _queue_bm25_child(
+    job: FullCorpusIndexPipeJob,
+    session: AsyncSession,
+) -> CorpusBm25BuildJobRead:
+    """Queue the standard BM25 child after the parent finalizes chunks."""
+    if job.requested_by_user_id is None:
+        raise ValueError("Full corpus index pipe job is missing its requester")
+    if not job.requested_bm25_index_name:
+        raise ValueError("Full corpus index pipe job is missing its BM25 index name")
+    if job.corpus_chunk_set_id is None:
+        raise ValueError("Full corpus index pipe job is missing its corpus chunk set")
+    child = await queue_corpus_bm25_build_job_for_requester_id_srvc(
+        CorpusBm25BuildJobQueueRequest(
+            requested_artifact_name=job.requested_bm25_index_name,
+            corpus_chunk_set_id=job.corpus_chunk_set_id,
+        ),
+        job.requested_by_user_id,
+        session,
+    )
+    await full_corpus_index_pipe_jobs_repo.set_full_corpus_index_pipe_job_bm25_child(
+        job,
+        child.id,
+        session,
+    )
+    wake_corpus_bm25_build_coordinator()
+    return child
+
+
+async def _wait_for_bm25_child(
+    job: FullCorpusIndexPipeJob,
+    *,
+    session_factory=AsyncSessionLocal,
+    poll_interval_seconds: float = 0.5,
+) -> CorpusBm25BuildJobRead:
+    """Observe a durable BM25 child without holding a transaction while waiting."""
+    if job.bm25_build_job_id is None:
+        raise ValueError("Full corpus index pipe job has no BM25 child")
+    cancellation_requested = False
+    while True:
+        async with session_factory() as poll_session:
+            parent = await full_corpus_index_pipe_jobs_repo.get_full_corpus_index_pipe_job_by_id(
+                _persisted_id(job.id, "Full corpus index pipe job"),
+                poll_session,
+            )
+            if (
+                parent is not None
+                and parent.cancel_requested
+                and not cancellation_requested
+            ):
+                try:
+                    await cancel_corpus_bm25_build_job_srvc(
+                        job.bm25_build_job_id,
+                        poll_session,
+                    )
+                except ValueError:
+                    pass
+                cancellation_requested = True
+            child = await get_corpus_bm25_build_job_srvc(
+                job.bm25_build_job_id,
+                poll_session,
+            )
+        if child.status in {"completed", "failed", "cancelled"}:
+            if cancellation_requested:
+                raise asyncio.CancelledError(CANCELLED_FAILURE_DETAIL)
+            return child
+        await asyncio.sleep(poll_interval_seconds)
+
+
+async def _ensure_parent_pair_compatible(
+    job: FullCorpusIndexPipeJob,
+    candidate_index: CorpusIndex,
+    bm25_job: CorpusBm25BuildJobRead,
+    session: AsyncSession,
+) -> None:
+    """Apply the canonical hybrid compatibility contract before activation."""
+    if bm25_job.result_bm25_index_id is None:
+        raise ValueError("Completed BM25 build job is missing its result index")
+    bm25_index = await corpus_bm25_indices_repo.get_corpus_bm25_index_metadata_by_id(
+        bm25_job.result_bm25_index_id,
+        session,
+    )
+    if bm25_index is None:
+        raise ValueError("BM25 index not found after completed build job")
+    dense_chunk_ids = await corpus_indices_repo.get_corpus_index_document_chunk_ids(
+        _persisted_id(candidate_index.id, "Corpus index"),
+        session,
+    )
+    simulation_retrieval_options_service.ensure_hybrid_indices_compatible(
+        corpus_id=job.corpus_id,
+        corpus_index=candidate_index,
+        bm25_index=bm25_index,
+        dense_chunk_ids=dense_chunk_ids,
+        corpus_chunk_set=(
+            await get_corpus_chunk_set_snapshot_srvc(
+                _persisted_id(job.corpus_chunk_set_id, "Corpus chunk set"), session
+            )
+        ).chunk_set,
+    )
 
 
 async def _mark_job_cancelled(
@@ -252,9 +342,18 @@ async def _mark_job_cancelled(
     Returns:
         The detailed information of the cancelled job.
     """
-    if candidate_index is not None and candidate_index.status == "building":
+    if candidate_index is not None and candidate_index.status in {"building", "built"}:
         try:
-            await corpus_indices_repo.mark_corpus_index_cancelled(candidate_index, detail, session)
+            if (
+                candidate_index.status == "built"
+                and getattr(candidate_index, "name", None) == job.requested_index_name
+            ):
+                candidate_index.name = _candidate_index_name(job)
+            await corpus_indices_repo.cancel_corpus_index_build(
+                candidate_index,
+                detail,
+                session,
+            )
         finally:
             simulations_service.clear_negotiation_graph_cache_for_corpus_index(
                 candidate_index.id
@@ -395,6 +494,7 @@ async def _has_non_terminal_simulations_for_index(index_id: int, session: AsyncS
 
 async def queue_full_corpus_index_pipe_job_srvc(
     job_in: FullCorpusIndexPipeJobCreate,
+    current_user: Any, # Check for dependencies
     session: AsyncSession,
 ) -> FullCorpusIndexPipeJobQueued:
     """
@@ -402,6 +502,7 @@ async def queue_full_corpus_index_pipe_job_srvc(
 
     Args:
         job_in: The full corpus index pipe job creation data.
+        current_user: The user requesting the job.
         session: The database session.
     Returns:
         An FullCorpusIndexPipeJobQueued object containing the queued job 
@@ -416,8 +517,48 @@ async def queue_full_corpus_index_pipe_job_srvc(
     await _ensure_index_name_is_available_for_request(job_in, session)
     await _ensure_vector_namespace_is_available_for_request(job_in, session)
 
+    requested_chunk_set_name = normalize_chunk_set_name(
+        job_in.requested_chunk_set_name
+    )
+    # Lock the requested chunk set name to prevent race conditions with other jobs
+    await name_reservations_repo.lock_name_reservation(
+        f"corpus-chunk-set:{job_in.corpus_id}",
+        requested_chunk_set_name,
+        session,
+    )
+    if await corpus_chunk_sets_repo.get_corpus_chunk_set_by_name(
+        job_in.corpus_id, requested_chunk_set_name, session
+    ) is not None or await full_corpus_index_pipe_jobs_repo.has_active_full_pipe_chunk_set_name_reservation(
+        job_in.corpus_id, requested_chunk_set_name, session
+    ):
+        raise ValueError("Corpus chunk set name already exists or is reserved")
+
+    requested_bm25_index_name = None
+    if job_in.build_bm25:
+        requested_bm25_name = (job_in.requested_bm25_index_name or "").strip()
+        await name_reservations_repo.lock_name_reservation(
+            "corpus-bm25-artifact",
+            requested_bm25_name,
+            session,
+        )
+        requested_bm25_index_name = await ensure_corpus_bm25_index_name_available_srvc(
+            requested_bm25_name,
+            session,
+        )
+
     raw_document_ids = await corpus_repo.get_corpus_raw_document_ids(job_in.corpus_id, session)
-    job = await full_corpus_index_pipe_jobs_repo.create_full_corpus_index_pipe_job(job_in, session)
+    persisted = FullCorpusIndexPipeJobPersist(
+        **job_in.model_dump(
+            exclude={"requested_bm25_index_name", "requested_chunk_set_name"}
+        ),
+        requested_chunk_set_name=requested_chunk_set_name,
+        requested_bm25_index_name=requested_bm25_index_name,
+        requested_by_user_id=_persisted_id(current_user.id, "User"),
+    )
+    job = await full_corpus_index_pipe_jobs_repo.create_full_corpus_index_pipe_job(
+        persisted,
+        session,
+    )
     job = await full_corpus_index_pipe_jobs_repo.update_full_corpus_index_pipe_job_progress(
         job,
         session,
@@ -518,8 +659,6 @@ async def cancel_full_corpus_index_pipe_job_srvc(job_id: int,
     if job.status == "running":
         return await _read_job_detail(job, session)
 
-    _cancel_live_full_corpus_index_pipe_task(job_id)
-
     candidate_index = None
     if job.candidate_corpus_index_id is not None:
         candidate_index = await corpus_indices_repo.get_corpus_index_by_id(
@@ -529,7 +668,11 @@ async def cancel_full_corpus_index_pipe_job_srvc(job_id: int,
     return await _mark_job_cancelled(job, candidate_index, session)
 
 
-async def _create_candidate_index(job: FullCorpusIndexPipeJob, session: AsyncSession) -> CorpusIndex:
+async def _create_candidate_index(
+    job: FullCorpusIndexPipeJob,
+    chunk_set: CorpusChunkSetSnapshot,
+    session: AsyncSession,
+) -> CorpusIndex:
     """
     Create a candidate corpus index for the given full corpus index pipe job.
         Args:
@@ -547,12 +690,16 @@ async def _create_candidate_index(job: FullCorpusIndexPipeJob, session: AsyncSes
             corpus_id=job.corpus_id,
             vector_store_id=job.vector_store_id,
             chunking_profile_id=job.chunking_profile_id,
+            corpus_chunk_set_id=chunk_set.chunk_set.id,
+            corpus_chunk_set_revision=chunk_set.chunk_set.revision,
+            corpus_chunk_set_checksum=chunk_set.chunk_set.document_chunk_ids_checksum,
             status="building",
             embedding_model=job.embedding_model,
             embedding_dimensions=embedding_metadata["dimensionality"],
             vector_namespace=job.requested_vector_namespace,
         ),
         session,
+        commit=False,
     )
     if candidate_index.id is None:
         raise ValueError("Candidate corpus index id was not generated")
@@ -564,6 +711,7 @@ async def _create_candidate_index(job: FullCorpusIndexPipeJob, session: AsyncSes
         candidate_index,
         vector_namespace,
         session,
+        commit=False,
     )
     job.candidate_corpus_index_id = candidate_index.id
     session.add(job)
@@ -574,7 +722,6 @@ async def _create_candidate_index(job: FullCorpusIndexPipeJob, session: AsyncSes
 
 async def _process_documents(
     job: FullCorpusIndexPipeJob,
-    candidate_index: CorpusIndex,
     session: AsyncSession,
 ) -> DocumentBuildResult:
     """
@@ -583,7 +730,6 @@ async def _process_documents(
 
     Args:
         job: The full corpus index pipeline job for which to process documents.
-        candidate_index: The candidate corpus index.
         session: The database session.
     Returns:
         A DocumentBuildResult object containing the results of the 
@@ -680,7 +826,7 @@ async def _process_documents(
     await full_corpus_index_pipe_jobs_repo.update_full_corpus_index_pipe_job_progress(
         job,
         session,
-        stage="embedding",
+        stage="creating_chunk_set",
         current_raw_document_id=None,
         current_document_name=None,
         processed_documents=len(raw_document_ids),
@@ -692,9 +838,46 @@ async def _process_documents(
     )
 
 
+async def _create_job_chunk_set(
+    job: FullCorpusIndexPipeJob,
+    session: AsyncSession,
+) -> CorpusChunkSetSnapshot:
+    """
+    Create a corpus chunk set for the given full corpus index pipeline job.
+
+    Args:
+        job: The full corpus index pipe job.
+        session: The database session.
+    Returns:
+        The snapshot of the created corpus chunk set.
+    Raises:
+        ValueError: If no document chunks are found for the job.
+    """
+    chunks = await document_chunks_repo.list_document_chunks_for_job(job.id, session)
+    if not chunks:
+        raise ValueError("No documents produced chunks")
+    created = await create_corpus_chunk_set_srvc(
+        CorpusChunkSetCreate(
+            name=job.requested_chunk_set_name,
+            corpus_id=job.corpus_id,
+            chunking_profile_id=job.chunking_profile_id,
+            document_chunk_ids=[
+                _persisted_id(chunk.id, "Document chunk") for chunk in chunks
+            ],
+        ),
+        session,
+        commit=False,
+    )
+    await full_corpus_index_pipe_jobs_repo.set_full_corpus_index_pipe_job_chunk_set(
+        job, created.id, session
+    )
+    return await get_corpus_chunk_set_snapshot_srvc(created.id, session)
+
+
 async def _embed_candidate(
     job: FullCorpusIndexPipeJob,
     candidate_index: CorpusIndex,
+    snapshot: CorpusChunkSetSnapshot,
     session: AsyncSession,
 ) -> int:
     """
@@ -719,7 +902,24 @@ async def _embed_candidate(
     if vector_store is None:
         raise ValueError("Vector store not found")
 
-    chunks = await document_chunks_repo.list_document_chunks_for_job(job.id, session)
+    # Get the current snapshot of the chunk set and perform checks
+    current_snapshot = await get_corpus_chunk_set_snapshot_srvc(
+        snapshot.chunk_set.id, session
+    )
+    if (
+        current_snapshot.chunk_set.revision != candidate_index.corpus_chunk_set_revision
+        or current_snapshot.chunk_set.document_chunk_ids_checksum
+        != candidate_index.corpus_chunk_set_checksum
+        or current_snapshot.document_chunk_ids != snapshot.document_chunk_ids
+    ):
+        raise ValueError("Corpus chunk set changed before dense embedding")
+    chunks = await document_chunks_repo.get_corpus_chunk_set_document_chunks_by_ids(
+        snapshot.chunk_set.id, snapshot.document_chunk_ids, session
+    )
+    if sorted(_persisted_id(chunk.id, "Document chunk") for chunk in chunks) != sorted(
+        snapshot.document_chunk_ids
+    ):
+        raise ValueError("Corpus chunk set membership could not be loaded exactly")
     if not chunks:
         raise ValueError("No documents produced chunks")
 
@@ -746,15 +946,27 @@ async def _embed_candidate(
             path=vector_store.path,
             table_name=vector_store.table_name,
         )
-        indexed_chunks_in = [
-            IndexedChunkCreate(
-                corpus_index_id=candidate_index_id,
-                document_chunk_id=vector_ref.document_chunk_id,
-                external_vector_id=stored_vector_id,
+        try:
+            indexed_chunks_in = [
+                IndexedChunkCreate(
+                    corpus_index_id=candidate_index_id,
+                    document_chunk_id=vector_ref.document_chunk_id,
+                    external_vector_id=stored_vector_id,
+                )
+                for vector_ref, stored_vector_id in zip(
+                    vector_ref_batch, stored_vector_ids, strict=True
+                )
+            ]
+            await bulk_create_indexed_chunks(indexed_chunks_in, session)
+        except Exception:
+            await delete_vectors_from_vector_store(
+                backend=vector_store.backend,
+                vector_ids=list(stored_vector_ids),
+                collection_name=vector_store.collection_name,
+                path=vector_store.path,
+                table_name=vector_store.table_name,
             )
-            for vector_ref, stored_vector_id in zip(vector_ref_batch, stored_vector_ids, strict=True)
-        ]
-        await bulk_create_indexed_chunks(indexed_chunks_in, session)
+            raise
         total_indexed += len(indexed_chunks_in)
         await full_corpus_index_pipe_jobs_repo.update_full_corpus_index_pipe_job_progress(
             job,
@@ -894,14 +1106,156 @@ async def _fail_job_and_candidate(
         ValueError: If the candidate index is not None and the candidate
         index status is not "building".
     """
-    if candidate_index is not None and candidate_index.status == "building":
+    if candidate_index is not None and candidate_index.status in {"building", "built"}:
         try:
-            await corpus_indices_repo.mark_corpus_index_failed(candidate_index, detail, session)
+            if (
+                candidate_index.status == "built"
+                and getattr(candidate_index, "name", None) == job.requested_index_name
+            ):
+                candidate_index.name = _candidate_index_name(job)
+            await corpus_indices_repo.fail_corpus_index_build(
+                candidate_index,
+                detail,
+                session,
+            )
         finally:
             simulations_service.clear_negotiation_graph_cache_for_corpus_index(
                 candidate_index.id
             )
     failed_job = await full_corpus_index_pipe_jobs_repo.mark_full_corpus_index_pipe_job_failed(job, detail, session)
+    return await _read_job_detail(failed_job, session)
+
+
+async def _rollback_parent_artifacts(
+    job: FullCorpusIndexPipeJob,
+    candidate_index: CorpusIndex | None,
+    *,
+    terminal_status: str,
+    detail: str,
+    session: AsyncSession,
+) -> FullCorpusIndexPipeJobDetail:
+    """
+    Rollback the logical pair before making the parent terminal.
+
+    Args:
+        job: The full corpus index pipe job to rollback (includes dense and 
+            BM25).
+        candidate_index: The candidate corpus index to rollback, if it exists.
+        terminal_status: The terminal status to set for the parent job.
+        detail: The detail of the rollback.
+        session: The database session.
+    Returns:
+        An FullCorpusIndexPipeJobDetail object containing the rolled back job details.
+    Raises:
+        RuntimeError: If the BM25 child cancellation is still pending.
+    """
+    job = await full_corpus_index_pipe_jobs_repo.mark_full_corpus_index_pipe_job_rolling_back(
+        job,
+        detail,
+        session,
+    )
+    owned_chunks = await document_chunks_repo.list_document_chunks_for_job(
+        _persisted_id(job.id, "Full corpus index pipe job"), session
+    )
+    if job.bm25_build_job_id is not None:
+        bm25_job = await rollback_parent_owned_corpus_bm25_job_srvc(
+            job_id=job.bm25_build_job_id,
+            full_pipe_job_id=_persisted_id(job.id, "Full corpus index pipe job"),
+            detail=(
+                "Rolled back because the parent pipeline was cancelled"
+                if terminal_status == "cancelled"
+                else f"Rolled back because the dense index workflow failed: {detail}"
+            ),
+            session=session,
+            delete_artifact=False,
+        )
+        if bm25_job.status in {"queued", "running"}:
+            raise RuntimeError("BM25 child cancellation is still pending")
+    if candidate_index is not None and candidate_index.status in {
+        "created", "building", "built", "failed", "cancelled"
+    }:
+        if job.candidate_corpus_index_id == candidate_index.id:
+            job.candidate_corpus_index_id = None
+            session.add(job)
+            await session.commit()
+            await session.refresh(job)
+        indexed_chunks = await indexed_chunks_repo.get_indexed_chunks_by_corpus_index_id(
+            _persisted_id(candidate_index.id, "Corpus index"),
+            session,
+            skip=0,
+            limit=100000,
+        )
+        vector_ids = [
+            item.external_vector_id
+            for item in indexed_chunks
+            if item.external_vector_id is not None
+        ]
+        if vector_ids:
+            vector_store = await vector_stores_repo.get_vector_store_by_id(
+                candidate_index.vector_store_id, session
+            )
+            if vector_store is None:
+                raise ValueError("Vector store not found")
+            await delete_vectors_from_vector_store(
+                backend=vector_store.backend,
+                vector_ids=vector_ids,
+                collection_name=vector_store.collection_name,
+                path=vector_store.path,
+                table_name=vector_store.table_name,
+            )
+        await indexed_chunks_repo.delete_indexed_chunks_by_corpus_index_id_force(
+            _persisted_id(candidate_index.id, "Corpus index"), session
+        )
+        await corpus_indices_repo.delete_corpus_index(candidate_index, session)
+        simulations_service.clear_negotiation_graph_cache_for_corpus_index(
+            candidate_index.id
+        )
+        candidate_index = None
+
+    if job.bm25_build_job_id is not None:
+        await rollback_parent_owned_corpus_bm25_job_srvc(
+            job_id=job.bm25_build_job_id,
+            full_pipe_job_id=_persisted_id(
+                job.id, "Full corpus index pipe job"
+            ),
+            detail=detail,
+            session=session,
+            delete_artifact=True,
+            terminalize=False,
+        )
+
+    unreferenced_ids: list[int]
+    if job.corpus_chunk_set_id is not None:
+        unreferenced_ids = await delete_owned_corpus_chunk_set_srvc(
+            job.corpus_chunk_set_id,
+            _persisted_id(job.id, "Full corpus index pipe job"),
+            session,
+        )
+    else:
+        owned_ids = [
+            _persisted_id(chunk.id, "Document chunk") for chunk in owned_chunks
+        ]
+        references = await corpus_chunk_sets_repo.count_other_chunk_set_references(
+            owned_ids, -1, session
+        )
+        unreferenced_ids = [
+            chunk_id for chunk_id in owned_ids if references.get(chunk_id, 0) == 0
+        ]
+    await document_chunks_repo.delete_unreferenced_job_document_chunks_by_ids(
+        full_corpus_index_pipe_job_id=_persisted_id(
+            job.id, "Full corpus index pipe job"
+        ),
+        document_chunk_ids=unreferenced_ids,
+        session=session,
+    )
+    if terminal_status == "cancelled":
+        cancelled_job = await full_corpus_index_pipe_jobs_repo.mark_full_corpus_index_pipe_job_cancelled(
+            job, session, detail=detail
+        )
+        return await _read_job_detail(cancelled_job, session)
+    failed_job = await full_corpus_index_pipe_jobs_repo.mark_full_corpus_index_pipe_job_failed(
+        job, detail, session
+    )
     return await _read_job_detail(failed_job, session)
 
 
@@ -928,24 +1282,80 @@ async def run_full_corpus_index_pipe_job_srvc(job_id: int) -> FullCorpusIndexPip
 
         candidate_index: CorpusIndex | None = None
         try:
+            if job.status == "running" and job.stage == "rolling_back":
+                if job.candidate_corpus_index_id is not None:
+                    candidate_index = await corpus_indices_repo.get_corpus_index_by_id(
+                        job.candidate_corpus_index_id,
+                        session,
+                    )
+                return await _rollback_parent_artifacts(
+                    job,
+                    candidate_index,
+                    terminal_status=("cancelled" if job.cancel_requested else "failed"),
+                    detail=job.failure_detail or INTERRUPTED_FAILURE_DETAIL,
+                    session=session,
+                )
             await _raise_if_cancel_requested(job, session)
-            job = await full_corpus_index_pipe_jobs_repo.mark_full_corpus_index_pipe_job_running(job, session)
+            if job.status == "queued":
+                job = await full_corpus_index_pipe_jobs_repo.mark_full_corpus_index_pipe_job_running(job, session)
+            elif job.status != "running":
+                return await _read_job_detail(job, session)
             await _raise_if_cancel_requested(job, session)
-            candidate_index = await _create_candidate_index(job, session)
-            await _raise_if_cancel_requested(job, session)
-            build_result = await _process_documents(job, candidate_index, session)
+            build_result = await _process_documents(job, session)
             if build_result.successful_documents == 0:
                 return await _fail_job_and_candidate(
                     job,
-                    candidate_index,
+                    None,
                     session,
                     "No documents produced chunks",
                 )
+            chunk_set = await _create_job_chunk_set(job, session)
+            candidate_index = await _create_candidate_index(job, chunk_set, session)
+            await _raise_if_cancel_requested(job, session)
 
-            await _embed_candidate(job, candidate_index, session)
+            bm25_job: CorpusBm25BuildJobRead | None = None
+            if job.build_bm25:
+                bm25_job = await _queue_bm25_child(job, session)
+                bm25_job = await _wait_for_bm25_child(job)
+                if bm25_job.status != "completed" or bm25_job.result_bm25_index_id is None:
+                    detail = bm25_job.failure_detail or bm25_job.status
+                    raise ValueError(
+                        f"BM25 build job #{bm25_job.id} did not complete successfully: {detail}"
+                    )
+                await corpus_bm25_indices_repo.link_corpus_bm25_index_to_full_pipe_job(
+                    bm25_job.result_bm25_index_id,
+                    _persisted_id(job.id, "Full corpus index pipe job"),
+                    session,
+                )
+
+            await _embed_candidate(job, candidate_index, chunk_set, session)
             await _raise_if_cancel_requested(job, session)
             await full_corpus_index_pipe_jobs_repo.update_full_corpus_index_pipe_job_progress(job, session, stage="finalizing")
             await _raise_if_cancel_requested(job, session)
+            candidate_index = await corpus_indices_repo.get_corpus_index_by_id(
+                _persisted_id(candidate_index.id, "Corpus index"), session
+            )
+            if candidate_index is None:
+                raise ValueError("Dense candidate disappeared before activation")
+            current_set = await get_corpus_chunk_set_snapshot_srvc(
+                _persisted_id(job.corpus_chunk_set_id, "Corpus chunk set"),
+                session,
+            )
+            if (
+                candidate_index.corpus_chunk_set_id != current_set.chunk_set.id
+                or candidate_index.corpus_chunk_set_revision
+                != current_set.chunk_set.revision
+                or candidate_index.corpus_chunk_set_checksum
+                != current_set.chunk_set.document_chunk_ids_checksum
+            ):
+                raise ValueError("Dense candidate is stale for its corpus chunk set")
+            if bm25_job is not None:
+                await _ensure_parent_pair_compatible(
+                    job,
+                    candidate_index,
+                    bm25_job,
+                    session,
+                )
             activation = await _activate_candidate_index(job, candidate_index, session)
 
             status = "completed"
@@ -975,24 +1385,30 @@ async def run_full_corpus_index_pipe_job_srvc(job_id: int) -> FullCorpusIndexPip
             return await _read_job_detail(completed_job, session)
         except asyncio.CancelledError as exc:
             detail = str(exc).strip() or CANCELLED_FAILURE_DETAIL
-            return await _mark_job_cancelled(job, candidate_index, session, detail)
-        except Exception as exc:
-            return await _fail_job_and_candidate(
+            return await _rollback_parent_artifacts(
                 job,
                 candidate_index,
-                session,
-                _short_error(exc),
+                terminal_status="cancelled",
+                detail=detail,
+                session=session,
+            )
+        except Exception as exc:
+            return await _rollback_parent_artifacts(
+                job,
+                candidate_index,
+                terminal_status="failed",
+                detail=_short_error(exc),
+                session=session,
             )
 
 
 async def fail_interrupted_full_corpus_index_pipe_jobs_srvc() -> None:
     """
-    Fail any full corpus index pipe jobs that were interrupted, marking 
-    them as failed and cleaning up any associated candidate indices.
-    
-    Args:    
+    Rollback interrupted running jobs while preserving queued work.
+
+    Args:
         None
-    Returns: 
+    Returns:
         None
     """
     async with AsyncSessionLocal() as session:
@@ -1001,15 +1417,27 @@ async def fail_interrupted_full_corpus_index_pipe_jobs_srvc() -> None:
         except Exception:
             return
         for job in interrupted_jobs:
+            if job.status == "queued":
+                continue
             candidate_index = None
             if job.candidate_corpus_index_id is not None:
                 candidate_index = await corpus_indices_repo.get_corpus_index_by_id(
                     job.candidate_corpus_index_id,
                     session,
                 )
-            await _fail_job_and_candidate(
-                job,
-                candidate_index,
-                session,
-                INTERRUPTED_FAILURE_DETAIL,
+            detail = (
+                job.failure_detail
+                if job.stage == "rolling_back" and job.failure_detail
+                else INTERRUPTED_FAILURE_DETAIL
             )
+            try:
+                await _rollback_parent_artifacts(
+                    job,
+                    candidate_index,
+                    terminal_status=("cancelled" if job.cancel_requested else "failed"),
+                    detail=detail,
+                    session=session,
+                )
+            except Exception:
+                # The rolling_back state is durable and the coordinator retries it.
+                continue

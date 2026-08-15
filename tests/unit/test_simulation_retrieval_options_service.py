@@ -21,6 +21,9 @@ def _dense(**overrides):
         "corpus_id": 44,
         "chunking_profile_id": 9,
         "status": "built",
+        "corpus_chunk_set_id": 21,
+        "corpus_chunk_set_revision": 3,
+        "corpus_chunk_set_checksum": "c" * 64,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -38,6 +41,9 @@ def _bm25(chunk_ids=(10, 11), **overrides):
             "cc8a76beb67f521ca37f263f8297711998a9beb24599572d757352664be9aa6d"
         ),
         "compressed_artifact_checksum": "a" * 64,
+        "corpus_chunk_set_id": 21,
+        "corpus_chunk_set_revision": 3,
+        "corpus_chunk_set_checksum": "c" * 64,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -49,6 +55,9 @@ def test_exact_synthetic_pair_is_compatible():
         corpus_index=_dense(),
         bm25_index=_bm25(),
         dense_chunk_ids=[10, 11],
+        corpus_chunk_set=SimpleNamespace(
+            id=21, revision=3, document_chunk_ids_checksum="c" * 64
+        ),
     )
 
 
@@ -76,14 +85,17 @@ def test_inexact_synthetic_pairs_are_rejected(dense, bm25, chunk_ids, message):
             corpus_index=dense,
             bm25_index=bm25,
             dense_chunk_ids=chunk_ids,
+            corpus_chunk_set=SimpleNamespace(
+                id=21, revision=3, document_chunk_ids_checksum="c" * 64
+            ),
         )
 
 
 def test_retrieval_options_schema_contains_only_safe_option_metadata():
     response = SimulationRetrievalOptionsResponse(
         mode="hybrid",
-        dense_indices=[SimulationRetrievalIndexOption(id=101, name="Dense")],
-        bm25_indices=[SimulationRetrievalIndexOption(id=202, name="BM25")],
+        dense_indices=[SimulationRetrievalIndexOption(id=101, name="Dense", corpus_chunk_set_id=21, corpus_chunk_set_revision=3, corpus_chunk_set_checksum="c" * 64)],
+        bm25_indices=[SimulationRetrievalIndexOption(id=202, name="BM25", corpus_chunk_set_id=21, corpus_chunk_set_revision=3, corpus_chunk_set_checksum="c" * 64)],
         compatible_pairs=[
             SimulationRetrievalCompatiblePair(
                 corpus_index_id=101,
@@ -95,8 +107,9 @@ def test_retrieval_options_schema_contains_only_safe_option_metadata():
     payload = response.model_dump()
 
     assert payload["mode"] == "hybrid"
-    assert set(payload["dense_indices"][0]) == {"id", "name"}
-    assert set(payload["bm25_indices"][0]) == {"id", "name"}
+    safe_fields = {"id", "name", "corpus_chunk_set_id", "corpus_chunk_set_revision", "corpus_chunk_set_checksum"}
+    assert set(payload["dense_indices"][0]) == safe_fields
+    assert set(payload["bm25_indices"][0]) == safe_fields
 
 
 def _install_resource_fakes(
@@ -122,6 +135,13 @@ def _install_resource_fakes(
     async def get_chunk_ids(corpus_index_id, session):
         return list((dense_chunk_ids or {}).get(corpus_index_id, []))
 
+    async def get_chunk_set(chunk_set_id, session):
+        return SimpleNamespace(
+            id=chunk_set_id,
+            revision=3,
+            document_chunk_ids_checksum="c" * 64,
+        )
+
     monkeypatch.setattr(
         simulation_retrieval_options_service.corpus_repo,
         "get_corpus_by_id",
@@ -146,6 +166,11 @@ def _install_resource_fakes(
         simulation_retrieval_options_service.indexed_chunks_repo,
         "get_document_chunk_ids_by_corpus_index_id",
         get_chunk_ids,
+    )
+    monkeypatch.setattr(
+        simulation_retrieval_options_service.corpus_chunk_sets_repo,
+        "get_corpus_chunk_set_by_id",
+        get_chunk_set,
     )
 
 

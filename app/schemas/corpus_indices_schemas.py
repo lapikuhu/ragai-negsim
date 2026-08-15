@@ -14,6 +14,9 @@ class CorpusIndexCreate(CorpusIndexBase):
     corpus_id: int
     vector_store_id: int
     chunking_profile_id: int
+    corpus_chunk_set_id: int
+    corpus_chunk_set_revision: int = Field(ge=1)
+    corpus_chunk_set_checksum: str = Field(min_length=64, max_length=64)
     status: str = Field(default="created", min_length=1, title="Corpus index status")
 
 
@@ -22,6 +25,11 @@ class CorpusIndexRead(CorpusIndexBase):
     corpus_id: int
     vector_store_id: int
     chunking_profile_id: int
+    corpus_chunk_set_id: int
+    corpus_chunk_set_revision: int
+    corpus_chunk_set_checksum: str
+    is_stale: bool = False
+    stale_reason: str | None = None
     status: str
     built_at: datetime | None = None
     build_error: str | None = None

@@ -50,6 +50,7 @@ from app.models.users import User
 from app.repositories import (
     counterpart_personas_repo,
     corpus_bm25_indices_repo,
+    corpus_chunk_sets_repo,
     corpus_indices_repo,
     corpus_repo,
     prompts_repo,
@@ -709,7 +710,20 @@ async def _validate_crag_retrieval_bindings(
     rag_profile: Any,
     session: AsyncSession,
 ) -> tuple[Any | None, Any | None]:
-    """Validate explicit CRAG artifact selections before runtime construction."""
+    """
+    Validate explicit CRAG artifact selections before runtime construction.
+
+    Args:
+        corpus_id: The ID of the corpus.
+        corpus_index_id: The ID of the dense corpus index, if any.
+        bm25_index_id: The ID of the BM25 index, if any.
+        rag_profile: The RAG profile object.
+        session: The database session.
+    Returns:
+        tuple[Any | None, Any | None]: The validated corpus index and BM25 index objects.
+    Raises:
+        ValueError: If any of the validations fail.
+    """
     mode, _weight, _dense_k, _bm25_k, _final_top_k = _crag_retrieval_settings(
         rag_profile
     )
@@ -747,6 +761,10 @@ async def _validate_crag_retrieval_bindings(
         corpus_index=corpus_index,
         bm25_index=bm25_index,
         dense_chunk_ids=dense_chunk_ids,
+        corpus_chunk_set=await corpus_chunk_sets_repo.get_corpus_chunk_set_by_id(
+            corpus_index.corpus_chunk_set_id,
+            session,
+        ),
     )
     return corpus_index, bm25_index
 

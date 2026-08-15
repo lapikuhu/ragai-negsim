@@ -41,19 +41,23 @@ async def lifespan(app: FastAPI):
     from app.services.knowledge_graph_builds_service import (
         fail_interrupted_knowledge_graph_builds_srvc,
     )
-    # Fail any stalled full corpus index pipe jobs and knowledge graph builds left 
-    # active by an application shutdown or restart
-    await fail_interrupted_full_corpus_index_pipe_jobs_srvc()
-    await fail_interrupted_knowledge_graph_builds_srvc()
     from app.services.corpus_bm25_build_jobs_service import recover_interrupted_corpus_bm25_build_jobs_srvc
     from app.services.corpus_bm25_build_coordinator import (
         shutdown_corpus_bm25_build_coordinator_srvc,
         startup_corpus_bm25_build_coordinator_srvc,
     )
+    from app.services.full_corpus_index_pipe_coordinator import (
+        shutdown_full_corpus_index_pipe_coordinator_srvc,
+        startup_full_corpus_index_pipe_coordinator_srvc,
+    )
     from app.db.db import AsyncSessionLocal
     async with AsyncSessionLocal() as session:
         await recover_interrupted_corpus_bm25_build_jobs_srvc(session)
+    # Recover children first so parent rollback observes truthful terminal state.
+    await fail_interrupted_full_corpus_index_pipe_jobs_srvc()
+    await fail_interrupted_knowledge_graph_builds_srvc()
     await startup_corpus_bm25_build_coordinator_srvc()
+    await startup_full_corpus_index_pipe_coordinator_srvc()
     from app.services.rag_eval_service import (
         shutdown_rag_eval_coordinator_srvc,
         startup_rag_eval_coordinator_srvc,
@@ -67,6 +71,7 @@ async def lifespan(app: FastAPI):
     try:
         yield # execution pauses here and the app starts accepting requests
     finally:
+        await shutdown_full_corpus_index_pipe_coordinator_srvc()
         await shutdown_corpus_bm25_build_coordinator_srvc()
         await shutdown_rag_eval_coordinator_srvc()
         print("Shutting down application... [OK]")

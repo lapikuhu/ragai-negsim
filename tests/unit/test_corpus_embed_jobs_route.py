@@ -28,6 +28,7 @@ def test_queue_embed_corpus_job_schedules_background_task(
             corpus_index_id=77,
             vector_store_id=5,
             chunking_profile_id=3,
+            corpus_chunk_set_id=21,
             embedding_model="mini-l6-v2",
             embedding_dimensions=384,
             vector_namespace="corpus-index-77",
@@ -54,7 +55,11 @@ def test_queue_embed_corpus_job_schedules_background_task(
 
     response = api_client.post(
         "/corpora/11/chunking-profiles/3/vector-stores/5/embed-jobs",
-        json={"name": "my index", "embedding_model": "mini-l6-v2"},
+        json={
+            "name": "my index",
+            "embedding_model": "mini-l6-v2",
+            "corpus_chunk_set_id": 21,
+        },
     )
 
     assert response.status_code == 202

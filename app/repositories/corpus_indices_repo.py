@@ -488,12 +488,16 @@ async def list_built_corpus_indices_for_corpus(
 async def create_corpus_index(
     index_in: CorpusIndexCreate,
     session: AsyncSession,
+    *,
+    commit: bool = True,
 ) -> CorpusIndex:
     """
     Create a new corpus index.
     Args:
         index_in: The data for the new corpus index.
         session: The database session.
+        commit: Whether to commit the transaction after creation. Defaults to 
+            True.
     Returns:
         The created corpus index.
     """
@@ -502,7 +506,12 @@ async def create_corpus_index(
     ensure_embedding_model(index_in.embedding_model)
     ensure_embedding_dimensions(index_in.embedding_dimensions)
     index = CorpusIndex(**index_in.model_dump())
-    return await commit_and_refresh(session, index)
+    if commit:
+        return await commit_and_refresh(session, index)
+    session.add(index)
+    await session.flush()
+    await session.refresh(index)
+    return index
 
 
 async def update_corpus_index(
@@ -563,6 +572,8 @@ async def set_corpus_index_build_metadata(
     index: CorpusIndex,
     vector_namespace: str,
     session: AsyncSession,
+    *,
+    commit: bool = True,
 ) -> CorpusIndex:
     """
     Update the build metadata of a corpus index.
@@ -570,19 +581,27 @@ async def set_corpus_index_build_metadata(
         index: The corpus index instance to update.
         vector_namespace: The vector namespace for the corpus index.
         session: The database session.
+        commit: Whether to commit the transaction after updating. Defaults to 
+            True.
     Returns:
         The updated corpus index.
     """
     index.vector_namespace = vector_namespace
     index.build_error = None
     index.last_updated = utc_now()
-    return await commit_and_refresh(session, index)
+    if commit:
+        return await commit_and_refresh(session, index)
+    session.add(index)
+    await session.flush()
+    await session.refresh(index)
+    return index
 
 
 async def mark_corpus_index_failed(
     index: CorpusIndex,
     build_error: str,
     session: AsyncSession,
+    commit: bool = True,
 ) -> CorpusIndex:
     """
     Mark a corpus index as failed.
@@ -590,11 +609,71 @@ async def mark_corpus_index_failed(
         index: The corpus index instance to update.
         build_error: The error message for the failed build.
         session: The database session.
+        commit: Whether to commit the transaction after updating. Defaults to 
+            True.
     Returns:
         The updated corpus index.
     """
     ensure_status_transition(index.status, "failed")
     index.status = "failed"
+    index.build_error = build_error
+    index.last_updated = utc_now()
+    if commit:
+        return await commit_and_refresh(session, index)
+    session.add(index)
+    await session.flush()
+    await session.refresh(index)
+    return index
+
+
+async def fail_corpus_index_build(
+    index: CorpusIndex,
+    build_error: str,
+    session: AsyncSession,
+    *,
+    commit: bool = True,
+) -> CorpusIndex:
+    """
+    Fail a parent build even if embedding already marked it built.
+
+    Args:
+        index: The corpus index instance to update.
+        build_error: The error message for the failed build.
+        session: The database session.
+        commit: Whether to commit the transaction after updating. Defaults 
+            to True.
+    Returns:
+        The updated corpus index.
+    """
+    if index.status not in {"created", "building", "built", "failed"}:
+        raise ValueError("Corpus index cannot be failed from its current status")
+    index.status = "failed"
+    index.build_error = build_error
+    index.last_updated = utc_now()
+    if commit:
+        return await commit_and_refresh(session, index)
+    session.add(index)
+    await session.flush()
+    await session.refresh(index)
+    return index
+
+
+async def cancel_corpus_index_build(
+    index: CorpusIndex,
+    build_error: str,
+    session: AsyncSession,
+) -> CorpusIndex:
+    """
+    Compensate parent cancellation before an inactive candidate activates.
+    
+    Args:
+        index: The corpus index instance to update.
+        build_error: The error message for the cancelled build.
+        session: The database session.
+    """
+    if index.status not in {"created", "building", "built", "cancelled"}:
+        raise ValueError("Corpus index cannot be cancelled from its current status")
+    index.status = "cancelled"
     index.build_error = build_error
     index.last_updated = utc_now()
     return await commit_and_refresh(session, index)
@@ -607,6 +686,13 @@ async def mark_corpus_index_cancelled(
 ) -> CorpusIndex:
     """
     Mark a corpus index as cancelled without deleting any partial build data.
+
+    Args:
+        index: The corpus index instance to update.
+        build_error: The error message for the cancelled build.
+        session: The database session.
+    Returns:
+        The updated corpus index.
     """
     ensure_status_transition(index.status, "cancelled")
     index.status = "cancelled"
@@ -687,6 +773,9 @@ async def copy_corpus_index(
             if copy_in.chunking_profile_id is not None
             else source_index.chunking_profile_id
         ),
+        corpus_chunk_set_id=source_index.corpus_chunk_set_id,
+        corpus_chunk_set_revision=source_index.corpus_chunk_set_revision,
+        corpus_chunk_set_checksum=source_index.corpus_chunk_set_checksum,
         status="created",
         embedding_model=embedding_model,
         embedding_dimensions=embedding_dimensions,

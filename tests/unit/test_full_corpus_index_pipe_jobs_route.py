@@ -12,7 +12,10 @@ def _queued_job(**overrides):
         "vector_store_id": 3,
         "embedding_model": "mini-l6-v2",
         "requested_index_name": "policy-index",
+        "requested_chunk_set_name": "August policy set",
         "requested_vector_namespace": None,
+        "build_bm25": True,
+        "requested_bm25_index_name": "policy lexical",
         "status": "queued",
         "stage": "validating",
         "cancel_requested": False,
@@ -27,6 +30,9 @@ def _queued_job(**overrides):
         "completed_at": None,
         "candidate_corpus_index_id": None,
         "replaced_corpus_index_id": None,
+        "requested_by_user_id": 5,
+        "bm25_build_job_id": None,
+        "corpus_chunk_set_id": None,
         "failure_detail": None,
     }
     values.update(overrides)
@@ -39,7 +45,7 @@ def _job_detail(**overrides):
     return FullCorpusIndexPipeJobDetail(**values)
 
 
-def test_post_full_corpus_index_pipe_jobs_returns_202_and_starts_managed_task(
+def test_post_full_corpus_index_pipe_jobs_returns_202_and_wakes_coordinator(
     monkeypatch,
     api_client,
     override_current_user,
@@ -47,10 +53,11 @@ def test_post_full_corpus_index_pipe_jobs_returns_202_and_starts_managed_task(
     allow_roles,
 ):
     captured = {}
-    started_jobs = []
+    wake_calls = []
 
-    async def fake_queue(job_in, session):
+    async def fake_queue(job_in, current_user, session):
         captured["job_in"] = job_in
+        captured["current_user"] = current_user
         captured["session"] = session
         return _queued_job(
             corpus_id=job_in.corpus_id,
@@ -58,16 +65,20 @@ def test_post_full_corpus_index_pipe_jobs_returns_202_and_starts_managed_task(
             vector_store_id=job_in.vector_store_id,
             embedding_model=job_in.embedding_model,
             requested_index_name=job_in.requested_index_name,
+            requested_chunk_set_name=job_in.requested_chunk_set_name,
+            build_bm25=job_in.build_bm25,
+            requested_bm25_index_name=job_in.requested_bm25_index_name,
         )
 
-    def fake_start(job_id):
-        started_jobs.append(job_id)
-        return f"task-{job_id}"
-
     monkeypatch.setattr(full_corpus_index_pipe_jobs_route.full_corpus_index_pipe_job, "queue_full_corpus_index_pipe_job_srvc", fake_queue)
-    monkeypatch.setattr(full_corpus_index_pipe_jobs_route.full_corpus_index_pipe_job, "start_full_corpus_index_pipe_job_task", fake_start)
+    monkeypatch.setattr(
+        full_corpus_index_pipe_jobs_route,
+        "wake_full_corpus_index_pipe_coordinator",
+        lambda: wake_calls.append("wake"),
+        raising=False,
+    )
 
-    override_current_user(username="admin", roles=["admin"])
+    admin = override_current_user(username="admin", roles=["admin"])
     session = override_session()
     allow_roles("admin")
 
@@ -79,14 +90,20 @@ def test_post_full_corpus_index_pipe_jobs_returns_202_and_starts_managed_task(
             "vector_store_id": 3,
             "embedding_model": "mini-l6-v2",
             "requested_index_name": "policy-index",
+            "requested_chunk_set_name": "August policy set",
+            "requested_bm25_index_name": "policy lexical",
         },
     )
 
     assert response.status_code == 202
     assert response.json() == _queued_job().model_dump(mode="json")
     assert captured["session"] is session
+    assert captured["current_user"] is admin
     assert captured["job_in"].requested_index_name == "policy-index"
-    assert started_jobs == [77]
+    assert captured["job_in"].requested_chunk_set_name == "August policy set"
+    assert captured["job_in"].build_bm25 is True
+    assert captured["job_in"].requested_bm25_index_name == "policy lexical"
+    assert wake_calls == ["wake"]
 
 
 def test_get_active_full_corpus_index_pipe_job_returns_204_when_none_running(

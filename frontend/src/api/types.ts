@@ -122,7 +122,9 @@ export type CorpusBm25IndexMetadata = components["schemas"]["CorpusBm25IndexMeta
 export type CorpusBm25BuildJobQueueRequest = components["schemas"]["CorpusBm25BuildJobQueueRequest"];
 export type CorpusBm25BuildJobRead = components["schemas"]["CorpusBm25BuildJobRead"];
 export type CorpusBm25BuildJobRetryRequest = components["schemas"]["CorpusBm25BuildJobRetryRequest"];
-export type CorpusChunkSetSummary = components["schemas"]["CorpusChunkSetSummary"];
+export type CorpusChunkSetRead = components["schemas"]["CorpusChunkSetRead"];
+export type CorpusChunkSetNameAvailability = components["schemas"]["CorpusChunkSetNameAvailability"];
+export type CorpusBm25IndexNameAvailability = components["schemas"]["CorpusBm25IndexNameAvailability"];
 export type ChunkingProfileRead = components["schemas"]["ChunkingProfileReadWithIds"];
 export type RagProfileRead = components["schemas"]["RagProfileReadWithIds"] & {
   knowledge_graph_index_id?: number | null;

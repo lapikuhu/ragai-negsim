@@ -4,7 +4,7 @@ The backend is a FastAPI application organized around a conventional route → s
 
 ## Core application wiring
 - `app/main.py` creates the FastAPI app, configures CORS, registers request logging middleware, and includes the route modules.
-- Startup uses a lifespan handler to seed base data and mark interrupted full corpus index pipe jobs as failed.
+- Startup uses a lifespan handler to seed base data, roll back interrupted running full-corpus jobs, preserve queued parents, and start the persistent coordinators.
 - `app/core/config.py` loads settings from `.env` and also configures LangSmith environment variables when tracing is enabled.
 - `app/core/dependencies.py` centralizes session, authentication, role checks, pagination, and resource-loading dependencies.
 
@@ -16,6 +16,21 @@ Route modules live under `app/web/routes/` and expose the API surface. They are 
 Service modules under `app/services/` contain application logic. This is where orchestration happens for simulations, ingestion, chunking, retrieval, sessions, and user-adjacent workflows.
 
 RAG evaluation has a dedicated persistent coordinator in `app/services/rag_eval_coordinator.py`. It claims queued database rows in global FIFO order, runs at most one evaluation at a time, and reports stage, progress, completed-example counts, and cancellation. Queue rows survive restart. Startup recovery cleans interrupted GraphRAG scopes before failing interrupted runs; an unsuccessful cleanup leaves the run at `cleanup_pending` and blocks later queue work until cleanup succeeds. Progress is mapped through stage-specific ranges so the UI can show meaningful percentages while a run moves through preparing, chunking, indexing, evaluation, and cleanup. The runtime now builds the shared response pipeline through `app/airag/pipeline_factory.py`, so evaluation exercises the same canonical CRAG/GraphRAG pipeline as production. The in-process ownership model supports a single Uvicorn worker.
+
+The Full Corpus Index Pipe is also a durable parent queue. Its coordinator
+claims one parent at a time; parsing and chunking remain parent stages. When
+chunking finishes, the parent persists one named `CorpusChunkSet` containing
+only its job-produced chunks. Dense and BM25 artifacts record the same set ID,
+revision, and checksum. The parent validates the requested chunk-set name
+against both existing sets and any active full-pipeline reservations before it
+queues work. When BM25 is enabled, the parent calls the existing BM25 job
+factory, and the existing BM25 coordinator is its only child coordinator. The
+parent waits for that child, performs dense embedding, applies the canonical
+hybrid compatibility check, and only then activates dense. Rollback
+terminalizes child work, removes dense and BM25 outputs, deletes the
+parent-owned set, and removes only unreferenced parent-owned chunks.
+Standalone BM25 jobs never delete their selected sets. Incomplete cleanup
+persists as `running/rolling_back` and is claimed ahead of new queued work.
 
 ### Repositories
 Repository modules under `app/repositories/` isolate persistence queries and keep route/service code from reaching directly into SQLModel/SQLAlchemy query logic.

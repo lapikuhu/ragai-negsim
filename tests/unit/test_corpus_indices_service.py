@@ -34,6 +34,9 @@ def _index(
     corpus_id=1,
     vector_store_id=2,
     chunking_profile_id=3,
+    corpus_chunk_set_id=4,
+    corpus_chunk_set_revision=1,
+    corpus_chunk_set_checksum="a" * 64,
     status="created",
     embedding_model="mini-l6-v2",
     embedding_dimensions=384,
@@ -47,6 +50,9 @@ def _index(
         corpus_id=corpus_id,
         vector_store_id=vector_store_id,
         chunking_profile_id=chunking_profile_id,
+        corpus_chunk_set_id=corpus_chunk_set_id,
+        corpus_chunk_set_revision=corpus_chunk_set_revision,
+        corpus_chunk_set_checksum=corpus_chunk_set_checksum,
         status=status,
         embedding_model=embedding_model,
         embedding_dimensions=embedding_dimensions,
@@ -55,6 +61,24 @@ def _index(
         build_error=None,
         created_at=now,
         last_updated=now,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _current_chunk_set(monkeypatch):
+    async def fake_get_corpus_chunk_set_by_id(chunk_set_id, session):
+        return SimpleNamespace(
+            id=chunk_set_id,
+            corpus_id=1,
+            chunking_profile_id=3,
+            revision=1,
+            document_chunk_ids_checksum="a" * 64,
+        )
+
+    monkeypatch.setattr(
+        corpus_indices_service.corpus_chunk_sets_repo,
+        "get_corpus_chunk_set_by_id",
+        fake_get_corpus_chunk_set_by_id,
     )
 
 
@@ -101,6 +125,9 @@ async def test_create_corpus_index_validates_refs_and_returns_ids(monkeypatch):
         corpus_id=1,
         vector_store_id=2,
         chunking_profile_id=3,
+        corpus_chunk_set_id=4,
+        corpus_chunk_set_revision=1,
+        corpus_chunk_set_checksum="a" * 64,
         embedding_model="mini-l6-v2",
     )
     result = await corpus_indices_service.create_corpus_index_srvc(index_in, object())
@@ -124,6 +151,9 @@ async def test_create_corpus_index_requires_existing_refs(monkeypatch):
                 corpus_id=99,
                 vector_store_id=2,
                 chunking_profile_id=3,
+                corpus_chunk_set_id=4,
+                corpus_chunk_set_revision=1,
+                corpus_chunk_set_checksum="a" * 64,
                 embedding_model="mini-l6-v2",
             ),
             object(),
@@ -355,7 +385,7 @@ async def test_copy_corpus_index_validates_override_refs_and_delegates(monkeypat
     captured = []
 
     async def fake_get_corpus_by_id(corpus_id, session):
-        assert corpus_id == 20
+        assert corpus_id == 1
         return SimpleNamespace(id=corpus_id)
 
     async def fake_get_vector_store_by_id(vector_store_id, session):
@@ -363,7 +393,7 @@ async def test_copy_corpus_index_validates_override_refs_and_delegates(monkeypat
         return SimpleNamespace(id=vector_store_id)
 
     async def fake_get_chunking_profile_by_id(profile_id, session):
-        assert profile_id == 40
+        assert profile_id == 3
         return SimpleNamespace(id=profile_id)
 
     async def fake_copy_corpus_index(index, copy_in, session):
@@ -387,9 +417,9 @@ async def test_copy_corpus_index_validates_override_refs_and_delegates(monkeypat
 
     copy_in = CorpusIndexCopy(
         name="Copied index",
-        corpus_id=20,
+        corpus_id=1,
         vector_store_id=30,
-        chunking_profile_id=40,
+        chunking_profile_id=3,
     )
     result = await corpus_indices_service.copy_corpus_index_srvc(
         source,

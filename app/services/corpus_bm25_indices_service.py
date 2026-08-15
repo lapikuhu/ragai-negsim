@@ -12,8 +12,8 @@ from app.airag.retrieval.retrievers import (
     build_serialized_bm25_artifact,
     load_validated_bm25_artifact,
 )
-from app.repositories import corpus_bm25_indices_repo
-from app.repositories.document_chunks_repo import list_corpus_document_chunks_for_profile
+from app.repositories import corpus_bm25_indices_repo, corpus_chunk_sets_repo
+from app.repositories.document_chunks_repo import get_corpus_chunk_set_document_chunks_by_ids
 from app.schemas.corpus_bm25_indices_schemas import (
     CorpusBm25IndexCreate,
     CorpusBm25IndexMetadata,
@@ -47,7 +47,7 @@ async def list_corpus_bm25_indices_srvc(
     Returns:
         A list of CorpusBm25IndexMetadata objects.
     """
-    return await corpus_bm25_indices_repo.list_corpus_bm25_index_metadata(
+    values = await corpus_bm25_indices_repo.list_corpus_bm25_index_metadata(
         session,
         skip=skip,
         limit=limit,
@@ -55,6 +55,26 @@ async def list_corpus_bm25_indices_srvc(
         chunking_profile_id=chunking_profile_id,
         status=status,
     )
+    result = []
+    for value in values:
+        # Get the chunk set and perform staleness checks on it
+        # TODO: Staleness checks are used frequently: possible helper func
+        chunk_set = await corpus_chunk_sets_repo.get_corpus_chunk_set_by_id(
+            value.corpus_chunk_set_id, session
+        )
+        reason = None
+        if chunk_set is None:
+            reason = "Corpus chunk set no longer exists"
+        elif value.corpus_chunk_set_revision != chunk_set.revision:
+            reason = "Corpus chunk set revision changed"
+        elif value.corpus_chunk_set_checksum != chunk_set.document_chunk_ids_checksum:
+            reason = "Corpus chunk set checksum changed"
+        result.append(
+            value.model_copy(
+                update={"is_stale": reason is not None, "stale_reason": reason}
+            )
+        )
+    return result
 
 # Helper candidate
 def _short_error(exc: BaseException, max_length: int = 500) -> str:
@@ -250,6 +270,9 @@ async def build_corpus_bm25_index_srvc(
     name: str,
     corpus_id: int,
     chunking_profile_id: int,
+    corpus_chunk_set_id: int,
+    corpus_chunk_set_revision: int,
+    corpus_chunk_set_checksum: str,
     session: AsyncSession,
     expected_document_chunk_ids: list[int] | None = None,
     created_by_bm25_build_job_id: int | None = None,
@@ -280,11 +303,12 @@ async def build_corpus_bm25_index_srvc(
         ValueError: If no document chunks are found or if the expected 
         document chunk IDs do not match the current set of persisted chunks.
     """
-    # Get the persisted document chunks for the given corpus and chunking profile.
-    chunks = await list_corpus_document_chunks_for_profile(
-        corpus_id=corpus_id,
-        chunking_profile_id=chunking_profile_id,
-        session=session,
+    if expected_document_chunk_ids is None:
+        raise ValueError("Exact corpus chunk set membership is required")
+    chunks = await get_corpus_chunk_set_document_chunks_by_ids(
+        corpus_chunk_set_id,
+        expected_document_chunk_ids,
+        session,
     )
     if not chunks:
         raise ValueError(
@@ -313,6 +337,9 @@ async def build_corpus_bm25_index_srvc(
         name=name,
         corpus_id=corpus_id,
         chunking_profile_id=chunking_profile_id,
+        corpus_chunk_set_id=corpus_chunk_set_id,
+        corpus_chunk_set_revision=corpus_chunk_set_revision,
+        corpus_chunk_set_checksum=corpus_chunk_set_checksum,
         document_chunk_ids=document_chunk_ids,
         format_version=BM25_ARTIFACT_FORMAT_VERSION,
         created_by_bm25_build_job_id=created_by_bm25_build_job_id,
@@ -397,6 +424,9 @@ async def build_corpus_bm25_index_from_snapshot_srvc(
     name: str,
     corpus_id: int,
     chunking_profile_id: int,
+    corpus_chunk_set_id: int,
+    corpus_chunk_set_revision: int,
+    corpus_chunk_set_checksum: str,
     document_chunk_ids: list[int],
     created_by_bm25_build_job_id: int,
     session: AsyncSession,
@@ -429,6 +459,9 @@ async def build_corpus_bm25_index_from_snapshot_srvc(
         name=name,
         corpus_id=corpus_id,
         chunking_profile_id=chunking_profile_id,
+        corpus_chunk_set_id=corpus_chunk_set_id,
+        corpus_chunk_set_revision=corpus_chunk_set_revision,
+        corpus_chunk_set_checksum=corpus_chunk_set_checksum,
         expected_document_chunk_ids=document_chunk_ids,
         created_by_bm25_build_job_id=created_by_bm25_build_job_id,
         on_index_created=on_index_created,

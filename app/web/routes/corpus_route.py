@@ -11,7 +11,10 @@ from app.core.dependencies import (
     WritableCorpusDep,
 )
 from app.schemas.corpus_schemas import CorpusCreate, CorpusRead
-from app.schemas.corpus_bm25_build_jobs_schemas import CorpusChunkSetSummary
+from app.schemas.corpus_chunk_sets_schemas import (
+    CorpusChunkSetNameAvailability,
+    CorpusChunkSetRead,
+)
 from app.schemas.chunking_schemas import CorpusChunkResult
 from app.schemas.embeddings_schemas import (
     CorpusEmbeddingBuildQueued,
@@ -31,6 +34,8 @@ from app.services.embeddings_service import (
 )
 from app.services.ingestion_service import ingest_corpus_srvc
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from app.repositories import corpus_chunk_sets_repo, full_corpus_index_pipe_jobs_repo
+from app.services.full_corpus_index_pipe_job import normalize_chunk_set_name
 
 # Instantiate the API router for corpus-related endpoints
 router = APIRouter(prefix="/corpora", tags=["corpora"])
@@ -117,13 +122,13 @@ async def list_corpora(
 ### ------------------- CORPUS CHUNK SETS LIST --------------------- ###
 
 @router.get("/{corpus_id}/chunk-sets", 
-            response_model=list[CorpusChunkSetSummary],
+            response_model=list[CorpusChunkSetRead],
             status_code=200)
 async def list_corpus_chunk_sets(
     corpus: CorpusDep,
     session: SessionDep,
     _admin: AdminDep,
-) -> list[CorpusChunkSetSummary]:
+) -> list[CorpusChunkSetRead]:
     """
     List buildable persisted chunk sets for a corpus.
 
@@ -132,11 +137,56 @@ async def list_corpus_chunk_sets(
         session: The database session to use for the operation.
         _admin: The current admin user making the request (for authorization).
     Returns:
-        A list of CorpusChunkSetSummary instances representing the chunk sets
-        associated with the specified corpus.
+        The persisted chunk sets associated with the specified corpus.
     """
     return await list_corpus_chunk_set_summaries_srvc(
         _persisted_id(corpus.id, "Corpus"), session
+    )
+
+### ------------------- CHUNK SET NAME AVAILABILITY GET ------------------- ###
+@router.get(
+    "/{corpus_id}/chunk-set-name-availability",
+    response_model=CorpusChunkSetNameAvailability,
+    status_code=status.HTTP_200_OK,
+)
+async def get_corpus_chunk_set_name_availability(
+    corpus: CorpusDep,
+    session: SessionDep,
+    _admin: AdminDep,
+    name: str,
+) -> CorpusChunkSetNameAvailability:
+    """
+    Check if a chunk set name is available for a given corpus.
+
+    Args:
+        corpus: The corpus for which to check chunk set name availability.
+        session: The database session to use for the operation.
+        _admin: The current admin user making the request (for authorization).
+        name: The name of the chunk set to check.
+    Returns:
+        The availability status of the chunk set name for the specified corpus.
+    """
+    try:
+        normalized = normalize_chunk_set_name(name)
+    except ValueError as exc:
+        return CorpusChunkSetNameAvailability(
+            name=name.strip(), available=False, reason=str(exc)
+        )
+    corpus_id = _persisted_id(corpus.id, "Corpus")
+    existing = await corpus_chunk_sets_repo.get_corpus_chunk_set_by_name(
+        corpus_id, normalized, session
+    )
+    reserved = await full_corpus_index_pipe_jobs_repo.has_active_full_pipe_chunk_set_name_reservation(
+        corpus_id, normalized, session
+    )
+    return CorpusChunkSetNameAvailability(
+        name=normalized,
+        available=existing is None and not reserved,
+        reason=(
+            None
+            if existing is None and not reserved
+            else "Corpus chunk set name already exists or is reserved"
+        ),
     )
 
 

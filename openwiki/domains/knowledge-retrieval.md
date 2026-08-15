@@ -54,14 +54,22 @@ and the checksum of the document-chunk ID snapshot used to build it. The
 presence, status, copy, or cleanup of either record never implies that the
 other artifact exists or is available.
 
+Both artifact types consume a first-class, named `CorpusChunkSet`. Membership
+is normalized through a link table, so one `DocumentChunk` may belong to
+several historical sets. Each set stores a revision, canonical member-ID
+checksum, and a historical snapshot of the chunking profile name, strategy,
+and normalized configuration. Live profile edits do not rewrite that snapshot,
+and legacy corpus/profile groupings are not inferred as sets.
+
 The Hybrid compatibility contract is selected explicitly by the CRAG
 profile's `bm25_weight`:
 
 - Weight `0` is dense-only and requires only a built dense corpus index.
 - Weight `1` is BM25-only and requires only a built BM25 index.
 - An intermediate weight requires both explicit bindings. They must refer to
-  the same corpus and chunking profile and must have the same document count
-  and document-chunk ID checksum.
+  the same persisted set ID and current set revision/checksum. Existing corpus,
+  chunking-profile, document-count, document-ID checksum, lifecycle, and BM25
+  compressed-artifact checksum checks remain independent requirements.
 
 Runtime selection never infers a BM25 artifact from a dense index. Dense
 cleanup deletes only dense vectors, `IndexedChunk` references, and negotiation
@@ -81,14 +89,23 @@ the process-local graph cache and forces the persisted artifact to be loaded
 again when next used.
 
 Administrators can queue a dedicated persistent BM25 build job from corpus
-detail. The job snapshots the exact persisted document-chunk IDs for the
-selected corpus and chunking profile, then the single application-owned FIFO
+detail. The administrator selects an existing named set; the job snapshots its
+exact IDs, revision, and checksum, then the single application-owned FIFO
 coordinator validates that snapshot before building. A changed snapshot fails
 instead of silently indexing newer chunks. Queued jobs survive restart;
 interrupted running jobs and any linked in-progress artifacts are marked
-failed. The job boundary is intentionally reusable by a later **Build also
-BM25** option in the Full Corpus Index Pipe, but that option is not part of the
-current workflow.
+failed.
+
+New Full Corpus Index Pipe requests default to building BM25 as well as dense.
+The administrator supplies a set name and distinct names for both artifacts.
+After parsing and chunking, the parent persists exactly its job-produced chunks
+as one set, creates the dense candidate with that identity, and queues a normal
+BM25 child job and waits for it to complete before starting dense embedding.
+Dense activation happens only after the canonical hybrid compatibility rule
+accepts the pair. A downstream failure or cancellation deletes the
+parent-owned BM25 artifact and dense candidate, then deletes its set and only
+job-produced chunks no longer referenced by another set. Standalone BM25
+failure never deletes its selected set or chunks.
 
 Simulation creation discovers CRAG artifact choices through the authenticated
 `GET /simulations/retrieval-options` endpoint. The backend resolves the
@@ -110,19 +127,20 @@ selections are cleared. GraphRAG continues to use its knowledge-graph-bound
 dense index and does not call this CRAG endpoint.
 
 Administrators can also queue a dedicated corpus-scoped BM25 build job from the
-corpus detail page. The new workflow snapshots the exact persisted document
-chunk IDs for a selected corpus and chunking profile, verifies that snapshot
-before build time, and then persists a BM25 artifact through the same
+corpus detail page. The workflow snapshots the exact persisted document chunk
+IDs for a selected named set, verifies its revision and checksum before build
+time, and then persists a BM25 artifact through the same
 `/corpus-bm25-indices/` artifact model. The job API supports queue, list, get,
 cancel, and retry; the backend coordinator wakes on queue/retry and processes
-one job at a time in the application process. Corpus detail now exposes a
-persisted chunk-set summary, existing BM25 artifacts, and build-job history so
+one job at a time in the application process. Corpus detail now exposes
+persisted named sets, existing BM25 artifacts, and build-job history so
 operators can choose a stable chunk snapshot instead of relying on the broader
 full-corpus index pipe.
 
-If a future full-corpus-index-pipe job materializes BM25, its API must make
-that choice explicit with `build_bm25: bool` or `artifact_mode: "dense" |
-"bm25" | "both"`; neither option is added by the current backend migration.
+The Full Corpus Index Pipe exposes `build_bm25: bool`, defaulting to true, and
+requires `requested_chunk_set_name` and, when enabled,
+`requested_bm25_index_name`. Setting `build_bm25` to
+false preserves the dense-only workflow.
 
 ### GraphRAG
 GraphRAG uses a knowledge graph backed by Neo4j. It can retrieve evidence through semantic graph search, validated text-to-Cypher, or a hybrid ranking strategy.

@@ -16,6 +16,7 @@ from app.repositories import (
     corpus_repo,
     indexed_chunks_repo,
     rag_profiles_repo,
+    corpus_chunk_sets_repo,
 )
 from app.repositories.corpus_bm25_indices_repo import document_chunk_ids_checksum
 from app.schemas.simulations_schemas import (
@@ -31,6 +32,7 @@ def ensure_hybrid_indices_compatible(
     corpus_index: Any,
     bm25_index: Any,
     dense_chunk_ids: list[int],
+    corpus_chunk_set: Any,
 ) -> None:
     """
     Enforce the exact persisted-artifact contract for one hybrid pair.
@@ -44,9 +46,27 @@ def ensure_hybrid_indices_compatible(
         corpus_index: The dense index object.
         bm25_index: The BM25 index object.
         dense_chunk_ids: The list of chunk IDs for the dense index.
+        corpus_chunk_set: The corpus chunk set object.
+    Returns:
+        None.
     Raises:
         ValueError: If the indices are not compatible for hybrid use.
     """
+    if corpus_chunk_set is None:
+        raise ValueError("Hybrid indexes reference a missing corpus chunk set")
+    if corpus_index.corpus_chunk_set_id != bm25_index.corpus_chunk_set_id:
+        raise ValueError("Hybrid indexes must use the same corpus chunk set")
+    if corpus_index.corpus_chunk_set_id != corpus_chunk_set.id:
+        raise ValueError("Hybrid indexes reference the wrong corpus chunk set")
+    if (
+        corpus_index.corpus_chunk_set_revision != corpus_chunk_set.revision
+        or bm25_index.corpus_chunk_set_revision != corpus_chunk_set.revision
+        or corpus_index.corpus_chunk_set_checksum
+        != corpus_chunk_set.document_chunk_ids_checksum
+        or bm25_index.corpus_chunk_set_checksum
+        != corpus_chunk_set.document_chunk_ids_checksum
+    ):
+        raise ValueError("Hybrid index is stale for its corpus chunk set")
     if corpus_index.status != "built" or bm25_index.status != "built":
         raise ValueError("Hybrid indexes must both be built")
     if corpus_index.corpus_id != corpus_id or bm25_index.corpus_id != corpus_id:
@@ -76,7 +96,32 @@ def _index_option(index: Any) -> SimulationRetrievalIndexOption:
     Returns:
         SimulationRetrievalIndexOption: The corresponding index option.
     """
-    return SimulationRetrievalIndexOption(id=index.id, name=index.name)
+    return SimulationRetrievalIndexOption(
+        id=index.id,
+        name=index.name,
+        corpus_chunk_set_id=index.corpus_chunk_set_id,
+        corpus_chunk_set_revision=index.corpus_chunk_set_revision,
+        corpus_chunk_set_checksum=index.corpus_chunk_set_checksum,
+    )
+
+
+def _artifact_matches_current_set(index: Any, chunk_set: Any) -> bool:
+    """
+    Return True if the index's artifact matches the current chunk set.
+
+    Args:
+        index: The index object.
+        chunk_set: The corpus chunk set object.
+    Returns:
+        bool: True if the artifact matches the current chunk set, False otherwise.
+    """
+    return bool(
+        chunk_set is not None
+        and index.corpus_chunk_set_id == chunk_set.id
+        and index.corpus_chunk_set_revision == chunk_set.revision
+        and index.corpus_chunk_set_checksum
+        == chunk_set.document_chunk_ids_checksum
+    )
 
 
 async def get_simulation_retrieval_options_srvc(
@@ -119,12 +164,46 @@ async def get_simulation_retrieval_options_srvc(
     config = normalize_rag_profile_config("crag", rag_profile.config or {})
     mode = get_crag_retrieval_mode(config["bm25_weight"])
 
+    async def load_sets(indices: list[Any]) -> dict[int, Any]:
+        """
+        Return a dictionary mapping corpus chunk set IDs to their 
+        corresponding chunk set objects.
+
+        Args:
+            indices: A list of index objects.
+        Returns:
+            dict[int, Any]: A dictionary where the keys are corpus chunk 
+            set IDs and the values are chunk set objects.
+        """
+        set_ids = {
+            index.corpus_chunk_set_id
+            for index in indices
+            if index.corpus_chunk_set_id is not None
+        }
+        return {
+            set_id: chunk_set
+            for set_id in set_ids
+            if (
+                chunk_set := await corpus_chunk_sets_repo.get_corpus_chunk_set_by_id(
+                    set_id, session
+                )
+            )
+            is not None
+        }
+
     # Dense case: return all dense indices for the corpus
     if mode == "dense":
         dense_indices = await corpus_indices_repo.list_built_corpus_indices_for_corpus(
             corpus_id,
             session,
         )
+        current_sets = await load_sets(dense_indices)
+        dense_indices = [
+            index for index in dense_indices
+            if _artifact_matches_current_set(
+                index, current_sets.get(index.corpus_chunk_set_id)
+            )
+        ]
         return SimulationRetrievalOptionsResponse(
             mode=mode,
             dense_indices=[_index_option(index) for index in dense_indices],
@@ -141,6 +220,13 @@ async def get_simulation_retrieval_options_srvc(
         for index in bm25_indices
         if index.compressed_artifact_checksum is not None
     ]
+    current_sets = await load_sets(usable_bm25_indices)
+    usable_bm25_indices = [
+        index for index in usable_bm25_indices
+        if _artifact_matches_current_set(
+            index, current_sets.get(index.corpus_chunk_set_id)
+        )
+    ]
     # BM25 case: return all usable BM25 indices for the corpus
     if mode == "bm25":
         return SimulationRetrievalOptionsResponse(
@@ -152,6 +238,13 @@ async def get_simulation_retrieval_options_srvc(
         corpus_id,
         session,
     )
+    current_sets.update(await load_sets(dense_indices))
+    dense_indices = [
+        index for index in dense_indices
+        if _artifact_matches_current_set(
+            index, current_sets.get(index.corpus_chunk_set_id)
+        )
+    ]
     pairs: list[SimulationRetrievalCompatiblePair] = []
     pairable_dense_ids: set[int] = set()
     pairable_bm25_ids: set[int] = set()
@@ -172,6 +265,9 @@ async def get_simulation_retrieval_options_srvc(
                     corpus_index=dense_index,
                     bm25_index=bm25_index,
                     dense_chunk_ids=dense_chunk_ids,
+                    corpus_chunk_set=current_sets.get(
+                        dense_index.corpus_chunk_set_id
+                    ),
                 )
             except ValueError:
                 continue

@@ -16,6 +16,21 @@ from app.repositories import corpus_bm25_indices_repo
 from app.services import corpus_bm25_indices_service as service
 
 
+CORPUS_CHUNK_SET_ID = 21
+CORPUS_CHUNK_SET_REVISION = 3
+CORPUS_CHUNK_SET_CHECKSUM = "c" * 64
+DOCUMENT_CHUNK_IDS = [20, 3]
+
+
+def _exact_set_build_args() -> dict:
+    return {
+        "corpus_chunk_set_id": CORPUS_CHUNK_SET_ID,
+        "corpus_chunk_set_revision": CORPUS_CHUNK_SET_REVISION,
+        "corpus_chunk_set_checksum": CORPUS_CHUNK_SET_CHECKSUM,
+        "expected_document_chunk_ids": DOCUMENT_CHUNK_IDS,
+    }
+
+
 def _chunk(chunk_id: int, content: str) -> SimpleNamespace:
     return SimpleNamespace(
         id=chunk_id,
@@ -44,11 +59,16 @@ async def bm25_db_engine():
 
 @pytest.fixture
 def selected_chunks(monkeypatch):
-    async def fake_list_chunks(corpus_id, chunking_profile_id, session):
-        assert (corpus_id, chunking_profile_id) == (11, 3)
+    async def fake_list_chunks(corpus_chunk_set_id, document_chunk_ids, session):
+        assert corpus_chunk_set_id == CORPUS_CHUNK_SET_ID
+        assert document_chunk_ids == DOCUMENT_CHUNK_IDS
         return [_chunk(20, "payment terms"), _chunk(3, "delivery schedule")]
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(
+        service,
+        "get_corpus_chunk_set_document_chunks_by_ids",
+        fake_list_chunks,
+    )
 
 
 @pytest.mark.asyncio
@@ -61,6 +81,7 @@ async def test_database_build_atomically_persists_safe_validated_artifact(
             name="database lexical success",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=session,
             run_in_thread=_inline_runner,
         )
@@ -110,6 +131,7 @@ async def test_database_validation_failure_is_failed_without_artifact(
                 name="database lexical failure",
                 corpus_id=11,
                 chunking_profile_id=3,
+                **_exact_set_build_args(),
                 session=session,
                 run_in_thread=_inline_runner,
             )
@@ -158,6 +180,7 @@ async def test_database_task_cancellation_after_built_commit_clears_artifact(
                 name="database lexical cancelled",
                 corpus_id=11,
                 chunking_profile_id=3,
+                **_exact_set_build_args(),
                 session=session,
                 run_in_thread=_inline_runner,
             )
@@ -210,6 +233,7 @@ async def test_database_post_commit_create_exception_is_compensated_to_failed(
                 name="database create ambiguity",
                 corpus_id=11,
                 chunking_profile_id=3,
+                **_exact_set_build_args(),
                 session=session,
                 run_in_thread=_inline_runner,
             )
@@ -255,6 +279,7 @@ async def test_database_post_commit_built_exception_clears_artifact_and_fails(
                 name="database built ambiguity",
                 corpus_id=11,
                 chunking_profile_id=3,
+                **_exact_set_build_args(),
                 session=session,
                 run_in_thread=_inline_runner,
             )
@@ -319,6 +344,7 @@ async def test_database_repeated_cancellation_cannot_interrupt_failure_cleanup(
                 name="database failure cleanup cancellation",
                 corpus_id=11,
                 chunking_profile_id=3,
+                **_exact_set_build_args(),
                 session=session,
                 run_in_thread=_inline_runner,
             )

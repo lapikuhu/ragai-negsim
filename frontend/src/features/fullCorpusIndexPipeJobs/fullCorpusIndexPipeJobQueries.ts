@@ -80,7 +80,8 @@ function useInvalidateFullCorpusIndexPipeJobs() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: fullCorpusIndexPipeJobKeys.all }),
       queryClient.invalidateQueries({ queryKey: fullCorpusIndexPipeJobKeys.active }),
-      queryClient.invalidateQueries({ queryKey: ["corpus-indices"] })
+      queryClient.invalidateQueries({ queryKey: ["corpus-indices"] }),
+      queryClient.invalidateQueries({ queryKey: ["corpora"] })
     ]);
   };
 }

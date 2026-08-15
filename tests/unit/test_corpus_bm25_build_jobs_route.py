@@ -11,8 +11,11 @@ def _read():
         requested_artifact_name="policy bm25",
         corpus_id=11,
         chunking_profile_id=3,
+        corpus_chunk_set_id=21,
+        corpus_chunk_set_revision=3,
+        corpus_chunk_set_checksum="c" * 64,
         requested_by_user_id=5,
-        document_chunk_ids_checksum="a" * 64,
+        document_chunk_ids_checksum="c" * 64,
         distinct_document_count=1,
         chunk_count=2,
         status="queued",
@@ -35,10 +38,12 @@ def test_queue_bm25_build_job_returns_202_and_wakes_coordinator(
 
     response = api_client.post("/corpus-bm25-build-jobs/", json={
         "requested_artifact_name": "policy bm25",
-        "corpus_id": 11,
-        "chunking_profile_id": 3,
+        "corpus_chunk_set_id": 21,
     })
 
     assert response.status_code == 202
     assert response.json()["id"] == 9
+    request = queue.await_args.args[0]
+    assert request.requested_artifact_name == "policy bm25"
+    assert request.corpus_chunk_set_id == 21
     wake.assert_called_once_with()

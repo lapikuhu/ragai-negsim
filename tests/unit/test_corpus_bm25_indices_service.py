@@ -5,10 +5,26 @@ import zlib
 from datetime import datetime, timezone
 from hashlib import sha256
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from app.schemas.corpus_bm25_indices_schemas import CorpusBm25IndexMetadata
+
+
+CORPUS_CHUNK_SET_ID = 21
+CORPUS_CHUNK_SET_REVISION = 3
+CORPUS_CHUNK_SET_CHECKSUM = "c" * 64
+DOCUMENT_CHUNK_IDS = [20, 3]
+
+
+def _exact_set_build_args() -> dict:
+    return {
+        "corpus_chunk_set_id": CORPUS_CHUNK_SET_ID,
+        "corpus_chunk_set_revision": CORPUS_CHUNK_SET_REVISION,
+        "corpus_chunk_set_checksum": CORPUS_CHUNK_SET_CHECKSUM,
+        "expected_document_chunk_ids": DOCUMENT_CHUNK_IDS,
+    }
 
 
 @pytest.mark.asyncio
@@ -16,7 +32,7 @@ async def test_list_bm25_indices_forwards_pagination_and_filters(monkeypatch):
     from app.services import corpus_bm25_indices_service
 
     captured = {}
-    expected = [SimpleNamespace(id=17)]
+    expected = [_Bm25Repository().metadata()]
 
     async def fake_list(session, **filters):
         captured.update(session=session, **filters)
@@ -26,6 +42,16 @@ async def test_list_bm25_indices_forwards_pagination_and_filters(monkeypatch):
         corpus_bm25_indices_service.corpus_bm25_indices_repo,
         "list_corpus_bm25_index_metadata",
         fake_list,
+    )
+    monkeypatch.setattr(
+        corpus_bm25_indices_service.corpus_chunk_sets_repo,
+        "get_corpus_chunk_set_by_id",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                revision=CORPUS_CHUNK_SET_REVISION,
+                document_chunk_ids_checksum=CORPUS_CHUNK_SET_CHECKSUM,
+            )
+        ),
     )
 
     result = await corpus_bm25_indices_service.list_corpus_bm25_indices_srvc(
@@ -37,7 +63,9 @@ async def test_list_bm25_indices_forwards_pagination_and_filters(monkeypatch):
         status="built",
     )
 
-    assert result is expected
+    assert result[0].id == expected[0].id
+    assert result[0].is_stale is False
+    assert result[0].stale_reason is None
     assert captured == {
         "session": "session",
         "skip": 5,
@@ -72,6 +100,9 @@ class _Bm25Repository:
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            corpus_chunk_set_id=CORPUS_CHUNK_SET_ID,
+            corpus_chunk_set_revision=CORPUS_CHUNK_SET_REVISION,
+            corpus_chunk_set_checksum=CORPUS_CHUNK_SET_CHECKSUM,
             status=self.status,
             format_version="pickle-zlib-v1",
             document_count=2,
@@ -201,27 +232,31 @@ async def test_builds_validated_bm25_artifact_for_selected_chunk_snapshot(monkey
     selected = []
     runner_calls = []
 
-    async def fake_list_chunks(corpus_id, chunking_profile_id, session):
-        selected.append((corpus_id, chunking_profile_id, session))
+    async def fake_list_chunks(corpus_chunk_set_id, document_chunk_ids, session):
+        selected.append((corpus_chunk_set_id, document_chunk_ids, session))
         return [_chunk(20, "payment terms"), _chunk(3, "delivery schedule")]
 
     async def inline_runner(function, *args, **kwargs):
         runner_calls.append(function)
         return function(*args, **kwargs)
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
 
     result = await service.build_corpus_bm25_index_srvc(
         name="course lexical index",
         corpus_id=11,
         chunking_profile_id=3,
+        **_exact_set_build_args(),
         session=object(),
         run_in_thread=inline_runner,
     )
 
-    assert selected[0][:2] == (11, 3)
+    assert selected[0][:2] == (CORPUS_CHUNK_SET_ID, DOCUMENT_CHUNK_IDS)
     assert len(runner_calls) == 1
     assert repository.created[0].document_chunk_ids == [20, 3]
+    assert repository.created[0].corpus_chunk_set_id == CORPUS_CHUNK_SET_ID
+    assert repository.created[0].corpus_chunk_set_revision == CORPUS_CHUNK_SET_REVISION
+    assert repository.created[0].corpus_chunk_set_checksum == CORPUS_CHUNK_SET_CHECKSUM
     assert result.status == "built"
     assert result.document_count == 2
     assert result.document_chunk_ids_checksum == (
@@ -257,7 +292,7 @@ async def test_default_thread_runner_builds_and_serializes_off_event_loop(monkey
         worker_thread_ids.append(threading.get_ident())
         return original_build(documents)
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(
         service,
         "_build_serialize_and_validate_bm25",
@@ -268,6 +303,7 @@ async def test_default_thread_runner_builds_and_serializes_off_event_loop(monkey
         name="course lexical index",
         corpus_id=11,
         chunking_profile_id=3,
+        **_exact_set_build_args(),
         session=object(),
         run_in_thread=asyncio.to_thread,
     )
@@ -287,13 +323,42 @@ async def test_empty_chunk_snapshot_fails_before_creating_bm25_row(monkeypatch):
     async def fake_list_chunks(*_args, **_kwargs):
         return []
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
 
     with pytest.raises(ValueError, match="Chunk the corpus first"):
         await service.build_corpus_bm25_index_srvc(
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
+            session=object(),
+        )
+
+    assert repository.created == []
+
+
+@pytest.mark.asyncio
+async def test_missing_chunk_set_member_fails_before_creating_bm25_row(monkeypatch):
+    from app.services import corpus_bm25_indices_service as service
+
+    repository = _Bm25Repository()
+    _install_repository(monkeypatch, service, repository)
+
+    async def fake_list_chunks(*_args, **_kwargs):
+        return [_chunk(20, "payment terms")]
+
+    monkeypatch.setattr(
+        service,
+        "get_corpus_chunk_set_document_chunks_by_ids",
+        fake_list_chunks,
+    )
+
+    with pytest.raises(ValueError, match="changed since the job was queued"):
+        await service.build_corpus_bm25_index_srvc(
+            name="course lexical index",
+            corpus_id=11,
+            chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
         )
 
@@ -313,7 +378,7 @@ async def test_validation_failure_marks_bm25_failed_without_persisting_an_artifa
     def reject_artifact(*_args, **_kwargs):
         raise ValueError("artifact cannot be loaded")
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(service, "load_validated_bm25_artifact", reject_artifact)
 
     with pytest.raises(ValueError, match="artifact cannot be loaded"):
@@ -321,6 +386,7 @@ async def test_validation_failure_marks_bm25_failed_without_persisting_an_artifa
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
             run_in_thread=lambda function, *args, **kwargs: _immediate(function, *args, **kwargs),
         )
@@ -347,7 +413,7 @@ async def test_persistence_failure_marks_bm25_failed_without_usable_artifact(mon
     async def reject_persistence(*_args, **_kwargs):
         raise RuntimeError("database write failed")
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(
         service.corpus_bm25_indices_repo,
         "mark_corpus_bm25_index_built",
@@ -359,6 +425,7 @@ async def test_persistence_failure_marks_bm25_failed_without_usable_artifact(mon
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
             run_in_thread=_immediate,
         )
@@ -387,7 +454,7 @@ async def test_task_cancellation_during_build_marks_cancelled_without_dense_clea
     async def forbid_dense_vector_deletion(*_args, **_kwargs):
         raise AssertionError("BM25 cancellation must not delete dense vectors")
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(
         vector_stores,
         "delete_vectors_from_vector_store",
@@ -399,6 +466,7 @@ async def test_task_cancellation_during_build_marks_cancelled_without_dense_clea
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
             run_in_thread=blocking_runner,
         )
@@ -435,7 +503,7 @@ async def test_task_cancellation_after_create_commit_cleans_created_row(monkeypa
         index.id = 71
         return index
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(
         service.corpus_bm25_indices_repo,
         "create_corpus_bm25_index",
@@ -447,6 +515,7 @@ async def test_task_cancellation_after_create_commit_cleans_created_row(monkeypa
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
             run_in_thread=_immediate,
         )
@@ -484,7 +553,7 @@ async def test_repeated_task_cancellation_cannot_interrupt_durable_create(monkey
         index.id = 71
         return index
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(
         service.corpus_bm25_indices_repo,
         "create_corpus_bm25_index",
@@ -496,6 +565,7 @@ async def test_repeated_task_cancellation_cannot_interrupt_durable_create(monkey
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
             run_in_thread=_immediate,
         )
@@ -541,7 +611,7 @@ async def test_task_cancellation_after_built_commit_clears_durable_artifact(monk
         await allow_built_return.wait()
         return repository.metadata()
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(
         service.corpus_bm25_indices_repo,
         "mark_corpus_bm25_index_built",
@@ -553,6 +623,7 @@ async def test_task_cancellation_after_built_commit_clears_durable_artifact(monk
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
             run_in_thread=_immediate,
         )
@@ -598,7 +669,7 @@ async def test_repeated_task_cancellation_cannot_interrupt_built_persistence(mon
         persistence_settled = True
         return repository.metadata()
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(
         service.corpus_bm25_indices_repo,
         "mark_corpus_bm25_index_built",
@@ -610,6 +681,7 @@ async def test_repeated_task_cancellation_cannot_interrupt_built_persistence(mon
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
             run_in_thread=_immediate,
         )
@@ -656,7 +728,7 @@ async def test_repeated_task_cancellation_cannot_interrupt_cancellation_cleanup(
             session,
         )
 
-    monkeypatch.setattr(service, "list_corpus_document_chunks_for_profile", fake_list_chunks)
+    monkeypatch.setattr(service, "get_corpus_chunk_set_document_chunks_by_ids", fake_list_chunks)
     monkeypatch.setattr(
         service.corpus_bm25_indices_repo,
         "cancel_corpus_bm25_index_build",
@@ -673,6 +745,7 @@ async def test_repeated_task_cancellation_cannot_interrupt_cancellation_cleanup(
             name="course lexical index",
             corpus_id=11,
             chunking_profile_id=3,
+            **_exact_set_build_args(),
             session=object(),
             run_in_thread=blocking_runner,
         )

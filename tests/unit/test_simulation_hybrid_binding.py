@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.models  # noqa: F401
 from app.models.corpus_bm25_indices import CorpusBm25Index
+from app.models.corpus_chunk_sets import CorpusChunkSet
 from app.models.corpus_indices import CorpusIndex
 from app.models.rag_profiles import RagProfile
 from app.models.simulations import Simulation
@@ -50,12 +51,28 @@ async def test_simulation_create_update_and_read_persist_explicit_bm25_binding(
         )
     )
     db_session.add(
+        CorpusChunkSet(
+            id=23,
+            corpus_id=2,
+            name="Simulation retrieval snapshot",
+            chunking_profile_id=5,
+            chunking_profile_name="Default chunks",
+            chunking_strategy="recursive",
+            chunking_config={"chunk_size": 500, "chunk_overlap": 50},
+            revision=1,
+            document_chunk_ids_checksum="a" * 64,
+        )
+    )
+    db_session.add(
         CorpusIndex(
             id=17,
             name="Dense snapshot",
             corpus_id=2,
             vector_store_id=9,
             chunking_profile_id=5,
+            corpus_chunk_set_id=23,
+            corpus_chunk_set_revision=1,
+            corpus_chunk_set_checksum="a" * 64,
             status="built",
             embedding_model="dense-model",
         )
@@ -67,6 +84,9 @@ async def test_simulation_create_update_and_read_persist_explicit_bm25_binding(
                 name=f"BM25 snapshot {index_id}",
                 corpus_id=2,
                 chunking_profile_id=5,
+                corpus_chunk_set_id=23,
+                corpus_chunk_set_revision=1,
+                corpus_chunk_set_checksum="a" * 64,
                 status="built",
                 artifact=b"trusted-artifact",
                 document_count=2,

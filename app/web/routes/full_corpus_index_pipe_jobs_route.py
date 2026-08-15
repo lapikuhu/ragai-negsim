@@ -3,6 +3,9 @@ from fastapi import APIRouter, HTTPException, Response, status
 from app.core.dependencies import AdminDep, Page, SessionDep
 from app.schemas.full_corpus_index_pipe_jobs_schemas import FullCorpusIndexPipeJobCreate, FullCorpusIndexPipeJobDetail, FullCorpusIndexPipeJobQueued
 from app.services import full_corpus_index_pipe_job
+from app.services.full_corpus_index_pipe_coordinator import (
+    wake_full_corpus_index_pipe_coordinator,
+)
 
 # Instantiate APIRouter for full corpus index pipe job related endpoints
 router = APIRouter(prefix="/full-corpus-index-pipe-jobs", tags=["full-corpus-index-pipe-jobs"])
@@ -33,7 +36,7 @@ def _raise_full_corpus_index_pipe_job_service_error(exc: ValueError) -> None:
 async def create_full_corpus_index_pipe_job(
     job_in: FullCorpusIndexPipeJobCreate,
     session: SessionDep,
-    _admin: AdminDep,
+    admin: AdminDep,
 ) -> FullCorpusIndexPipeJobQueued:
     """
     Create a full corpus index pipe job endpoint.
@@ -48,11 +51,15 @@ async def create_full_corpus_index_pipe_job(
             errors or other constraints, with a 409 status code and error detail.
     """
     try:
-        queued = await full_corpus_index_pipe_job.queue_full_corpus_index_pipe_job_srvc(job_in, session)
+        queued = await full_corpus_index_pipe_job.queue_full_corpus_index_pipe_job_srvc(
+            job_in,
+            admin,
+            session,
+        )
     except ValueError as exc:
         _raise_full_corpus_index_pipe_job_service_error(exc)
 
-    full_corpus_index_pipe_job.start_full_corpus_index_pipe_job_task(queued.id)
+    wake_full_corpus_index_pipe_coordinator()
     return queued
 
 ### --------------- FULL CORPUS INDEX PIPE JOB LIST --------------- ###

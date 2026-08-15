@@ -29,6 +29,11 @@ class CorpusBm25Index(SQLModel, table=True):
     name: str = Field(index=True, unique=True, min_length=3)
     corpus_id: int = Field(foreign_key="corpus.id", index=True)
     chunking_profile_id: int = Field(foreign_key="chunkingprofile.id", index=True)
+    corpus_chunk_set_id: int = Field(
+        foreign_key="corpuschunkset.id", index=True, ondelete="RESTRICT"
+    )
+    corpus_chunk_set_revision: int = Field(ge=1)
+    corpus_chunk_set_checksum: str = Field(min_length=64, max_length=64)
     status: str = Field(
         default="created",
         sa_column=Column(

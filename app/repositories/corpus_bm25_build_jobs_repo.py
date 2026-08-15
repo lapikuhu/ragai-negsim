@@ -32,6 +32,31 @@ async def create_corpus_bm25_build_job(
     return await commit_and_refresh(session, CorpusBm25BuildJob(**job_in.model_dump()))
 
 
+async def has_active_corpus_bm25_build_job_name(
+    requested_artifact_name: str,
+    session: AsyncSession,
+) -> bool:
+    """
+    Check if there is an active CorpusBm25BuildJob with the given 
+    requested artifact name.
+
+    Args:
+        requested_artifact_name: The name of the requested artifact.
+        session: The database session.
+    Returns:
+        True if there is an active CorpusBm25BuildJob with the given name, else False.
+    """
+    result = await session.exec(
+        select(CorpusBm25BuildJob.id)
+        .where(
+            CorpusBm25BuildJob.requested_artifact_name == requested_artifact_name,
+            CorpusBm25BuildJob.status.in_(("queued", "running")),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
 async def get_corpus_bm25_build_job_by_id(
     job_id: int, session: AsyncSession
 ) -> CorpusBm25BuildJob | None:
@@ -199,6 +224,74 @@ async def mark_corpus_bm25_build_job_completed(
     job.result_bm25_index_id = result_bm25_index_id
     job.failure_detail = None
     job.completed_at = utc_now()
+    return await commit_and_refresh(session, job)
+
+
+async def clear_corpus_bm25_build_job_result(
+    job: CorpusBm25BuildJob,
+    session: AsyncSession,
+) -> CorpusBm25BuildJob:
+    """
+    Unlink a result artifact before parent-owned physical deletion.
+    
+    Args:
+        job: The CorpusBm25BuildJob instance to update.
+        session: The database session.
+    Returns:
+        The updated CorpusBm25BuildJob instance.
+    """
+    job.result_bm25_index_id = None
+    return await commit_and_refresh(session, job)
+
+
+async def mark_corpus_bm25_build_job_rolled_back(
+    job: CorpusBm25BuildJob,
+    failure_detail: str,
+    session: AsyncSession,
+) -> CorpusBm25BuildJob:
+    """
+    Record rollback of a previously completed parent-owned child.
+
+    Args:
+        job: The CorpusBm25BuildJob instance to update.
+        failure_detail: Details of the failure.
+        session: The database session.
+    Returns:
+        The updated CorpusBm25BuildJob instance.
+    """
+    if job.status != "completed":
+        raise ValueError("Only a completed BM25 build job can be rolled back")
+    job.status = "failed"
+    job.stage = "finished"
+    job.cancel_requested = False
+    # Preserve the result link until physical artifact deletion completes.
+    # This makes a parent rollback restartable between terminalization and cleanup.
+    job.failure_detail = failure_detail
+    job.completed_at = utc_now()
+    return await commit_and_refresh(session, job)
+
+
+async def append_corpus_bm25_build_job_rollback_detail(
+    job: CorpusBm25BuildJob,
+    rollback_detail: str,
+    session: AsyncSession,
+) -> CorpusBm25BuildJob:
+    """
+    Append parent rollback context without rewriting terminal child status.
+
+    Args:
+        job: The CorpusBm25BuildJob instance to update.
+        rollback_detail: Details of the rollback.
+        session: The database session.
+    Returns:
+        The updated CorpusBm25BuildJob instance.
+    """
+    if job.status not in TERMINAL_CORPUS_BM25_BUILD_JOB_STATUSES:
+        raise ValueError("Only a terminal BM25 build job can record rollback detail")
+    if rollback_detail not in (job.failure_detail or ""):
+        job.failure_detail = "\n".join(
+            part for part in (job.failure_detail, rollback_detail) if part
+        )
     return await commit_and_refresh(session, job)
 
 

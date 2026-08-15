@@ -53,6 +53,14 @@ def _simulation(*, corpus_index_id: int | None, bm25_index_id: int | None):
 @pytest.fixture
 def explicit_binding_dependencies(monkeypatch):
     calls = {"dense": [], "bm25": []}
+    chunk_set = SimpleNamespace(
+        id=33,
+        corpus_id=44,
+        revision=2,
+        document_chunk_ids_checksum=(
+            "d5f84c51467916769802ee29e3ddc9f44b94f2effee90494a6a1511fc916e51e"
+        ),
+    )
 
     async def get_dense(corpus_id, corpus_index_id, session):
         calls["dense"].append((corpus_id, corpus_index_id))
@@ -60,6 +68,9 @@ def explicit_binding_dependencies(monkeypatch):
             id=corpus_index_id,
             corpus_id=corpus_id,
             chunking_profile_id=9,
+            corpus_chunk_set_id=chunk_set.id,
+            corpus_chunk_set_revision=chunk_set.revision,
+            corpus_chunk_set_checksum=chunk_set.document_chunk_ids_checksum,
             status="built",
         )
 
@@ -69,6 +80,9 @@ def explicit_binding_dependencies(monkeypatch):
             id=bm25_index_id,
             corpus_id=corpus_id,
             chunking_profile_id=9,
+            corpus_chunk_set_id=chunk_set.id,
+            corpus_chunk_set_revision=chunk_set.revision,
+            corpus_chunk_set_checksum=chunk_set.document_chunk_ids_checksum,
             status="built",
             document_count=2,
             document_chunk_ids_checksum=(
@@ -80,12 +94,21 @@ def explicit_binding_dependencies(monkeypatch):
     async def get_chunk_ids(corpus_index_id, session):
         return [71, 72]
 
+    async def get_chunk_set(chunk_set_id, session):
+        assert chunk_set_id == chunk_set.id
+        return chunk_set
+
     monkeypatch.setattr(simulations_service, "_get_valid_built_corpus_index", get_dense)
     monkeypatch.setattr(simulations_service, "_get_valid_built_bm25_index", get_bm25)
     monkeypatch.setattr(
         simulations_service.indexed_chunks_repo,
         "get_document_chunk_ids_by_corpus_index_id",
         get_chunk_ids,
+    )
+    monkeypatch.setattr(
+        simulations_service.corpus_chunk_sets_repo,
+        "get_corpus_chunk_set_by_id",
+        get_chunk_set,
     )
     return calls
 
@@ -188,6 +211,7 @@ async def test_hybrid_create_validation_delegates_to_shared_pair_validator(
     assert captured["corpus_index"].id == 101
     assert captured["bm25_index"].id == 202
     assert captured["dense_chunk_ids"] == [71, 72]
+    assert captured["corpus_chunk_set"].id == 33
 
 
 @pytest.mark.asyncio

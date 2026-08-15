@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   queue: { mutateAsync: vi.fn(), isPending: false },
   cancel: { mutateAsync: vi.fn(), isPending: false },
   retry: { mutateAsync: vi.fn(), isPending: false },
+  nameAvailability: { data: { available: true }, isLoading: false },
 }));
 
 vi.mock("@/features/corpusBm25Indices/corpusBm25IndexQueries", () => ({
@@ -24,6 +25,7 @@ vi.mock("@/features/corpusBm25BuildJobs/corpusBm25BuildJobQueries", () => ({
   useQueueCorpusBm25BuildJobMutation: () => state.queue,
   useCancelCorpusBm25BuildJobMutation: () => state.cancel,
   useRetryCorpusBm25BuildJobMutation: () => state.retry,
+  useCorpusBm25NameAvailabilityQuery: () => state.nameAvailability,
 }));
 
 function renderCard() {
@@ -43,8 +45,8 @@ describe("CorpusBm25ArtifactsCard", () => {
 
   it("lists multiple artifacts and keeps the build action available", () => {
     state.artifacts.data = [
-      { id: 31, name: "recursive bm25", status: "built", chunking_profile_id: 3, document_count: 8, document_chunk_ids_checksum: "a".repeat(64), created_at: "2026-08-13T10:00:00Z" },
-      { id: 32, name: "semantic bm25", status: "built", chunking_profile_id: 4, document_count: 6, document_chunk_ids_checksum: "b".repeat(64), created_at: "2026-08-13T10:00:00Z" },
+      { id: 31, name: "recursive bm25", status: "built", corpus_chunk_set_id: 21, corpus_chunk_set_revision: 1, document_count: 8, document_chunk_ids_checksum: "a".repeat(64), created_at: "2026-08-13T10:00:00Z" },
+      { id: 32, name: "semantic bm25", status: "built", corpus_chunk_set_id: 22, corpus_chunk_set_revision: 1, document_count: 6, document_chunk_ids_checksum: "b".repeat(64), created_at: "2026-08-13T10:00:00Z" },
     ];
     renderCard();
     expect(screen.getByText("recursive bm25")).toBeInTheDocument();
@@ -54,8 +56,8 @@ describe("CorpusBm25ArtifactsCard", () => {
 
   it("requires explicit chunk-set selection", async () => {
     state.chunkSets.data = [
-      { chunking_profile_id: 3, chunking_profile_name: "recursive", distinct_document_count: 2, chunk_count: 8, document_chunk_ids_checksum: "a".repeat(64) },
-      { chunking_profile_id: 4, chunking_profile_name: "semantic", distinct_document_count: 2, chunk_count: 6, document_chunk_ids_checksum: "b".repeat(64) },
+      { id: 21, name: "Recursive set", revision: 1, chunking_profile_id: 3, chunking_profile_name: "recursive", distinct_document_count: 2, chunk_count: 8, document_chunk_ids_checksum: "a".repeat(64) },
+      { id: 22, name: "Semantic set", revision: 1, chunking_profile_id: 4, chunking_profile_name: "semantic", distinct_document_count: 2, chunk_count: 6, document_chunk_ids_checksum: "b".repeat(64) },
     ];
     renderCard();
     await userEvent.click(screen.getByRole("button", { name: "Build BM25 artifact" }));
@@ -72,7 +74,7 @@ describe("CorpusBm25ArtifactsCard", () => {
 
   it("shows the API detail when queueing a build fails", async () => {
     state.chunkSets.data = [
-      { chunking_profile_id: 3, chunking_profile_name: "recursive", distinct_document_count: 2, chunk_count: 8, document_chunk_ids_checksum: "a".repeat(64) },
+      { id: 21, name: "Recursive set", revision: 1, chunking_profile_id: 3, chunking_profile_name: "recursive", distinct_document_count: 2, chunk_count: 8, document_chunk_ids_checksum: "a".repeat(64) },
     ];
     state.queue.mutateAsync.mockRejectedValue(
       new ApiError("Unable to manage BM25 build", 409, {
@@ -82,7 +84,7 @@ describe("CorpusBm25ArtifactsCard", () => {
 
     renderCard();
     await userEvent.click(screen.getByRole("button", { name: "Build BM25 artifact" }));
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Chunk set" }), "3");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Chunk set" }), "21");
     await userEvent.click(screen.getByRole("button", { name: "Queue BM25 build" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

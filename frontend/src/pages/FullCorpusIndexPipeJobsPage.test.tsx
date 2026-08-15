@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FullCorpusIndexPipeJobsPage } from "./FullCorpusIndexPipeJobsPage";
@@ -7,13 +8,15 @@ const queryState = vi.hoisted(() => ({
   activeJob: null as any,
   jobs: [] as any[],
   selectedJobDetail: null as any,
+  bm25Child: null as any,
+  createJob: vi.fn(),
 }));
 
 vi.mock("@/features/corpora/corpusQueries", () => ({
   useCorporaQuery: () => ({
     isLoading: false,
     isError: false,
-    data: [],
+    data: [{ id: 1, name: "Policies" }],
     refetch: vi.fn()
   })
 }));
@@ -22,7 +25,7 @@ vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
   useChunkingProfilesQuery: () => ({
     isLoading: false,
     isError: false,
-    data: [],
+    data: [{ id: 2, name: "Recursive" }],
     refetch: vi.fn()
   }),
   useCorpusIndicesQuery: () => ({
@@ -34,14 +37,27 @@ vi.mock("@/features/corpusIndices/corpusIndexQueries", () => ({
   useEmbeddingModelsQuery: () => ({
     isLoading: false,
     isError: false,
-    data: [],
+    data: [{ name: "mini-l6-v2", display_name: "Mini", dimensionality: 384 }],
     refetch: vi.fn()
   }),
   useVectorStoresQuery: () => ({
     isLoading: false,
     isError: false,
-    data: [],
+    data: [{ id: 3, name: "Local", embedding_dimensions: 384 }],
     refetch: vi.fn()
+  }),
+}));
+
+vi.mock("@/features/corpusBm25BuildJobs/corpusBm25BuildJobQueries", () => ({
+  useCorpusBm25BuildJobQuery: () => ({
+    isLoading: false,
+    isError: false,
+    data: queryState.bm25Child,
+    refetch: vi.fn(),
+  }),
+  useCorpusChunkSetNameAvailabilityQuery: () => ({
+    data: { available: true },
+    isLoading: false,
   }),
 }));
 
@@ -66,7 +82,7 @@ vi.mock("@/features/fullCorpusIndexPipeJobs/fullCorpusIndexPipeJobQueries", () =
   }),
   useCreateFullCorpusIndexPipeJobMutation: () => ({
     isPending: false,
-    mutateAsync: vi.fn()
+    mutateAsync: queryState.createJob
   }),
   useCancelFullCorpusIndexPipeJobMutation: () => ({
     isPending: false,
@@ -79,6 +95,9 @@ describe("FullCorpusIndexPipeJobsPage", () => {
     queryState.activeJob = null;
     queryState.selectedJobDetail = null;
     queryState.jobs = [];
+    queryState.bm25Child = null;
+    queryState.createJob.mockReset();
+    queryState.createJob.mockResolvedValue({ id: 99 });
   });
 
   it("shows the active job in the main card even when a historical detail is selected", () => {
@@ -149,5 +168,83 @@ describe("FullCorpusIndexPipeJobsPage", () => {
     expect(chunkingProfileField).not.toBeNull();
     expect(corpusField).toHaveClass("content-start");
     expect(chunkingProfileField).toHaveClass("content-start");
+  });
+
+  it("defaults to a required, user-named BM25 index and submits the pair", async () => {
+    const user = userEvent.setup();
+    render(<FullCorpusIndexPipeJobsPage />);
+
+    const checkbox = screen.getByRole("checkbox", { name: "Build BM25 index also" });
+    expect(checkbox).toBeChecked();
+    expect(screen.getByLabelText(/^BM25 index name/)).toBeRequired();
+
+    await user.selectOptions(screen.getByLabelText("Corpus"), "1");
+    await user.selectOptions(screen.getByLabelText(/Chunking profile/), "2");
+    await user.selectOptions(screen.getByLabelText("Embedding model"), "mini-l6-v2");
+    await user.selectOptions(screen.getByLabelText("Vector store"), "3");
+    await user.type(screen.getByLabelText(/^Index name/), "policy dense");
+    await user.type(screen.getByLabelText(/^Chunk set name/), "August set");
+    await user.type(screen.getByLabelText(/^BM25 index name/), "  policy lexical  ");
+    await user.click(screen.getByRole("button", { name: "Index corpus" }));
+
+    expect(queryState.createJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        build_bm25: true,
+        requested_index_name: "policy dense",
+        requested_chunk_set_name: "August set",
+        requested_bm25_index_name: "policy lexical",
+      }),
+    );
+  });
+
+  it("allows an explicit dense-only submission without a BM25 name", async () => {
+    const user = userEvent.setup();
+    render(<FullCorpusIndexPipeJobsPage />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Build BM25 index also" }));
+    expect(screen.queryByLabelText(/^BM25 index name/)).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Corpus"), "1");
+    await user.selectOptions(screen.getByLabelText(/Chunking profile/), "2");
+    await user.selectOptions(screen.getByLabelText("Embedding model"), "mini-l6-v2");
+    await user.selectOptions(screen.getByLabelText("Vector store"), "3");
+    await user.type(screen.getByLabelText(/^Index name/), "policy dense");
+    await user.type(screen.getByLabelText(/^Chunk set name/), "August set");
+    await user.click(screen.getByRole("button", { name: "Index corpus" }));
+
+    expect(queryState.createJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        build_bm25: false,
+        requested_bm25_index_name: null,
+      }),
+    );
+  });
+
+  it("shows the linked BM25 child and rollback activity", () => {
+    queryState.activeJob = {
+      id: 77,
+        requested_index_name: "policy dense",
+        requested_chunk_set_name: "August set",
+      requested_bm25_index_name: "policy lexical",
+      build_bm25: true,
+      bm25_build_job_id: 91,
+      status: "running",
+      stage: "rolling_back",
+      queued_at: "2026-06-12T10:00:00Z",
+      completed_at: null,
+      processed_documents: 3,
+      total_documents: 3,
+      chunks_created: 42,
+      chunks_indexed: 10,
+      current_document_name: null,
+      warnings: [],
+    };
+    queryState.bm25Child = { id: 91, status: "failed", failure_detail: "Rolled back" };
+
+    render(<FullCorpusIndexPipeJobsPage />);
+
+    expect(screen.getByText("policy lexical")).toBeInTheDocument();
+    expect(screen.getByText("BM25 job #91")).toBeInTheDocument();
+    expect(screen.getByText("Cleaning up BM25 and dense artifacts before the job is marked terminal.")).toBeInTheDocument();
   });
 });

@@ -73,11 +73,13 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(
         assert kwargs["corpus"].id == 11
         assert kwargs["chunking_profile"].id == 3
         assert kwargs["vector_store"].id == 5
+        assert kwargs["build_in"].corpus_chunk_set_id == 4
         return CorpusEmbeddingBuildQueued(
             corpus_id=11,
             corpus_index_id=77,
             vector_store_id=5,
             chunking_profile_id=3,
+            corpus_chunk_set_id=4,
             embedding_model="mini-l6-v2",
             embedding_dimensions=384,
             vector_namespace="corpus-index-77",
@@ -281,11 +283,13 @@ def test_alpha_smoke_login_upload_corpus_index_and_simulation_turn(
         json={
             "name": "alpha index",
             "embedding_model": "mini-l6-v2",
+            "corpus_chunk_set_id": 4,
         },
         headers=headers,
     )
     assert index_response.status_code == 202
     assert index_response.json()["corpus_index_id"] == 77
+    assert index_response.json()["corpus_chunk_set_id"] == 4
 
     simulation_response = api_client.post(
         "/simulations/",

@@ -14,6 +14,9 @@ SimulationRetrievalMode = Literal["dense", "bm25", "hybrid"]
 class SimulationRetrievalIndexOption(SQLModel):
     id: int
     name: str
+    corpus_chunk_set_id: int
+    corpus_chunk_set_revision: int
+    corpus_chunk_set_checksum: str
 
 
 class SimulationRetrievalCompatiblePair(SQLModel):

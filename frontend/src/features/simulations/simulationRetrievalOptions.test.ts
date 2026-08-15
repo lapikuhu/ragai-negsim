@@ -11,12 +11,12 @@ import {
 const options: SimulationRetrievalOptionsResponse = {
   mode: "hybrid",
   dense_indices: [
-    { id: 101, name: "Dense A" },
-    { id: 102, name: "Dense B" },
+    { id: 101, name: "Dense A", corpus_chunk_set_id: 21, corpus_chunk_set_revision: 1, corpus_chunk_set_checksum: "a".repeat(64) },
+    { id: 102, name: "Dense B", corpus_chunk_set_id: 22, corpus_chunk_set_revision: 1, corpus_chunk_set_checksum: "b".repeat(64) },
   ],
   bm25_indices: [
-    { id: 201, name: "BM25 A" },
-    { id: 202, name: "BM25 B" },
+    { id: 201, name: "BM25 A", corpus_chunk_set_id: 21, corpus_chunk_set_revision: 1, corpus_chunk_set_checksum: "a".repeat(64) },
+    { id: 202, name: "BM25 B", corpus_chunk_set_id: 22, corpus_chunk_set_revision: 1, corpus_chunk_set_checksum: "b".repeat(64) },
   ],
   compatible_pairs: [
     { corpus_index_id: 101, bm25_index_id: 201 },
@@ -84,8 +84,8 @@ describe("simulation retrieval options", () => {
   it("clears selections removed by a refreshed response", () => {
     const refreshed = {
       ...options,
-      dense_indices: [{ id: 102, name: "Dense B" }],
-      bm25_indices: [{ id: 202, name: "BM25 B" }],
+      dense_indices: [{ id: 102, name: "Dense B", corpus_chunk_set_id: 22, corpus_chunk_set_revision: 1, corpus_chunk_set_checksum: "b".repeat(64) }],
+      bm25_indices: [{ id: 202, name: "BM25 B", corpus_chunk_set_id: 22, corpus_chunk_set_revision: 1, corpus_chunk_set_checksum: "b".repeat(64) }],
       compatible_pairs: [{ corpus_index_id: 102, bm25_index_id: 202 }],
     };
 

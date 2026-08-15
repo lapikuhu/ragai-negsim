@@ -1,10 +1,12 @@
 from collections.abc import Sequence
 from sqlalchemy.orm import selectinload
+from sqlalchemy import delete
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # local imports
 from app.models.chunking_profiles import ChunkingProfile
+from app.models.corpus_chunk_sets import CorpusChunkSetDocumentChunkLink
 from app.models.document_chunks import DocumentChunk
 from app.models.indexed_chunks import IndexedChunk
 from app.models.raw_documents import CorpusRawDocumentLink
@@ -397,6 +399,40 @@ async def list_corpus_document_chunks_for_profile(
     return list(result.all())
 
 
+async def get_corpus_chunk_set_document_chunks_by_ids(
+    corpus_chunk_set_id: int,
+    document_chunk_ids: Sequence[int],
+    session: AsyncSession,
+) -> list[DocumentChunk]:
+    """
+    Get document chunks by their IDs within a specific corpus chunk set.
+
+    Args:
+        corpus_chunk_set_id (int): The ID of the corpus chunk set.
+        document_chunk_ids (Sequence[int]): The IDs of the document chunks 
+            to retrieve.
+        session (AsyncSession): The database session.
+    Returns:
+        list[DocumentChunk]: A list of DocumentChunk instances matching the 
+        IDs within the corpus chunk set.
+    """
+    if not document_chunk_ids:
+        return []
+    result = await session.exec(
+        select(DocumentChunk)
+        .join(
+            CorpusChunkSetDocumentChunkLink,
+            CorpusChunkSetDocumentChunkLink.document_chunk_id == DocumentChunk.id,
+        )
+        .where(
+            CorpusChunkSetDocumentChunkLink.corpus_chunk_set_id == corpus_chunk_set_id,
+            DocumentChunk.id.in_(document_chunk_ids),
+        )
+        .order_by(DocumentChunk.id)
+    )
+    return list(result.all())
+
+
 async def list_corpus_document_chunks(
     corpus_id: int,
     session: AsyncSession,
@@ -756,3 +792,33 @@ async def delete_document_chunks_by_raw_document_id(
     except Exception:
         await session.rollback()
         raise
+
+
+async def delete_unreferenced_job_document_chunks_by_ids(
+    *,
+    full_corpus_index_pipe_job_id: int,
+    document_chunk_ids: Sequence[int],
+    session: AsyncSession,
+) -> int:
+    """
+    Delete unreferenced job document chunks by their IDs.
+
+    Args:
+        full_corpus_index_pipe_job_id: The ID of the full corpus index 
+            pipe job.
+        document_chunk_ids: The IDs of the document chunks to delete.
+        session: The database session.
+    Returns:
+        The number of deleted document chunks.
+    """
+    if not document_chunk_ids:
+        return 0
+    result = await session.exec(
+        delete(DocumentChunk).where(
+            DocumentChunk.id.in_(document_chunk_ids),
+            DocumentChunk.full_corpus_index_pipe_job_id
+            == full_corpus_index_pipe_job_id,
+        )
+    )
+    await session.commit()
+    return int(result.rowcount or 0)

@@ -7,6 +7,7 @@ from sqlmodel import Field, Relationship, SQLModel
 from .raw_documents import CorpusRawDocumentLink
 
 if TYPE_CHECKING:
+    from .corpus_chunk_sets import CorpusChunkSet
     from .corpus_indices import CorpusIndex
     from .raw_documents import RawDocument
     from .users import User
@@ -32,6 +33,7 @@ class Corpus(SQLModel, table=True):
         link_model=CorpusRawDocumentLink,
     )
     corpus_indices: list["CorpusIndex"] = Relationship(back_populates="corpus")
+    chunk_sets: list["CorpusChunkSet"] = Relationship(back_populates="corpus")
     simulations: list["Simulation"] = Relationship(back_populates="corpus")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

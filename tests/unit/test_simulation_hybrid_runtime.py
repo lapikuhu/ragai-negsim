@@ -47,6 +47,9 @@ class RuntimeHarness:
             id=77,
             corpus_id=200,
             chunking_profile_id=5,
+            corpus_chunk_set_id=31,
+            corpus_chunk_set_revision=4,
+            corpus_chunk_set_checksum=document_chunk_ids_checksum([20, 3]),
             vector_store_id=12,
             status="built",
             embedding_model="dense-model",
@@ -58,11 +61,20 @@ class RuntimeHarness:
             id=88,
             corpus_id=200,
             chunking_profile_id=5,
+            corpus_chunk_set_id=31,
+            corpus_chunk_set_revision=4,
+            corpus_chunk_set_checksum=document_chunk_ids_checksum([20, 3]),
             status="built",
             format_version="pickle-zlib-v1",
             document_count=2,
             document_chunk_ids_checksum=document_chunk_ids_checksum(self.chunk_ids),
             compressed_artifact_checksum="a" * 64,
+        )
+        self.chunk_set = SimpleNamespace(
+            id=31,
+            corpus_id=200,
+            revision=4,
+            document_chunk_ids_checksum=document_chunk_ids_checksum(self.chunk_ids),
         )
         self.vector_store = SimpleNamespace(id=12, backend="fake")
         self.artifact = b"artifact"
@@ -93,6 +105,11 @@ class RuntimeHarness:
         async def get_artifact(index_id, session):
             self.events.append("bm25_artifact")
             return self.artifact
+
+        async def get_chunk_set(chunk_set_id, session):
+            self.events.append("chunk_set")
+            assert chunk_set_id == self.chunk_set.id
+            return self.chunk_set
 
         async def instantiate_dense(index, vector_store):
             self.events.append("dense_runtime")
@@ -172,6 +189,11 @@ class RuntimeHarness:
             simulations_service.knowledge_graph_indices_repo,
             "get_knowledge_graph_index_by_id",
             get_graph,
+        )
+        monkeypatch.setattr(
+            simulations_service.corpus_chunk_sets_repo,
+            "get_corpus_chunk_set_by_id",
+            get_chunk_set,
         )
         monkeypatch.setattr(
             simulations_service,

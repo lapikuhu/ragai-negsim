@@ -7,6 +7,8 @@ ensure_project_root_on_path(__file__)
 
 # Script to delete all data from the database. Use with caution!
 from app.db.db import engine
+from sqlalchemy import text
+from sqlalchemy.engine import Connection
 from sqlmodel import SQLModel
 from app.models import (  # noqa: F401
     chunking_profiles,
@@ -32,12 +34,34 @@ from app.models import (  # noqa: F401
     vector_stores,
 )
 
-async def flush_db() -> None:
+
+def _drop_model_tables(connection: Connection) -> None:
+    """
+    Drop model tables, using CASCADE for PostgreSQL foreign-key cycles.
+
+    Args:
+        connection (Connection): The database connection to use for 
+        dropping tables.
+    Returns:
+        None
+    """
+    if connection.dialect.name != "postgresql":
+        SQLModel.metadata.drop_all(connection)
+        return
+
+    preparer = connection.dialect.identifier_preparer
+    table_names = ", ".join(
+        preparer.format_table(table) for table in SQLModel.metadata.tables.values()
+    )
+    if table_names:
+        connection.execute(text(f"DROP TABLE IF EXISTS {table_names} CASCADE"))
+
+async def flush_db(create_all_option: bool = True) -> None:
     """
     Flush the database by dropping all tables and recreating them.
     Use with caution as this will delete all data.
     Args:
-        None
+        create_all_option (bool): Whether to recreate all tables after flushing.
     Returns:
         None
     """
@@ -47,8 +71,9 @@ async def flush_db() -> None:
         print("Database flush aborted.")
         return
     async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.drop_all)
-        await conn.run_sync(SQLModel.metadata.create_all)
+        await conn.run_sync(_drop_model_tables)
+        if create_all_option:
+            await conn.run_sync(SQLModel.metadata.create_all)
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(flush_db())
+    asyncio.run(flush_db(create_all_option=False))

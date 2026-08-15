@@ -1,5 +1,6 @@
 from . import chunking_profiles
 from . import corpus
+from . import corpus_chunk_sets
 from . import corpus_bm25_indices
 from . import corpus_bm25_build_jobs
 from . import corpus_indices
@@ -25,6 +26,7 @@ from . import vector_stores
 __all__ = [
     "chunking_profiles",
     "corpus",
+    "corpus_chunk_sets",
     "corpus_bm25_indices",
     "corpus_bm25_build_jobs",
     "corpus_indices",

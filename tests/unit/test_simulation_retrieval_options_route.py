@@ -11,8 +11,24 @@ from app.web.routes import simulations_route
 def _response() -> SimulationRetrievalOptionsResponse:
     return SimulationRetrievalOptionsResponse(
         mode="hybrid",
-        dense_indices=[SimulationRetrievalIndexOption(id=101, name="Dense")],
-        bm25_indices=[SimulationRetrievalIndexOption(id=202, name="BM25")],
+        dense_indices=[
+            SimulationRetrievalIndexOption(
+                id=101,
+                name="Dense",
+                corpus_chunk_set_id=21,
+                corpus_chunk_set_revision=3,
+                corpus_chunk_set_checksum="c" * 64,
+            )
+        ],
+        bm25_indices=[
+            SimulationRetrievalIndexOption(
+                id=202,
+                name="BM25",
+                corpus_chunk_set_id=21,
+                corpus_chunk_set_revision=3,
+                corpus_chunk_set_checksum="c" * 64,
+            )
+        ],
         compatible_pairs=[
             SimulationRetrievalCompatiblePair(
                 corpus_index_id=101,

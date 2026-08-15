@@ -18,6 +18,11 @@ class CorpusIndex(SQLModel, table=True):
     corpus_id: int = Field(foreign_key="corpus.id")
     vector_store_id: int = Field(foreign_key="vectorstore.id")
     chunking_profile_id: int = Field(foreign_key="chunkingprofile.id")
+    corpus_chunk_set_id: int = Field(
+        foreign_key="corpuschunkset.id", index=True, ondelete="RESTRICT"
+    )
+    corpus_chunk_set_revision: int = Field(ge=1)
+    corpus_chunk_set_checksum: str = Field(min_length=64, max_length=64)
     name: str = Field(index=True, unique=True, min_length=3, title="Corpus index name")
     status: str = Field(default="created", index=True, min_length=1, title="Corpus index status")
     embedding_model: str = Field(min_length=1, title="Embedding model")
