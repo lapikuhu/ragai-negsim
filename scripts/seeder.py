@@ -1,6 +1,8 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
+from pathlib import Path
+from fastapi import UploadFile
 
 try:
     from scripts.bootstrap import ensure_project_root_on_path
@@ -67,6 +69,8 @@ VECTOR_STORES = [
         "table_name": "negotiation_collection_1536",
     },
 ]
+
+DEMO_DOCS_FOLDER = "./demo_docs"
 
 
 def log_step(status: str, message: str) -> None:
@@ -202,6 +206,57 @@ async def seed_scenario(
     log_step("created", f"scenario {name}")
     return None
 
+
+async def seed_load_docs(session: AsyncSession, admin_user) -> str | None:
+    """
+    Load documents in the database from the demo docs folder.
+    Args:
+        session (AsyncSession): The database session to use for the operation.
+        admin_user: The admin user object.
+    Returns:
+        None
+    """
+    from app.services.raw_documents_service import create_uploaded_raw_document_srvc
+
+    demo_docs_path = Path(DEMO_DOCS_FOLDER)
+    if not demo_docs_path.exists():
+        log_step("skipped", f"demo docs folder {DEMO_DOCS_FOLDER} does not exist")
+        return None
+    raw_docs_path = Path(settings.RAW_DOCS_DIR)
+    demo_doc_name = "demo_doc_"
+    demo_doc_title = "demo_title_"
+    demo_doc_author = "demo_author_"
+    demo_doc_description = "demo_description_"
+    demo_doc_count = 0
+    for file_path in demo_docs_path.iterdir():
+        if not file_path.is_file():
+            continue
+        stored_file_path = raw_docs_path / file_path.name
+        if stored_file_path.exists():
+            log_step("skipped", f"document {file_path.name} already exists in {raw_docs_path}")
+            continue
+        demo_doc_count += 1
+        demo_doc_name_full = f"{demo_doc_name}{demo_doc_count}"
+        demo_doc_description_full = f"{demo_doc_description}{demo_doc_count}"
+        demo_doc_title_full = f"{demo_doc_title}{demo_doc_count}"
+        try:
+            with file_path.open("rb") as file_handle:
+                upload = UploadFile(file=file_handle, filename=file_path.name)
+                await create_uploaded_raw_document_srvc(
+                    name=demo_doc_name_full,
+                    description=demo_doc_description_full,
+                    document_title=demo_doc_title_full,
+                    document_author=demo_doc_author,
+                    corpus_ids=[],
+                    upload=upload,
+                    document_year=2026,
+                    session=session,
+                    current_user=admin_user,
+                )
+                log_step("created", f"document {file_path.name} loaded")
+        except Exception as exc:
+            return await rollback_and_log(session, f"document {file_path.name}", exc)
+    return None
 
 async def seed_persona(
     session: AsyncSession,
@@ -377,6 +432,7 @@ async def seed_all(session: AsyncSession) -> None:
                 (lambda vector_store=item: seed_vector_store(session, vector_store))
                 for item in VECTOR_STORES
             ],
+            lambda: seed_load_docs(session, admin_user),
         ]
     )
     if failures:

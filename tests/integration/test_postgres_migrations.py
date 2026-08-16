@@ -24,9 +24,9 @@ def test_alembic_migrations_apply_to_postgres(migrated_postgres_db):
             script = ScriptDirectory.from_config(alembic_cfg)
 
             assert current_revision == script.get_current_head()
-            assert script.get_heads() == ["e7a8b9c0d1e2"]
-            assert current_revision == "e7a8b9c0d1e2"
-            assert script.get_revision(current_revision).down_revision == "d6f7a8b9c0d1"
+            assert script.get_heads() == ["f8b9c0d1e2f3"]
+            assert current_revision == "f8b9c0d1e2f3"
+            assert script.get_revision(current_revision).down_revision == "e7a8b9c0d1e2"
 
             table_names = set(inspector.get_table_names())
             assert {
@@ -97,6 +97,8 @@ def test_alembic_migrations_apply_to_postgres(migrated_postgres_db):
             assert "messages" in simulation_columns
             assert "created_at" in simulation_columns
             assert simulation_columns["created_at"]["type"].timezone is True
+            assert simulation_columns["corpus_index_id"]["nullable"] is True
+            assert simulation_columns["bm25_index_id"]["nullable"] is True
 
             ledger_columns = {
                 column["name"]: column
@@ -166,6 +168,44 @@ def test_alembic_migrations_apply_to_postgres(migrated_postgres_db):
             assert foreign_key_ondelete(
                 "fullcorpusindexpipejob", "corpus_chunk_set_id"
             ) == ("corpuschunkset", "SET NULL")
+
+            bm25_index_indexes = {
+                index["name"]: index
+                for index in inspector.get_indexes("corpusbm25index")
+            }
+            assert bm25_index_indexes["ix_corpusbm25index_name"]["column_names"] == [
+                "name"
+            ]
+            assert bm25_index_indexes["ix_corpusbm25index_name"]["unique"] is True
+            assert "ix_corpusbm25index_created_by_bm25_build_job_id" not in (
+                bm25_index_indexes
+            )
+            assert not any(
+                constraint["column_names"] == ["name"]
+                for constraint in inspector.get_unique_constraints(
+                    "corpusbm25index"
+                )
+            )
+
+            simulation_foreign_keys = inspector.get_foreign_keys("simulation")
+            simulation_fk_targets = {
+                (
+                    tuple(foreign_key["constrained_columns"]),
+                    foreign_key["referred_table"],
+                    tuple(foreign_key["referred_columns"]),
+                )
+                for foreign_key in simulation_foreign_keys
+            }
+            assert (
+                ("corpus_index_id",),
+                "corpusindex",
+                ("id",),
+            ) in simulation_fk_targets
+            assert (
+                ("bm25_index_id",),
+                "corpusbm25index",
+                ("id",),
+            ) in simulation_fk_targets
 
             full_pipe_foreign_keys = inspector.get_foreign_keys(
                 "fullcorpusindexpipejob"

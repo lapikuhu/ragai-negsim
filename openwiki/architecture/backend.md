@@ -32,6 +32,11 @@ parent-owned set, and removes only unreferenced parent-owned chunks.
 Standalone BM25 jobs never delete their selected sets. Incomplete cleanup
 persists as `running/rolling_back` and is claimed ahead of new queued work.
 
+The recent `CorpusChunkSet` ontology change is the main backend consequence of
+this work: chunk membership is now persisted as a named, revisioned set rather
+than inferred from corpus or profile groupings, and the repository/service
+layer has dedicated models for that contract.
+
 ### Repositories
 Repository modules under `app/repositories/` isolate persistence queries and keep route/service code from reaching directly into SQLModel/SQLAlchemy query logic.
 

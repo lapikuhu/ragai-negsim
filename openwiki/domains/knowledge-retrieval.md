@@ -61,6 +61,11 @@ checksum, and a historical snapshot of the chunking profile name, strategy,
 and normalized configuration. Live profile edits do not rewrite that snapshot,
 and legacy corpus/profile groupings are not inferred as sets.
 
+That persisted-set model is now central to the full-corpus indexing pipeline as
+well. The parent workflow creates exactly one named set from the chunks it
+produced, uses that name for downstream dense and BM25 artifact bindings, and
+rejects duplicate or reserved names before queueing work.
+
 The Hybrid compatibility contract is selected explicitly by the CRAG
 profile's `bm25_weight`:
 

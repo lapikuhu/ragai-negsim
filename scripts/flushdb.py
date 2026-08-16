@@ -1,3 +1,4 @@
+from pathlib import Path
 try:
     from scripts.bootstrap import ensure_project_root_on_path
 except ModuleNotFoundError:
@@ -6,6 +7,7 @@ except ModuleNotFoundError:
 ensure_project_root_on_path(__file__)
 
 # Script to delete all data from the database. Use with caution!
+import app.core.config as config
 from app.db.db import engine
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
@@ -34,6 +36,23 @@ from app.models import (  # noqa: F401
     vector_stores,
 )
 
+def _check_if_docs_in_store() -> bool:
+    """
+    Check if there are any documents in the raw documents store.
+
+    Args:
+    Returns:
+        bool: True if there are documents in the store, False otherwise.
+    """
+    # Get the raw documents store from the config
+    
+    raw_docs_store_path = config.Settings().RAW_DOCS_DIR
+    # Check if the directory exists and has files
+    from pathlib import Path
+    if not raw_docs_store_path or not Path(raw_docs_store_path).exists():
+        return False
+    # Check if there are any files in the directory
+    return any(Path(raw_docs_store_path).iterdir())
 
 def _drop_model_tables(connection: Connection) -> None:
     """
@@ -56,12 +75,15 @@ def _drop_model_tables(connection: Connection) -> None:
     if table_names:
         connection.execute(text(f"DROP TABLE IF EXISTS {table_names} CASCADE"))
 
-async def flush_db(create_all_option: bool = True) -> None:
+async def flush_db(create_all_option: bool = True,
+                   delete_raw_docs: bool = True) -> None:
     """
     Flush the database by dropping all tables and recreating them.
     Use with caution as this will delete all data.
     Args:
         create_all_option (bool): Whether to recreate all tables after flushing.
+        delete_raw_docs (bool): Whether to delete raw documents in the raw 
+            documents store after flushing.
     Returns:
         None
     """
@@ -70,6 +92,21 @@ async def flush_db(create_all_option: bool = True) -> None:
     if user_input.lower() != "yes" and user_input.lower() != "y":
         print("Database flush aborted.")
         return
+    if delete_raw_docs:
+        docs_in_store = _check_if_docs_in_store()
+        if docs_in_store:
+            user_input = input("There are documents in the raw documents store. Do you want to delete them as well? (yes/no): ")
+            if user_input.lower() == "yes" or user_input.lower() == "y":
+                import shutil
+                import app.core.config as config
+                raw_docs_store_path = config.Settings().RAW_DOCS_DIR
+                if raw_docs_store_path and Path(raw_docs_store_path).exists():
+                    shutil.rmtree(raw_docs_store_path)
+                    print(f"Deleted all documents in the raw documents store at {raw_docs_store_path}.")
+                else:
+                    print("No documents found in the raw documents store.")
+            else:
+                print("Raw documents store not deleted.")
     async with engine.begin() as conn:
         await conn.run_sync(_drop_model_tables)
         if create_all_option:

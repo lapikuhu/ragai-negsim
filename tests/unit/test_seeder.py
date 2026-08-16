@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.services import raw_documents_service
 from scripts.personas import PLACEHOLDER_PERSONAS
 from scripts.scenarios import PLACEHOLDER_SCENARIOS
 import scripts.seeder as seeder
@@ -84,6 +85,118 @@ async def test_ensure_admin_user_logs_success(monkeypatch, capsys, fake_user_fac
 
 
 @pytest.mark.asyncio
+async def test_seed_load_docs_skips_when_demo_folder_is_missing(monkeypatch, tmp_path):
+    missing_demo_dir = tmp_path / "missing-demo-docs"
+    monkeypatch.setattr(seeder, "DEMO_DOCS_FOLDER", str(missing_demo_dir))
+
+    result = await seeder.seed_load_docs(object(), object())
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_seed_load_docs_uploads_pdf_with_demo_metadata(monkeypatch, tmp_path):
+    demo_dir = tmp_path / "demo-docs"
+    raw_docs_dir = tmp_path / "raw-docs"
+    demo_dir.mkdir()
+    pdf_bytes = b"%PDF-demo-document"
+    (demo_dir / "policy.pdf").write_bytes(pdf_bytes)
+    uploaded = []
+    session = object()
+    admin_user = object()
+
+    async def fake_create_uploaded_raw_document_srvc(**kwargs):
+        uploaded.append(
+            {
+                **{key: value for key, value in kwargs.items() if key != "upload"},
+                "filename": kwargs["upload"].filename,
+                "content": await kwargs["upload"].read(),
+            }
+        )
+        return SimpleNamespace(id=1)
+
+    monkeypatch.setattr(seeder, "DEMO_DOCS_FOLDER", str(demo_dir))
+    monkeypatch.setattr(seeder.settings, "RAW_DOCS_DIR", str(raw_docs_dir))
+    monkeypatch.setattr(
+        raw_documents_service,
+        "create_uploaded_raw_document_srvc",
+        fake_create_uploaded_raw_document_srvc,
+    )
+
+    result = await seeder.seed_load_docs(session, admin_user)
+
+    assert result is None
+    assert uploaded == [
+        {
+            "name": "demo_doc_1",
+            "description": "demo_description_1",
+            "document_title": "demo_title_1",
+            "document_author": "demo_author_",
+            "corpus_ids": [],
+            "document_year": 2026,
+            "session": session,
+            "current_user": admin_user,
+            "filename": "policy.pdf",
+            "content": pdf_bytes,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_seed_load_docs_skips_pdf_already_in_raw_docs(monkeypatch, tmp_path):
+    demo_dir = tmp_path / "demo-docs"
+    raw_docs_dir = tmp_path / "raw-docs"
+    demo_dir.mkdir()
+    raw_docs_dir.mkdir()
+    (demo_dir / "policy.pdf").write_bytes(b"%PDF-demo-document")
+    (raw_docs_dir / "policy.pdf").write_bytes(b"%PDF-stored-document")
+
+    async def unexpected_upload(**_kwargs):
+        raise AssertionError("an existing stored PDF must not be uploaded again")
+
+    monkeypatch.setattr(seeder, "DEMO_DOCS_FOLDER", str(demo_dir))
+    monkeypatch.setattr(seeder.settings, "RAW_DOCS_DIR", str(raw_docs_dir))
+    monkeypatch.setattr(
+        raw_documents_service,
+        "create_uploaded_raw_document_srvc",
+        unexpected_upload,
+    )
+
+    result = await seeder.seed_load_docs(object(), object())
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_seed_load_docs_reports_upload_failure(
+    monkeypatch,
+    tmp_path,
+    recording_async_session_factory,
+):
+    demo_dir = tmp_path / "demo-docs"
+    raw_docs_dir = tmp_path / "raw-docs"
+    demo_dir.mkdir()
+    (demo_dir / "policy.pdf").write_bytes(b"%PDF-demo-document")
+    session = recording_async_session_factory()
+
+    async def failing_upload(**_kwargs):
+        raise RuntimeError("upload failed")
+
+    monkeypatch.setattr(seeder, "DEMO_DOCS_FOLDER", str(demo_dir))
+    monkeypatch.setattr(seeder.settings, "RAW_DOCS_DIR", str(raw_docs_dir))
+    monkeypatch.setattr(
+        raw_documents_service,
+        "create_uploaded_raw_document_srvc",
+        failing_upload,
+    )
+
+    result = await seeder.seed_load_docs(session, object())
+
+    assert result == "document policy.pdf"
+    assert session.rollback_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory, recording_async_session_factory):
     admin_user = fake_user_factory(user_id=1, username="admin", roles="admin")
     session = recording_async_session_factory()
@@ -93,6 +206,7 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
     created_profiles = []
     created_stores = []
     model_calls = []
+    document_seed_calls = []
 
     async def fake_ensure_admin_user(current_session):
         assert current_session is session
@@ -152,6 +266,10 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
         created_stores.append(store_data)
         return SimpleNamespace(id=len(created_stores))
 
+    async def fake_seed_load_docs(current_session, current_admin_user):
+        document_seed_calls.append((current_session, current_admin_user))
+        return None
+
     monkeypatch.setattr(seeder, "ensure_admin_user", fake_ensure_admin_user)
     monkeypatch.setattr(seeder.users_repo, "get_user_by_username", fake_get_user_by_username)
     monkeypatch.setattr(seeder.users_repo, "get_role_by_name", fake_get_role_by_name)
@@ -186,6 +304,7 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
     )
     monkeypatch.setattr(seeder.vector_stores_repo, "get_vector_store_by_name", fake_get_vector_store_by_name)
     monkeypatch.setattr(seeder.vector_stores_service, "create_vector_store_srvc", fake_create_vector_store_srvc)
+    monkeypatch.setattr(seeder, "seed_load_docs", fake_seed_load_docs)
 
     await seeder.seed_all(session)
 
@@ -233,6 +352,7 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
     assert created_stores[1].path == "./faiss_db/dim768"
     assert created_stores[2].table_name == "negotiation_collection_1536"
     assert model_calls == [("openai", "gpt-4o-mini", 0.0)] * 5
+    assert document_seed_calls == [(session, admin_user)]
     assert session.rollback_calls == 0
 
 
@@ -242,6 +362,7 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
     session = recording_async_session_factory()
     created_scenarios = []
     generated = []
+    document_seed_calls = []
 
     async def fake_ensure_admin_user(current_session):
         return admin_user
@@ -280,6 +401,10 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
     async def fake_get_vector_store_by_name(name, current_session):
         return SimpleNamespace(id=1, name=name)
 
+    async def fake_seed_load_docs(current_session, current_admin_user):
+        document_seed_calls.append((current_session, current_admin_user))
+        return None
+
     monkeypatch.setattr(seeder, "ensure_admin_user", fake_ensure_admin_user)
     monkeypatch.setattr(seeder.users_repo, "get_user_by_username", fake_get_user_by_username)
     monkeypatch.setattr(seeder.scenarios_repo, "get_scenario_by_name", fake_get_scenario_by_name)
@@ -297,11 +422,13 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
     )
     monkeypatch.setattr(seeder.chunking_profiles_repo, "get_chunking_profile_by_name", fake_get_chunking_profile_by_name)
     monkeypatch.setattr(seeder.vector_stores_repo, "get_vector_store_by_name", fake_get_vector_store_by_name)
+    monkeypatch.setattr(seeder, "seed_load_docs", fake_seed_load_docs)
 
     await seeder.seed_all(session)
 
     assert created_scenarios == _scenario_names()[1:]
     assert generated == _scenario_names()[1:]
+    assert document_seed_calls == [(session, admin_user)]
 
 
 @pytest.mark.asyncio
@@ -310,6 +437,7 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
     session = recording_async_session_factory()
     created_users = []
     created_personas = []
+    document_seed_calls = []
 
     async def fake_ensure_admin_user(current_session):
         return admin_user
@@ -345,6 +473,10 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
     async def fake_get_vector_store_by_name(name, current_session):
         return SimpleNamespace(id=1, name=name)
 
+    async def fake_seed_load_docs(current_session, current_admin_user):
+        document_seed_calls.append((current_session, current_admin_user))
+        return None
+
     monkeypatch.setattr(seeder, "ensure_admin_user", fake_ensure_admin_user)
     monkeypatch.setattr(seeder.users_repo, "get_user_by_username", fake_get_user_by_username)
     monkeypatch.setattr(seeder.users_repo, "get_role_by_name", fake_get_role_by_name)
@@ -362,6 +494,7 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
     )
     monkeypatch.setattr(seeder.chunking_profiles_repo, "get_chunking_profile_by_name", fake_get_chunking_profile_by_name)
     monkeypatch.setattr(seeder.vector_stores_repo, "get_vector_store_by_name", fake_get_vector_store_by_name)
+    monkeypatch.setattr(seeder, "seed_load_docs", fake_seed_load_docs)
 
     with pytest.raises(RuntimeError, match="1 seeding operation failed"):
         await seeder.seed_all(session)
@@ -369,3 +502,4 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
     assert session.rollback_calls == 1
     assert created_users == ["teacher1"]
     assert created_personas == _persona_names()
+    assert document_seed_calls == [(session, admin_user)]
