@@ -10,6 +10,7 @@ const queryState = vi.hoisted(() => ({
   selectedJobDetail: null as any,
   bm25Child: null as any,
   createJob: vi.fn(),
+  chunkSetNameAvailability: vi.fn(),
 }));
 
 vi.mock("@/features/corpora/corpusQueries", () => ({
@@ -55,10 +56,11 @@ vi.mock("@/features/corpusBm25BuildJobs/corpusBm25BuildJobQueries", () => ({
     data: queryState.bm25Child,
     refetch: vi.fn(),
   }),
-  useCorpusChunkSetNameAvailabilityQuery: () => ({
-    data: { available: true },
-    isLoading: false,
-  }),
+  useCorpusChunkSetNameAvailabilityQuery: (
+    corpusId: number,
+    name: string,
+    enabled?: boolean,
+  ) => queryState.chunkSetNameAvailability(corpusId, name, enabled),
 }));
 
 vi.mock("@/features/fullCorpusIndexPipeJobs/fullCorpusIndexPipeJobQueries", () => ({
@@ -98,6 +100,20 @@ describe("FullCorpusIndexPipeJobsPage", () => {
     queryState.bm25Child = null;
     queryState.createJob.mockReset();
     queryState.createJob.mockResolvedValue({ id: 99 });
+    queryState.chunkSetNameAvailability.mockReset();
+    queryState.chunkSetNameAvailability.mockImplementation(
+      (_corpusId: number, _name: string, enabled = true) => ({
+        data: enabled
+          ? queryState.activeJob
+            ? {
+                available: false,
+                reason: "Corpus chunk set name already exists or is reserved",
+              }
+            : { available: true }
+          : undefined,
+        isLoading: false,
+      }),
+    );
   });
 
   it("shows the active job in the main card even when a historical detail is selected", () => {
@@ -218,6 +234,49 @@ describe("FullCorpusIndexPipeJobsPage", () => {
         requested_bm25_index_name: null,
       }),
     );
+  });
+
+  it("stops chunk-set availability checks after queueing locks the form", async () => {
+    const user = userEvent.setup();
+    queryState.createJob.mockImplementation(async () => {
+      queryState.activeJob = {
+        id: 99,
+        requested_index_name: "policy dense",
+        requested_chunk_set_name: "August set",
+        build_bm25: false,
+        status: "queued",
+        stage: "validating",
+        queued_at: "2026-08-16T12:00:00Z",
+        completed_at: null,
+        processed_documents: 0,
+        total_documents: 1,
+        chunks_created: 0,
+        chunks_indexed: 0,
+        current_document_name: null,
+        warnings: [],
+      };
+      return { id: 99 };
+    });
+    render(<FullCorpusIndexPipeJobsPage />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Build BM25 index also" }));
+    await user.selectOptions(screen.getByLabelText("Corpus"), "1");
+    await user.selectOptions(screen.getByLabelText(/Chunking profile/), "2");
+    await user.selectOptions(screen.getByLabelText("Embedding model"), "mini-l6-v2");
+    await user.selectOptions(screen.getByLabelText("Vector store"), "3");
+    await user.type(screen.getByLabelText(/^Index name/), "policy dense");
+    await user.type(screen.getByLabelText(/^Chunk set name/), "August set");
+    await user.click(screen.getByRole("button", { name: "Index corpus" }));
+
+    expect(await screen.findByText(/Queued full corpus index pipe job #99/)).toBeInTheDocument();
+    expect(queryState.chunkSetNameAvailability).toHaveBeenLastCalledWith(
+      1,
+      "August set",
+      false,
+    );
+    expect(
+      screen.queryByText("Corpus chunk set name already exists or is reserved"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the linked BM25 child and rollback activity", () => {

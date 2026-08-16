@@ -243,6 +243,10 @@ async def _queue_bm25_child(
         ),
         job.requested_by_user_id,
         session,
+        reserved_by_full_pipe_job_id=_persisted_id(
+            job.id,
+            "Full corpus index pipe job",
+        ),
     )
     await full_corpus_index_pipe_jobs_repo.set_full_corpus_index_pipe_job_bm25_child(
         job,

@@ -127,10 +127,17 @@ async def test_queue_bm25_child_uses_existing_job_factory_and_wakes_coordinator(
     queued_child = SimpleNamespace(id=71, status="queued")
     captured = {}
 
-    async def queue_child(request, requester_id, session):
+    async def queue_child(
+        request,
+        requester_id,
+        session,
+        *,
+        reserved_by_full_pipe_job_id,
+    ):
         captured["request"] = request
         captured["requester_id"] = requester_id
         captured["session"] = session
+        captured["reserved_by_full_pipe_job_id"] = reserved_by_full_pipe_job_id
         return queued_child
 
     async def link_child(parent, child_id, session):
@@ -165,6 +172,7 @@ async def test_queue_bm25_child_uses_existing_job_factory_and_wakes_coordinator(
     assert captured["request"].requested_artifact_name == "policy lexical"
     assert captured["request"].corpus_chunk_set_id == 21
     assert captured["requester_id"] == 23
+    assert captured["reserved_by_full_pipe_job_id"] == 9
     assert job.bm25_build_job_id == 71
     assert wake_calls == ["wake"]
 

@@ -75,6 +75,8 @@ async def _ensure_resources(corpus_id: int,
 async def ensure_corpus_bm25_index_name_available_srvc(
     name: str,
     session: AsyncSession,
+    *,
+    reserved_by_full_pipe_job_id: int | None = None,
 ) -> str:
     """
     Normalize a BM25 artifact name and reject an existing artifact.
@@ -99,7 +101,9 @@ async def ensure_corpus_bm25_index_name_available_srvc(
     if await corpus_bm25_build_jobs_repo.has_active_corpus_bm25_build_job_name(
         normalized, session
     ) or await full_corpus_index_pipe_jobs_repo.has_active_full_pipe_bm25_name_reservation(
-        normalized, session
+        normalized,
+        session,
+        exclude_job_id=reserved_by_full_pipe_job_id,
     ):
         raise CorpusBm25BuildJobConflictError("BM25 index name already exists or is reserved")
     return normalized
@@ -109,6 +113,8 @@ async def queue_corpus_bm25_build_job_for_requester_id_srvc(
     request: CorpusBm25BuildJobQueueRequest,
     requested_by_user_id: int,
     session: AsyncSession,
+    *,
+    reserved_by_full_pipe_job_id: int | None = None,
 ) -> CorpusBm25BuildJobRead:
     """
     Queue a BM25 build using an already persisted requester identity.
@@ -135,6 +141,7 @@ async def queue_corpus_bm25_build_job_for_requester_id_srvc(
     artifact_name = await ensure_corpus_bm25_index_name_available_srvc(
         requested_name,
         session,
+        reserved_by_full_pipe_job_id=reserved_by_full_pipe_job_id,
     )
     try:
         snapshot = await get_corpus_chunk_set_snapshot_srvc(

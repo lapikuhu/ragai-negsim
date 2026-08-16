@@ -87,9 +87,15 @@ function useInvalidateFullCorpusIndexPipeJobs() {
 }
 
 export function useCreateFullCorpusIndexPipeJobMutation() {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateFullCorpusIndexPipeJobs();
   return useMutation({
     mutationFn: createFullCorpusIndexPipeJob,
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({
+        queryKey: ["corpora", input.corpus_id, "chunk-set-name-availability"],
+      });
+    },
     onSuccess: async () => invalidate()
   });
 }

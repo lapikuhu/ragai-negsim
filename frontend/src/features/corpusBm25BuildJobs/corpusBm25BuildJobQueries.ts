@@ -54,12 +54,19 @@ export function useCorpusChunkSetsQuery(corpusId: number) {
   });
 }
 
-export function useCorpusChunkSetNameAvailabilityQuery(corpusId: number, name: string) {
+export function useCorpusChunkSetNameAvailabilityQuery(
+  corpusId: number,
+  name: string,
+  enabled = true,
+) {
   const normalized = useDebouncedValue(name.trim());
   return useQuery({
     queryKey: corpusBm25BuildJobKeys.chunkSetNameAvailability(corpusId, normalized),
-    queryFn: () => jsonRequest<CorpusChunkSetNameAvailability>(`/corpora/${corpusId}/chunk-set-name-availability?name=${encodeURIComponent(normalized)}`),
-    enabled: Number.isFinite(corpusId) && corpusId > 0 && normalized.length >= 3,
+    queryFn: ({ signal }) => jsonRequest<CorpusChunkSetNameAvailability>(
+      `/corpora/${corpusId}/chunk-set-name-availability?name=${encodeURIComponent(normalized)}`,
+      { signal },
+    ),
+    enabled: enabled && Number.isFinite(corpusId) && corpusId > 0 && normalized.length >= 3,
   });
 }
 

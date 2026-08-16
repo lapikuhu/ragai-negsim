@@ -1,11 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useQuery } from "@tanstack/react-query";
+import { renderHook } from "@testing-library/react";
 
 import {
   bm25JobRefetchInterval,
   corpusBm25BuildJobKeys,
   useCorpusBm25BuildJobQuery,
+  useCorpusChunkSetNameAvailabilityQuery,
 } from "./corpusBm25BuildJobQueries";
+
+const apiFetchMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/api/client", () => ({
+  ApiError: class ApiError extends Error {},
+  apiFetch: apiFetchMock,
+}));
+
+vi.mock("@/api/clientConfig", () => ({
+  getApiBaseUrl: () => "http://api.test",
+}));
 
 vi.mock("@tanstack/react-query", () => ({
   useMutation: vi.fn(),
@@ -15,6 +28,11 @@ vi.mock("@tanstack/react-query", () => ({
 
 describe("BM25 build job polling", () => {
   beforeEach(() => {
+    apiFetchMock.mockReset();
+    apiFetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ available: true }),
+    });
     vi.mocked(useQuery).mockReset();
     vi.mocked(useQuery).mockReturnValue({} as never);
   });
@@ -48,6 +66,32 @@ describe("BM25 build job polling", () => {
       enabled: boolean;
     };
     expect(options.enabled).toBe(false);
+  });
+
+  it("disables chunk-set name availability when its caller is locked", () => {
+    renderHook(() =>
+      useCorpusChunkSetNameAvailabilityQuery(1, "August set", false),
+    );
+    const options = vi.mocked(useQuery).mock.calls[0]?.[0] as {
+      enabled: boolean;
+    };
+
+    expect(options.enabled).toBe(false);
+  });
+
+  it("passes the query abort signal to chunk-set availability requests", async () => {
+    renderHook(() => useCorpusChunkSetNameAvailabilityQuery(1, "August set"));
+    const options = vi.mocked(useQuery).mock.calls[0]?.[0] as unknown as {
+      queryFn: (context: { signal: AbortSignal }) => Promise<unknown>;
+    };
+    const controller = new AbortController();
+
+    await options.queryFn({ signal: controller.signal });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "http://api.test/corpora/1/chunk-set-name-availability?name=August%20set",
+      expect.objectContaining({ signal: controller.signal }),
+    );
   });
 
   it("keeps observing a completed child while its parent can still roll it back", () => {

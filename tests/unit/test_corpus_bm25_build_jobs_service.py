@@ -84,6 +84,120 @@ async def test_bm25_name_check_rejects_existing_artifact(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_bm25_name_check_allows_owning_full_pipe_reservation(monkeypatch):
+    async def no_other_full_pipe_reservation(
+        requested_name,
+        _session,
+        *,
+        exclude_job_id,
+    ):
+        assert requested_name == "policy lexical"
+        assert exclude_job_id == 9
+        return False
+
+    monkeypatch.setattr(
+        service.corpus_bm25_indices_repo,
+        "get_corpus_bm25_index_metadata_by_name",
+        AsyncMock(return_value=None),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service.corpus_bm25_build_jobs_repo,
+        "has_active_corpus_bm25_build_job_name",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        service.full_corpus_index_pipe_jobs_repo,
+        "has_active_full_pipe_bm25_name_reservation",
+        no_other_full_pipe_reservation,
+    )
+
+    assert await service.ensure_corpus_bm25_index_name_available_srvc(
+        "policy lexical",
+        object(),
+        reserved_by_full_pipe_job_id=9,
+    ) == "policy lexical"
+
+
+@pytest.mark.asyncio
+async def test_bm25_name_check_rejects_another_full_pipe_reservation(monkeypatch):
+    async def another_full_pipe_reservation(
+        requested_name,
+        _session,
+        *,
+        exclude_job_id,
+    ):
+        assert requested_name == "policy lexical"
+        assert exclude_job_id == 9
+        return True
+
+    monkeypatch.setattr(
+        service.corpus_bm25_indices_repo,
+        "get_corpus_bm25_index_metadata_by_name",
+        AsyncMock(return_value=None),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service.corpus_bm25_build_jobs_repo,
+        "has_active_corpus_bm25_build_job_name",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        service.full_corpus_index_pipe_jobs_repo,
+        "has_active_full_pipe_bm25_name_reservation",
+        another_full_pipe_reservation,
+    )
+
+    with pytest.raises(service.CorpusBm25BuildJobConflictError, match="already exists"):
+        await service.ensure_corpus_bm25_index_name_available_srvc(
+            "policy lexical",
+            object(),
+            reserved_by_full_pipe_job_id=9,
+        )
+
+
+@pytest.mark.asyncio
+async def test_requester_id_queue_forwards_full_pipe_reservation_owner(monkeypatch):
+    session = object()
+
+    class ValidationObserved(Exception):
+        pass
+
+    async def validate_name(
+        name,
+        received_session,
+        *,
+        reserved_by_full_pipe_job_id,
+    ):
+        assert name == "policy lexical"
+        assert received_session is session
+        assert reserved_by_full_pipe_job_id == 9
+        raise ValidationObserved
+
+    monkeypatch.setattr(
+        service.name_reservations_repo,
+        "lock_name_reservation",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        service,
+        "ensure_corpus_bm25_index_name_available_srvc",
+        validate_name,
+    )
+
+    with pytest.raises(ValidationObserved):
+        await service.queue_corpus_bm25_build_job_for_requester_id_srvc(
+            CorpusBm25BuildJobQueueRequest(
+                requested_artifact_name=" policy lexical ",
+                corpus_chunk_set_id=CORPUS_CHUNK_SET_ID,
+            ),
+            23,
+            session,
+            reserved_by_full_pipe_job_id=9,
+        )
+
+
+@pytest.mark.asyncio
 async def test_requester_id_queue_boundary_preserves_attribution(monkeypatch):
     chunks = [SimpleNamespace(id=7, raw_document_id=1)]
     _allow_name_reservations(monkeypatch)

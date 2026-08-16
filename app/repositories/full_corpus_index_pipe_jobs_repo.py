@@ -149,6 +149,8 @@ async def set_full_corpus_index_pipe_job_chunk_set(
 async def has_active_full_pipe_bm25_name_reservation(
     requested_name: str,
     session: AsyncSession,
+    *,
+    exclude_job_id: int | None = None,
 ) -> bool:
     """
     Check if there is an active full pipe BM25 name reservation.
@@ -159,7 +161,7 @@ async def has_active_full_pipe_bm25_name_reservation(
     Returns:
         True if there is an active reservation with the requested name, False otherwise.
     """
-    result = await session.exec(
+    statement = (
         select(FullCorpusIndexPipeJob.id)
         .where(
             FullCorpusIndexPipeJob.build_bm25.is_(True),
@@ -168,6 +170,9 @@ async def has_active_full_pipe_bm25_name_reservation(
         )
         .limit(1)
     )
+    if exclude_job_id is not None:
+        statement = statement.where(FullCorpusIndexPipeJob.id != exclude_job_id)
+    result = await session.exec(statement)
     return result.first() is not None
 
 

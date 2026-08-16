@@ -2,6 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import StaticPool
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import chunking_profiles  # noqa: F401
 from app.models import counterpart_personas  # noqa: F401
@@ -262,6 +265,55 @@ async def test_set_full_corpus_index_pipe_job_chunk_set_persists_identity(monkey
     )
 
     assert result.corpus_chunk_set_id == 21
+
+
+@pytest.mark.asyncio
+async def test_bm25_reservation_excludes_owner_but_finds_competing_active_job():
+    engine = create_async_engine(
+        "sqlite+aiosqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(FullCorpusIndexPipeJob.__table__.create)
+
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            session.add(
+                _full_pipe_model(
+                    id=9,
+                    build_bm25=True,
+                    requested_bm25_index_name="policy lexical",
+                    status="running",
+                )
+            )
+            await session.commit()
+
+            assert not await full_corpus_index_pipe_jobs_repo.has_active_full_pipe_bm25_name_reservation(
+                "policy lexical",
+                session,
+                exclude_job_id=9,
+            )
+
+            session.add(
+                _full_pipe_model(
+                    id=10,
+                    requested_index_name="competing dense",
+                    requested_chunk_set_name="Competing policy set",
+                    build_bm25=True,
+                    requested_bm25_index_name="policy lexical",
+                    status="queued",
+                )
+            )
+            await session.commit()
+
+            assert await full_corpus_index_pipe_jobs_repo.has_active_full_pipe_bm25_name_reservation(
+                "policy lexical",
+                session,
+                exclude_job_id=9,
+            )
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

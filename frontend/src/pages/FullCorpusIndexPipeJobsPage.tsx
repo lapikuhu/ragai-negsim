@@ -59,9 +59,11 @@ export function FullCorpusIndexPipeJobsPage() {
   const [vectorNamespace, setVectorNamespace] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const formDisabled = Boolean(activeJob.data) || createMutation.isPending || cancelMutation.isPending;
   const chunkSetNameAvailability = useCorpusChunkSetNameAvailabilityQuery(
     Number(corpusId || "0"),
     chunkSetName,
+    !formDisabled,
   );
 
   const selectedDetailId = activeJob.data?.id ?? selectedJobId ?? null;
@@ -99,7 +101,6 @@ export function FullCorpusIndexPipeJobsPage() {
     [corpusId, indices.data]
   );
   const dimensionWarning = getDimensionWarning(selectedModel, selectedVectorStore);
-  const formDisabled = Boolean(activeJob.data) || createMutation.isPending || cancelMutation.isPending;
 
   if (
     corpora.isLoading ||
