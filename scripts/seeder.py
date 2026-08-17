@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 from pathlib import Path
-from chromadb import app
 from fastapi import UploadFile
 
 
