@@ -207,6 +207,8 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
     created_stores = []
     model_calls = []
     document_seed_calls = []
+    corpus_seed_calls = []
+    seed_order = []
 
     async def fake_ensure_admin_user(current_session):
         assert current_session is session
@@ -268,6 +270,14 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
 
     async def fake_seed_load_docs(current_session, current_admin_user):
         document_seed_calls.append((current_session, current_admin_user))
+        seed_order.append("documents")
+        return None
+
+    async def fake_seed_corpus(current_session, current_admin_user, *, name, description):
+        corpus_seed_calls.append(
+            (current_session, current_admin_user, name, description)
+        )
+        seed_order.append("corpus")
         return None
 
     monkeypatch.setattr(seeder, "ensure_admin_user", fake_ensure_admin_user)
@@ -305,6 +315,7 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
     monkeypatch.setattr(seeder.vector_stores_repo, "get_vector_store_by_name", fake_get_vector_store_by_name)
     monkeypatch.setattr(seeder.vector_stores_service, "create_vector_store_srvc", fake_create_vector_store_srvc)
     monkeypatch.setattr(seeder, "seed_load_docs", fake_seed_load_docs)
+    monkeypatch.setattr(seeder, "seed_corpus", fake_seed_corpus)
 
     await seeder.seed_all(session)
 
@@ -353,6 +364,15 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
     assert created_stores[2].table_name == "negotiation_collection_1536"
     assert model_calls == [("openai", "gpt-4o-mini", 0.0)] * 5
     assert document_seed_calls == [(session, admin_user)]
+    assert corpus_seed_calls == [
+        (
+            session,
+            admin_user,
+            "demo_corpus_1",
+            "Demo corpus from the demo documents",
+        )
+    ]
+    assert seed_order == ["documents", "corpus"]
     assert session.rollback_calls == 0
 
 
@@ -405,6 +425,9 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
         document_seed_calls.append((current_session, current_admin_user))
         return None
 
+    async def fake_seed_corpus(current_session, current_admin_user, *, name, description):
+        return None
+
     monkeypatch.setattr(seeder, "ensure_admin_user", fake_ensure_admin_user)
     monkeypatch.setattr(seeder.users_repo, "get_user_by_username", fake_get_user_by_username)
     monkeypatch.setattr(seeder.scenarios_repo, "get_scenario_by_name", fake_get_scenario_by_name)
@@ -423,6 +446,7 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
     monkeypatch.setattr(seeder.chunking_profiles_repo, "get_chunking_profile_by_name", fake_get_chunking_profile_by_name)
     monkeypatch.setattr(seeder.vector_stores_repo, "get_vector_store_by_name", fake_get_vector_store_by_name)
     monkeypatch.setattr(seeder, "seed_load_docs", fake_seed_load_docs)
+    monkeypatch.setattr(seeder, "seed_corpus", fake_seed_corpus)
 
     await seeder.seed_all(session)
 
@@ -477,6 +501,9 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
         document_seed_calls.append((current_session, current_admin_user))
         return None
 
+    async def fake_seed_corpus(current_session, current_admin_user, *, name, description):
+        return None
+
     monkeypatch.setattr(seeder, "ensure_admin_user", fake_ensure_admin_user)
     monkeypatch.setattr(seeder.users_repo, "get_user_by_username", fake_get_user_by_username)
     monkeypatch.setattr(seeder.users_repo, "get_role_by_name", fake_get_role_by_name)
@@ -495,6 +522,7 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
     monkeypatch.setattr(seeder.chunking_profiles_repo, "get_chunking_profile_by_name", fake_get_chunking_profile_by_name)
     monkeypatch.setattr(seeder.vector_stores_repo, "get_vector_store_by_name", fake_get_vector_store_by_name)
     monkeypatch.setattr(seeder, "seed_load_docs", fake_seed_load_docs)
+    monkeypatch.setattr(seeder, "seed_corpus", fake_seed_corpus)
 
     with pytest.raises(RuntimeError, match="1 seeding operation failed"):
         await seeder.seed_all(session)
