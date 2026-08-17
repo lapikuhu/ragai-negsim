@@ -2,7 +2,9 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 from pathlib import Path
+from chromadb import app
 from fastapi import UploadFile
+
 
 try:
     from scripts.bootstrap import ensure_project_root_on_path
@@ -35,6 +37,9 @@ from app.services import (
     users_service,
     vector_stores_service,
 )
+import app.services.corpus_service
+import app.services.raw_documents_service
+from app.services.corpus_service import CorpusCreate
 try:
     from scripts.personas import PLACEHOLDER_PERSONAS
     from scripts.scenarios import PLACEHOLDER_SCENARIOS
@@ -258,6 +263,48 @@ async def seed_load_docs(session: AsyncSession, admin_user) -> str | None:
             return await rollback_and_log(session, f"document {file_path.name}", exc)
     return None
 
+async def seed_corpus(session: AsyncSession, 
+                      admin_user, *, 
+                      name: str, 
+                      description: str) -> str | None:
+    """
+    Seed a corpus in the database. If the db already has any corpora, this
+    function will skip seeding to avoid duplicates.
+    Args:
+        session (AsyncSession): The database session to use for the operation.
+        admin_user: The admin user object.
+        name (str): The name of the corpus to seed.
+        description (str): The description of the corpus to seed.
+    Returns:
+        None
+    """
+
+    # Check if any corpus exists
+    try:
+        existing_corpus = await app.services.corpus_service.list_corpora_srvc(session=session, limit=1)
+        if existing_corpus:
+            log_step("skipped", f"at least one corpus already exists")
+            return None
+    except Exception as exc:
+        return await rollback_and_log(session, f"corpus {name}", exc)
+
+    # If no existing corpus, create a new one
+    # Get the list of raw document IDs to associate with the new corpus
+    raw_documents = await app.services.raw_documents_service.list_raw_documents_srvc(session=session, limit=20)
+    raw_document_ids = [doc.id for doc in raw_documents]
+    corpus_data = CorpusCreate(name=name, description=description, 
+                               raw_document_ids=raw_document_ids)
+    try:
+        await app.services.corpus_service.create_corpus_srvc(
+            corpus_data=corpus_data,
+            session=session,
+            current_user=admin_user,
+        )
+        log_step("created", f"corpus {name}")
+    except Exception as exc:
+        return await rollback_and_log(session, f"corpus {name}", exc)
+    return None
+
 async def seed_persona(
     session: AsyncSession,
     admin_user,
@@ -433,6 +480,12 @@ async def seed_all(session: AsyncSession) -> None:
                 for item in VECTOR_STORES
             ],
             lambda: seed_load_docs(session, admin_user),
+            lambda: seed_corpus(
+                session,
+                admin_user,
+                name="demo_corpus_1",
+                description="Demo corpus from the demo documents",
+            ),
         ]
     )
     if failures:
