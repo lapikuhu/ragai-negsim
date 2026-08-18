@@ -161,6 +161,16 @@ Scoring uses the pipeline's final ranked answer-context documents, not the retri
 
 `RagEvalConfiguration` stores the complete typed, FK-free chunking, retrieval, response-model, and judging selections. Enqueueing copies a normalized immutable snapshot onto the run, so later configuration edits cannot change queued or historical executions. The resolved run snapshot adds non-secret hidden dependency identities and prompt versions/hashes. Run APIs expose configurations, status/stage/progress, safe final chunks, answers, and metrics—not temporary graph identifiers or contents.
 
+### RAG-evaluation embedding cache
+
+RAG evaluation can optionally reuse deterministic retrieval and graph embeddings through Redis. The cache is an optimization only: Redis is not a source of truth, is not required for application readiness, and any Redis failure falls back to the configured embedding provider without failing the evaluation run.
+
+Phase-one caching covers dense/hybrid CRAG document and query embeddings and GraphRAG node and query embeddings. It does not cache semantic chunk-boundary embeddings, GraphRAG extraction output, response LLM output, retrieval results, RAGAS judge embeddings or judgments, simulation data, complete FAISS indexes, or Neo4j graph generations. Isolated FAISS and Neo4j resources are still rebuilt for each run.
+
+Keys contain a cache schema version, suite content hash, provider/model/dimensionality identity, document-or-query operation, and an exact-text SHA-256 digest. Raw text, credentials, and run IDs are not stored in keys. Values are validated versioned little-endian float32 vectors. Redis uses TTL expiry and bounded `allkeys-lru` eviction; misses and eviction are expected and harmless.
+
+Completed runs expose non-secret cache hit, miss, write, provider-vector, corruption, timing, and backend-error counters in `resolved_pipeline_snapshot.embedding_cache`. The cache is disabled by default outside managed Compose and is configured through `RAG_EVAL_EMBEDDING_CACHE_ENABLED`, `REDIS_URL`, and `RAG_EVAL_EMBEDDING_CACHE_TTL_SECONDS`.
+
 ## Evidence ledger and source cards
 `app/airag/observability/evidence_ledger.py` defines how source cards are built and stored. Important details:
 - Only a safe subset of metadata is copied into source cards.

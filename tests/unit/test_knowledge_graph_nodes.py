@@ -5,6 +5,7 @@ from llama_index.core.llms import MockLLM
 
 from app.airag.knowledge_graph.k_graph import (
     build_graph_text_nodes,
+    create_graph_embedding_model,
     create_kg_extractors,
 )
 from app.airag.knowledge_graph.scoped_store import (
@@ -68,6 +69,17 @@ def test_create_extractors_respects_order_and_schema_options():
     assert extractors[1].max_paths_per_chunk == 4
     assert extractors[2].max_triplets_per_chunk == 4
     assert extractors[2].strict is True
+
+
+def test_graph_embedding_factory_accepts_preconstructed_langchain_model():
+    embedding_model = SimpleNamespace()
+
+    adapter = create_graph_embedding_model(
+        {"embedding_model": "unused"},
+        langchain_embedding_model=embedding_model,
+    )
+
+    assert adapter._embedding_model is embedding_model
 
 
 def test_generation_stats_reports_scoped_neo4j_counts():

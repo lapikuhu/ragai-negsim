@@ -16,6 +16,43 @@ def test_setup_commands_use_locked_dependencies_and_existing_migrations(tmp_path
     ]
 
 
+def test_setup_commands_start_and_wait_for_redis_when_caching_is_enabled(tmp_path):
+    commands = dev.setup_commands(tmp_path, cache_enabled=True)
+
+    assert [command.args for command in commands] == [
+        ("uv", "sync", "--frozen"),
+        ("npm", "ci"),
+        ("docker", "compose", "up", "-d", "--wait", "redis"),
+        ("uv", "run", "alembic", "upgrade", "head"),
+        ("uv", "run", "python", "scripts/seeder.py"),
+    ]
+
+
+def test_embedding_cache_enabled_uses_the_env_setting(tmp_path):
+    (tmp_path / ".env").write_text(
+        "RAG_EVAL_EMBEDDING_CACHE_ENABLED=false\n", encoding="utf-8"
+    )
+
+    assert dev.embedding_cache_enabled(tmp_path) is False
+
+
+def test_preflight_requires_docker_when_caching_is_enabled(tmp_path):
+    (tmp_path / ".env").touch()
+
+    errors = dev.preflight_errors(
+        tmp_path,
+        python_version=(3, 12),
+        which=lambda executable: None,
+        cache_enabled=True,
+    )
+
+    assert errors == [
+        "Required executable not found on PATH: uv",
+        "Required executable not found on PATH: npm",
+        "Required executable not found on PATH: docker",
+    ]
+
+
 def test_run_setup_stops_after_the_first_failed_command(tmp_path):
     executed = []
 

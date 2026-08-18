@@ -187,6 +187,7 @@ dependencies = [
     "yarl==1.23.0",
     "zstandard==0.25.0",
     "ragas>=0.3.1",
+    "redis==8.1.0",
 ]
 
 [dependency-groups]

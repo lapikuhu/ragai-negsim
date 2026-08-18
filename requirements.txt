@@ -10,6 +10,7 @@ aiohappyeyeballs==2.6.1
     #   ragai-negsim
 aiohttp==3.13.5
     # via
+    #   fsspec
     #   kubernetes
     #   langchain-community
     #   langchain-tavily
@@ -46,6 +47,8 @@ anyio==4.13.0
     #   ragai-negsim
     #   starlette
     #   watchfiles
+appdirs==1.4.4
+    # via ragas
 appnope==0.1.4 ; sys_platform == 'darwin'
     # via ipykernel
 argon2-cffi==25.1.0
@@ -134,6 +137,8 @@ dataclasses-json==0.6.7
     #   langchain-community
     #   llama-index-core
     #   ragai-negsim
+datasets==5.0.0
+    # via ragas
 debugpy==1.8.20
     # via ipykernel
 decorator==5.2.1
@@ -153,12 +158,15 @@ deprecated==1.3.1
     #   ragai-negsim
 dill==0.4.1
     # via
+    #   datasets
     #   multiprocess
     #   ragai-negsim
 dirtyjson==1.0.8
     # via
     #   llama-index-core
     #   ragai-negsim
+diskcache==5.6.3
+    # via ragas
 distro==1.9.0
     # via
     #   openai
@@ -200,6 +208,7 @@ fastavro==1.12.2
     # via cohere
 filelock==3.25.2
     # via
+    #   datasets
     #   huggingface-hub
     #   ragai-negsim
     #   torch
@@ -218,6 +227,7 @@ frozenlist==1.8.0
     #   ragai-negsim
 fsspec==2026.3.0
     # via
+    #   datasets
     #   huggingface-hub
     #   llama-index-core
     #   ragai-negsim
@@ -262,6 +272,7 @@ httpx==0.28.1
     # via
     #   chromadb
     #   cohere
+    #   datasets
     #   docling
     #   huggingface-hub
     #   langgraph-sdk
@@ -278,6 +289,7 @@ httpx2==2.3.0
 huggingface-hub==1.10.2
     # via
     #   accelerate
+    #   datasets
     #   docling
     #   docling-ibm-models
     #   langchain-huggingface
@@ -359,6 +371,7 @@ langchain==1.3.1
     # via
     #   langchain-tavily
     #   ragai-negsim
+    #   ragas
 langchain-chroma==1.1.0
     # via ragai-negsim
 langchain-classic==1.0.7
@@ -371,6 +384,7 @@ langchain-community==0.4.1
     # via
     #   langchain-experimental
     #   ragai-negsim
+    #   ragas
 langchain-core==1.4.0
     # via
     #   langchain
@@ -390,6 +404,7 @@ langchain-core==1.4.0
     #   langgraph-checkpoint
     #   langgraph-prebuilt
     #   ragai-negsim
+    #   ragas
 langchain-docling==2.0.0
     # via ragai-negsim
 langchain-experimental==0.4.1
@@ -399,7 +414,9 @@ langchain-huggingface==1.2.2
 langchain-ollama==1.1.0
     # via ragai-negsim
 langchain-openai==1.2.2
-    # via ragai-negsim
+    # via
+    #   ragai-negsim
+    #   ragas
 langchain-postgres==0.0.17
     # via ragai-negsim
 langchain-protocol==0.0.15
@@ -523,6 +540,7 @@ multidict==6.7.1
     #   yarl
 multiprocess==0.70.19
     # via
+    #   datasets
     #   mpire
     #   ragai-negsim
 mypy-extensions==1.1.0
@@ -538,6 +556,7 @@ nest-asyncio==1.6.0
     #   ipykernel
     #   llama-index-core
     #   ragai-negsim
+    #   ragas
 networkx==3.6.1
     # via
     #   llama-index-core
@@ -552,6 +571,7 @@ numpy==2.4.4
     # via
     #   accelerate
     #   chromadb
+    #   datasets
     #   docling-ibm-models
     #   faiss-cpu
     #   langchain-chroma
@@ -564,6 +584,8 @@ numpy==2.4.4
     #   pgvector
     #   pyopencl
     #   ragai-negsim
+    #   ragas
+    #   rank-bm25
     #   rapidocr
     #   safetensors
     #   scikit-learn
@@ -633,6 +655,7 @@ openai==2.37.0
     #   llama-index-embeddings-openai
     #   llama-index-llms-openai
     #   ragai-negsim
+    #   ragas
 opencv-python==4.13.0.92
     # via rapidocr
 openpyxl==3.1.5
@@ -673,6 +696,7 @@ packaging==26.0
     # via
     #   accelerate
     #   build
+    #   datasets
     #   faiss-cpu
     #   huggingface-hub
     #   ipykernel
@@ -686,6 +710,7 @@ packaging==26.0
     #   transformers
 pandas==3.0.2
     # via
+    #   datasets
     #   docling
     #   docling-core
 parso==0.8.6
@@ -762,6 +787,8 @@ pure-eval==0.2.3
     # via
     #   ragai-negsim
     #   stack-data
+pyarrow==25.0.0
+    # via datasets
 pyasn1==0.6.3
     # via
     #   python-jose
@@ -797,6 +824,7 @@ pydantic==2.13.0
     #   openai
     #   pydantic-settings
     #   ragai-negsim
+    #   ragas
     #   sqlmodel
 pydantic-core==2.46.0
     # via
@@ -886,6 +914,7 @@ pyyaml==6.0.3
     # via
     #   accelerate
     #   chromadb
+    #   datasets
     #   docling-core
     #   huggingface-hub
     #   kubernetes
@@ -903,8 +932,14 @@ pyzmq==27.1.0
     #   ipykernel
     #   jupyter-client
     #   ragai-negsim
+ragas==0.3.1
+    # via ragai-negsim
+rank-bm25==0.2.2
+    # via ragai-negsim
 rapidocr==3.8.1
     # via docling
+redis==8.1.0
+    # via ragai-negsim
 referencing==0.37.0
     # via
     #   jsonschema
@@ -919,6 +954,7 @@ regex==2026.4.4
 requests==2.33.1
     # via
     #   cohere
+    #   datasets
     #   docling
     #   kubernetes
     #   langchain-classic
@@ -1046,6 +1082,7 @@ tiktoken==0.13.0
     #   langchain-openai
     #   llama-index-core
     #   ragai-negsim
+    #   ragas
 tinytag==2.2.1
     # via
     #   llama-index-core
@@ -1077,6 +1114,7 @@ tornado==6.5.5
 tqdm==4.67.3
     # via
     #   chromadb
+    #   datasets
     #   docling
     #   docling-ibm-models
     #   huggingface-hub
@@ -1228,6 +1266,7 @@ xlsxwriter==3.2.9
     #   ragai-negsim
 xxhash==3.6.0
     # via
+    #   datasets
     #   langgraph
     #   langsmith
     #   ragai-negsim

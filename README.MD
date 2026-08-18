@@ -70,6 +70,8 @@ The backend exposes admin-only configuration and run APIs under `/rag-eval-confi
 
 Runs score the pipeline's final ranked answer-context documents rather than only the initial retrieval candidates. CRAG evaluation creates isolated dense and/or BM25 resources according to `bm25_weight`; BM25-only runs do not require a retrieval embedding model. Answerable examples receive Hit@k and MRR@k, unanswerable examples track abstention and false-positive final context, and generated answers/final contexts are scored with five RAGAS metrics: faithfulness, answer relevancy, context precision, context recall, and answer correctness.
 
+RAG evaluation can optionally use Redis to cache deterministic CRAG and GraphRAG embedding vectors across runs. The cache is fail-open, bounded by TTL/LRU eviction, and does not cache prompts, generated answers, retrieval results, or evaluation scores. Enable it with `RAG_EVAL_EMBEDDING_CACHE_ENABLED=true` and configure `REDIS_URL`.
+
 ## Folder Structure
 
 ```text
@@ -105,6 +107,7 @@ ragai-negsim/
 - LangGraph
 - LangSmith for tracing
 - RAGAS for RAG-evaluation scoring
+- Redis for optional RAG-evaluation embedding caching
 - Chroma, FAISS, and PGVector integration points for vector storage
 - Docling and PyPDF-based PDF ingestion/parsing
 - Neo4j integration hooks for graph-store work
@@ -151,6 +154,15 @@ Copy `.env.example` with your own local values in your `.env` file. At minimum, 
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD`
 - `HF_TOKEN`
+
+RAG-evaluation embedding caching is enabled by default. For local development,
+set `REDIS_URL=redis://localhost:6379/0`; `scripts/dev.py` starts the Compose
+Redis service and waits for its health check before it runs migrations. This
+requires Docker Compose when you use the development launcher. You do not need
+to disable caching for local development. Set
+`RAG_EVAL_EMBEDDING_CACHE_ENABLED=false` only when you explicitly want to
+disable embedding caching; the cache is optional and fails open when Redis is
+unavailable.
 
 If you plan to use knowledge graph features, make sure the target Neo4j DBMS has the APOC plugin enabled before running a build.
 
@@ -237,7 +249,7 @@ Demo pdf are provided under the demo_docs folder. These are publicly available r
 
 ## Quickstart the development app for the 1st time
 
-Create the PostgreSQL database, ensure PostgreSQL and Neo4j are reachable, and configure `.env`. A valid `OPENAI_API_KEY` is required for the first time starter scenarios to be seeded. Assumes npm and uv are available.
+Create the PostgreSQL database, ensure PostgreSQL and Neo4j are reachable, and configure `.env`. When `RAG_EVAL_EMBEDDING_CACHE_ENABLED=true` (the default), Docker Compose must also be available; the launcher starts and health-checks Redis. A valid `OPENAI_API_KEY` is required for the first time starter scenarios to be seeded. Assumes npm and uv are available.
 
 From the repository root, run:
 
@@ -245,7 +257,7 @@ From the repository root, run:
 python scripts/dev.py
 ```
 
-The launcher runs `uv sync --frozen`, `npm ci`, `alembic upgrade head`, and the starter-data seeder before starting FastAPI and Vite in the same terminal. Press Ctrl+C to stop both services.
+The launcher runs `uv sync --frozen`, `npm ci`, starts and health-checks Redis when caching is enabled, then runs `alembic upgrade head` and the starter-data seeder before starting FastAPI and Vite in the same terminal. Press Ctrl+C to stop both services. Redis continues running after the launcher exits and can be stopped with `docker compose stop redis`.
 
 Development URLs:
 
@@ -451,12 +463,12 @@ You should browse to the frontend URL, not the backend URL, for normal UI work.
 ## Docker Deployment Strategy
 
 The repository includes a Compose-based deployment scaffold for running the
-backend, frontend, PostgreSQL, and Neo4j together in containers.
+backend, frontend, PostgreSQL, Neo4j, and Redis together in containers.
 
 Current deployment files:
 
 - [Dockerfile](Dockerfile) builds the FastAPI backend image.
-- [compose.yaml](compose.yaml) defines the frontend, backend, PostgreSQL, and Neo4j services.
+- [compose.yaml](compose.yaml) defines the frontend, backend, PostgreSQL, Neo4j, and Redis services.
 - [frontend/Dockerfile](frontend/Dockerfile) builds the React app and serves it with Nginx.
 - [frontend/nginx.conf](frontend/nginx.conf) serves the built frontend with React Router fallback.
 - [.dockerignore](.dockerignore) and [frontend/.dockerignore](frontend/.dockerignore) keep local caches, secrets, build output, and runtime data out of Docker build contexts.
@@ -469,6 +481,7 @@ single reverse proxy:
 - PostgreSQL: `localhost:5432`
 - Neo4j Browser: `http://localhost:7474`
 - Neo4j Bolt: `localhost:7687`
+- Redis: `localhost:6379`
 
 ### Container Roles
 
@@ -476,6 +489,7 @@ single reverse proxy:
 - `backend` installs Python runtime dependencies with `uv sync --frozen --no-dev --no-install-project` and starts `uvicorn app.main:app`.
 - `postgres` stores application data in a named Docker volume.
 - `neo4j` runs the community Neo4j image with the APOC plugin enabled for GraphRAG features.
+- `redis` runs `redis:8-alpine` for the optional RAG-evaluation embedding cache. It has a `512mb` memory limit and `allkeys-lru` eviction, with no volume or append-only persistence because entries are reproducible.
 
 Persistent runtime data is stored in named Docker volumes:
 
@@ -504,12 +518,16 @@ At minimum, configure the same core values used by the local app:
 - `POSTGRES_PASSWORD`
 - `NEO4J_USERNAME`
 - `NEO4J_PASSWORD`
+- `RAG_EVAL_EMBEDDING_CACHE_ENABLED` (defaults to `true`)
+- `REDIS_URL` (defaults to `redis://redis:6379/0` inside Compose)
+- `RAG_EVAL_EMBEDDING_CACHE_TTL_SECONDS` (defaults to `86400`)
 
 The backend container receives Docker-native service URLs from Compose:
 
 - `ASYNC_DATABASE_URL=postgresql+asyncpg://...@postgres:5432/...`
 - `NEO4J_URI=neo4j://neo4j:7687`
 - `RAW_DOCS_DIR=/app/data/raw_docs`
+- `REDIS_URL=redis://redis:6379/0` when embedding caching is enabled
 
 For local Ollama access from inside Docker, use `DOCKER_OLLAMA_BASE_URL`. The
 default is `http://host.docker.internal:11434`.
@@ -538,10 +556,10 @@ Build the images:
 docker compose build
 ```
 
-Start PostgreSQL and Neo4j first:
+Start PostgreSQL, Neo4j, and Redis first:
 
 ```powershell
-docker compose up -d postgres neo4j
+docker compose up -d postgres neo4j redis
 ```
 
 Apply database migrations before starting the backend app:
@@ -574,6 +592,7 @@ docker compose down
 - The frontend is served by its own Nginx container; Nginx is not acting as a reverse proxy for the backend.
 - Backend health checks currently verify TCP connectivity to port `8000`, not an application-level `/health` endpoint.
 - PostgreSQL and Neo4j ports are exposed to the host for local development convenience.
+- Redis is intentionally not a backend startup dependency: cache failures fall back to uncached embeddings. Compose starts it separately so that the cache can be disabled or recovered without blocking the application.
 - Docker image builds require Docker Desktop or another Docker engine with Linux containers enabled.
 
 ## Typical User Worfklow

@@ -185,10 +185,18 @@ async def test_crag_adapter_builds_only_mode_resources_with_stable_chunk_ids(
         "resolve_chunking_embedding",
         lambda strategy: ("chunk-embeddings", {"model": f"hidden-{strategy}"}),
     )
+    def create_embeddings(model, corpus):
+        captured["embedding_request"] = (model, corpus.suite_content_hash)
+        return (
+            "retrieval-embeddings",
+            {"model": model, "provider": "fake", "dimensionality": 2},
+            {"enabled": False, "hits": 0},
+        )
+
     monkeypatch.setattr(
         rag_eval_runtime,
-        "choose_embedding_model",
-        lambda model: ("retrieval-embeddings", {"model": model, "provider": "fake"}),
+        "create_evaluation_embeddings",
+        create_embeddings,
     )
 
     def make_dense(store, *, k):
@@ -240,6 +248,7 @@ async def test_crag_adapter_builds_only_mode_resources_with_stable_chunk_ids(
     assert ("faiss_chunks" in captured) is expects_dense
     if expects_dense:
         assert captured["embeddings"] == "retrieval-embeddings"
+        assert captured["embedding_request"] == ("retrieval-embedding", "hash")
         assert [
             chunk.metadata["document_chunk_id"] for chunk in captured["faiss_chunks"]
         ] == [1, 2]
@@ -247,9 +256,14 @@ async def test_crag_adapter_builds_only_mode_resources_with_stable_chunk_ids(
         assert resources.resolved_metadata["retrieval_embedding"]["model"] == (
             "retrieval-embedding"
         )
+        assert resources.resolved_metadata["embedding_cache"] == {
+            "enabled": False,
+            "hits": 0,
+        }
     else:
         assert "embeddings" not in captured
         assert resources.resolved_metadata["retrieval_embedding"] is None
+        assert "embedding_cache" not in resources.resolved_metadata
     if expects_bm25:
         assert [
             chunk.metadata["document_chunk_id"] for chunk in captured["bm25"][0]
@@ -330,8 +344,23 @@ async def test_graphrag_adapter_forces_simple_scope_controls_and_cleanup(monkeyp
     )
     monkeypatch.setattr(
         rag_eval_runtime,
+        "create_evaluation_embeddings",
+        lambda model, corpus: (
+            "cached-langchain-embedding",
+            {"model": model, "provider": "fake", "dimensionality": 2},
+            {"enabled": True, "hits": 0},
+        ),
+    )
+
+    def create_graph_embedding(config, *, langchain_embedding_model):
+        captured["embedding_config"] = config
+        captured["langchain_embedding_model"] = langchain_embedding_model
+        return "embedding"
+
+    monkeypatch.setattr(
+        rag_eval_runtime,
         "create_graph_embedding_model",
-        lambda config: captured.setdefault("embedding_config", config) or "embedding",
+        create_graph_embedding,
     )
     monkeypatch.setattr(
         rag_eval_runtime,
@@ -357,6 +386,7 @@ async def test_graphrag_adapter_forces_simple_scope_controls_and_cleanup(monkeyp
 
     assert captured["events"] == ["delete", "delete", "close"]
     assert captured["extractor_config"]["extractors"] == ["simple"]
+    assert captured["langchain_embedding_model"] == "cached-langchain-embedding"
     assert captured["retriever"]["graph_id"] == -12
     assert captured["retriever"]["generation"] == "rag-eval"
     assert captured["retriever"]["mode"] == "hybrid"
@@ -366,6 +396,10 @@ async def test_graphrag_adapter_forces_simple_scope_controls_and_cleanup(monkeyp
     assert resources.resolved_metadata["extractor"] == {
         "implementation": "simple",
         "max_paths_per_chunk": 7,
+    }
+    assert resources.resolved_metadata["embedding_cache"] == {
+        "enabled": True,
+        "hits": 0,
     }
 
 
@@ -407,7 +441,18 @@ async def test_graphrag_adapter_cleans_scope_on_build_failure_or_cancellation(
     )
     monkeypatch.setattr(rag_eval_runtime, "create_graph_llm", lambda _config: "llm")
     monkeypatch.setattr(
-        rag_eval_runtime, "create_graph_embedding_model", lambda _config: "embedding"
+        rag_eval_runtime,
+        "create_evaluation_embeddings",
+        lambda model, corpus: (
+            "langchain-embedding",
+            {"model": model, "provider": "fake", "dimensionality": 2},
+            {"enabled": False},
+        ),
+    )
+    monkeypatch.setattr(
+        rag_eval_runtime,
+        "create_graph_embedding_model",
+        lambda _config, *, langchain_embedding_model: "embedding",
     )
     monkeypatch.setattr(
         rag_eval_runtime, "create_kg_extractors", lambda _config, *, llm: ["simple"]

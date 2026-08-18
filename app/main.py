@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +34,9 @@ from app.web.routes.vector_stores_route import router as vector_stores_router
 
 from app.core.logging import configure_logging
 from app.middleware.logging import RequestLoggingMiddleware
+
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 # async context manager for lifespan allows us to run async code during startup and shutdown
@@ -74,6 +79,13 @@ async def lifespan(app: FastAPI):
         await shutdown_full_corpus_index_pipe_coordinator_srvc()
         await shutdown_corpus_bm25_build_coordinator_srvc()
         await shutdown_rag_eval_coordinator_srvc()
+        # Close the Redis client if it was used for embedding caching
+        try:
+            from app.airag.evaluation.embedding_cache import close_redis_client
+
+            await asyncio.to_thread(close_redis_client)
+        except Exception:
+            logger.warning("Unable to close Redis embedding cache client", exc_info=True)
         print("Shutting down application... [OK]")
 
 # Configure the logger before the app starts 

@@ -38,6 +38,9 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       COHERE_API_KEY: ${COHERE_API_KEY:-}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      RAG_EVAL_EMBEDDING_CACHE_ENABLED: ${RAG_EVAL_EMBEDDING_CACHE_ENABLED:-true}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      RAG_EVAL_EMBEDDING_CACHE_TTL_SECONDS: ${RAG_EVAL_EMBEDDING_CACHE_TTL_SECONDS:-86400}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-}
@@ -61,6 +64,26 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    command:
+      - redis-server
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --appendonly
+      - "no"
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   postgres:

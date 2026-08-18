@@ -16,6 +16,7 @@ from collections.abc import Callable, Sequence
 
 MINIMUM_PYTHON_VERSION = (3, 12)
 SHUTDOWN_TIMEOUT_SECONDS = 5
+CACHE_ENABLED_ENV_VAR = "RAG_EVAL_EMBEDDING_CACHE_ENABLED"
 
 
 @dataclass(frozen=True)
@@ -42,11 +43,30 @@ def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def embedding_cache_enabled(root: Path) -> bool:
+    """Return whether the optional Redis embedding cache is enabled in .env."""
+    environment_file = root / ".env"
+    if not environment_file.is_file():
+        return True
+
+    for line in environment_file.read_text(encoding="utf-8").splitlines():
+        name, separator, value = line.partition("=")
+        if separator and name.strip().removeprefix("export ").strip() == CACHE_ENABLED_ENV_VAR:
+            return value.strip().split("#", maxsplit=1)[0].strip().strip('"\'').lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+    return True
+
+
 def preflight_errors(
     root: Path,
     *,
     python_version: tuple[int, int] | None = None,
     which: Callable[[str], str | None] = shutil.which,
+    cache_enabled: bool = False,
 ) -> list[str]:
     version = python_version or sys.version_info[:2]
     errors: list[str] = []
@@ -54,13 +74,14 @@ def preflight_errors(
         errors.append("Python 3.12 or newer is required")
     if not (root / ".env").is_file():
         errors.append(f"Missing environment file: {root / '.env'}")
-    for executable in ("uv", "npm"):
+    executables = ("uv", "npm", "docker") if cache_enabled else ("uv", "npm")
+    for executable in executables:
         if which(executable) is None:
             errors.append(f"Required executable not found on PATH: {executable}")
     return errors
 
 
-def setup_commands(root: Path) -> list[Command]:
+def setup_commands(root: Path, *, cache_enabled: bool = False) -> list[Command]:
     """
     Setup commands to prepare the development environment.Covers 
     installing dependencies, running database migrations, and seeding 
@@ -71,12 +92,19 @@ def setup_commands(root: Path) -> list[Command]:
     Returns:
         list[Command]: A list of commands to set up the development environment.
     """
-    return [
+    commands = [
         Command(("uv", "sync", "--frozen"), root),
         Command(("npm", "ci"), root / "frontend"),
+    ]
+    if cache_enabled:
+        commands.append(Command(("docker", "compose", "up", "-d", "--wait", "redis"), root))
+    commands.extend(
+        [
         Command(("uv", "run", "alembic", "upgrade", "head"), root),
         Command(("uv", "run", "python", "scripts/seeder.py"), root),
-    ]
+        ]
+    )
+    return commands
 
 
 def development_commands(root: Path) -> tuple[Command, Command]:
@@ -105,7 +133,12 @@ def run_command(command: Command) -> None:
         raise CommandFailed(command, exc.returncode) from exc
 
 
-def run_setup(root: Path, runner: Callable[[Command], None] = run_command) -> None:
+def run_setup(
+    root: Path,
+    runner: Callable[[Command], None] = run_command,
+    *,
+    cache_enabled: bool = False,
+) -> None:
     """
     Run the setup commands to prepare the development environment.
     Args:
@@ -113,7 +146,7 @@ def run_setup(root: Path, runner: Callable[[Command], None] = run_command) -> No
         runner (Callable[[Command], None], optional): The function to 
         run commands. Defaults to run_command.
     """
-    for command in setup_commands(root):
+    for command in setup_commands(root, cache_enabled=cache_enabled):
         print(f"[setup] {' '.join(command.args)}")
         runner(command)
 
@@ -202,14 +235,15 @@ def run_development(root: Path) -> int:
 
 def main() -> int:
     root = project_root()
-    errors = preflight_errors(root)
+    cache_enabled = embedding_cache_enabled(root)
+    errors = preflight_errors(root, cache_enabled=cache_enabled)
     if errors:
         for error in errors:
             print(f"[error] {error}", file=sys.stderr)
         return 1
 
     try:
-        run_setup(root)
+        run_setup(root, cache_enabled=cache_enabled)
     except CommandFailed as exc:
         print(f"[error] {exc}", file=sys.stderr)
         return exc.returncode or 1

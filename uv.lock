@@ -3903,6 +3903,7 @@ dependencies = [
     { name = "pyzmq" },
     { name = "ragas" },
     { name = "rank-bm25" },
+    { name = "redis" },
     { name = "referencing" },
     { name = "regex" },
     { name = "requests" },
@@ -4103,6 +4104,7 @@ requires-dist = [
     { name = "pyzmq", specifier = "==27.1.0" },
     { name = "ragas", specifier = ">=0.3.1" },
     { name = "rank-bm25", specifier = "==0.2.2" },
+    { name = "redis", specifier = "==8.1.0" },
     { name = "referencing", specifier = "==0.37.0" },
     { name = "regex", specifier = "==2026.4.4" },
     { name = "requests", specifier = "==2.33.1" },
@@ -4216,6 +4218,15 @@ dependencies = [
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ea/4a/fa521d947f0fc7bb304bf11bec4cb66266bd81494588b4cb48dc01001719/rapidocr-3.8.1-py3-none-any.whl", hash = "sha256:650044b1fbce9e6bae5cae462dcf8be754cde11e2f23fc51f65dcc08deae2c46", size = 15080319, upload-time = "2026-04-11T07:13:22.56Z" },
+]
+
+[[package]]
+name = "redis"
+version = "8.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/99/604f0b666d4c616d891cf77ebb9db6bb21601344c051aebf1b72b9ff915f/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25", size = 5254356, upload-time = "2026-07-30T08:51:00.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/66/9d/c5731f6e3608663d4d3656fd8d3aecee8b509c3082818f5a13eae925baea/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb", size = 560618, upload-time = "2026-07-30T08:50:58.497Z" },
 ]
 
 [[package]]

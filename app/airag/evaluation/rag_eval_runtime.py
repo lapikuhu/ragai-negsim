@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import asyncio
+import logging
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
@@ -9,7 +10,15 @@ from langchain_core.documents import Document
 
 # local imports
 from app.airag.chunking.chunkers import get_default_embeddings
-from app.airag.embeddings.embeddings import choose_embedding_model
+from app.airag.embeddings.embeddings import (
+    choose_embedding_model,
+    get_embedding_model_info,
+)
+from app.airag.evaluation.embedding_cache import (
+    RedisCachedEmbeddings,
+    get_redis_client,
+    new_embedding_cache_metrics,
+)
 from app.airag.evaluation.eval_chunking import prepare_evaluation_chunks
 from app.airag.evaluation.eval_models import EvalCorpus
 from app.airag.evaluation.rag_eval_engine import (
@@ -51,6 +60,7 @@ from app.airag.retrieval.retrievers import (
 from app.core.config import settings
 
 
+logger = logging.getLogger(__name__)
 HIDDEN_CHUNKING_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 CRAG_RETRIEVAL_CONTROL_NAMES = (
     "bm25_weight",
@@ -158,6 +168,62 @@ def resolve_chunking_embedding(
         "provider": "huggingface",
         "model": HIDDEN_CHUNKING_EMBEDDING_MODEL,
     }
+
+
+def create_evaluation_embeddings(
+    model: str,
+    corpus: EvalCorpus,
+) -> tuple[Any, dict[str, Any], dict[str, Any]]:
+    """
+    Create one optionally cached embedding model and its safe metadata. 
+    Supports redis caching for deterministic RAG-evaluation retrieval and 
+    graph embeddings.
+    Args:
+        model: The name of the embedding model to create.
+        corpus: The evaluation corpus containing the suite content hash.
+    Returns:
+        A tuple containing the embedding model, its safe identity metadata, 
+        and cache metrics.
+    """
+    embeddings, metadata = choose_embedding_model(model)
+    model_info = get_embedding_model_info(model)
+    dimensions = int(model_info["dimensionality"])
+    identity = {
+        "provider": model_info["provider"],
+        "model": model,
+        "dimensionality": dimensions,
+        **dict(metadata or {}),
+    }
+    # Check if the embedding cache is enabled in settings
+    enabled = settings.RAG_EVAL_EMBEDDING_CACHE_ENABLED
+    cache_metrics = new_embedding_cache_metrics(enabled=enabled)
+    cache_metrics.update(identity)
+    if not enabled:
+        return embeddings, identity, cache_metrics
+    try:
+        redis_client = get_redis_client(settings.REDIS_URL)
+    except Exception as exc:
+        cache_metrics["active"] = False
+        cache_metrics["backend_errors"] += 1
+        logger.warning(
+            "RAG-evaluation embedding cache unavailable during setup: %s",
+            type(exc).__name__,
+        )
+        return embeddings, identity, cache_metrics
+    return (
+        RedisCachedEmbeddings(
+            embeddings,
+            redis_client=redis_client,
+            suite_content_hash=corpus.suite_content_hash,
+            provider=model_info["provider"],
+            model=model,
+            dimensions=dimensions,
+            ttl_seconds=settings.RAG_EVAL_EMBEDDING_CACHE_TTL_SECONDS,
+            metrics=cache_metrics,
+        ),
+        identity,
+        cache_metrics,
+    )
 
 
 @dataclass(frozen=True)
@@ -342,14 +408,16 @@ class CragEvaluationAdapter:
         dense_retriever = None
         bm25_retriever = None
         retrieval_embedding = None
+        embedding_cache = None
         dependency_versions = {
             "langchain-community": _package_version("langchain-community"),
         }
 
         if retrieval_mode in {"dense", "hybrid"}:
             model = str(retrieval["retrieval_embedding_model"])
-            embeddings, metadata = choose_embedding_model(model)
-            retrieval_embedding = {"model": model, **dict(metadata or {})}
+            embeddings, retrieval_embedding, embedding_cache = (
+                create_evaluation_embeddings(model, corpus)
+            )
             await check_cancellation(should_cancel)
             from langchain_community.vectorstores import FAISS
 
@@ -380,14 +448,17 @@ class CragEvaluationAdapter:
             final_top_k=final_top_k,
         )
         await report_progress(progress_callback, "building_index", 1.0)
+        resolved_metadata = {
+            "retrieval_mode": retrieval_mode,
+            "retrieval_embedding": retrieval_embedding,
+            "chunking_embedding": chunking_embedding,
+            "fixed_dependency_versions": dependency_versions,
+        }
+        if embedding_cache is not None:
+            resolved_metadata["embedding_cache"] = embedding_cache
         return EvaluationResources(
             retriever=retriever,
-            resolved_metadata={
-                "retrieval_mode": retrieval_mode,
-                "retrieval_embedding": retrieval_embedding,
-                "chunking_embedding": chunking_embedding,
-                "fixed_dependency_versions": dependency_versions,
-            },
+            resolved_metadata=resolved_metadata,
             cleanup=lambda: None,
         )
 
@@ -431,7 +502,18 @@ class GraphRagEvaluationAdapter:
             }
             llm = create_graph_llm(graph_config)
             await check_cancellation(should_cancel)
-            embedding_model = create_graph_embedding_model(graph_config)
+            (
+                langchain_embeddings,
+                graph_embedding,
+                embedding_cache,
+            ) = create_evaluation_embeddings(
+                str(specification.retrieval["graph_embedding_model"]),
+                corpus,
+            )
+            embedding_model = create_graph_embedding_model(
+                graph_config,
+                langchain_embedding_model=langchain_embeddings,
+            )
             await check_cancellation(should_cancel)
             extractors = create_kg_extractors(graph_config, llm=llm)
             graph_chunks = _make_eval_graph_chunks(chunks)
@@ -467,9 +549,8 @@ class GraphRagEvaluationAdapter:
                 retriever=retriever,
                 resolved_metadata={
                     "extraction_llm": extraction,
-                    "graph_embedding": {
-                        "model": specification.retrieval["graph_embedding_model"]
-                    },
+                    "graph_embedding": graph_embedding,
+                    "embedding_cache": embedding_cache,
                     "chunking_embedding": chunking_embedding,
                     "extractor": {
                         "implementation": "simple",

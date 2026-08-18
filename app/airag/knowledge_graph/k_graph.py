@@ -76,7 +76,11 @@ def create_graph_llm(config: dict[str, Any]):
     raise ValueError(f"Unsupported LLM provider: {provider}")
 
 
-def create_graph_embedding_model(config: dict[str, Any]):
+def create_graph_embedding_model(
+    config: dict[str, Any],
+    *,
+    langchain_embedding_model: Any | None = None,
+):
     """
     Create an embedding model instance based on the provided configuration.
     Args:
@@ -88,6 +92,9 @@ def create_graph_embedding_model(config: dict[str, Any]):
         ValueError: If the embedding provider is unsupported or if required
         API keys are not configured.
     """
+    if langchain_embedding_model is not None:
+        return LangChainEmbeddingAdapter(langchain_embedding_model)
+
     model = config["embedding_model"]
     try:
         embedding_model, _metadata = choose_embedding_model(model)

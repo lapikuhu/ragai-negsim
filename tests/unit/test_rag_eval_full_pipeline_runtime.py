@@ -76,6 +76,46 @@ class _Adapter:
 
 
 @pytest.mark.asyncio
+async def test_evaluator_snapshots_embedding_cache_metrics_after_queries():
+    cache_metrics = {
+        "enabled": True,
+        "active": True,
+        "backend": "redis",
+        "hits": 0,
+        "misses": 1,
+    }
+
+    class MutatingPipeline:
+        resolved_metadata = {"pipeline_version": "pipeline-v1"}
+
+        async def ainvoke(self, state):
+            cache_metrics["hits"] += 1
+            return {
+                "question": state["question"],
+                "answer": "Answer",
+                "documents": [],
+                "context": "",
+            }
+
+    resources = EvaluationResources(
+        retriever=object(),
+        resolved_metadata={"embedding_cache": cache_metrics},
+        cleanup=lambda: None,
+    )
+
+    result = await FullPipelineEvaluator(
+        pipeline_builder=lambda _retriever, _config: MutatingPipeline()
+    ).evaluate(
+        specification=_specification(),
+        corpus=_corpus(EvalExample("example-1", "Question?", "Reference")),
+        adapter=_Adapter(resources),
+        run_id=6,
+    )
+
+    assert result.resolved_pipeline_snapshot["embedding_cache"]["hits"] == 1
+
+
+@pytest.mark.asyncio
 async def test_evaluator_invokes_complete_graph_and_keeps_only_final_documents():
     stale = Document(
         page_content="stale retrieval",

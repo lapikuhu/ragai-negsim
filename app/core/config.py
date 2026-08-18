@@ -3,6 +3,9 @@
 import os
 import warnings
 from pathlib import Path
+from typing import Annotated
+
+from pydantic import Field
 from pydantic_settings import SettingsConfigDict, BaseSettings
 
 env_path = Path(__file__).parent.parent.parent / ".env"
@@ -51,6 +54,9 @@ class Settings(BaseSettings):
     HF_TOKEN: str | None = None
     TAVILY_API_KEY: str | None = None
     MAX_UPLOAD_SIZE: int = 248 * 1024 * 1024  # 248 MB
+    RAG_EVAL_EMBEDDING_CACHE_ENABLED: bool = True
+    REDIS_URL: str = "redis://localhost:6379/0"
+    RAG_EVAL_EMBEDDING_CACHE_TTL_SECONDS: Annotated[int, Field(gt=0)] = 86400
 
 
 def _set_or_clear_env(name: str, value: str | None) -> None:
