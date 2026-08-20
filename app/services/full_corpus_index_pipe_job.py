@@ -229,7 +229,15 @@ async def _queue_bm25_child(
     job: FullCorpusIndexPipeJob,
     session: AsyncSession,
 ) -> CorpusBm25BuildJobRead:
-    """Queue the standard BM25 child after the parent finalizes chunks."""
+    """
+    Queue the standard BM25 child after the parent finalizes chunks.
+
+    Args:
+        job: The full corpus index pipe job for which to queue the BM25 child.
+        session: The database session.
+    Returns:
+        A CorpusBm25BuildJobRead object representing the queued BM25 child job.
+    """
     if job.requested_by_user_id is None:
         raise ValueError("Full corpus index pipe job is missing its requester")
     if not job.requested_bm25_index_name:
@@ -263,7 +271,16 @@ async def _wait_for_bm25_child(
     session_factory=AsyncSessionLocal,
     poll_interval_seconds: float = 0.5,
 ) -> CorpusBm25BuildJobRead:
-    """Observe a durable BM25 child without holding a transaction while waiting."""
+    """
+    Observe a durable BM25 child without holding a transaction while waiting.
+
+    Args:
+        job: The full corpus index pipe job whose BM25 child to observe.
+        session_factory: The factory to create new database sessions.
+        poll_interval_seconds: The interval in seconds between polling attempts.
+    Returns:
+        A CorpusBm25BuildJobRead object representing the observed BM25 child.
+    """
     if job.bm25_build_job_id is None:
         raise ValueError("Full corpus index pipe job has no BM25 child")
     cancellation_requested = False
@@ -303,7 +320,18 @@ async def _ensure_parent_pair_compatible(
     bm25_job: CorpusBm25BuildJobRead,
     session: AsyncSession,
 ) -> None:
-    """Apply the canonical hybrid compatibility contract before activation."""
+    """
+    Apply the canonical hybrid compatibility contract before activation.
+
+    Args:
+        job: The full corpus index pipe job.
+        candidate_index: The candidate corpus index to check for compatibility.
+        bm25_job: The BM25 build job associated with the candidate index.
+        session: The database session.
+    Raises:
+        ValueError: If the BM25 job is missing its result index or if the 
+        indices are incompatible.
+    """
     if bm25_job.result_bm25_index_id is None:
         raise ValueError("Completed BM25 build job is missing its result index")
     bm25_index = await corpus_bm25_indices_repo.get_corpus_bm25_index_metadata_by_id(

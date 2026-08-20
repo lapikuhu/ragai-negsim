@@ -4,6 +4,11 @@ from typing import Any, Literal
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.agents import create_agent
+from langchain.agents.middleware import (
+    ModelCallLimitMiddleware,
+    PIIMiddleware,
+    ToolCallLimitMiddleware,
+)
 from langsmith import traceable
 from langchain_core.runnables.config import RunnableConfig
 from pydantic import BaseModel, Field, conint #!! warning "Discouragedin favor of using Annotated with [Field][pydantic.fields.Field] instead.
@@ -630,6 +635,7 @@ def make_learner_agent(
 ) -> Any:
     """
     Create the learner agent with tools matching available dependencies.
+
     Args:
         model: Optional chat model for the learner. Defaults to gpt-4o.
         crag_graph: Optional CRAG-compatible retrieval graph.
@@ -646,7 +652,8 @@ def make_learner_agent(
         tavily_summarizer_model: Optional model for Tavily result summaries.
         tavily_summarize_prompt: Optional Tavily summary prompt template.
         include_images: Whether to include images in Tavily search results.
-        include_answers: Whether to include Tavily summary answer in Tavily search results.
+        include_answers: Whether to include Tavily summary answer in Tavily 
+            search results.
         checkpointer: Optional LangGraph checkpointer.
         prompt_template: Optional base learner prompt template.
     Returns:
@@ -685,6 +692,39 @@ def make_learner_agent(
         tools=tools,
         system_prompt=system_prompt,
         response_format=LearnerStructuredOutput,
+        # Set caps on model and tool calls to prevent runaway usage
+        middleware=[
+            ModelCallLimitMiddleware(run_limit=6, exit_behavior="error"),
+            ToolCallLimitMiddleware(run_limit=6, exit_behavior="error"),
+            PIIMiddleware(
+                "email",
+                strategy="redact",
+                apply_to_input=True,
+                apply_to_output=True,
+                apply_to_tool_results=True,
+            ),
+            PIIMiddleware(
+                "credit_card",
+                strategy="redact",
+                apply_to_input=True,
+                apply_to_output=True,
+                apply_to_tool_results=True,
+            ),
+            PIIMiddleware(
+                "ip",
+                strategy="redact",
+                apply_to_input=True,
+                apply_to_output=True,
+                apply_to_tool_results=True,
+            ),
+            PIIMiddleware(
+                "mac_address",
+                strategy="redact",
+                apply_to_input=True,
+                apply_to_output=True,
+                apply_to_tool_results=True,
+            ),
+        ],
         checkpointer=checkpointer or MemorySaver(),
         name="learner_agent",
     )
@@ -714,6 +754,8 @@ def invoke_simulation_learner_agent(
         },
         run_name="simulation_learner.invoke",
     )
+    # Set recursion limit to prevent runaway calls
+    invoke_config['recursion_limit'] = 333 # Magic number, but way less than the 9_999 default
     result = invoke_with_config(
         agent,
         {"messages": [{"role": "user", "content": question}]},

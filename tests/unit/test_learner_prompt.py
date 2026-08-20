@@ -47,3 +47,37 @@ def test_make_learner_agent_uses_openai_safe_agent_name(monkeypatch):
     assert captured["name"] == "learner_agent"
     assert re.fullmatch(r"^[^\s<|\\/>]+$", str(captured["name"]))
     assert captured["response_format"] is learner_agent.LearnerStructuredOutput
+
+
+def test_make_learner_agent_configures_stock_pii_redaction(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_create_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(learner_agent, "create_agent", fake_create_agent)
+
+    learner_agent.make_learner_agent(model=object())
+
+    middleware = captured["middleware"]
+    assert isinstance(middleware, list)
+    assert len(middleware) == 6
+    assert isinstance(middleware[0], learner_agent.ModelCallLimitMiddleware)
+    assert isinstance(middleware[1], learner_agent.ToolCallLimitMiddleware)
+
+    pii_middleware = middleware[2:]
+    assert all(
+        isinstance(item, learner_agent.PIIMiddleware)
+        for item in pii_middleware
+    )
+    assert [item.pii_type for item in pii_middleware] == [
+        "email",
+        "credit_card",
+        "ip",
+        "mac_address",
+    ]
+    assert all(item.strategy == "redact" for item in pii_middleware)
+    assert all(item.apply_to_input for item in pii_middleware)
+    assert all(item.apply_to_output for item in pii_middleware)
+    assert all(item.apply_to_tool_results for item in pii_middleware)

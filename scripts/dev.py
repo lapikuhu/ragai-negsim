@@ -1,5 +1,7 @@
 """
-Run the local backend and frontend after preparing a development database.
+Run the local backend and frontend. Postgres and Neo4j must be first 
+setup and started separately. An optional Redis cache can be enabled,
+check your .env file for RAG_EVAL_EMBEDDING_CACHE_ENABLED. 
 """
 
 from __future__ import annotations
@@ -68,6 +70,18 @@ def preflight_errors(
     which: Callable[[str], str | None] = shutil.which,
     cache_enabled: bool = False,
 ) -> list[str]:
+    """
+    Perform preflight checks for the development environment.
+
+    Args:
+        root (Path): The root directory of the project.
+        python_version (tuple[int, int] | None): The Python version to check against.
+        which (Callable[[str], str | None]): Function to locate executables.
+        cache_enabled (bool): Whether the Redis embedding cache is enabled.
+
+    Returns:
+        list[str]: A list of error messages, empty if no errors are found.
+    """
     version = python_version or sys.version_info[:2]
     errors: list[str] = []
     if version < MINIMUM_PYTHON_VERSION:
