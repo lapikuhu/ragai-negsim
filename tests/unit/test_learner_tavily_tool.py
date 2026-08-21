@@ -59,12 +59,15 @@ def test_tavily_tool_schema_exposes_only_query_and_max_results():
     assert tool.args == {
         "query": {
             "description": "The external web search query.",
+            "maxLength": 1000,
+            "minLength": 1,
             "title": "Query",
             "type": "string",
         },
         "max_results": {
             "default": 5,
             "description": "Maximum number of web search results to retrieve.",
+            "maximum": 10,
             "minimum": 1,
             "title": "Max Results",
             "type": "integer",
