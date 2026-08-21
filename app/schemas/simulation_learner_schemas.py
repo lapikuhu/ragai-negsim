@@ -10,7 +10,8 @@ def _utc_now() -> datetime:
 
 class SimulationLearnerChatMessage(SQLModel):
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1)
+    # Cap message content to 6,000 characters to prevent runaway memory usage
+    content: str = Field(min_length=1, max_length=6_000)
 
 
 class SimulationLearnerAskRequest(SQLModel):
@@ -21,16 +22,17 @@ class SimulationLearnerAskRequest(SQLModel):
         context (dict[str, Any]): Optional context for the query.
         timestamp (datetime): The time of the request.
     """
-    query: str = Field(min_length=1, title="Learner's query")
+    query: str = Field(min_length=1, max_length=10_000, title="Learner's query")
     context: dict[str, Any] = Field(
         default_factory=dict,
         title="Optional context for the query",
     )
     chat_history: list[SimulationLearnerChatMessage] = Field(
         default_factory=list,
+        max_length=60,
         title="Ephemeral learner chat history",
     )
-    max_results: int = Field(default=5, ge=1, title="Maximum web search results")
+    max_results: int = Field(default=5, ge=1, le=10,title="Maximum web search results")
     include_images: bool = Field(default=False, title="Include Tavily images")
     include_answers: bool = Field(default=False, title="Include Tavily answer")
     learner_llm_provider: Literal["openai", "ollama"] | None = None

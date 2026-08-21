@@ -1,5 +1,5 @@
 import json
-from typing import Any, Literal
+from typing import Any, Literal, Annotated
 
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
@@ -365,8 +365,8 @@ class LearnerTavilySearchInput(BaseModel):
     """
     Input schema for the learner Tavily web search tool.
     """
-    query: str = Field(description="The external web search query.")
-    max_results: conint(ge=1) = Field(
+    query: str = Field(min_length=1, max_length=1_000, description="The external web search query.")
+    max_results: conint(ge=1, le=10) = Field(
         default=5,
         description="Maximum number of web search results to retrieve.",
     )
@@ -692,8 +692,8 @@ def make_learner_agent(
         tools=tools,
         system_prompt=system_prompt,
         response_format=LearnerStructuredOutput,
-        # Set caps on model and tool calls to prevent runaway usage
         middleware=[
+            # Set caps on model and tool calls to prevent runaway usage
             ModelCallLimitMiddleware(run_limit=6, exit_behavior="error"),
             ToolCallLimitMiddleware(run_limit=6, exit_behavior="error"),
             PIIMiddleware(
@@ -703,6 +703,7 @@ def make_learner_agent(
                 apply_to_output=True,
                 apply_to_tool_results=True,
             ),
+            # Implement stock PII redaction for credit card, IP, and MAC address types
             PIIMiddleware(
                 "credit_card",
                 strategy="redact",
