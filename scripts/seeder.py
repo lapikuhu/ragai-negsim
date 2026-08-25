@@ -240,6 +240,7 @@ async def seed_load_docs(session: AsyncSession, admin_user) -> str | None:
             log_step("skipped", f"document {file_path.name} already exists in {raw_docs_path}")
             continue
         demo_doc_count += 1
+        demo_doc_author_full = f"{demo_doc_author}{demo_doc_count}"
         demo_doc_name_full = f"{demo_doc_name}{demo_doc_count}"
         demo_doc_description_full = f"{demo_doc_description}{demo_doc_count}"
         demo_doc_title_full = f"{demo_doc_title}{demo_doc_count}"
@@ -250,7 +251,7 @@ async def seed_load_docs(session: AsyncSession, admin_user) -> str | None:
                     name=demo_doc_name_full,
                     description=demo_doc_description_full,
                     document_title=demo_doc_title_full,
-                    document_author=demo_doc_author,
+                    document_author=demo_doc_author_full,
                     corpus_ids=[],
                     upload=upload,
                     document_year=2026,

@@ -4,6 +4,11 @@ import type { SimulationReadWithState } from "@/api/types";
 
 type TranscriptMessage = NonNullable<SimulationReadWithState["messages"]>[number];
 
+type SimulationTranscriptProps = {
+  simulation: SimulationReadWithState;
+  isCounterpartResponding?: boolean;
+};
+
 function getMessageTokenUsage(message: TranscriptMessage): number | null {
   const tokenUsage = message.metadata?.token_usage;
   if (
@@ -17,7 +22,10 @@ function getMessageTokenUsage(message: TranscriptMessage): number | null {
   return null;
 }
 
-export function SimulationTranscript({ simulation }: { simulation: SimulationReadWithState }) {
+export function SimulationTranscript({
+  simulation,
+  isCounterpartResponding = false
+}: SimulationTranscriptProps) {
   const messages = simulation.messages ?? [];
 
   return (
@@ -54,6 +62,19 @@ export function SimulationTranscript({ simulation }: { simulation: SimulationRea
         ) : (
           <p className="text-sm text-slate-600">No turns yet. Start the simulation to generate an opening state.</p>
         )}
+        {isCounterpartResponding ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-3 self-start rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600"
+          >
+            <span
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-teal-600"
+            />
+            <span>Counterpart is preparing a response…</span>
+          </div>
+        ) : null}
       </div>
     </Card>
   );

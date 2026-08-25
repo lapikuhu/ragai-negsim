@@ -293,13 +293,14 @@ def _message_to_schema(message: Any) -> SimulationMessageSchema:
 
     if isinstance(message, dict):
         metadata = flatten_message_metadata(message.get("metadata") or {})
+        metadata_timestamp = metadata.pop("timestamp", None)
         for key in ("side", "sender", "name"):
             if key in message and key not in metadata:
                 metadata[key] = message[key]
         return SimulationMessageSchema(
             role=str(message.get("role") or message.get("type") or "assistant"),
             content=str(message.get("content") or message.get("raw_text") or ""),
-            timestamp=message.get("timestamp"),
+            timestamp=message.get("timestamp") or metadata_timestamp,
             metadata=_json_safe(metadata),
         )
 

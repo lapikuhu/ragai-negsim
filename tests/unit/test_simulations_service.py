@@ -304,6 +304,22 @@ def test_message_to_schema_flattens_recursively_nested_metadata():
     }
 
 
+def test_message_to_schema_restores_timestamp_from_persisted_graph_metadata():
+    message = {
+        "role": "human",
+        "content": "Could you do 95?",
+        "metadata": {
+            "timestamp": "2026-06-16T10:14:39.939181+00:00",
+            "user_reply_origin": "user",
+        },
+    }
+
+    schema = simulations_service._message_to_schema(message)
+
+    assert schema.timestamp == "2026-06-16T10:14:39.939181+00:00"
+    assert schema.metadata == {"user_reply_origin": "user"}
+
+
 def test_read_simulation_with_state_includes_assigned_side_summary_only():
     scenario = SimpleNamespace(
         side_a_summary="Side A knows the buyer target.",

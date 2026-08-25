@@ -151,6 +151,8 @@ const queryState = vi.hoisted(() => {
     isLoading: false,
     isError: false,
     simulation: baseSimulation,
+    turnPending: false,
+    proxyTurnPending: false,
     turnMutateAsync: vi.fn(),
     proxyTurnMutateAsync: vi.fn(),
     disableProxyMutateAsync: vi.fn(),
@@ -167,8 +169,8 @@ vi.mock("@/features/simulations/simulationQueries", () => ({
     refetch: vi.fn()
   }),
   useStartSimulationMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
-  useSimulationTurnMutation: () => ({ isPending: false, mutateAsync: queryState.turnMutateAsync }),
-  useSimulationProxyTurnMutation: () => ({ isPending: false, mutateAsync: queryState.proxyTurnMutateAsync }),
+  useSimulationTurnMutation: () => ({ isPending: queryState.turnPending, mutateAsync: queryState.turnMutateAsync }),
+  useSimulationProxyTurnMutation: () => ({ isPending: queryState.proxyTurnPending, mutateAsync: queryState.proxyTurnMutateAsync }),
   useDisableSimulationProxyMutation: () => ({ isPending: false, mutateAsync: queryState.disableProxyMutateAsync }),
   useSimulationLearnerAskMutation: () => ({ isPending: false, mutateAsync: queryState.learnerAskMutateAsync })
 }));
@@ -178,6 +180,8 @@ describe("SimulationCockpitPage", () => {
     queryState.isLoading = false;
     queryState.isError = false;
     queryState.simulation = simulation;
+    queryState.turnPending = false;
+    queryState.proxyTurnPending = false;
     queryState.turnMutateAsync.mockReset();
     queryState.proxyTurnMutateAsync.mockReset();
     queryState.disableProxyMutateAsync.mockReset();
@@ -205,6 +209,23 @@ describe("SimulationCockpitPage", () => {
     expect(screen.getByLabelText("Your next turn")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send turn" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Evaluate" })).toBeDisabled();
+  });
+
+  it.each([
+    ["manual turn", "turnPending"],
+    ["proxy turn", "proxyTurnPending"]
+  ] as const)("shows the counterpart response status during a pending %s", (_label, pendingState) => {
+    queryState[pendingState] = true;
+
+    render(<SimulationCockpitPage />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Counterpart is preparing a response…");
+  });
+
+  it("does not show the counterpart response status while both turn mutations are idle", () => {
+    render(<SimulationCockpitPage />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("hides the learner agent action when learner config is disabled", () => {

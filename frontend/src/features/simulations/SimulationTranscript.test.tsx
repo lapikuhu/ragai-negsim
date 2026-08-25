@@ -44,6 +44,24 @@ const simulationWithMessage: SimulationReadWithState = {
 };
 
 describe("SimulationTranscript", () => {
+  it("shows an accessible animated status while the counterpart is responding", () => {
+    render(<SimulationTranscript simulation={simulationWithMessage} isCounterpartResponding />);
+
+    const status = screen.getByRole("status");
+    const spinner = status.querySelector("[aria-hidden='true']");
+
+    expect(status).toHaveTextContent("Counterpart is preparing a response…");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(spinner).toHaveClass("animate-spin");
+    expect(spinner).not.toHaveClass("motion-reduce:animate-none");
+  });
+
+  it("does not show a response status when the counterpart is idle", () => {
+    render(<SimulationTranscript simulation={simulationWithMessage} />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("sizes response card height to its content without changing its width", () => {
     render(<SimulationTranscript simulation={simulationWithMessage} />);
 

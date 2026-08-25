@@ -581,7 +581,10 @@ export function SimulationCockpitPage() {
             </Card>
           ) : null}
           <ScenarioSummaryCard value={simulation.scenario_summary} scenarioId={simulation.scenario_id} />
-          <SimulationTranscript simulation={transcriptSimulation} />
+          <SimulationTranscript
+            simulation={transcriptSimulation}
+            isCounterpartResponding={turnMutation.isPending || proxyTurnMutation.isPending}
+          />
           <SimulationInput
             disabled={!["active", "paused"].includes(effectiveStatus) || isTerminal || turnMutation.isPending}
             disabledMessage={
