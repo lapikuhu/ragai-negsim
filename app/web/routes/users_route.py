@@ -127,7 +127,7 @@ async def login(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-
+###------------------------ GET CURRENT USER ----------------------- ###
 @router.get("/me", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def get_me_user(current_user: CurrentUserDep) -> UserRead:
     """
@@ -165,6 +165,7 @@ async def change_own_password(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
+###-------------------------- USERS LIST GET ----------------------- ###
 
 @router.get("/", response_model=list[UserRead], status_code=status.HTTP_200_OK)
 async def get_all_users(

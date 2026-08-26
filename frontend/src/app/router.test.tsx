@@ -32,6 +32,10 @@ vi.mock("@/pages/RagEvaluationRunPage", () => ({
   RagEvaluationRunPage: () => <h1>RAG evaluation run route</h1>
 }));
 
+vi.mock("@/pages/StudentDetailPage", () => ({
+  StudentDetailPage: () => <h1>Student details</h1>
+}));
+
 import { router } from "./router";
 
 describe("router", () => {
@@ -55,7 +59,8 @@ describe("router", () => {
     ["teacher", "/rag-evaluations"],
     ["teacher", "/rag-evaluations/runs/11"],
     ["student", "/rag-evaluations"],
-    ["student", "/rag-evaluations/runs/11"]
+    ["student", "/rag-evaluations/runs/11"],
+    ["student", "/users/alice"]
   ])("redirects %s users away from %s", async (role, path) => {
     authState.roles = [role];
     await router.navigate(path);
@@ -69,8 +74,9 @@ describe("router", () => {
 
   it.each([
     ["/rag-evaluations", "RAG evaluations route"],
-    ["/rag-evaluations/runs/11", "RAG evaluation run route"]
-  ])("renders the admin RAG evaluation page at %s", async (path, heading) => {
+    ["/rag-evaluations/runs/11", "RAG evaluation run route"],
+    ["/users/alice", "Student details"]
+  ])("renders the admin page at %s", async (path, heading) => {
     authState.roles = ["admin"];
     await router.navigate(path);
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { getErrorMessage } from "@/api/client";
 import { useCreateUserMutation, useUserRolesQuery, useUsersQuery } from "@/features/users/userQueries";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -105,7 +106,18 @@ export function UsersPage() {
         <DataTable
           rows={query.data}
           columns={[
-            { key: "username", header: "Username", render: (user) => user.username },
+            {
+              key: "username",
+              header: "Username",
+              render: (user) =>
+                (user.roles ?? []).some((role) => role.name === "student") ? (
+                  <Link className="font-medium text-accent" to={`/users/${encodeURIComponent(user.username)}`}>
+                    {user.username}
+                  </Link>
+                ) : (
+                  user.username
+                )
+            },
             {
               key: "roles",
               header: "Roles",

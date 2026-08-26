@@ -131,7 +131,7 @@ async def test_seed_load_docs_uploads_pdf_with_demo_metadata(monkeypatch, tmp_pa
             "name": "demo_doc_1",
             "description": "demo_description_1",
             "document_title": "demo_title_1",
-            "document_author": "demo_author_",
+            "document_author": "demo_author_1",
             "corpus_ids": [],
             "document_year": 2026,
             "session": session,

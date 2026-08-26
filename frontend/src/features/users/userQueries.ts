@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
-import type { ApiComponents, UserRead } from "@/api/types";
+import type { ApiComponents, SimulationRead, UserRead } from "@/api/types";
 
 type RoleRead = ApiComponents["schemas"]["RoleRead"];
 type UserCreate = ApiComponents["schemas"]["UserCreate"];
@@ -10,6 +10,8 @@ type UserUpdate = ApiComponents["schemas"]["UserUpdate"];
 
 export const userKeys = {
   all: ["users"] as const,
+  detail: (username: string) => ["users", username] as const,
+  simulations: (userId: number) => ["users", userId, "simulations"] as const,
   roles: ["users", "roles"] as const
 };
 
@@ -21,6 +23,20 @@ export async function listUsers() {
 export async function listUserRoles() {
   const result = await apiClient.GET("/users/roles");
   return unwrapResult<RoleRead[]>(result, "Unable to load roles");
+}
+
+export async function getUserByUsername(username: string) {
+  const result = await apiClient.GET("/users/{username}", {
+    params: { path: { username } }
+  });
+  return unwrapResult<UserRead>(result, "Unable to load student");
+}
+
+export async function listStudentSimulations(userId: number) {
+  const result = await apiClient.GET("/simulations/", {
+    params: { query: { skip: 0, limit: 50, participant_id: userId } }
+  });
+  return unwrapResult<SimulationRead[]>(result, "Unable to load student simulations");
 }
 
 async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
@@ -66,6 +82,22 @@ export function useUsersQuery() {
 
 export function useUserRolesQuery() {
   return useQuery({ queryKey: userKeys.roles, queryFn: listUserRoles });
+}
+
+export function useUserDetailQuery(username: string) {
+  return useQuery({
+    queryKey: userKeys.detail(username),
+    queryFn: () => getUserByUsername(username),
+    enabled: Boolean(username)
+  });
+}
+
+export function useStudentSimulationsQuery(userId?: number) {
+  return useQuery({
+    queryKey: userKeys.simulations(userId ?? 0),
+    queryFn: () => listStudentSimulations(userId!),
+    enabled: userId !== undefined
+  });
 }
 
 function useInvalidateUsers() {
