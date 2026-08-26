@@ -21,6 +21,12 @@ if TYPE_CHECKING: # Avoid circular imports by only importing Role for type check
 class User(SQLModel, table=True):
     id : int | None = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True, title="Username", min_length=3)
+    user_email_address: str | None = Field(
+        default=None,
+        index=True,
+        unique=True,
+        title="User email address",
+    )
     hashed_password: str = Field(index=True, title="Hashed Password")
     roles: list["Role"] = Relationship(back_populates="users", link_model=UserRoleLink)
     prompts: list["Prompt"] = Relationship(back_populates="owner")

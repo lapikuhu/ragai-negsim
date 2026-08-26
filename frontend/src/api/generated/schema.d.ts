@@ -214,7 +214,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Corpus Chunk Set Name Availability */
+        /**
+         * Get Corpus Chunk Set Name Availability
+         * @description Check if a chunk set name is available for a given corpus.
+         *
+         *     Args:
+         *         corpus: The corpus for which to check chunk set name availability.
+         *         session: The database session to use for the operation.
+         *         _admin: The current admin user making the request (for authorization).
+         *         name: The name of the chunk set to check.
+         *     Returns:
+         *         The availability status of the chunk set name for the specified corpus.
+         */
         get: operations["get_corpus_chunk_set_name_availability_corpora__corpus_id__chunk_set_name_availability_get"];
         put?: never;
         post?: never;
@@ -240,8 +251,7 @@ export interface paths {
          *         session: The database session to use for the operation.
          *         _admin: The current admin user making the request (for authorization).
          *     Returns:
-         *         A list of CorpusChunkSetSummary instances representing the chunk sets
-         *         associated with the specified corpus.
+         *         The persisted chunk sets associated with the specified corpus.
          */
         get: operations["list_corpus_chunk_sets_corpora__corpus_id__chunk_sets_get"];
         put?: never;
@@ -517,7 +527,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Corpus Bm25 Index Name Availability */
+        /**
+         * Get Corpus Bm25 Index Name Availability
+         * @description Check the availability of a corpus BM25 index name.
+         *
+         *     Args:
+         *         name (str): The name of the corpus BM25 index to check.
+         *         session (SessionDep): The database session dependency.
+         *         _admin (AdminDep): The admin dependency for authorization.
+         *     Returns:
+         *         CorpusBm25IndexNameAvailability: The availability status of the corpus
+         *         BM25 index name.
+         */
         get: operations["get_corpus_bm25_index_name_availability_corpus_bm25_build_jobs_name_availability_get"];
         put?: never;
         post?: never;
@@ -5812,6 +5833,8 @@ export interface components {
             password: string;
             /** Role IDs */
             role_ids: number[];
+            /** User email address */
+            user_email_address?: string | null;
             /** Username */
             username: string;
         };
@@ -5837,6 +5860,8 @@ export interface components {
             id: number;
             /** Roles */
             roles?: components["schemas"]["RoleRead"][];
+            /** User Email Address */
+            user_email_address: string | null;
             /** Username */
             username: string;
         };
@@ -5846,6 +5871,8 @@ export interface components {
             password?: string | null;
             /** Role IDs */
             role_ids?: number[] | null;
+            /** User email address */
+            user_email_address?: string | null;
             /** Username */
             username?: string | null;
         };

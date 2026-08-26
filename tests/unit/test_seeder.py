@@ -321,6 +321,10 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
 
     assert [payload.username for payload, _ in created_users] == ["student1", "teacher1"]
     assert [payload.role_ids for payload, _ in created_users] == [[2], [3]]
+    assert [payload.user_email_address for payload, _ in created_users] == [
+        "student1@example.com",
+        "teacher1@example.com",
+    ]
     assert all(current_user is admin_user for _, current_user in created_users)
 
     assert [payload.name for payload, _ in created_scenarios] == _scenario_names()

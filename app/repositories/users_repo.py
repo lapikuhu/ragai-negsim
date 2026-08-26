@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -16,6 +17,18 @@ from app.models.user_roles import Role, UserRoleLink
 from app.models.users import User
 from app.repositories.helpers import commit_and_refresh
 from app.schemas.users_schemas import UserCreate, UserUpdate
+
+
+def _is_user_email_address_integrity_error(exc: IntegrityError) -> bool:
+    """
+    Return whether an integrity failure identifies the user email column.
+    Args:
+        exc: The IntegrityError exception to check.
+    Returns:
+        True if the integrity error is related to the user email column, 
+        otherwise False.
+    """
+    return "user_email_address" in str(exc.orig).lower()
 
 async def get_user_by_id(
     user_id: int,
@@ -53,6 +66,27 @@ async def get_user_by_username(
         select(User)
         .options(selectinload(User.roles))
         .where(User.username == username)
+    )
+    return result.first()
+
+
+async def get_user_by_email_address(
+    user_email_address: str,
+    session: AsyncSession,
+) -> User | None:
+    """
+    Get a user by normalized email address.
+    
+Args:
+        user_email_address: The normalized email address of the user.
+        session: The database session.
+    Returns:
+        The user if found, otherwise None.
+    """
+    result = await session.exec(
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.user_email_address == user_email_address)
     )
     return result.first()
 
@@ -122,6 +156,33 @@ async def ensure_username_available(
         return
 
     raise ValueError("Username already exists")
+
+
+async def ensure_user_email_address_available(
+    user_email_address: str | None,
+    session: AsyncSession,
+    exclude_user_id: int | None = None,
+) -> None:
+    """
+    Ensure that a supplied email address is not assigned to another user.
+    Args:
+        user_email_address: The email address to check.
+        session: The database session.
+        exclude_user_id: Optional user ID to exclude from the check (useful for updates).
+    Raises:
+        ValueError: If the email address is already taken.
+    """
+    if user_email_address is None:
+        return
+
+    existing_user = await get_user_by_email_address(user_email_address, session)
+    if existing_user is None:
+        return
+
+    if exclude_user_id is not None and existing_user.id == exclude_user_id:
+        return
+
+    raise ValueError("Email address already exists")
 
 
 async def get_user_role_ids(
@@ -280,9 +341,11 @@ async def create_user(
         The created user.
     """
     await ensure_username_available(user_in.username, session)
+    await ensure_user_email_address_available(user_in.user_email_address, session)
     await ensure_roles_exist(user_in.role_ids, session)
     user = User(
         username=user_in.username,
+        user_email_address=user_in.user_email_address,
         hashed_password=get_password_hash(user_in.password),
     )
 
@@ -301,6 +364,11 @@ async def create_user(
         if created_user is None:
             raise ValueError("Created user not found")
         return created_user
+    except IntegrityError as exc:
+        await session.rollback()
+        if _is_user_email_address_integrity_error(exc):
+            raise ValueError("Email address already exists") from exc
+        raise
     except Exception:
         await session.rollback()
         raise
@@ -326,10 +394,24 @@ async def update_user(
         await ensure_username_available(update_data["username"], session, user.id)
         user.username = update_data["username"]
 
+    if "user_email_address" in update_data:
+        user_email_address = update_data["user_email_address"]
+        await ensure_user_email_address_available(
+            user_email_address,
+            session,
+            user.id,
+        )
+        user.user_email_address = user_email_address
+
     if "password" in update_data and update_data["password"] is not None:
         user.hashed_password = get_password_hash(update_data["password"])
 
-    return await commit_and_refresh(session, user)
+    try:
+        return await commit_and_refresh(session, user)
+    except IntegrityError as exc:
+        if _is_user_email_address_integrity_error(exc):
+            raise ValueError("Email address already exists") from exc
+        raise
 
 
 async def get_user_role_link(

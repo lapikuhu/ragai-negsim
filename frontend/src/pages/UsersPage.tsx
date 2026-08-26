@@ -15,7 +15,12 @@ export function UsersPage() {
   const query = useUsersQuery();
   const rolesQuery = useUserRolesQuery();
   const createMutation = useCreateUserMutation();
-  const [form, setForm] = useState({ username: "", password: "", roleIds: [] as number[] });
+  const [form, setForm] = useState({
+    username: "",
+    userEmailAddress: "",
+    password: "",
+    roleIds: [] as number[]
+  });
   const [message, setMessage] = useState<string | null>(null);
 
   const toggleRole = (roleId: number) => {
@@ -34,17 +39,18 @@ export function UsersPage() {
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">Register user</h2>
         <form
-          className="mt-4 grid gap-3 md:grid-cols-3"
+          className="mt-4 grid gap-3 md:grid-cols-2"
           onSubmit={async (event) => {
             event.preventDefault();
             try {
               setMessage(null);
               await createMutation.mutateAsync({
                 username: form.username,
+                user_email_address: form.userEmailAddress.trim() || null,
                 password: form.password,
                 role_ids: form.roleIds
               });
-              setForm({ username: "", password: "", roleIds: [] });
+              setForm({ username: "", userEmailAddress: "", password: "", roleIds: [] });
             } catch (error) {
               setMessage(getErrorMessage(error, "Unable to create user"));
             }
@@ -55,6 +61,15 @@ export function UsersPage() {
               value={form.username}
               onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
               required
+            />
+          </Field>
+          <Field label="Email">
+            <Input
+              type="email"
+              value={form.userEmailAddress}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, userEmailAddress: event.target.value }))
+              }
             />
           </Field>
           <Field label="Password">
@@ -89,8 +104,8 @@ export function UsersPage() {
               )}
             </div>
           </Field>
-          {message ? <p className="md:col-span-3 text-sm text-red-700">{message}</p> : null}
-          <div className="md:col-span-3">
+          {message ? <p className="md:col-span-2 text-sm text-red-700">{message}</p> : null}
+          <div className="md:col-span-2">
             <Button type="submit" disabled={createMutation.isPending || rolesQuery.isLoading || !form.roleIds.length}>
               {createMutation.isPending ? "Creating..." : "Register user"}
             </Button>
@@ -117,6 +132,11 @@ export function UsersPage() {
                 ) : (
                   user.username
                 )
+            },
+            {
+              key: "email",
+              header: "Email",
+              render: (user) => user.user_email_address || "Not available"
             },
             {
               key: "roles",

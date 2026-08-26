@@ -3,7 +3,10 @@ from types import SimpleNamespace
 import pytest
 from fastapi import FastAPI
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
+from app.models.users import User
+from app.repositories import users_repo
 from app.schemas.users_schemas import UserCreate, UserPasswordChange, UserUpdate
 from app.services import users_service
 
@@ -23,11 +26,326 @@ def test_user_create_accepts_and_deduplicates_role_ids():
     assert user.role_ids == [1, 2]
 
 
+def test_user_model_declares_nullable_unique_indexed_email():
+    column = User.__table__.c.user_email_address
+
+    assert column.nullable is True
+    assert column.unique is True
+    assert column.index is True
+
+
+def test_user_create_email_is_optional_and_normalized():
+    without_email = UserCreate(username="alice", password="password123", role_ids=[2])
+    with_email = UserCreate(
+        username="bob",
+        password="password123",
+        role_ids=[2],
+        user_email_address="  Bob.Student@Example.COM ",
+    )
+
+    assert without_email.user_email_address is None
+    assert with_email.user_email_address == "bob.student@example.com"
+
+
+def test_user_create_rejects_malformed_email():
+    with pytest.raises(ValidationError):
+        UserCreate(
+            username="alice",
+            password="password123",
+            role_ids=[2],
+            user_email_address="not-an-email",
+        )
+
+
 def test_user_update_accepts_password_and_role_ids():
     user = UserUpdate(password="password123", role_ids=[3, 3])
 
     assert user.password == "password123"
     assert user.role_ids == [3]
+
+
+def test_user_update_email_accepts_null_and_normalizes_a_value():
+    cleared = UserUpdate(user_email_address=None)
+    updated = UserUpdate(user_email_address="  Alice@Example.COM ")
+
+    assert cleared.user_email_address is None
+    assert "user_email_address" in cleared.model_fields_set
+    assert updated.user_email_address == "alice@example.com"
+
+
+def test_user_read_projection_includes_email():
+    from app.web.routes.users_route import to_user_read
+
+    user = SimpleNamespace(
+        id=7,
+        username="alice",
+        user_email_address="alice@example.com",
+        roles=[SimpleNamespace(id=2, name="student")],
+    )
+
+    result = to_user_read(user)
+
+    assert result.user_email_address == "alice@example.com"
+
+
+def test_get_me_response_includes_null_email(
+    api_client,
+    override_current_user,
+):
+    override_current_user(
+        username="alice",
+        roles=["student"],
+        user_email_address=None,
+    )
+
+    response = api_client.get("/users/me")
+
+    assert response.status_code == 200
+    assert "user_email_address" in response.json()
+    assert response.json()["user_email_address"] is None
+
+
+def test_register_duplicate_email_returns_bad_request(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
+    async def duplicate_email(*_args, **_kwargs):
+        raise ValueError("Email address already exists")
+
+    override_current_user(username="admin", roles=["admin"])
+    override_session()
+    allow_roles("admin")
+    monkeypatch.setattr(users_service, "create_user_service", duplicate_email)
+
+    response = api_client.post(
+        "/users/register",
+        json={
+            "username": "alice",
+            "password": "password123",
+            "role_ids": [2],
+            "user_email_address": "alice@example.com",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Email address already exists"
+
+
+@pytest.mark.asyncio
+async def test_user_repo_create_persists_normalized_email(monkeypatch):
+    class Session:
+        def __init__(self):
+            self.added = []
+
+        def add(self, value):
+            self.added.append(value)
+
+        async def exec(self, _statement):
+            return SimpleNamespace(first=lambda: None)
+
+        async def flush(self):
+            self.added[0].id = 10
+
+        async def commit(self):
+            return None
+
+        async def rollback(self):
+            return None
+
+    session = Session()
+
+    async def fake_ensure_username_available(*_args, **_kwargs):
+        return None
+
+    async def fake_ensure_roles_exist(*_args, **_kwargs):
+        return None
+
+    async def fake_get_user_by_id(*_args, **_kwargs):
+        return session.added[0]
+
+    monkeypatch.setattr(users_repo, "ensure_username_available", fake_ensure_username_available)
+    monkeypatch.setattr(users_repo, "ensure_roles_exist", fake_ensure_roles_exist)
+    monkeypatch.setattr(users_repo, "get_user_by_id", fake_get_user_by_id)
+
+    created = await users_repo.create_user(
+        UserCreate(
+            username="alice",
+            password="password123",
+            role_ids=[2],
+            user_email_address="Alice@Example.COM",
+        ),
+        session,
+    )
+
+    assert created.user_email_address == "alice@example.com"
+
+
+@pytest.mark.asyncio
+async def test_user_repo_create_rejects_duplicate_email(monkeypatch):
+    existing = User(
+        id=9,
+        username="existing",
+        user_email_address="alice@example.com",
+        hashed_password="hashed",
+    )
+
+    class Session:
+        async def exec(self, _statement):
+            return SimpleNamespace(first=lambda: existing)
+
+        def add(self, _value):
+            raise AssertionError("duplicate email must be rejected before persistence")
+
+        async def rollback(self):
+            return None
+
+    async def fake_ensure_username_available(*_args, **_kwargs):
+        return None
+
+    async def fake_ensure_roles_exist(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(users_repo, "ensure_username_available", fake_ensure_username_available)
+    monkeypatch.setattr(users_repo, "ensure_roles_exist", fake_ensure_roles_exist)
+
+    with pytest.raises(ValueError, match="Email address already exists"):
+        await users_repo.create_user(
+            UserCreate(
+                username="alice",
+                password="password123",
+                role_ids=[2],
+                user_email_address="ALICE@example.com",
+            ),
+            Session(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_user_repo_create_translates_email_integrity_error(monkeypatch):
+    class Session:
+        def __init__(self):
+            self.rollback_calls = 0
+
+        def add(self, _value):
+            return None
+
+        async def flush(self):
+            raise IntegrityError(
+                "INSERT INTO user",
+                {},
+                Exception("UNIQUE constraint failed: user.user_email_address"),
+            )
+
+        async def rollback(self):
+            self.rollback_calls += 1
+
+    session = Session()
+
+    async def available(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(users_repo, "ensure_username_available", available)
+    monkeypatch.setattr(users_repo, "ensure_user_email_address_available", available)
+    monkeypatch.setattr(users_repo, "ensure_roles_exist", available)
+
+    with pytest.raises(ValueError, match="Email address already exists"):
+        await users_repo.create_user(
+            UserCreate(
+                username="alice",
+                password="password123",
+                role_ids=[2],
+                user_email_address="alice@example.com",
+            ),
+            session,
+        )
+
+    assert session.rollback_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_email_availability_allows_current_users_address(monkeypatch):
+    current_user = User(
+        id=10,
+        username="alice",
+        user_email_address="alice@example.com",
+        hashed_password="hashed",
+    )
+
+    async def fake_get_user_by_email_address(*_args, **_kwargs):
+        return current_user
+
+    monkeypatch.setattr(
+        users_repo,
+        "get_user_by_email_address",
+        fake_get_user_by_email_address,
+    )
+
+    await users_repo.ensure_user_email_address_available(
+        "alice@example.com",
+        object(),
+        exclude_user_id=10,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("new_email", ["new@example.com", None])
+async def test_user_repo_update_replaces_or_clears_email(monkeypatch, new_email):
+    user = User(
+        id=10,
+        username="alice",
+        user_email_address="old@example.com",
+        hashed_password="hashed",
+    )
+
+    class Session:
+        async def exec(self, _statement):
+            return SimpleNamespace(first=lambda: None)
+
+    async def fake_commit_and_refresh(_session, updated_user):
+        return updated_user
+
+    monkeypatch.setattr(users_repo, "commit_and_refresh", fake_commit_and_refresh)
+
+    result = await users_repo.update_user(
+        user,
+        UserUpdate(user_email_address=new_email),
+        Session(),
+    )
+
+    assert result.user_email_address == new_email
+
+
+@pytest.mark.asyncio
+async def test_user_repo_update_translates_email_integrity_error(monkeypatch):
+    user = User(
+        id=10,
+        username="alice",
+        user_email_address="old@example.com",
+        hashed_password="hashed",
+    )
+
+    async def available(*_args, **_kwargs):
+        return None
+
+    async def fail_commit(*_args, **_kwargs):
+        raise IntegrityError(
+            "UPDATE user",
+            {},
+            Exception("duplicate key: user_email_address"),
+        )
+
+    monkeypatch.setattr(users_repo, "ensure_user_email_address_available", available)
+    monkeypatch.setattr(users_repo, "commit_and_refresh", fail_commit)
+
+    with pytest.raises(ValueError, match="Email address already exists"):
+        await users_repo.update_user(
+            user,
+            UserUpdate(user_email_address="new@example.com"),
+            object(),
+        )
 
 
 @pytest.mark.asyncio

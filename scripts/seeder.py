@@ -127,6 +127,7 @@ async def seed_user(
     admin_user,
     *,
     username: str,
+    user_email_address: str,
     password: str,
     role_name: str,
 ) -> str | None:
@@ -136,6 +137,7 @@ async def seed_user(
         session (AsyncSession): The database session to use for the operation.
         admin_user: The admin user object.
         username (str): The username of the user to seed.
+        user_email_address (str): The email address of the user to seed.
         password (str): The password of the user to seed.
         role_name (str): The role name of the user to seed.
     Returns:
@@ -152,7 +154,12 @@ async def seed_user(
 
     try:
         await users_service.create_user_service(
-            UserCreate(username=username, password=password, role_ids=[role.id]),
+            UserCreate(
+                username=username,
+                user_email_address=user_email_address,
+                password=password,
+                role_ids=[role.id],
+            ),
             session,
             admin_user,
         )
@@ -433,6 +440,7 @@ async def seed_all(session: AsyncSession) -> None:
                 session,
                 admin_user,
                 username="student1",
+                user_email_address="student1@example.com",
                 password="student1",
                 role_name="student",
             ),
@@ -440,6 +448,7 @@ async def seed_all(session: AsyncSession) -> None:
                 session,
                 admin_user,
                 username="teacher1",
+                user_email_address="teacher1@example.com",
                 password="teacher1",
                 role_name="teacher",
             ),

@@ -1,4 +1,4 @@
-﻿{
+{
   "openapi": "3.1.0",
   "info": {
     "title": "Negotiation Simulator",
@@ -1647,6 +1647,7 @@
           "corpus-bm25-build-jobs"
         ],
         "summary": "Get Corpus Bm25 Index Name Availability",
+        "description": "Check the availability of a corpus BM25 index name.\n\nArgs:\n    name (str): The name of the corpus BM25 index to check.\n    session (SessionDep): The database session dependency.\n    _admin (AdminDep): The admin dependency for authorization.\nReturns:\n    CorpusBm25IndexNameAvailability: The availability status of the corpus \n    BM25 index name.",
         "operationId": "get_corpus_bm25_index_name_availability_corpus_bm25_build_jobs_name_availability_get",
         "security": [
           {
@@ -2154,7 +2155,7 @@
           "corpora"
         ],
         "summary": "List Corpus Chunk Sets",
-        "description": "List buildable persisted chunk sets for a corpus.\n\nArgs:\n    corpus: The corpus for which to list chunk sets.\n    session: The database session to use for the operation.\n    _admin: The current admin user making the request (for authorization).\nReturns:\n    A list of CorpusChunkSetSummary instances representing the chunk sets\n    associated with the specified corpus.",
+        "description": "List buildable persisted chunk sets for a corpus.\n\nArgs:\n    corpus: The corpus for which to list chunk sets.\n    session: The database session to use for the operation.\n    _admin: The current admin user making the request (for authorization).\nReturns:\n    The persisted chunk sets associated with the specified corpus.",
         "operationId": "list_corpus_chunk_sets_corpora__corpus_id__chunk_sets_get",
         "security": [
           {
@@ -2206,6 +2207,7 @@
           "corpora"
         ],
         "summary": "Get Corpus Chunk Set Name Availability",
+        "description": "Check if a chunk set name is available for a given corpus.\n\nArgs:\n    corpus: The corpus for which to check chunk set name availability.\n    session: The database session to use for the operation.\n    _admin: The current admin user making the request (for authorization).\n    name: The name of the chunk set to check.\nReturns:\n    The availability status of the chunk set name for the specified corpus.",
         "operationId": "get_corpus_chunk_set_name_availability_corpora__corpus_id__chunk_set_name_availability_get",
         "security": [
           {
@@ -14673,6 +14675,7 @@
         "properties": {
           "query": {
             "type": "string",
+            "maxLength": 10000,
             "minLength": 1,
             "title": "Learner's query"
           },
@@ -14686,10 +14689,12 @@
               "$ref": "#/components/schemas/SimulationLearnerChatMessage"
             },
             "type": "array",
+            "maxItems": 60,
             "title": "Ephemeral learner chat history"
           },
           "max_results": {
             "type": "integer",
+            "maximum": 10.0,
             "minimum": 1.0,
             "title": "Maximum web search results",
             "default": 5
@@ -14798,6 +14803,7 @@
           },
           "content": {
             "type": "string",
+            "maxLength": 6000,
             "minLength": 1,
             "title": "Content"
           }
@@ -16081,6 +16087,18 @@
             "minLength": 3,
             "title": "Username"
           },
+          "user_email_address": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User email address"
+          },
           "password": {
             "type": "string",
             "minLength": 8,
@@ -16150,6 +16168,17 @@
             "type": "string",
             "title": "Username"
           },
+          "user_email_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Email Address"
+          },
           "roles": {
             "items": {
               "$ref": "#/components/schemas/RoleRead"
@@ -16161,7 +16190,8 @@
         "type": "object",
         "required": [
           "id",
-          "username"
+          "username",
+          "user_email_address"
         ],
         "title": "UserRead"
       },
@@ -16178,6 +16208,18 @@
               }
             ],
             "title": "Username"
+          },
+          "user_email_address": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User email address"
           },
           "password": {
             "anyOf": [

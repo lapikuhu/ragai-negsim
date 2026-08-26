@@ -34,6 +34,7 @@ def to_user_read(user) -> UserRead:
     return UserRead(
         id=user.id,
         username=user.username,
+        user_email_address=user.user_email_address,
         roles=[
             RoleRead(id=role.id, name=role.name)
             for role in getattr(user, "roles", [])

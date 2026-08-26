@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
     data: {
       id: 7,
       username: "alice",
+      user_email_address: "alice@example.com" as string | null,
       roles: [{ id: 2, name: "student" }]
     },
     error: null as Error | null,
@@ -54,6 +55,7 @@ describe("StudentDetailPage", () => {
     state.userQuery.data = {
       id: 7,
       username: "alice",
+      user_email_address: "alice@example.com",
       roles: [{ id: 2, name: "student" }]
     };
     state.userQuery.error = null;
@@ -84,6 +86,7 @@ describe("StudentDetailPage", () => {
 
     expect(screen.getByRole("heading", { name: "alice" })).toBeInTheDocument();
     expect(screen.getByText("User ID").nextElementSibling).toHaveTextContent("7");
+    expect(screen.getByText("Email").nextElementSibling).toHaveTextContent("alice@example.com");
     expect(screen.getByText("Roles").nextElementSibling).toHaveTextContent("student");
     expect(screen.getByRole("cell", { name: "Supplier negotiation" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Negotiate a renewal" })).toBeInTheDocument();
@@ -97,6 +100,14 @@ describe("StudentDetailPage", () => {
     render(<StudentDetailPage />);
 
     expect(screen.getByRole("heading", { name: "No simulations" })).toBeInTheDocument();
+  });
+
+  it("shows a fallback when the student has no email", () => {
+    state.userQuery.data.user_email_address = null;
+
+    render(<StudentDetailPage />);
+
+    expect(screen.getByText("Email").nextElementSibling).toHaveTextContent("Not available");
   });
 
   it("shows a user request error before rendering the page", () => {

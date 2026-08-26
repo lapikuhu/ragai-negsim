@@ -98,6 +98,7 @@ def fake_user_factory() -> Callable[..., SimpleNamespace]:
     def create_fake_user(
         user_id: int = 1,
         username: str = "test-user",
+        user_email_address: str | None = "test-user@example.com",
         roles: str | list[str] | tuple[str, ...] = ("admin",),
         **attrs: Any,
     ) -> SimpleNamespace:
@@ -105,7 +106,11 @@ def fake_user_factory() -> Callable[..., SimpleNamespace]:
         user = SimpleNamespace(
             id=user_id,
             username=username,
-            roles=[SimpleNamespace(name=role_name) for role_name in role_names],
+            user_email_address=user_email_address,
+            roles=[
+                SimpleNamespace(id=index, name=role_name)
+                for index, role_name in enumerate(role_names, start=1)
+            ],
         )
         for name, value in attrs.items():
             setattr(user, name, value)
@@ -168,11 +173,13 @@ def override_current_user(test_app: FastAPI, fake_user_factory: Callable[..., Si
         user=None,
         user_id: int = 1,
         username: str = "test-user",
+        user_email_address: str | None = "test-user@example.com",
         roles: str | list[str] | tuple[str, ...] = ("admin",),
     ) -> SimpleNamespace:
         current_user = user or fake_user_factory(
             user_id=user_id,
             username=username,
+            user_email_address=user_email_address,
             roles=roles,
         )
 

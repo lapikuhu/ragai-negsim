@@ -81,6 +81,7 @@ async def create_admin_if_not_exists():
             else:
                 admin_user = User(
                     username=settings.ADMIN_USERNAME,
+                    user_email_address=settings.ADMIN_EMAIL.strip().lower(),
                     hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
                     roles=[admin_role]
                 )

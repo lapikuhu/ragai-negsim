@@ -41,6 +41,10 @@ export function StudentDetailPage() {
           items={[
             { label: "User ID", value: user.id },
             {
+              label: "Email",
+              value: user.user_email_address || "Not available"
+            },
+            {
               label: "Roles",
               value: (user.roles ?? []).map((role) => role.name).join(", ") || "No roles"
             }
