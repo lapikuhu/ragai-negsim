@@ -20,7 +20,7 @@ RUN apt-get update \
 
 COPY pyproject.toml uv.lock ./
 
-RUN --mount=type=cache,id=ragai-negsim-uv,target=/root/.cache/uv \
+RUN --mount=type=cache,id=s/ragai-negsim-uv,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
 COPY alembic.ini ./
