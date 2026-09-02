@@ -27,6 +27,7 @@ COPY alembic.ini ./
 COPY app ./app
 COPY migrations ./migrations
 COPY scripts ./scripts
+COPY demo_docs ./demo_docs
 
 RUN useradd --create-home --shell /usr/sbin/nologin appuser \
     && mkdir -p /app/logs /app/data/raw_docs /app/chroma_db \
