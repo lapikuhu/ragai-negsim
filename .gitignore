@@ -4,6 +4,7 @@ venv/
 
 # secrets
 .env
+deploy_env.env
 
 # doc and docx files
 *.doc
