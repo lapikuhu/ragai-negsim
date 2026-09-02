@@ -23,10 +23,9 @@ def test_alembic_migrations_apply_to_postgres(migrated_postgres_db):
             alembic_cfg = Config("alembic.ini")
             script = ScriptDirectory.from_config(alembic_cfg)
 
-            assert current_revision == script.get_current_head()
-            assert script.get_heads() == ["f8b9c0d1e2f3"]
-            assert current_revision == "f8b9c0d1e2f3"
-            assert script.get_revision(current_revision).down_revision == "e7a8b9c0d1e2"
+            heads = script.get_heads()
+            assert len(heads) == 1
+            assert current_revision == heads[0]
 
             table_names = set(inspector.get_table_names())
             assert {

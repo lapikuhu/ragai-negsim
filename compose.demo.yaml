@@ -1,0 +1,18 @@
+services:
+  frontend:
+    build:
+      args:
+        VITE_API_BASE_URL: /api
+
+  demo-proxy:
+    image: caddy:2.10-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./Caddyfile.demo:/etc/caddy/Caddyfile:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
