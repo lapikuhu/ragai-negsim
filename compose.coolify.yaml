@@ -80,8 +80,9 @@ services:
     image: caddy:2.10-alpine
     expose:
       - "80"
-    volumes:
-      - ./Caddyfile.demo:/etc/caddy/Caddyfile:ro
+    configs:
+      - source: demo-proxy-caddyfile
+        target: /etc/caddy/Caddyfile
     depends_on:
       frontend:
         condition: service_healthy
@@ -149,3 +150,18 @@ volumes:
   neo4j-plugins:
   postgres-data:
   raw-docs:
+
+configs:
+  demo-proxy-caddyfile:
+    content: |
+      :80 {
+          encode zstd gzip
+
+          handle_path /api/* {
+              reverse_proxy backend:8000
+          }
+
+          handle {
+              reverse_proxy frontend:80
+          }
+      }
