@@ -46,6 +46,7 @@ Frontend tests cover:
 - `tests/unit/test_raw_documents_service.py`
 - `tests/unit/test_document_chunks_service.py`
 - `tests/unit/test_langsmith_traceable_boundaries.py`
+- `tests/unit/test_compose_policy_boundary.py` covers the boundary between locked backend policy constants and compose/example environment files.
 - `tests/unit/test_alpha_smoke_api.py`
 - `tests/integration/test_postgres_migrations.py`
 - `tests/integration/test_postgres_startup_seed.py`

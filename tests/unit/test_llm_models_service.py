@@ -44,7 +44,11 @@ def test_ollama_helpers_use_client_host_and_list_response(monkeypatch):
 
 
 def test_catalog_returns_openai_ollama_sizes_and_gpu_memory(monkeypatch):
-    monkeypatch.setattr(llm_models_service.settings, "OPENAI_CHAT_MODELS", ["gpt-4o-mini", "gpt-4o"])
+    monkeypatch.setattr(
+        type(llm_models_service.settings),
+        "OPENAI_CHAT_MODELS",
+        ("gpt-4o-mini", "gpt-4o"),
+    )
     monkeypatch.setattr(llm_models_service, "get_available_ollama_models", lambda: ["qwen2.5:3b", "llama3.2:1b"])
     monkeypatch.setattr(
         llm_models_service,
@@ -66,7 +70,11 @@ def test_catalog_returns_openai_ollama_sizes_and_gpu_memory(monkeypatch):
 
 
 def test_catalog_degrades_when_ollama_lookup_fails(monkeypatch):
-    monkeypatch.setattr(llm_models_service.settings, "OPENAI_CHAT_MODELS", ["gpt-4o-mini"])
+    monkeypatch.setattr(
+        type(llm_models_service.settings),
+        "OPENAI_CHAT_MODELS",
+        ("gpt-4o-mini",),
+    )
     monkeypatch.setattr(
         llm_models_service,
         "get_available_ollama_models",
@@ -82,7 +90,11 @@ def test_catalog_degrades_when_ollama_lookup_fails(monkeypatch):
 
 
 def test_normalize_llm_selection_validates_against_catalog(monkeypatch):
-    monkeypatch.setattr(llm_models_service.settings, "OPENAI_CHAT_MODELS", ["gpt-4o-mini"])
+    monkeypatch.setattr(
+        type(llm_models_service.settings),
+        "OPENAI_CHAT_MODELS",
+        ("gpt-4o-mini",),
+    )
     monkeypatch.setattr(llm_models_service, "get_available_ollama_models", lambda: ["qwen2.5:3b"])
     monkeypatch.setattr(llm_models_service, "get_ollama_model_sizes", lambda: {"qwen2.5:3b": 2.2})
     monkeypatch.setattr(llm_models_service, "get_gpu_memory_gib", lambda: None)
@@ -100,7 +112,11 @@ def test_normalize_llm_selection_validates_against_catalog(monkeypatch):
 
 
 def test_normalize_rag_llm_components_defaults_and_rejects_unknown(monkeypatch):
-    monkeypatch.setattr(llm_models_service.settings, "OPENAI_CHAT_MODELS", ["gpt-4o-mini"])
+    monkeypatch.setattr(
+        type(llm_models_service.settings),
+        "OPENAI_CHAT_MODELS",
+        ("gpt-4o-mini",),
+    )
     monkeypatch.setattr(llm_models_service, "get_available_ollama_models", lambda: ["qwen2.5:3b"])
     monkeypatch.setattr(llm_models_service, "get_ollama_model_sizes", lambda: {"qwen2.5:3b": 2.2})
     monkeypatch.setattr(llm_models_service, "get_gpu_memory_gib", lambda: None)

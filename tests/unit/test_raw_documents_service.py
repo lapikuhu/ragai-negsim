@@ -121,7 +121,7 @@ async def test_create_uploaded_raw_document_rejects_upload_larger_than_configure
     source_dir = tmp_path / "raw_docs_store"
     source_dir.mkdir()
     monkeypatch.setattr(raw_documents_service.settings, "RAW_DOCS_DIR", str(source_dir))
-    monkeypatch.setattr(raw_documents_service.settings, "MAX_UPLOAD_SIZE", 12)
+    monkeypatch.setattr(type(raw_documents_service.settings), "MAX_UPLOAD_SIZE", 12)
 
     upload = _FakeUpload("brief.pdf", b"%PDF-1.4\n%%EOF")
 

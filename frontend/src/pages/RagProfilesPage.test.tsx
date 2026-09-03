@@ -163,6 +163,19 @@ describe("RagProfilesPage", () => {
     expect(screen.getByRole("option", { name: "Knowledge Graph RAG" })).toBeInTheDocument();
   });
 
+  it("defaults every create-form LLM component to the OpenAI catalog default", async () => {
+    render(<RagProfilesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Document grader model")).toHaveValue("gpt-4o-mini");
+    });
+    expect(screen.getByLabelText("Rewrite model")).toHaveValue("gpt-4o-mini");
+    expect(screen.getByLabelText("Generate model")).toHaveValue("gpt-4o-mini");
+    expect(screen.getByLabelText("Hallucination grader model")).toHaveValue("gpt-4o-mini");
+    expect(screen.getByLabelText("Answer grader model")).toHaveValue("gpt-4o-mini");
+    expect(screen.getByLabelText("Fallback model")).toHaveValue("gpt-4o-mini");
+  });
+
   it("shows used profiles as locked for deletion", () => {
     llmCatalogState.isLoading = false;
     llmCatalogState.isError = false;

@@ -3,10 +3,12 @@
 import os
 import warnings
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict, BaseSettings
+
+from app.core import policies
 
 env_path = Path(__file__).parent.parent.parent / ".env"
 
@@ -27,14 +29,14 @@ class Settings(BaseSettings):
     NEO4J_READ_USERNAME: str | None = None
     NEO4J_READ_PASSWORD: str | None = None
     SECRET_KEY: str
-    ALGORITHM: str
+    ALGORITHM: ClassVar[str] = policies.ALGORITHM
     OPENAI_API_KEY: str
-    OPENAI_CHAT_MODELS: list[str] = ["gpt-4o-mini"]
-    OPEN_AI_DEFAULT_MODEL: str = "gpt-4o-mini"
+    OPENAI_CHAT_MODELS: ClassVar[tuple[str, ...]] = policies.OPENAI_CHAT_MODELS
+    OPEN_AI_DEFAULT_MODEL: ClassVar[str] = policies.OPEN_AI_DEFAULT_MODEL
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_DEFAULT_MODEL: str = "qwen2.5:1.5b-instruct"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 360
-    FIXED_ROLES: list[str] = ["admin", "student", "teacher"]
+    OLLAMA_DEFAULT_MODEL: ClassVar[str] = policies.OLLAMA_DEFAULT_MODEL
+    ACCESS_TOKEN_EXPIRE_MINUTES: ClassVar[int] = policies.ACCESS_TOKEN_EXPIRE_MINUTES
+    FIXED_ROLES: ClassVar[tuple[str, ...]] = policies.FIXED_ROLES
     RAW_DOCS_DIR: str = "app/raw_docs_store"
     CORS_ALLOW_ORIGINS: list[str] = [
         "http://localhost:3000",
@@ -53,13 +55,26 @@ class Settings(BaseSettings):
     COHERE_API_KEY: str | None = None
     HF_TOKEN: str | None = None
     TAVILY_API_KEY: str | None = None
-    MAX_UPLOAD_SIZE: int = 248 * 1024 * 1024  # 248 MB
+    MAX_UPLOAD_SIZE: ClassVar[int] = policies.MAX_UPLOAD_SIZE
     RAG_EVAL_EMBEDDING_CACHE_ENABLED: bool = True
     REDIS_URL: str = "redis://localhost:6379/0"
     RAG_EVAL_EMBEDDING_CACHE_TTL_SECONDS: Annotated[int, Field(gt=0)] = 86400
 
 
 def _set_or_clear_env(name: str, value: str | None) -> None:
+    """
+    Set or clear an environment variable based on the provided value.
+    If the value is not None, the environment variable with the given name
+    will be set to the value. If the value is None, the environment variable
+    will be removed from the environment.
+
+    Args:
+        name (str): The name of the environment variable to set or clear.
+        value (str | None): The value to set for the environment variable. 
+        If None, the variable will be removed.
+    Returns:
+        None
+    """
     if value:
         os.environ[name] = value
     else:

@@ -5,8 +5,10 @@ The backend is a FastAPI application organized around a conventional route → s
 ## Core application wiring
 - `app/main.py` creates the FastAPI app, configures CORS, registers request logging middleware, and includes the route modules.
 - Startup uses a lifespan handler to seed base data, roll back interrupted running full-corpus jobs, preserve queued parents, and start the persistent coordinators.
-- `app/core/config.py` loads settings from `.env` and also configures LangSmith environment variables when tracing is enabled.
+- `app/core/config.py` loads settings from `.env`, pulls locked application defaults from `app/core/policies.py`, and also configures LangSmith environment variables when tracing is enabled.
 - `app/core/dependencies.py` centralizes session, authentication, role checks, pagination, and resource-loading dependencies.
+
+The recent policy split matters for deployment: `app/core/policies.py` now owns fixed model, token, role, and upload-size constants, and the compose/example environment files are intentionally kept out of those locked values.
 
 ## Layering
 ### Routes

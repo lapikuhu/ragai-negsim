@@ -812,7 +812,7 @@ function buildLlmComponentValues(raw?: unknown, defaultModel = ""): Record<strin
       const selection = isRecord(value)
         ? {
             provider: (value.provider === "ollama" ? "ollama" : "openai") as LLMProvider,
-            model: typeof value.model === "string" ? value.model : defaultModel,
+            model: typeof value.model === "string" && value.model.trim() ? value.model : defaultModel,
           }
         : { provider: "openai" as LLMProvider, model: defaultModel };
       return [component.key, selection];

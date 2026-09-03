@@ -469,6 +469,7 @@ Current deployment files:
 
 - [Dockerfile](Dockerfile) builds the FastAPI backend image.
 - [compose.yaml](compose.yaml) defines the frontend, backend, PostgreSQL, Neo4j, and Redis services.
+- [compose.coolify.yaml](compose.coolify.yaml) is the separate Compose configuration for Coolify deployments.
 - [frontend/Dockerfile](frontend/Dockerfile) builds the React app and serves it with Nginx.
 - [frontend/nginx.conf](frontend/nginx.conf) serves the built frontend with React Router fallback.
 - [.dockerignore](.dockerignore) and [frontend/.dockerignore](frontend/.dockerignore) keep local caches, secrets, build output, and runtime data out of Docker build contexts.
