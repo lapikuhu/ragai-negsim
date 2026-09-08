@@ -7,6 +7,9 @@ import { defineConfig } from "vitest/config";
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  define: {
+    "import.meta.env.VITE_API_BASE_URL": JSON.stringify("http://localhost")
+  },
   plugins: [react()],
   resolve: {
     alias: {

@@ -13,6 +13,23 @@ export class ApiError extends Error {
     this.detail = detail;
   }
 }
+/*
+  Handles unauthorized API requests and manages listeners for 401 responses.
+*/
+type UnauthorizedListener = () => void;
+
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+export function subscribeToUnauthorized(listener: UnauthorizedListener) {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+function notifyUnauthorized() {
+  unauthorizedListeners.forEach((listener) => listener());
+}
 
 async function authFetch(input: RequestInfo | URL, init?: RequestInit) {
   const headers = new Headers(input instanceof Request ? input.headers : undefined);
@@ -32,6 +49,7 @@ async function authFetch(input: RequestInfo | URL, init?: RequestInit) {
 
   if (response.status === 401) {
     clearAccessToken();
+    notifyUnauthorized();
   }
 
   return response;

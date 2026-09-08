@@ -91,7 +91,10 @@ export const router = createBrowserRouter([
           }
         ]
       },
-      { path: "*", element: <NotFoundPage /> }
+      {
+        element: <ProtectedRoute />,
+        children: [{ path: "*", element: <NotFoundPage /> }]
+      }
     ]
   }
 ]);

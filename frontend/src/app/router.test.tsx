@@ -5,14 +5,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const authState = vi.hoisted(() => ({
   isAuthenticated: true,
   isLoading: false,
-  roles: ["teacher"] as string[]
+  status: "authenticated" as "unauthenticated" | "validating" | "authenticated" | "validation-failed",
+  roles: ["teacher"] as string[],
+  sessionError: null as string | null,
+  login: vi.fn(),
+  logout: vi.fn(),
+  clearSessionError: vi.fn()
 }));
 
 vi.mock("@/app/AuthProvider", () => ({
   useAuth: () => ({
     ...authState,
     hasRole: (...roles: string[]) => roles.some((role) => authState.roles.includes(role)),
-    logout: vi.fn(),
     user: {
       username: "router-test-user",
       roles: authState.roles.map((name) => ({ name }))
@@ -43,16 +47,49 @@ describe("router", () => {
     cleanup();
     authState.isAuthenticated = true;
     authState.isLoading = false;
+    authState.status = "authenticated";
     authState.roles = ["teacher"];
+    authState.sessionError = null;
+    authState.login.mockReset();
+    authState.logout.mockReset();
+    authState.clearSessionError.mockReset();
     await router.navigate("/");
   });
 
-  it("renders the public not-found page for the removed settings URL", async () => {
+  it("renders the not-found page for an authenticated user", async () => {
     await router.navigate("/settings");
 
     render(<RouterProvider router={router} />);
 
     expect(await screen.findByRole("heading", { name: /page not found/i })).toBeInTheDocument();
+  });
+
+  it.each(["/", "/simulations", "/scenarios", "/sessions", "/settings"])(
+    "redirects an unauthenticated request for %s to login",
+    async (path) => {
+      authState.isAuthenticated = false;
+      authState.status = "unauthenticated";
+      await router.navigate(path);
+
+      render(<RouterProvider router={router} />);
+
+      await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+      expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+      expect(screen.queryByText("Operational Console")).not.toBeInTheDocument();
+    }
+  );
+
+  it("shows only the session-check screen on login while a stored token is validating", async () => {
+    authState.isAuthenticated = false;
+    authState.isLoading = true;
+    authState.status = "validating";
+    await router.navigate("/login");
+
+    render(<RouterProvider router={router} />);
+
+    expect(await screen.findByText("Checking your session...")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Operational Console")).not.toBeInTheDocument();
   });
 
   it.each([

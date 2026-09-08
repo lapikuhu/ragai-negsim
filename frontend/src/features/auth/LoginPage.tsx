@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/app/AuthProvider";
+import { LoadingState } from "@/components/common/LoadingState";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
@@ -8,17 +9,27 @@ import { getErrorMessage } from "@/api/client";
 
 export function LoginPage() {
   const auth = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  if (auth.isAuthenticated) {
-    return <Navigate to="/" replace />;
+  const from = (location.state as {
+    from?: { pathname?: string; search?: string; hash?: string };
+  } | null)?.from;
+  const destination = `${from?.pathname ?? "/"}${from?.search ?? ""}${from?.hash ?? ""}`;
+
+  if (auth.status === "validating") {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <LoadingState label="Checking your session..." />
+      </div>
+    );
   }
 
-  const destination = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/";
+  if (auth.isAuthenticated) {
+    return <Navigate to={destination} replace />;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -37,9 +48,9 @@ export function LoginPage() {
           onSubmit={async (event) => {
             event.preventDefault();
             setError(null);
+            auth.clearSessionError();
             try {
               await auth.login({ username, password });
-              navigate(destination, { replace: true });
             } catch (submitError) {
               setError(getErrorMessage(submitError, "Unable to sign in"));
             }
@@ -58,7 +69,7 @@ export function LoginPage() {
             />
           </Field>
 
-          {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          {error || auth.sessionError ? <p className="text-sm text-red-700">{error ?? auth.sessionError}</p> : null}
 
           <Button type="submit" disabled={auth.isLoading}>
             {auth.isLoading ? "Signing in..." : "Sign in"}

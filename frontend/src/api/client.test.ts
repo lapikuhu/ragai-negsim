@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiFetch } from "./client";
+import { apiFetch, subscribeToUnauthorized } from "./client";
 import { setAccessToken } from "./clientConfig";
 
 describe("apiClient", () => {
@@ -46,5 +46,30 @@ describe("apiClient", () => {
 
     expect(sentHeaders.get("content-type")).toBe("application/json");
     expect(await request.clone().text()).toBe(JSON.stringify({ name: "Updated brief" }));
+  });
+
+  it("notifies subscribers and clears the token when an authenticated request returns 401", async () => {
+    setAccessToken("expired-token");
+    const unauthorized = vi.fn();
+    const unsubscribe = subscribeToUnauthorized(unauthorized);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 401 }));
+
+    await apiFetch("http://localhost/simulations/");
+
+    expect(unauthorized).toHaveBeenCalledOnce();
+    expect(localStorage.getItem("ragai-negsim.access-token")).toBeNull();
+
+    unsubscribe();
+  });
+
+  it("does not notify an unsubscribed listener", async () => {
+    const unauthorized = vi.fn();
+    const unsubscribe = subscribeToUnauthorized(unauthorized);
+    unsubscribe();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 401 }));
+
+    await apiFetch("http://localhost/simulations/");
+
+    expect(unauthorized).not.toHaveBeenCalled();
   });
 });

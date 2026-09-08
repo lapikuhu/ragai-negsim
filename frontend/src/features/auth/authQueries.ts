@@ -51,7 +51,11 @@ export function useCurrentUserQuery(enabled: boolean) {
   return useQuery({
     queryKey: authKeys.me,
     queryFn: fetchCurrentUser,
-    enabled
+    enabled,
+    retry(failureCount, error) {
+      return !(error instanceof ApiError && error.status === 401) && failureCount < 1;
+    },
+    retryDelay: 0
   });
 }
 
