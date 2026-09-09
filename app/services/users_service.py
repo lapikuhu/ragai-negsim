@@ -74,7 +74,11 @@ async def create_user_service(
         User: The newly created user.
     """
     await _ensure_admin(current_user, session)
-    return await users_repo.create_user(user_data, session)
+    return await users_repo.create_user(
+        user_data,
+        session,
+        created_by_user_id=current_user.id,
+    )
 
 
 async def update_user_service(
@@ -173,6 +177,7 @@ async def get_all_users_service(
     current_user: User,
     skip: int = 0,
     limit: int = 100,
+    created_by_user_id: int | None = None,
 ) -> list[User]:
     """
     Get a list of users. Only admins can list users.
@@ -182,11 +187,17 @@ async def get_all_users_service(
         current_user (User): The user performing the operation.
         skip (int): The number of users to skip for pagination.
         limit (int): The maximum number of users to return.
+        created_by_user_id: Optional admin ID used to filter by creator.
     Returns:
         list[User]: A list of users.
     """
     await _ensure_admin(current_user, session)
-    return await users_repo.list_users(session, skip=skip, limit=limit)
+    return await users_repo.list_users(
+        session,
+        skip=skip,
+        limit=limit,
+        created_by_user_id=created_by_user_id,
+    )
 
 
 async def list_roles_service(

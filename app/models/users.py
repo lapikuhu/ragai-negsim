@@ -20,6 +20,7 @@ if TYPE_CHECKING: # Avoid circular imports by only importing Role for type check
 
 class User(SQLModel, table=True):
     id : int | None = Field(default=None, primary_key=True)
+    created_by_user_id: int | None = Field(default=None, foreign_key="user.id", index=True)
     username: str = Field(index=True, unique=True, title="Username", min_length=3)
     user_email_address: str | None = Field(
         default=None,

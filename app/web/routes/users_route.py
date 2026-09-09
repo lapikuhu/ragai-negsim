@@ -33,6 +33,7 @@ def to_user_read(user) -> UserRead:
     """
     return UserRead(
         id=user.id,
+        created_by_user_id=getattr(user, "created_by_user_id", None),
         username=user.username,
         user_email_address=user.user_email_address,
         roles=[
@@ -173,6 +174,7 @@ async def get_all_users(
     session: SessionDep,
     admin_user: AdminDep,
     page: Page, # Pagination parameters containing skip and limit.
+    created_by_user_id: int | None = None,
 ) -> list[UserRead]:
     """
     Get a list of all users. Admins only.
@@ -180,6 +182,7 @@ async def get_all_users(
         session (SessionDep): The database session for any necessary queries.
         admin_user (AdminDep): The current admin user performing the operation.
         page (Page): Pagination parameters containing skip and limit.
+        created_by_user_id: Optional admin ID used to filter by creator.
     Returns:
         list[UserRead]: A list of user information.
     Raises:
@@ -191,6 +194,7 @@ async def get_all_users(
             admin_user,
             skip=page["skip"],
             limit=page["limit"],
+            created_by_user_id=created_by_user_id,
         )
         return [to_user_read(user) for user in users]
     except (ValueError, PermissionError) as exc:

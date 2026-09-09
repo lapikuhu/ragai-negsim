@@ -77,7 +77,7 @@ describe("UsersPage", () => {
     expect(screen.getByRole("button", { name: "Register user" })).toBeDisabled();
   });
 
-  it("links student usernames without making other users clickable", () => {
+  it("links every username regardless of role", () => {
     vi.spyOn(userQueries, "useUsersQuery").mockReturnValue({
       isLoading: false,
       isError: false,
@@ -93,6 +93,12 @@ describe("UsersPage", () => {
           username: "operator",
           user_email_address: null,
           roles: [{ id: 1, name: "admin" }]
+        },
+        {
+          id: 9,
+          username: "teacher",
+          user_email_address: "teacher@example.com",
+          roles: [{ id: 3, name: "teacher" }]
         }
       ],
       refetch: vi.fn()
@@ -115,8 +121,8 @@ describe("UsersPage", () => {
     );
 
     expect(screen.getByRole("link", { name: "alice" })).toHaveAttribute("href", "/users/alice");
-    expect(screen.queryByRole("link", { name: "operator" })).not.toBeInTheDocument();
-    expect(screen.getByText("operator")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "operator" })).toHaveAttribute("href", "/users/operator");
+    expect(screen.getByRole("link", { name: "teacher" })).toHaveAttribute("href", "/users/teacher");
     expect(screen.getByRole("columnheader", { name: "Email" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "alice@example.com" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Not available" })).toBeInTheDocument();

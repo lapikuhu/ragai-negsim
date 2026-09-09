@@ -124,14 +124,11 @@ export function UsersPage() {
             {
               key: "username",
               header: "Username",
-              render: (user) =>
-                (user.roles ?? []).some((role) => role.name === "student") ? (
-                  <Link className="font-medium text-accent" to={`/users/${encodeURIComponent(user.username)}`}>
-                    {user.username}
-                  </Link>
-                ) : (
-                  user.username
-                )
+              render: (user) => (
+                <Link className="font-medium text-accent" to={`/users/${encodeURIComponent(user.username)}`}>
+                  {user.username}
+                </Link>
+              )
             },
             {
               key: "email",

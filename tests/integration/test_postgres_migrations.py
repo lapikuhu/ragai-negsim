@@ -139,6 +139,21 @@ def test_alembic_migrations_apply_to_postgres(migrated_postgres_db):
                     foreign_key.get("options", {}).get("ondelete"),
                 )
 
+            user_columns = {
+                column["name"]: column for column in inspector.get_columns("user")
+            }
+            assert user_columns["created_by_user_id"]["nullable"] is True
+            assert foreign_key_ondelete("user", "created_by_user_id") == (
+                "user",
+                None,
+            )
+            user_indexes = {
+                index["name"]: index for index in inspector.get_indexes("user")
+            }
+            assert user_indexes["ix_user_created_by_user_id"]["column_names"] == [
+                "created_by_user_id"
+            ]
+
             assert foreign_key_ondelete("corpuschunkset", "corpus_id") == (
                 "corpus",
                 "CASCADE",

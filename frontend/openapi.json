@@ -295,6 +295,22 @@
               "default": 20,
               "title": "Limit"
             }
+          },
+          {
+            "name": "created_by_user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created By User Id"
+            }
           }
         ],
         "responses": {
@@ -16163,6 +16179,17 @@
           "id": {
             "type": "integer",
             "title": "Id"
+          },
+          "created_by_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By User Id"
           },
           "username": {
             "type": "string",

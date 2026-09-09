@@ -452,6 +452,14 @@ async def seed_all(session: AsyncSession) -> None:
                 password="teacher1",
                 role_name="teacher",
             ),
+            lambda: seed_user(
+                session,
+                admin_user,
+                username="demoadmin",
+                user_email_address="demoadmin@example.com",
+                password="demoadminpass",
+                role_name="admin",
+            ),
             *[
                 (
                     lambda scenario=item: seed_scenario(

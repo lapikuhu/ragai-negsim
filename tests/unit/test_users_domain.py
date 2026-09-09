@@ -34,6 +34,13 @@ def test_user_model_declares_nullable_unique_indexed_email():
     assert column.index is True
 
 
+def test_user_model_tracks_the_admin_who_created_it():
+    column = User.__table__.c.created_by_user_id
+
+    assert column.nullable is True
+    assert next(iter(column.foreign_keys)).target_fullname == "user.id"
+
+
 def test_user_create_email_is_optional_and_normalized():
     without_email = UserCreate(username="alice", password="password123", role_ids=[2])
     with_email = UserCreate(
@@ -132,6 +139,30 @@ def test_register_duplicate_email_returns_bad_request(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Email address already exists"
+
+
+def test_admin_user_list_forwards_creator_filter(
+    monkeypatch,
+    api_client,
+    override_current_user,
+    override_session,
+    allow_roles,
+):
+    captured = []
+
+    async def list_users(session, current_user, skip, limit, created_by_user_id=None):
+        captured.append((skip, limit, created_by_user_id))
+        return []
+
+    override_current_user(username="admin", roles=["admin"])
+    override_session()
+    allow_roles("admin")
+    monkeypatch.setattr(users_service, "get_all_users_service", list_users)
+
+    response = api_client.get("/users/?skip=5&limit=10&created_by_user_id=7")
+
+    assert response.status_code == 200
+    assert captured == [(5, 10, 7)]
 
 
 @pytest.mark.asyncio
@@ -352,8 +383,8 @@ async def test_user_repo_update_translates_email_integrity_error(monkeypatch):
 async def test_admin_create_user_with_multiple_roles(monkeypatch, fake_user_factory):
     captured = []
 
-    async def fake_create_user(user_data, session):
-        captured.append(user_data)
+    async def fake_create_user(user_data, session, created_by_user_id=None):
+        captured.append((user_data, created_by_user_id))
         return fake_user_factory(user_id=10, roles=("student", "teacher"))
 
     monkeypatch.setattr(users_service.users_repo, "create_user", fake_create_user)
@@ -362,7 +393,28 @@ async def test_admin_create_user_with_multiple_roles(monkeypatch, fake_user_fact
     user = await users_service.create_user_service(user_data, object(), fake_user_factory(roles="admin"))
 
     assert user.id == 10
-    assert captured == [user_data]
+    assert captured == [(user_data, 1)]
+
+
+@pytest.mark.asyncio
+async def test_admin_can_list_only_users_they_created(monkeypatch, fake_user_factory):
+    captured = []
+
+    async def fake_list_users(session, skip, limit, created_by_user_id=None):
+        captured.append((skip, limit, created_by_user_id))
+        return []
+
+    monkeypatch.setattr(users_service.users_repo, "list_users", fake_list_users)
+
+    await users_service.get_all_users_service(
+        object(),
+        fake_user_factory(roles="admin"),
+        skip=5,
+        limit=10,
+        created_by_user_id=7,
+    )
+
+    assert captured == [(5, 10, 7)]
 
 
 @pytest.mark.asyncio

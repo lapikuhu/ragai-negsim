@@ -23,7 +23,7 @@ import { EvaluationReviewPage } from "@/pages/EvaluationReviewPage";
 import { ModelsPage } from "@/pages/ModelsPage";
 import { FullCorpusIndexPipeJobsPage } from "@/pages/FullCorpusIndexPipeJobsPage";
 import { UsersPage } from "@/pages/UsersPage";
-import { StudentDetailPage } from "@/pages/StudentDetailPage";
+import { UserDetailPage } from "@/pages/UserDetailPage";
 import { VectorStoresPage } from "@/pages/VectorStoresPage";
 import { KnowledgeGraphsPage } from "@/pages/KnowledgeGraphsPage";
 import { RagEvaluationsPage } from "@/pages/RagEvaluationsPage";
@@ -84,7 +84,7 @@ export const router = createBrowserRouter([
               { path: "vector-stores", element: <VectorStoresPage /> },
               { path: "models", element: <ModelsPage /> },
               { path: "users", element: <UsersPage /> },
-              { path: "users/:username", element: <StudentDetailPage /> },
+              { path: "users/:username", element: <UserDetailPage /> },
               { path: "rag-evaluations", element: <RagEvaluationsPage /> },
               { path: "rag-evaluations/runs/:runId", element: <RagEvaluationRunPage /> }
             ]

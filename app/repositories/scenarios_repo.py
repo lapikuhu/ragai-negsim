@@ -143,7 +143,7 @@ async def list_scenarios(
         else:
             statement = statement.where(Scenario.id.not_in(used_subquery))
 
-    statement = statement.offset(skip).limit(limit)
+    statement = statement.order_by(Scenario.id).offset(skip).limit(limit)
     result = await session.exec(statement)
     return list(result.all())
 

@@ -135,7 +135,7 @@ async def list_simulations(
     if scenario_id is not None:
         statement = statement.where(Simulation.scenario_id == scenario_id)
 
-    statement = statement.offset(skip).limit(limit)
+    statement = statement.order_by(Simulation.id).offset(skip).limit(limit)
     result = await session.exec(statement)
     return list(result.all())
 

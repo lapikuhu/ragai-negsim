@@ -235,7 +235,7 @@ async def list_rag_profiles(
         else:
             statement = statement.where(RagProfile.id.not_in(used_subquery))
 
-    statement = statement.offset(skip).limit(limit)
+    statement = statement.order_by(RagProfile.id).offset(skip).limit(limit)
     result = await session.exec(statement)
     return list(result.all())
 

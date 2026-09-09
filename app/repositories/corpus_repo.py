@@ -183,7 +183,7 @@ async def list_corpora(
         else:
             statement = statement.where(Corpus.id.not_in(index_subquery))
 
-    statement = statement.offset(skip).limit(limit)
+    statement = statement.order_by(Corpus.id).offset(skip).limit(limit)
     result = await session.exec(statement)
     return list(result.all())
 

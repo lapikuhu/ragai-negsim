@@ -219,6 +219,7 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
 
     async def fake_get_role_by_name(role_name, current_session):
         return {
+            "admin": _role(1, "admin"),
             "student": _role(2, "student"),
             "teacher": _role(3, "teacher"),
         }[role_name]
@@ -319,12 +320,14 @@ async def test_seed_all_creates_requested_records(monkeypatch, fake_user_factory
 
     await seeder.seed_all(session)
 
-    assert [payload.username for payload, _ in created_users] == ["student1", "teacher1"]
-    assert [payload.role_ids for payload, _ in created_users] == [[2], [3]]
+    assert [payload.username for payload, _ in created_users] == ["student1", "teacher1", "demoadmin"]
+    assert [payload.role_ids for payload, _ in created_users] == [[2], [3], [1]]
     assert [payload.user_email_address for payload, _ in created_users] == [
         "student1@example.com",
         "teacher1@example.com",
+        "demoadmin@example.com",
     ]
+    assert [payload.password for payload, _ in created_users] == ["student1", "teacher1", "demoadminpass"]
     assert all(current_user is admin_user for _, current_user in created_users)
 
     assert [payload.name for payload, _ in created_scenarios] == _scenario_names()
@@ -392,7 +395,7 @@ async def test_seed_all_skips_existing_scenario_without_generating_context(monke
         return admin_user
 
     async def fake_get_user_by_username(username, current_session):
-        return SimpleNamespace(id=50, username=username) if username in {"student1", "teacher1"} else None
+        return SimpleNamespace(id=50, username=username) if username in {"student1", "teacher1", "demoadmin"} else None
 
     async def fake_get_scenario_by_name(name, current_session):
         if name == seeder.PLACEHOLDER_SCENARIOS[0]["name"]:
@@ -475,6 +478,7 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
 
     async def fake_get_role_by_name(role_name, current_session):
         return {
+            "admin": _role(1, "admin"),
             "student": _role(2, "student"),
             "teacher": _role(3, "teacher"),
         }[role_name]
@@ -532,6 +536,6 @@ async def test_seed_all_rolls_back_and_continues_after_creation_failure(monkeypa
         await seeder.seed_all(session)
 
     assert session.rollback_calls == 1
-    assert created_users == ["teacher1"]
+    assert created_users == ["teacher1", "demoadmin"]
     assert created_personas == _persona_names()
     assert document_seed_calls == [(session, admin_user)]

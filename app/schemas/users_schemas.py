@@ -69,6 +69,7 @@ class UserPasswordChange(SQLModel):
 
 class UserRead(SQLModel):
     id: int
+    created_by_user_id: int | None = None
     username: str
     user_email_address: str | None
     roles: list[RoleRead] = Field(default_factory=list)

@@ -5856,6 +5856,8 @@ export interface components {
         };
         /** UserRead */
         UserRead: {
+            /** Created By User Id */
+            created_by_user_id?: number | null;
             /** Id */
             id: number;
             /** Roles */
@@ -8021,6 +8023,7 @@ export interface operations {
     list_configurations_rag_eval_configurations__get: {
         parameters: {
             query?: {
+                created_by_user_id?: number | null;
                 limit?: number;
                 skip?: number;
             };

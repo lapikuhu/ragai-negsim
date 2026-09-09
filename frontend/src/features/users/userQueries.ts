@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiClient, apiFetch, unwrapResult } from "@/api/client";
 import { getApiBaseUrl } from "@/api/clientConfig";
-import type { ApiComponents, SimulationRead, UserRead } from "@/api/types";
+import type {
+  ApiComponents,
+  CorpusRead,
+  CounterpartPersonaRead,
+  RagProfileRead,
+  ScenarioPublicRead,
+  SimulationRead,
+  UserRead
+} from "@/api/types";
 
 type RoleRead = ApiComponents["schemas"]["RoleRead"];
 type UserCreate = ApiComponents["schemas"]["UserCreate"];
@@ -11,7 +19,13 @@ type UserUpdate = ApiComponents["schemas"]["UserUpdate"];
 export const userKeys = {
   all: ["users"] as const,
   detail: (username: string) => ["users", username] as const,
-  simulations: (userId: number) => ["users", userId, "simulations"] as const,
+  simulations: (userId: number, skip: number, limit: number) => ["users", userId, "simulations", skip, limit] as const,
+  evaluations: (userId: number, skip: number, limit: number) => ["users", userId, "evaluations", skip, limit] as const,
+  scenarios: (userId: number, skip: number, limit: number) => ["users", userId, "scenarios", skip, limit] as const,
+  corpora: (userId: number, skip: number, limit: number) => ["users", userId, "corpora", skip, limit] as const,
+  personas: (userId: number, skip: number, limit: number) => ["users", userId, "personas", skip, limit] as const,
+  ragProfiles: (userId: number, skip: number, limit: number) => ["users", userId, "rag-profiles", skip, limit] as const,
+  createdUsers: (userId: number, skip: number, limit: number) => ["users", userId, "created-users", skip, limit] as const,
   roles: ["users", "roles"] as const
 };
 
@@ -29,14 +43,71 @@ export async function getUserByUsername(username: string) {
   const result = await apiClient.GET("/users/{username}", {
     params: { path: { username } }
   });
-  return unwrapResult<UserRead>(result, "Unable to load student");
+  return unwrapResult<UserRead>(result, "Unable to load user");
 }
 
-export async function listStudentSimulations(userId: number) {
+export type UserActivityPage<T> = { items: T[]; hasMore: boolean };
+
+function toActivityPage<T>(items: T[], limit: number): UserActivityPage<T> {
+  return { items: items.slice(0, limit), hasMore: items.length > limit };
+}
+
+export async function listUserSimulations(userId: number, skip = 0, limit = 20) {
   const result = await apiClient.GET("/simulations/", {
-    params: { query: { skip: 0, limit: 50, participant_id: userId } }
+    params: { query: { skip, limit: limit + 1, participant_id: userId } }
   });
-  return unwrapResult<SimulationRead[]>(result, "Unable to load student simulations");
+  return toActivityPage(
+    unwrapResult<SimulationRead[]>(result, "Unable to load user simulations"),
+    limit
+  );
+}
+
+export async function listUserEvaluations(userId: number, skip = 0, limit = 20) {
+  const result = await apiClient.GET("/simulations/", {
+    params: { query: { skip, limit: limit + 1, teacher_id: userId } }
+  });
+  return toActivityPage(
+    unwrapResult<SimulationRead[]>(result, "Unable to load user evaluations"),
+    limit
+  );
+}
+
+export async function listUserScenarios(userId: number, skip = 0, limit = 20) {
+  const result = await apiClient.GET("/scenarios/", {
+    params: { query: { skip, limit: limit + 1, created_by_user_id: userId } }
+  });
+  return toActivityPage(unwrapResult<ScenarioPublicRead[]>(result, "Unable to load user scenarios"), limit);
+}
+
+export async function listUserCorpora(userId: number, skip = 0, limit = 20) {
+  const result = await apiClient.GET("/corpora/", {
+    params: { query: { skip, limit: limit + 1, created_by_user_id: userId } }
+  });
+  return toActivityPage(unwrapResult<CorpusRead[]>(result, "Unable to load user corpora"), limit);
+}
+
+export async function listUserPersonas(userId: number, skip = 0, limit = 20) {
+  const result = await apiClient.GET("/counterpart-personas/", {
+    params: { query: { skip, limit: limit + 1, created_by_user_id: userId } }
+  });
+  return toActivityPage(unwrapResult<CounterpartPersonaRead[]>(result, "Unable to load user personas"), limit);
+}
+
+export async function listUserRagProfiles(userId: number, skip = 0, limit = 20) {
+  const result = await apiClient.GET("/rag-profiles/", {
+    params: { query: { skip, limit: limit + 1, created_by_user_id: userId } }
+  });
+  return toActivityPage(unwrapResult<RagProfileRead[]>(result, "Unable to load user RAG profiles"), limit);
+}
+
+export async function listUsersCreatedBy(userId: number, skip = 0, limit = 20) {
+  const result = await apiClient.GET("/users/", {
+    params: { query: { skip, limit: limit + 1, created_by_user_id: userId } }
+  });
+  return toActivityPage(
+    unwrapResult<UserRead[]>(result, "Unable to load users created by this user"),
+    limit
+  );
 }
 
 async function jsonRequest<T>(path: string, init: RequestInit, fallback: string) {
@@ -92,11 +163,59 @@ export function useUserDetailQuery(username: string) {
   });
 }
 
-export function useStudentSimulationsQuery(userId?: number) {
+export function useUserSimulationsQuery(userId?: number, enabled = true, skip = 0, limit = 20) {
   return useQuery({
-    queryKey: userKeys.simulations(userId ?? 0),
-    queryFn: () => listStudentSimulations(userId!),
-    enabled: userId !== undefined
+    queryKey: userKeys.simulations(userId ?? 0, skip, limit),
+    queryFn: () => listUserSimulations(userId!, skip, limit),
+    enabled: enabled && userId !== undefined
+  });
+}
+
+export function useUserEvaluationsQuery(userId?: number, enabled = true, skip = 0, limit = 20) {
+  return useQuery({
+    queryKey: userKeys.evaluations(userId ?? 0, skip, limit),
+    queryFn: () => listUserEvaluations(userId!, skip, limit),
+    enabled: enabled && userId !== undefined
+  });
+}
+
+export function useUserScenariosQuery(userId?: number, enabled = true, skip = 0, limit = 20) {
+  return useQuery({
+    queryKey: userKeys.scenarios(userId ?? 0, skip, limit),
+    queryFn: () => listUserScenarios(userId!, skip, limit),
+    enabled: enabled && userId !== undefined
+  });
+}
+
+export function useUserCorporaQuery(userId?: number, enabled = true, skip = 0, limit = 20) {
+  return useQuery({
+    queryKey: userKeys.corpora(userId ?? 0, skip, limit),
+    queryFn: () => listUserCorpora(userId!, skip, limit),
+    enabled: enabled && userId !== undefined
+  });
+}
+
+export function useUserPersonasQuery(userId?: number, enabled = true, skip = 0, limit = 20) {
+  return useQuery({
+    queryKey: userKeys.personas(userId ?? 0, skip, limit),
+    queryFn: () => listUserPersonas(userId!, skip, limit),
+    enabled: enabled && userId !== undefined
+  });
+}
+
+export function useUserRagProfilesQuery(userId?: number, enabled = true, skip = 0, limit = 20) {
+  return useQuery({
+    queryKey: userKeys.ragProfiles(userId ?? 0, skip, limit),
+    queryFn: () => listUserRagProfiles(userId!, skip, limit),
+    enabled: enabled && userId !== undefined
+  });
+}
+
+export function useUsersCreatedByQuery(userId?: number, enabled = true, skip = 0, limit = 20) {
+  return useQuery({
+    queryKey: userKeys.createdUsers(userId ?? 0, skip, limit),
+    queryFn: () => listUsersCreatedBy(userId!, skip, limit),
+    enabled: enabled && userId !== undefined
   });
 }
 

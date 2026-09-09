@@ -152,7 +152,7 @@ async def list_counterpart_personas(
         else:
             statement = statement.where(CounterPartPersonas.id.not_in(used_subquery))
 
-    statement = statement.offset(skip).limit(limit)
+    statement = statement.order_by(CounterPartPersonas.id).offset(skip).limit(limit)
     result = await session.exec(statement)
     return list(result.all())
 

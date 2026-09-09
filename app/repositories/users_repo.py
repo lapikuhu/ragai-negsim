@@ -253,6 +253,7 @@ async def list_users(
     limit: int = 10,
     role_name: str | None = None,
     username_contains: str | None = None,
+    created_by_user_id: int | None = None,
 ) -> list[User]:
     # TODO: Check pagination with pagination helper perhaps
     """
@@ -263,6 +264,7 @@ async def list_users(
         limit: The maximum number of records to return for pagination.
         role_name: Optional role name to filter users by.
         username_contains: Optional substring to filter usernames by.
+        created_by_user_id: Optional admin ID used to filter by creator.
     Returns:
         A list of users matching the specified criteria.
 
@@ -278,8 +280,10 @@ async def list_users(
         )
     if username_contains is not None:
         statement = statement.where(User.username.contains(username_contains))
+    if created_by_user_id is not None:
+        statement = statement.where(User.created_by_user_id == created_by_user_id)
 
-    statement = statement.offset(skip).limit(limit)
+    statement = statement.order_by(User.id).offset(skip).limit(limit)
     result = await session.exec(statement)
     return list(result.all())
 
@@ -331,12 +335,14 @@ async def ensure_roles_exist(
 async def create_user(
     user_in: UserCreate,
     session: AsyncSession,
+    created_by_user_id: int | None = None,
 ) -> User:
     """
     Create a new user.
     Args:
         user_in: The data for the new user.
         session: The database session.
+        created_by_user_id: The admin who created the user, when available.
     Returns:
         The created user.
     """
@@ -344,6 +350,7 @@ async def create_user(
     await ensure_user_email_address_available(user_in.user_email_address, session)
     await ensure_roles_exist(user_in.role_ids, session)
     user = User(
+        created_by_user_id=created_by_user_id,
         username=user_in.username,
         user_email_address=user_in.user_email_address,
         hashed_password=get_password_hash(user_in.password),
@@ -572,6 +579,7 @@ async def user_has_owned_or_referenced_records(
         True if the user has any owned or referenced records, otherwise False.
     """
     checks = [
+        select(User.id).where(User.created_by_user_id == user_id),
         select(Simulation.id).where(Simulation.user_id_owner == user_id),
         select(Simulation.id).where(Simulation.user_id_participant == user_id),
         select(Simulation.id).where(Simulation.teacher_id == user_id),
