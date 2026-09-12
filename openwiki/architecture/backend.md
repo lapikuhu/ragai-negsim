@@ -8,7 +8,7 @@ The backend is a FastAPI application organized around a conventional route → s
 - `app/core/config.py` loads settings from `.env`, pulls locked application defaults from `app/core/policies.py`, and also configures LangSmith environment variables when tracing is enabled.
 - `app/core/dependencies.py` centralizes session, authentication, role checks, pagination, and resource-loading dependencies.
 
-The recent policy split matters for deployment: `app/core/policies.py` now owns fixed model, token, role, and upload-size constants, and the compose/example environment files are intentionally kept out of those locked values.
+The recent policy split matters for deployment: `app/core/policies.py` now owns fixed model, token, role, and upload-size constants, and the compose/example environment files are intentionally kept out of those locked values. `tests/unit/test_compose_policy_boundary.py` guards that boundary.
 
 ## Layering
 ### Routes
